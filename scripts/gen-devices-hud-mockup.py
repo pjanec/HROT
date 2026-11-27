@@ -99,7 +99,7 @@ def lamp(x, y, on, label="LASER"):
 def rf_view(x, y, spot=False):
     """The rangefinder's frame: a darkened rectangular window with corner brackets (its monocular), no eyepiece circles."""
     s.raw(f"<mask id='rfm{x}{y}'><rect x='{x}' y='{y}' width='{PW}' height='{PH}' fill='#fff'/>"
-          f"<rect x='{x + 10}' y='{y + 10}' width='{PW - 20}' height='{PH - 20}' rx='10' fill='#000'/></mask>")
+          f"<rect x='{x + 10}' y='{y + 10}' width='{PW - 20}' height='{PH - 20}' fill='#000'/></mask>")   # as built (S1d-2): square corners
     s.raw(f"<rect x='{x}' y='{y}' width='{PW}' height='{PH}' fill='#000' opacity='0.78' mask='url(#rfm{x}{y})'/>")
     for (a, b, dx, dy) in ((x + 14, y + 14, 1, 1), (x + PW - 14, y + 14, -1, 1), (x + 14, y + PH - 14, 1, -1), (x + PW - 14, y + PH - 14, -1, -1)):
         hline(a, b, a + 16 * dx, b, WHITE, 1.4); hline(a, b, a, b + 16 * dy, WHITE, 1.4)

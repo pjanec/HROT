@@ -66,6 +66,10 @@ namespace GizmoMap.Presentation
         /// <see cref="Render"/> (they are not world shapes) for the card pass the host draws in screen space after the camera mode.</summary>
         public List<DebugPrimitive> CardPrimitives { get; } = new();
 
+        /// <summary>⭐ Simulated devices S1d-2 (DESIGN_Simulated_Devices §3.6 R2-1) — the frame's <see cref="CoordinateSpace.ViewCanvas"/> primitives (a bound
+        /// view's HUD), set aside by <see cref="Render"/> for the screen pass the host draws after the camera mode (<see cref="ViewCanvasDrawer"/>).</summary>
+        public List<DebugPrimitive> ScreenPassPrimitives { get; } = new();
+
         /// <summary>
         /// Filters, resolves coordinate spaces using the two-pass SpatialAnchor cache,
         /// sorts by (DebugLayer, ZIndex) and dispatches each surviving primitive to
@@ -75,6 +79,7 @@ namespace GizmoMap.Presentation
         {
             if (zoom <= 0f) zoom = 1f;
             CardPrimitives.Clear();
+            ScreenPassPrimitives.Clear();
 
             // Enforce stateless default: fully visible unless overridden by the backend this frame.
             var activeLayers = new LayerMask256();
@@ -132,6 +137,8 @@ namespace GizmoMap.Presentation
                 // ⭐ CE-1033 S5b (§3.6) — a card primitive is never a world shape: it is set aside for the card pass.
                 //   (A terminal that did not know the space must skip it — this one draws it, in screen space, later.)
                 if (prim.Space == CoordinateSpace.EntityCard) { CardPrimitives.Add(prim); continue; }
+                // ⭐ S1d-2 — a view-canvas primitive (a HUD) is never a world shape: the screen pass draws it after the camera mode.
+                if (prim.Space == CoordinateSpace.ViewCanvas) { ScreenPassPrimitives.Add(prim); continue; }
 
                 if (prim.Space == CoordinateSpace.EntityLocal)
                 {

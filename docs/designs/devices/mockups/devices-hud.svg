@@ -250,7 +250,7 @@
 <line x1='756.0' y1='307.5' x2='772.0' y2='306.5' stroke='#4B5342' stroke-width='1.6'/>
 </g></g>
 <rect x='520' y='182' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
-<mask id='rfm520182'><rect x='520' y='182' width='460' height='259' fill='#fff'/><rect x='530' y='192' width='440' height='239' rx='10' fill='#000'/></mask>
+<mask id='rfm520182'><rect x='520' y='182' width='460' height='259' fill='#fff'/><rect x='530' y='192' width='440' height='239' fill='#000'/></mask>
 <rect x='520' y='182' width='460' height='259' fill='#000' opacity='0.78' mask='url(#rfm520182)'/>
 <line x1='534' y1='196' x2='550' y2='196' stroke='#000' stroke-width='3.6'/>
 <line x1='534' y1='196' x2='550' y2='196' stroke='#FFFFFF' stroke-width='1.4'/>
@@ -419,7 +419,7 @@
 <line x1='1246.0' y1='307.5' x2='1262.0' y2='306.5' stroke='#4B5342' stroke-width='1.6'/>
 </g></g>
 <rect x='1010' y='182' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
-<mask id='rfm1010182'><rect x='1010' y='182' width='460' height='259' fill='#fff'/><rect x='1020' y='192' width='440' height='239' rx='10' fill='#000'/></mask>
+<mask id='rfm1010182'><rect x='1010' y='182' width='460' height='259' fill='#fff'/><rect x='1020' y='192' width='440' height='239' fill='#000'/></mask>
 <rect x='1010' y='182' width='460' height='259' fill='#000' opacity='0.78' mask='url(#rfm1010182)'/>
 <line x1='1024' y1='196' x2='1040' y2='196' stroke='#000' stroke-width='3.6'/>
 <line x1='1024' y1='196' x2='1040' y2='196' stroke='#FFFFFF' stroke-width='1.4'/>
@@ -592,7 +592,7 @@
 <line x1='266.0' y1='805.5' x2='282.0' y2='804.5' stroke='#4B5342' stroke-width='1.6'/>
 </g></g>
 <rect x='30' y='680' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
-<mask id='rfm30680'><rect x='30' y='680' width='460' height='259' fill='#fff'/><rect x='40' y='690' width='440' height='239' rx='10' fill='#000'/></mask>
+<mask id='rfm30680'><rect x='30' y='680' width='460' height='259' fill='#fff'/><rect x='40' y='690' width='440' height='239' fill='#000'/></mask>
 <rect x='30' y='680' width='460' height='259' fill='#000' opacity='0.78' mask='url(#rfm30680)'/>
 <line x1='44' y1='694' x2='60' y2='694' stroke='#000' stroke-width='3.6'/>
 <line x1='44' y1='694' x2='60' y2='694' stroke='#FFFFFF' stroke-width='1.4'/>
@@ -769,7 +769,7 @@
 <line x1='756.0' y1='805.5' x2='772.0' y2='804.5' stroke='#4B5342' stroke-width='1.6'/>
 </g></g>
 <rect x='520' y='680' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
-<mask id='rfm520680'><rect x='520' y='680' width='460' height='259' fill='#fff'/><rect x='530' y='690' width='440' height='239' rx='10' fill='#000'/></mask>
+<mask id='rfm520680'><rect x='520' y='680' width='460' height='259' fill='#fff'/><rect x='530' y='690' width='440' height='239' fill='#000'/></mask>
 <rect x='520' y='680' width='460' height='259' fill='#000' opacity='0.78' mask='url(#rfm520680)'/>
 <line x1='534' y1='694' x2='550' y2='694' stroke='#000' stroke-width='3.6'/>
 <line x1='534' y1='694' x2='550' y2='694' stroke='#FFFFFF' stroke-width='1.4'/>
@@ -954,7 +954,7 @@
 <line x1='1246.0' y1='805.5' x2='1262.0' y2='804.5' stroke='#4B5342' stroke-width='1.6'/>
 </g></g>
 <rect x='1010' y='680' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
-<mask id='rfm1010680'><rect x='1010' y='680' width='460' height='259' fill='#fff'/><rect x='1020' y='690' width='440' height='239' rx='10' fill='#000'/></mask>
+<mask id='rfm1010680'><rect x='1010' y='680' width='460' height='259' fill='#fff'/><rect x='1020' y='690' width='440' height='239' fill='#000'/></mask>
 <rect x='1010' y='680' width='460' height='259' fill='#000' opacity='0.78' mask='url(#rfm1010680)'/>
 <line x1='1024' y1='694' x2='1040' y2='694' stroke='#000' stroke-width='3.6'/>
 <line x1='1024' y1='694' x2='1040' y2='694' stroke='#FFFFFF' stroke-width='1.4'/>

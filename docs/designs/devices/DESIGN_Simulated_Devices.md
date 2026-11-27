@@ -157,8 +157,10 @@ classDiagram
   class RangefinderParams { <<NEW, params DTO>> }
   class RangefinderState { <<BUILT S1c, UnitMemory, brain only>> Mode · Power · Menu · Ranging · LastRange · request Seq · Epoch and press counts — zoom S1d, link inbox SD-S5b }
   class RangefinderBehavior { <<NEW>> resolver · BTreeDefinition · StatefulAction · origin Self }
-  class RangefinderHudGizmo { <<NEW, GizmoProjector>> rule DeviceInfo + PossessedBy · screen primitives }
-  class IGizmoVisibilityPolicy { <<existing>> IsEntityVisible — the device TYPE and HasAuthority of BehaviorState }
+  class RangefinderHudGizmo { <<BUILT S1d-2, GizmoProjector Hud>> rule DeviceInfo + PossessedBy · its own visibility policy · ViewCanvas primitives on DeviceHud }
+  class IGizmoVisibilityPolicy { <<existing>> IsEntityVisible — the device TYPE and HasAuthority of BehaviorState (S1d-2: the projector itself, fixed by the registry) }
+  class ViewCanvas { <<BUILT S1d-2, GizmoMap.Contracts>> CoordinateSpace.ViewCanvas · 1280x720 fitted uniformly into the view · text align and baseline }
+  class ViewCanvasDrawer { <<BUILT S1d-2, GizmoMap.Presentation>> THE screen pass, 2-D and 3-D · after the cards }
   class DevicePanel { <<BUILT S1c, unmanaged, written on change>> Revision · LampBits · BlinkBits · Values16 · Text4 }
   class DevicePose { <<NEW, unmanaged, replicated>> Orientation · Offset — written by the device only }
   class DevicePoses { <<NEW, one resolver>> World of view and device = the mount chain ∘ pose }
@@ -177,7 +179,7 @@ classDiagram
   class LaserSpot { <<BUILT S1c, unmanaged>> up to 4 points, each range, strength and the Entity hit · Preview in pause · PointingSeq — written by the muscle }
   class LaserLayer3D { <<NEW, every map host>> }
   class DebugPrimitiveBuffer { <<existing, Fdp.Diagnostics.Contracts, grown S1d-1>> BeginScope · EndScope · AppendHeld re-stamps — Count stamped at the scope's slot }
-  class DebugGizmoLayer { <<existing, grows>> BoundSource + ViewFrame keep the bound source's run (S1d-1) · Screen primitives join the card pass (S1d-2) }
+  class DebugGizmoLayer { <<existing, grows>> BoundSource + ViewFrame keep the bound source's run (S1d-1) · ScreenPass after the cards (S1d-2) }
   class HudScope { <<BUILT S1d-1, meta-primitive, protected>> Source network id · Count — drawn only by a bound view; HudScopes is its one reader }
   SeatDto ..> Stations : OperatedBy
   Stations ..> Mountable : Accepts
@@ -204,6 +206,8 @@ classDiagram
   RangefinderHudGizmo ..> DeviceInfo : keyed on
   RangefinderHudGizmo ..> IGizmoVisibilityPolicy : filtered by
   RangefinderHudGizmo ..> DebugPrimitiveBuffer : drawn inside a scope
+  RangefinderHudGizmo ..> ViewCanvas : lays out on
+  DebugGizmoLayer --> ViewCanvasDrawer : screen pass
   DebugPrimitiveBuffer --> HudScope : opens and stamps
   DebugGizmoLayer ..> HudScope : filters by
   DevicePoses ..> DevicePose : reads
@@ -411,7 +415,7 @@ frame's orientation (R5-13) — it needs the station's look, S1d.
 | D-17 / D-23 | `ValueBinding` (a meta-primitive the station fills with a local value — the look heading, the reticle; §3c in HISTORY) stays an option for a HUD that must follow the look with no round trip; in no slice yet | known-rot |
 | D-20 | editor configuration: brain and station are one process — the projector draws straight into the local buffer | — |
 | D-24 / D-27 | ⛔ change-only sending is NOT built (the publisher resends the node's buffer each frame a reader exists, `DebugPrimitivesBatchPublisherSystem.cs:33-50`; CE-1480 G5 only reuses the picture); lean: a GENERIC change gate in the publisher, safe once the subscriber keeps the last batch per producer (SD-C) | one rule for every gizmo |
-| R7-13 | ⚠ `BeginScope` / `EndScope` assume no other producer appends mid-run (`AppendRaw` is a lock-free `Interlocked` append) — **measured before SD-S1's ui half**; if `PostSimulation` producers run concurrently in the threaded node, the scope is written per producer buffer and merged | unverified |
+| R7-13 | ⚠ `BeginScope` / `EndScope` assume no other producer appends mid-run (`AppendRaw` is a lock-free `Interlocked` append) — **measured before SD-S1's ui half**; if `PostSimulation` producers run concurrently in the threaded node, the scope is written per producer buffer and merged | ⚠ S1d-2: `ForeignAppendsInScope == 0` asserted in the end-to-end rail (also under `HROT_PARALLEL_SIM=1`); a THREADED-NODE run still unbuilt (see S1d-2 AS BUILT ⑤) |
 
 ⭐ **S1d-1 AS BUILT (`2026-11-27`)** — the scope and the bound-view filter. `DebugPrimitiveShape.HudScope = 16` (Meta ⇒ protected, never refused by
 layer, never evicted; payload `HudScopeSource` long @24, `HudScopeCount` int @32 — no free field needed). ONE reader, **`HudScopes`**
@@ -435,6 +439,32 @@ either, so the slot would buy nothing. ③ The gateway (`HrotGizmoHost`, SimNetG
 (D-5). ④ The ingress translator (`DebugPrimitivesIngressTranslator`, to be retired at SD-C) still appends raw. ⑤ **R7-13's threaded-node rail is
 NOT built:** no rail in the repo boots the threaded node with a gizmo producer; built instead the detector (`ForeignAppendsInScope`, railed with a
 second thread) that such a run reads — S1d-2, whose projector opens real scopes, asserts it is 0 in a threaded-node run.
+
+⭐ **S1d-2 AS BUILT (`2026-11-27`)** — the rangefinder's HUD. **Projector:** `Hrot.AI.Behaviors/Devices/Rangefinder/RangefinderHudGizmo.cs`
+(`[GizmoProjector(typeof(DeviceInfo), typeof(PossessedBy), Hud = true)]`, D-57's folder) — reads `RangefinderState` (`UnitMemory.GetInView`; `RangePreview`
+already in the state since S1c, no new field), declares no G5 inputs, 0 B per steady frame (constant texts built once, the range formatted into a
+stack span). It IS its own `IGizmoVisibilityPolicy` (R7-3): the device TYPE (`DeviceInfo.Behavior` is the rangefinder's — the type id stays
+data until `DeviceDefDto`), the row is `Operated`, `HasAuthority<BehaviorState>`. **The HUD family (R2-10 / R3-13):** `GizmoProjectorAttribute.Hud`;
+`StatelessGizmoRegistry.Register` — where reflection AND hand registration both pass — fixes the family's policy: off screen, no zoom band, the
+projector's own policy beats the host resolver's (⚠ deviation: the REGISTRY, not `GizmoReflectionRegistrar`, so no path can skip it);
+`StatelessGizmoSystem` opens `BeginScope(NetworkIdentity.Value)` / `EndScope()` around each HUD draw (D-41 — the source is the network id the
+station binds to; no network id or no buffer ⇒ nothing drawn, never an unscoped HUD), never budget-cuts a HUD rule, never holds it (CE-2402, CE-1480
+G5 skipped). **Layer:** `DebugTraceLayers.DeviceHud = 253` — in the always-on range, so neither mask hides it and no film draws it (D-3f).
+**The screen pass (R2-1):** ⚠ deviation — the HUD is NOT `CoordinateSpace.Screen` (pixels from the top-left cannot place a HUD whose view size the
+brain never knows) but a new **`CoordinateSpace.ViewCanvas = 4`**: a 1280 × 720 canvas fitted uniformly and centred into the view (`ViewCanvas`,
+GizmoMap.Contracts — the one writer/reader of its text alignment, carried in a canvas text's `LineOffsetPx`, and its baseline `TextY`). Both
+renderers set canvas primitives aside (`DebugPrimitiveRenderer2D.ScreenPassPrimitives`, `GizmoRenderer3D.ScreenPass` — which also takes plain
+`Screen` shapes, before drawn as metres in 3-D) and `DebugGizmoLayer.DrawOverlay` draws them after the cards with **one drawer**,
+`GizmoMap.Presentation.ViewCanvasDrawer`, on both maps. Text styles `GizmoTextStyle.Halo` / `HaloBold` (the mockup's dark halo; bold = drawn twice —
+the gizmo font has one face). **Fidelity (R-4146):** `RangefinderHudFrameRail` renders panels 2–5 on the real 3-D map bound to the device and measures
+each element at the mockup's anchor (range centred bottom, lamp top-right, MODE chip, popup cursor row and ✓, PREVIEW tag) and that an unbound view
+draws none. ⚠ Built the closest way: ① the window's inner corners are square (mockup generator updated, `rx` dropped); ② ▸ and ✓ are drawn (a triangle,
+two strokes) — the gizmo font has neither; ③ the menu popup lists the values of the cursor's item (MODE: SINGLE / CONTINUOUS, POWER: LOW / HIGH, EXIT:
+EXIT) with ✓ on the active one and the cursor row on the value SELECT would step to — the state has no cursor inside the list (S1c's menu model).
+④ The mockup's context (compass, unit lines) is the station's, unchanged. ⑤ **R7-13:** `ForeignAppendsInScope == 0` is asserted in the end-to-end rail
+(`RangefinderBehaviorTests.S1d2_…`, green under `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1`); a THREADED-NODE run is still not built — no rail boots the
+threaded node with a gizmo producer, and the parallel phases run in `Simulation`, before `PostSimulation`'s gizmo group. Rails: `RangefinderHudGizmoTests`
+(9), `StatelessGizmoSystemHudTests` (3), `RangefinderBehaviorTests.S1d2_…` (end to end), `RangefinderHudFrameRail` (xvfb).
 
 ### Mockups
 

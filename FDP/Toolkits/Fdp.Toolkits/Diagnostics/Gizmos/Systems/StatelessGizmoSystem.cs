@@ -285,8 +285,35 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
         [field: Fdp.Core.WorldDerived("diagnostic count of rules skipped for zoom")]
         public int RulesSkippedForZoom { get; private set; }
 
+        /// <summary>⭐ S1d-2 — HUD runs drawn this frame (rails, diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic count of HUD runs drawn this frame")]
+        public int HudRunsDrawn { get; private set; }
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1d-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-41 / R4-5 / R6-9) — one entity's HUD, scoped: the SYSTEM opens
+        /// <c>BeginScope(source)</c>, the projector draws, the system closes it, so a projector cannot forget the scope. The source is the entity's
+        /// NETWORK id (<see cref="Fdp.Toolkit.Replication.Components.NetworkIdentity"/>) — the id the station's view knows it by and binds to.
+        /// ⛔ No network id, or no buffer to scope in ⇒ nothing drawn: an unscoped HUD would reach every view.
+        /// </summary>
+        private void DrawHud(EntityRepository repo, ISimulationView view, Entity entity, IStatelessGizmo projector)
+        {
+            if (_buffer == null) return;
+            long source = HudSourceOf(repo, entity);
+            if (source == HudScopes.None) return;
+            _buffer.BeginScope(source);
+            try { projector.Draw(view, entity, _drawBuilder); }
+            finally { if (_buffer.EndScope() > 0) HudRunsDrawn++; }
+        }
+
+        /// <summary>⭐ S1d-2 — the HUD source of <paramref name="entity"/>: its network id, or <see cref="HudScopes.None"/>.</summary>
+        public static long HudSourceOf(EntityRepository repo, Entity entity)
+            => repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+               && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
+               && repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value is int id && id > 0 ? id : HudScopes.None;
+
         public void Execute(ISimulationView view, float deltaTime)
         {
+            HudRunsDrawn = 0;
             if (view is not EntityRepository repo)
                 throw new InvalidOperationException(
                     $"{nameof(StatelessGizmoSystem)} requires direct EntityRepository access " +
@@ -411,16 +438,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 if (r < _globalVisibilityCache.Length && !_globalVisibilityCache[r])
                     continue;
 
-                if (budgetExceeded) break;
-
                 var rule = rules[r];
+                // ⭐ S1d-2 (R2-10 / R3-13) — past the budget only a HUD rule still draws: a trainee's display is never cut by the frame budget
+                if (budgetExceeded && !rule.Hud) continue;
                 var matched = _matches[r];
                 int count = _matchCount[r];
 
                 // ⭐ CE-2402 — the period this rule refreshes its entities at (1 = every entity every frame)
                 RuleHold? hold = null;
                 int period = 1;
-                if (holding && count > FreshEntitiesPerFrame)
+                if (holding && !rule.Hud && count > FreshEntitiesPerFrame)   // ⭐ S1d-2 — a HUD is never served from a held picture
                 {
                     period = System.Math.Min(1 + (count - 1) / FreshEntitiesPerFrame, System.Math.Max(1, MaxHeldFrames + 1));
                     if (period > 1)
@@ -440,7 +467,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 //   every entity (no selection predicate) and, for a view-dependent rule, a view that publishes a version.
                 RulePicture? pic = null; bool reuse = false, capture = false; int picMark = 0;
                 var inputs = _ruleInputs[r];
-                if (inputs != null && HonourDeclaredInputs && _buffer != null && alwaysDraw && budget <= 0f && ChangeGate.Enabled
+                if (inputs != null && !rule.Hud && HonourDeclaredInputs && _buffer != null && alwaysDraw && budget <= 0f && ChangeGate.Enabled
                     && (!inputs.DependsOnView || (filter != null && filter.Version >= 0)))
                 {
                     pic = _pics[r] ??= new RulePicture(inputs, this);
@@ -492,6 +519,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     if (!ReferenceEquals(rule.VisibilityPolicy, AlwaysVisiblePolicy.Instance)
                         && !rule.VisibilityPolicy.IsEntityVisible(view, entity))
                         continue;
+
+                    // ⭐⭐ S1d-2 (D-41) — a HUD projector draws inside a scope the SYSTEM opens for the entity's network id; never budget-cut (no check below)
+                    if (rule.Hud) { DrawHud(repo, view, entity, rule.Projector); continue; }
 
                     if (hold == null)
                     {

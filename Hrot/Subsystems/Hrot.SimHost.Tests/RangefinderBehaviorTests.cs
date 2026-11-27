@@ -9,6 +9,9 @@ using Fdp.Toolkit.Behavior.Devices;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Toolkit.Diagnostics.Gizmos;
+using Fdp.Toolkit.Diagnostics.Gizmos.Systems;
+using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Physics.Components;
 using Hrot.AI.Behaviors.Devices.Rangefinder;
 using Hrot.CGF.Configuration;
@@ -210,8 +213,12 @@ namespace Hrot.SimHost.Tests
             public SpatialHashGrid Grid;
             public readonly Entity D, Target;
             private uint _seq;
+            // ⭐ S1d-2 — the HUD half (when asked): the brain's gizmo system with the rangefinder's projector, and the man who carries the device
+            public readonly DebugPrimitiveBuffer? Buffer;
+            public readonly StatelessGizmoSystem? Gizmos;
+            public const int NetId = 4242;
 
-            public Rig()
+            public Rig(bool hud = false)
             {
                 SimHostComponentRegistry.RegisterAll(W);
                 CognitiveComponentRegistry.RegisterAll(W);
@@ -232,6 +239,23 @@ namespace Hrot.SimHost.Tests
                 W.AddComponent(Target, new PhysicsCollider { Radius = 0.5f, Height = 2f, CollisionLayer = 1 });
                 Grid.Add(Target, new Vector2(450f, 0f));
                 W.SetSingleton(new SpatialGridData { Grid = Grid });
+                if (!hud) return;
+
+                // the operator: a man possessed by station 5 carries the device (S1b-1's walk writes its Operated row)
+                if (!W.IsComponentTypeRegistered<NetworkIdentity>()) W.RegisterComponent<NetworkIdentity>();
+                W.AddComponent(D, new NetworkIdentity { Value = NetId });
+                W.SetAuthority<BehaviorState>(D, true);                       // this node runs the device's brain
+                var man = W.CreateEntity();
+                W.AddComponent(man, new SimTransform { Position = new Vector3(0f, 0f, 0f), Rotation = Quaternion.Identity });
+                W.AddComponent(man, new PersonCarrier());
+                W.AddComponent(man, new PassengerBuffer());
+                W.AddComponent(man, new PossessedBy { StationNodeId = (StationId)5, Mode = PossessionMode.Fps, Epoch = 1 });
+                W.GetComponentRW<PassengerBuffer>(man).Passengers[4] = D;
+                W.AddComponent(D, new IsEmbarkedTag { VehicleEntity = man, Seat = 4 });
+                Buffer = new DebugPrimitiveBuffer(4096);
+                var registry = new StatelessGizmoRegistry();
+                registry.Register(new RangefinderHudGizmo(), new[] { typeof(DeviceInfo), typeof(PossessedBy) });
+                Gizmos = new StatelessGizmoSystem(registry, Buffer);
             }
 
             public void Press(byte range, byte mode = 0)
@@ -248,6 +272,9 @@ namespace Hrot.SimHost.Tests
                 W.Bus.SwapBuffers();
                 Devices.Execute(W, dt);
                 Laser.Execute(W, dt);
+                if (Gizmos == null) return;
+                Buffer!.EndFrame(dt);                                        // the HUD projector (PostSimulation, after the muscle)
+                Gizmos.Execute(W, dt);
             }
 
             public RangefinderState State => UnitMemory.Get<RangefinderState>(W, D);
@@ -275,6 +302,53 @@ namespace Hrot.SimHost.Tests
             r.Press(1, mode: 1);                               // still paused: MODE steps
             r.Frame(0f);
             Assert.Equal(RangefinderMode.Continuous, r.State.Mode);
+        }
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1d-2 (§3.6 D-41 / R3-4 / R7-13) — END TO END, HUD: a carried rangefinder (the walk writes its Operated row), RANGE
+        /// pressed ⇒ the brain's gizmo buffer holds ONE HudScope run for the device's network id whose text is the measured range; a view BOUND to the
+        /// device keeps the run, an unbound one (the plain eye) does not; and nothing else appended inside the scope (R7-13, <c>ForeignAppendsInScope</c>).
+        /// Run under <c>HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1</c> too (the device tick as the parallel phase).
+        /// </summary>
+        [Fact]
+        public void S1d2_EndToEnd_ARangePress_PutsTheRangeInTheDevicesHudRun_ABoundViewKeepsIt_AnUnboundOneDoesNot()
+        {
+            using var r = new Rig(hud: true);
+            for (int i = 0; i < 3; i++) r.Frame(0f);                          // the device starts, the walk writes its row (a clean input)
+            Assert.Equal(PossessionMode.Operated, r.W.GetComponentRO<PossessedBy>(r.D).Mode);
+            r.Press(0);
+            r.Frame(0f);                                                       // based
+            r.Press(1);
+            for (int i = 0; i < 3; i++) r.Frame(0f);                          // laser → spot → range, paused (a preview)
+            var st = r.State;
+            Assert.Equal(1, st.HasRange);
+
+            var frame = r.Buffer!.GetFrame();
+            int scopes = 0, at = -1;
+            for (int i = 0; i < frame.Length; i++)
+                if (HudScopes.IsScope(in frame[i])) { scopes++; at = i; Assert.Equal(Rig.NetId, frame[i].HudScopeSource); }
+            Assert.Equal(1, scopes);
+            var run = frame.Slice(at + 1, frame[at].HudScopeCount);
+            string expected = RangefinderHudGizmo.RangeText(st.LastRange).ToString();
+            Assert.Matches(@"^4[45]\d m$", expected);
+            bool hasRange = false, hasPreview = false;
+            foreach (ref readonly var p in run)
+            {
+                Assert.Equal(CoordinateSpace.ViewCanvas, p.Space);
+                if (p.Shape == DebugPrimitiveShape.Text && p.TextContent.ToString() == expected) hasRange = true;
+                if (p.Shape == DebugPrimitiveShape.Text && p.TextContent.ToString() == "PREVIEW") hasPreview = true;
+            }
+            Assert.True(hasRange, $"the HUD run shows the range '{expected}'");
+            Assert.True(hasPreview, "measured in pause: tagged PREVIEW");
+            Assert.Equal(0, r.Buffer.ForeignAppendsInScope);                 // R7-13: one writer while the scope was open
+
+            DebugPrimitive[] scratch = Array.Empty<DebugPrimitive>();
+            var bound = HudScopes.Keep(frame, Rig.NetId, ref scratch);
+            Assert.Equal(run.Length, bound.Length);                            // the bound view keeps the whole run (marker removed)
+            var unbound = HudScopes.Keep(frame, HudScopes.None, ref scratch);
+            foreach (ref readonly var p in unbound) Assert.NotEqual(CoordinateSpace.ViewCanvas, p.Space);
+            var other = HudScopes.Keep(frame, Rig.NetId + 1, ref scratch);
+            foreach (ref readonly var p in other) Assert.NotEqual(CoordinateSpace.ViewCanvas, p.Space);
         }
 
         [Fact]

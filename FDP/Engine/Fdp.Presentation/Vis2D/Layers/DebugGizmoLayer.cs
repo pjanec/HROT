@@ -244,6 +244,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 Occlusion3D.End();   // the renderer ends it before the selected cards; idempotent
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
+                ScreenPass.Draw(Renderer3D.ScreenPass, ctx.TargetSize);   // ⭐ S1d-2 (R2-1) — the bound view's HUD and the screen shapes, over the cards
             }
             else if (live != null)
             {
@@ -251,8 +252,14 @@ namespace Fdp.Toolkit.Vis2D.Layers
                 Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, ViewFrame()));   // ⭐ CE-4432 — 0 B per frame
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
+                ScreenPass.Draw(_renderer.ScreenPassPrimitives, ctx.TargetSize);   // ⭐ S1d-2 — the same screen pass on the 2-D map
             }
         }
+
+        /// <summary>⭐⭐ Simulated devices S1d-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 R2-1) — THE screen pass, one drawer for both maps:
+        /// after the cards, the bound source's HUD (<see cref="CoordinateSpace.ViewCanvas"/>, fitted to the view) and — in 3-D — the plain
+        /// <see cref="CoordinateSpace.Screen"/> shapes the scene pass set aside.</summary>
+        public GizmoMap.Presentation.ViewCanvasDrawer ScreenPass { get; } = new();
 
         /// <summary>⭐ <c>CE-4582</c> (docs/DESIGN_Map_3D_Mode.md §6am) — hides the 3-D cards and place labels behind the terrain. The host sets its
         /// switch (<see cref="Fdp.Toolkit.Vis3D.CardOcclusion.Enabled"/>) and the cards that always show (<c>Cards.AlwaysOnTop</c>).</summary>

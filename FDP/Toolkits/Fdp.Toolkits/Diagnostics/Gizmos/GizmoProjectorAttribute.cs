@@ -41,6 +41,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// </summary>
         public bool DrawsOffScreen { get; set; }
 
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1d-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 R2-10 / R3-13 / D-41) — a VIEW-HUD projector (a device's HUD;
+        /// later a weapon sight's or a cockpit's). Its family policy is FIXED where every registration passes (<see cref="StatelessGizmoRegistry.Register"/>),
+        /// whatever the host asks: drawn off screen, no zoom band, its visibility policy is the projector itself when it implements
+        /// <see cref="IGizmoVisibilityPolicy"/> (the host's resolver is not consulted); and <c>StatelessGizmoSystem</c> opens a <c>HudScope</c> for the entity's
+        /// network id around each draw, never cuts it by the frame budget and never serves it from a held picture. It draws on
+        /// <see cref="DebugTraceLayers.DeviceHud"/>, which no layer mask hides.
+        /// </summary>
+        public bool Hud { get; set; }
+
         /// <param name="requiredComponents">One or more component types (must be registered
         /// with <see cref="Fdp.Core.ComponentTypeRegistry"/> before
         /// <c>StatelessGizmoRegistry.Register</c> is called).</param>

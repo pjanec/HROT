@@ -69,6 +69,11 @@ namespace Fdp.Toolkit.Vis3D
         /// <summary>Panels (<c>StructInspector</c>) seen by the last <see cref="Draw"/> — screen panels, scheduled by the caller.</summary>
         public List<DebugPrimitive> Panels { get; } = new();
 
+        /// <summary>⭐ Simulated devices S1d-2 (DESIGN_Simulated_Devices §3.6 R2-1) — SCREEN primitives seen by the last <see cref="Draw"/>: a view-canvas HUD
+        /// and plain screen-pixel shapes. ⛔ Never world shapes (before, a <see cref="CoordinateSpace.Screen"/> one was drawn at its pixel numbers as metres):
+        /// the screen pass after the 3-D pass draws them, with the cards (<c>GizmoMap.Presentation.ViewCanvasDrawer</c>).</summary>
+        public List<DebugPrimitive> ScreenPass { get; } = new();
+
         /// <summary>Lines and triangles emitted in the last frame — the frame-cost counters (§7).</summary>
         public int LinesDrawn { get; private set; }
         /// <inheritdoc cref="LinesDrawn"/>
@@ -89,6 +94,7 @@ namespace Fdp.Toolkit.Vis3D
             Labels.Clear();
             Panels.Clear();
             Cards.Clear();
+            ScreenPass.Clear();
             LinesDrawn = TrianglesDrawn = 0;
             _drapeSamples = 0; _drapeTicks = 0;
             bool timed = Fdp.Presentation.WindowManager.WindowTimings.Enabled;
@@ -99,6 +105,7 @@ namespace Fdp.Toolkit.Vis3D
                 var t = primitives[i];
                 ref readonly var p = ref t.Primitive;
                 if (p.Space == CoordinateSpace.EntityCard) { Cards.Add(p); continue; }   // ⭐ S5b — drawn by the card pass
+                if (p.Space is CoordinateSpace.ViewCanvas or CoordinateSpace.Screen) { ScreenPass.Add(p); continue; }   // ⭐ S1d-2 — the screen pass
                 long shapeStart = timed ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;   // ⭐ CE-4388 — time per shape (HROT_FRAME_STATS only)
                 int shapeIndex = (int)p.Shape < ShapeTicks.Length ? (int)p.Shape : 0;
                 switch (p.Shape)

@@ -16,5 +16,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// <summary>⭐ CE-1977 — <see cref="Backdrop"/>'s look for a label that belongs to the CURSOR (the armed tool's name and hint): the 3-D map never hides it
         /// behind the ground (its text sits below the cursor, over ground nearer the eye than the cursor's own point).</summary>
         Cursor = 3,
+        /// <summary>⭐ Simulated devices S1d-2 (DESIGN_Simulated_Devices §3.6, mockup <c>devices-hud.svg</c>) — a HUD readout over the 3-D view: the glyphs
+        /// with a dark halo round them (legible on sky and ground alike), no box.</summary>
+        Halo = 4,
+        /// <summary>⭐ S1d-2 — <see cref="Halo"/>, the glyphs thickened (the mockup's bold readouts; the gizmo font has no bold face).</summary>
+        HaloBold = 5,
     }
 }

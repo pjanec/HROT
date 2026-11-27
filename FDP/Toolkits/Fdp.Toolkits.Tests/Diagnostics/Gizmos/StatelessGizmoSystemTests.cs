@@ -532,6 +532,105 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Tests
         }
     }
 
+    /// <summary>
+    /// ⭐⭐ Simulated devices S1d-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-41 / R2-10 / R3-13) — a <c>[GizmoProjector(Hud = true)]</c>
+    /// rule: the SYSTEM opens a <c>HudScope</c> for each entity's network id around its draw (an entity with no network id draws nothing); the HUD
+    /// family's policy is fixed in the registry — the projector's own visibility policy beats the host's, no zoom band, drawn off screen; and it is
+    /// never cut by the frame budget nor served from a held picture. 🔴 Red-proof: <c>DrawHud</c>'s <c>BeginScope</c> removed ⇒ no scope, the first rail fails.
+    /// </summary>
+    public class StatelessGizmoSystemHudTests
+    {
+        [GizmoProjector(typeof(GizmoTestCompA), Hud = true, MaxMetresPerPixel = 0.001f)]
+        private sealed class HudDouble : IStatelessGizmo, IGizmoVisibilityPolicy
+        {
+            public readonly List<int> Drawn = new(16);
+            public bool Visible = true;
+            public bool IsGloballyEnabled(ISimulationView view) => true;
+            public bool IsEntityVisible(ISimulationView view, Entity entity) => Visible;
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder b)
+            {
+                Drawn.Add(entity.Index);
+                b.DrawLine(new System.Numerics.Vector3(entity.Index, 0, 0), new System.Numerics.Vector3(entity.Index, 1, 0), default, layer: DebugTraceLayers.DeviceHud);
+            }
+        }
+
+        private sealed class SlowGizmo : IStatelessGizmo
+        {
+            public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder b) => System.Threading.Thread.Sleep(3);
+        }
+
+        private static Entity Device(EntityRepository repo, int netId)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new GizmoTestCompA());
+            if (netId > 0) repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = netId });
+            return e;
+        }
+
+        [Fact]
+        public void S1d2_AHudRule_IsScopedPerEntityByItsNetworkId_AndAnEntityWithNoNetworkIdDrawsNothing()
+        {
+            using var repo = GizmoTestRepo.Create();
+            var buf = new DebugPrimitiveBuffer(512);
+            var registry = new StatelessGizmoRegistry();
+            var hud = new HudDouble();
+            registry.Register(hud, new[] { typeof(GizmoTestCompA) });
+            var sys = new StatelessGizmoSystem(registry, buf);
+            Device(repo, 41); Device(repo, 42); var bare = Device(repo, 0);
+
+            sys.Execute(repo, 0f);
+            var frame = buf.GetFrame();
+            Assert.Equal(4, frame.Length);                                   // two scopes, each [scope, line]; the bare one drew nothing
+            Assert.True(HudScopes.IsScope(in frame[0]) && frame[0].HudScopeSource == 41 && frame[0].HudScopeCount == 1);
+            Assert.True(HudScopes.IsScope(in frame[2]) && frame[2].HudScopeSource == 42 && frame[2].HudScopeCount == 1);
+            Assert.DoesNotContain(bare.Index, hud.Drawn);
+            Assert.Equal(2, sys.HudRunsDrawn);
+            DebugPrimitive[] scratch = Array.Empty<DebugPrimitive>();
+            Assert.Equal(1, HudScopes.Keep(frame, 41, ref scratch).Length);   // a view bound to 41 keeps its line only
+            Assert.Equal(0, HudScopes.Keep(frame, HudScopes.None, ref scratch).Length);
+        }
+
+        [Fact]
+        public void S1d2_TheHudFamilyPolicy_IsFixedInTheRegistry_ItsOwnPolicyBeatsTheHosts_NoZoomBand_DrawnOffScreen()
+        {
+            using var repo = GizmoTestRepo.Create();
+            var buf = new DebugPrimitiveBuffer(512);
+            var registry = new StatelessGizmoRegistry();
+            var hud = new HudDouble { Visible = false };
+            registry.Register(hud, new[] { typeof(GizmoTestCompA) }, AlwaysVisiblePolicy.Instance);   // the host offers "always"
+            var rule = registry.Rules[0];
+            Assert.True(rule.Hud);
+            Assert.Same(hud, rule.VisibilityPolicy);
+            Assert.Equal(0f, rule.MaxMetresPerPixel);
+            Assert.True(rule.DrawsOffScreen);
+            var sys = new StatelessGizmoSystem(registry, buf);
+            Device(repo, 41);
+            sys.Execute(repo, 0f);
+            Assert.Empty(hud.Drawn);                                          // the projector's own "no" wins
+        }
+
+        [Fact]
+        public void S1d2_AHudRule_IsNeverCutByTheFrameBudget_NorHeld()
+        {
+            using var repo = GizmoTestRepo.Create();
+            var buf = new DebugPrimitiveBuffer(4096);
+            var registry = new StatelessGizmoRegistry();
+            registry.Register(new SlowGizmo(), new[] { typeof(GizmoTestCompB) });   // registered FIRST: it eats the budget
+            var hud = new HudDouble();
+            registry.Register(hud, new[] { typeof(GizmoTestCompA) });
+            var sys = new StatelessGizmoSystem(registry, buf) { MaxGizmoFrameMs = 1f, FreshEntitiesPerFrame = 1, MaxHeldFrames = 3 };
+            for (int i = 0; i < 3; i++) { var e = repo.CreateEntity(); repo.AddComponent(e, new GizmoTestCompB()); }
+            for (int i = 0; i < 4; i++) Device(repo, 100 + i);
+            for (int f = 0; f < 3; f++)
+            {
+                hud.Drawn.Clear(); buf.EndFrame(0f);
+                sys.Execute(repo, 0f);
+                Assert.Equal(4, hud.Drawn.Count);                             // every device drawn fresh every frame, past the budget, never held
+                Assert.Equal(4, sys.HudRunsDrawn);
+            }
+        }
+    }
+
     /// <summary>A global (entity-less) stateless projector double.</summary>
     internal sealed class MockGlobalStatelessGizmo : IGlobalStatelessGizmo
     {

@@ -101,6 +101,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// arbiters (<c>GlobalGizmoManager</c>, <c>DataDrivenGizmoSystem</c>) move what a tool drew on the default layer here, once, after its
         /// <c>UpdateAndDraw</c> — so no tool can forget it. Drawn and picked above the entity symbols (layer 0) it used to share.</summary>
         public const byte ToolHandles = 254;
+        /// <summary>⭐⭐ Simulated devices S1d-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-3f / R2-10 / R3-13) — a DEVICE's HUD: what its
+        /// type's <c>[GizmoProjector(Hud = true)]</c> projector draws, scoped by a <c>HudScope</c> and drawn only by a view bound to that device. Above every
+        /// bit a layer toggle owns (<c>LayerControlDto.FirstUntoggledLayer</c>), so neither the node's nor the viewer's layer mask can hide it (it is the
+        /// device's own display, not a debug toggle) and no film draws it (<c>LayerControlSets.FilmLayers</c> stops below the untoggled range).</summary>
+        public const byte DeviceHud = 253;
     }
 }
 
