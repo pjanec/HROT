@@ -152,7 +152,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(_world.HasComponent<PersonCarrier>(soldier));
             Assert.Equal(0.3f, _world.GetComponentRO<PersonCarrier>(soldier).DragSpeedFactor);
             Assert.Equal((byte)1, _world.GetComponentRO<CarrierSeats>(soldier).PassengersSurvive);
-            Assert.Equal(4, _world.GetComponentRO<CarrierSeats>(soldier).SeatCount);   // ⭐ WS-2 (W-G) — the casualty seat + the carry station · ⭐ CE-3233 (B-11) — + the back and the hidden station
+            Assert.Equal(8, _world.GetComponentRO<CarrierSeats>(soldier).SeatCount);   // ⭐ WS-2 (W-G) — the casualty seat + the carry station · ⭐ CE-3233 (B-11) — + the back and the hidden · ⭐ devices S1b-3 — + the four kit stations station
             Assert.Equal(1, Embarkation.CapacityOf(_world, soldier));   // ...of which one carries a man
 
             var apc = _world.CreateEntity();
@@ -382,6 +382,32 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         private int SeatOf(Entity thing) => CarryStations.SeatOf(_world, thing, out _);
+
+        /// <summary>A one-man DEVICE item (binoculars, a rangefinder): mountable on a kit station only.</summary>
+        private Entity DeviceItem()
+        {
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new SimTransform { Rotation = Quaternion.Identity });
+            _world.AddComponent(e, new Fdp.Toolkit.Combat.Mountable { MountKinds = (byte)MountKinds.Device, Portable = (byte)WeaponPortability.OneMan, CarrySpeedFactor = 1f });
+            return e;
+        }
+
+        /// <summary>
+        /// ⭐ Simulated devices S1b-3 (DESIGN_Simulated_Devices §3.2, D-63) — a person has four KIT stations (seats 4–7) that take only a DEVICE: two
+        /// devices go to kits 1 and 2, and a weapon picked up after them still goes to his HANDS — carrying devices never costs a weapon slot, and a
+        /// weapon never takes a kit. 🔴 Mutation: a kit station accepting <c>Carried</c> ⇒ the gun lands in a kit or a device in the hands ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S1b3_DevicesGoToTheKitStations_AndAWeaponStillToTheHands()
+        {
+            var man = Soldier(100f);
+            var binoculars = DeviceItem(); var rangefinder = DeviceItem(); var gun = Gun();
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, binoculars, man));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, rangefinder, man));
+            Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(_world, gun, man));
+            Assert.Equal((4, 5, 1), (SeatOf(binoculars), SeatOf(rangefinder), SeatOf(gun)));
+        }
 
         /// <summary>
         /// ⭐ ST-1 / ST-3 — a person has HANDS (seat 1, unchanged), BACK (2) and HIDDEN (3); a weapon he picks up goes to his hands, a second

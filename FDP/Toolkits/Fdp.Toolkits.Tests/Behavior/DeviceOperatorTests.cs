@@ -179,5 +179,22 @@ namespace Fdp.Toolkit.Behavior.Tests
             tick.Execute(w, 0f);
             Assert.Equal(4u, w.GetComponentRO<DeviceInput>(d).Seq);
         }
+
+        /// <summary>⭐ S1b-3 (D-48) — a device's world pose is its own placed transform (EmbarkedStateSystem puts it at its station) composed with its
+        /// <see cref="DevicePose"/>: an offset in the mount's frame, an orientation relative to it.</summary>
+        [Fact]
+        public void S1b3_ADevicesWorldPose_IsItsPlacedTransform_ComposedWithItsPose()
+        {
+            using var w = World();
+            w.RegisterComponent<DevicePose>();
+            var d = Device(w);
+            var yaw90 = System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitZ, System.MathF.PI / 2f);
+            w.AddComponent(d, new SimTransform { Position = new System.Numerics.Vector3(10f, 0f, 0f), Rotation = yaw90 });
+            w.AddComponent(d, new DevicePose { Orientation = yaw90, Offset = new System.Numerics.Vector3(1f, 0f, 0f) });
+            Assert.True(DevicePoses.TryWorld(w, d, out var p, out var r));
+            Assert.Equal(10f, p.X, 3); Assert.Equal(1f, p.Y, 3);   // the offset turned with the mount (x forward → +y)
+            var forward = System.Numerics.Vector3.Transform(System.Numerics.Vector3.UnitX, r);
+            Assert.Equal(-1f, forward.X, 3);                       // two quarter turns: it points backwards
+        }
     }
 }

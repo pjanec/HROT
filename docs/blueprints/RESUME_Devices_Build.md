@@ -23,7 +23,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **S1a** device tick (`DeviceTickSystem` = a `BrainTickSystem` subclass, `DeviceInfo` id 219) | ✅ | `563651aa7` — 6 rails |
 | **S1b-1** the operator: `PossessionMode.Operated`, `DeviceOperators` (the walk, run by the device pre-pass), possession's release paths and frame loop skip `Operated` | ✅ | `DeviceOperatorTests` (4, red-proved) |
 | **S1b-2** device frames: `DeviceControl` (axes, press counters, trackers, body offset, Viewed) in its OWN `DeviceFrameEvent` (event id 5204) → `DeviceInput` (component id 228), ingested by the device tick; `PossessionSystem.ApplyFrame` the one body routine | ✅ | rail red-proved; ⚠ deviation: not in the body frame (CE-11027 pins its recorded layout) |
-| S1b-3 kit carry stations + `MountKinds.Device` + `DevicePose` | ⏳ | — |
+| **S1b-3** `MountKinds.Device = 32`; four KIT stations appended to `CarrierDefDto.PersonCarrier()` (seats 4–7, Accepts Device only); `DevicePose` (id 229) + `DevicePoses.TryWorld` | ✅ | rails red-proved; ⚠ every person type's seat data changed ⇒ goldens move hash-only (CarrierSeats / CarrierStations / PassengerBuffer) — like CE-4711 |
 | S1c the rangefinder: `LaserPointing{Power}` / `LaserSpot` / `LaserSpotSystem` / `DevicePanel` / the device folder | ⏳ | — |
 | S1d the HUD to the mockups: `HudScope`, `BeginScope`/`EndScope`, bound-view draw, binoculars device replaces CE-1219 | ⏳ | — |
 | S1e the scenario grammar + SD-S1 scenarios | ⏳ | — |
@@ -35,4 +35,5 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - A refused start must not be retried every frame (string + allocation).
 - `CgfLogicPackTests` counts the CGF pack's systems — adding a system updates three counts.
 - ⛔ Never add a field to `OperatorControlFrameEvent` / `OperatorInput` / `PossessedBy` / the possession events: `PossessionReplicationTests` pins their recorded layout hashes (old recordings must replay). New data = a new event / component.
+- A person now has 8 seats (`PersonCarrierTests.TheProfile_IsStampedFromTheType`).
 - The composition snapshots (`TheHostCompositionIsFrozenTests`) were stale before this work — CE-4710; do not chase them.

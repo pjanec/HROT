@@ -66,5 +66,8 @@ namespace Fdp.Toolkit.Tkb.Domain
         Carried = 8,
         /// <summary>⭐ <c>CE-3233</c> (civilians B-11b, AW-12, §7.13 ST-9) — a vehicle's CARGO space (a car's boot): it holds a charge, not a gun.</summary>
         Cargo = 16,
+        /// <summary>⭐ Simulated devices S1b-3 (DESIGN_Simulated_Devices §3.2, D-63) — a DEVICE: a person's kit station, a vehicle's or a weapon's
+        /// device station. ⛔ A weapon never declares it, so a device never takes a weapon's slot and a weapon never a kit.</summary>
+        Device = 32,
     }
 }

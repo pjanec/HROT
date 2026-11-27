@@ -351,6 +351,14 @@ operator clears it. `ViewedDevice` on the unit frame is replaced by the device f
 device's `DeviceInput` (a cross-entity read of another phase: allowed). `PossessionSystem.ApplyFrame` is now the ONE body frame-apply routine.
 Local until SD-C (the interaction transport carries no device frame yet). Rails: `DeviceOperatorTests.S1b2_…` (red-proved).
 
+⭐ **S1b-3 AS BUILT (`2026-11-27`)** — `MountKinds.Device = 32` (no weapon declares it); four KIT stations appended to the ONE person
+carrier definition `CarrierDefDto.PersonCarrier()` (seats 4–7, `Accepts = Device`, stowed) — a weapon still finds its hands / back / hidden slot
+(`Accepts & Carried`), a device the first free kit (rail `PersonCarrierTests.S1b3_…`, red-proved). ⚠ Every person type's seat data changed
+(8 seats) ⇒ the scenario goldens that hash a person's `CarrierSeats` / `CarrierStations` / `PassengerBuffer` move hash-only at the next nightly
+(as CE-4711). `DevicePose` (component id 229) + `DevicePoses.TryWorld`: ⚠ simplified from D-48's "walks the mount chain" — the engine already
+places every embarked item at its host station each frame (`EmbarkedStateSystem.cs:144-149`, WS-2, chaining through a device on a device), so the
+world pose is the device's own `SimTransform` ∘ `DevicePose` (seam law).
+
 ### 3.6 Views and the HUD
 
 | # | decision | why / evidence |
