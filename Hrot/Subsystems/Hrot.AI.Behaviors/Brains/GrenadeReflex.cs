@@ -376,7 +376,7 @@ namespace Hrot.AI.Behaviors.Brains
                 foreach (var man in _people)
                 {
                     if (_gateOnAuthority && !repo.HasAuthority<BehaviorState>(man)) continue;
-                    if (!StanceRequest.CanCarry(repo, man) || !Injury.IsInTheFight(repo, man)) continue;   // a person, able to move
+                    if (!Fdp.Toolkit.Behavior.People.IsPersonBody(repo, man) || !Injury.IsInTheFight(repo, man)) continue;   // a person, able to move — ⭐ C2 CC-6: never a freezing animal (it has a stance too)
                     if (repo.IsComponentTypeRegistered<IsEmbarkedTag>() && repo.HasComponent<IsEmbarkedTag>(man)) continue;   // aboard: his vehicle's
                     if (_reacted.Contains((man.PackedValue, g.Round.PackedValue))) continue;
                     float d = Flat(repo.GetComponentRO<SimTransform>(man).Position - g.At);

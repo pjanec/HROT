@@ -194,17 +194,9 @@ namespace Hrot.Common.Orders
             networkId = 0;
             if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
             var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            var station = StationOf(w, orders);
-            Entity best = Entity.Null;
-            uint bestEpoch = 0;
-            foreach (var unit in w.Query().With<PossessedBy>().Build())
-            {
-                if (!w.IsAlive(unit)) continue;
-                var held = w.GetComponentRO<PossessedBy>(unit);
-                if (held.StationNodeId != station.StationFor(unit) || held.Mode == PossessionMode.Riding) continue;
-                if (!map.TryGetNetworkId(unit, out int id)) continue;
-                if (best.IsNull || held.Epoch > bestEpoch) { best = unit; bestEpoch = held.Epoch; networkId = id; }
-            }
+            // ⭐ C3 CC-10 — the one owner of "what this station drives" (StationBody.Driven); a held unit always has a network id (possession is by id)
+            var best = StationBody.Driven(w, orders?.Station);
+            if (best.IsNull || !map.TryGetNetworkId(best, out networkId)) { networkId = 0; return Entity.Null; }
             return best;
         }
 

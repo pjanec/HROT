@@ -175,7 +175,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
@@ -260,7 +260,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
@@ -317,7 +317,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
@@ -431,7 +431,7 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); repo.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             var db = PresetTkb();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();

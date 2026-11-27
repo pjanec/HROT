@@ -52,18 +52,11 @@ namespace Fdp.Toolkit.Behavior.Possession
             // ⭐ Player Join D-8 — the station's reservation (its player slot) names its side FIRST, before it holds anything.
             if (StationReservations.TryGet(repo, out var reservations) && reservations.TryOf(station, out var mine)) { side = mine.Side; return true; }
             side = ForceId.Neutral;
-            if (!repo.IsComponentTypeRegistered<PossessedBy>()) return false;
-            bool found = false;
-            foreach (var unit in repo.Query().With<PossessedBy>().Build())
-            {
-                if (!repo.IsAlive(unit) || !Live(repo, unit)) continue;
-                var held = repo.GetComponentRO<PossessedBy>(unit);
-                if (held.StationNodeId != station) continue;
-                side = ForceOf(repo, unit);
-                found = true;
-                if (held.Mode == PossessionMode.Riding) return true;   // the human's own body names the side
-            }
-            return found;
+            // ⭐ C3 CC-11 — the human's OWN body names the side (his Riding soldier, else what he drives), through the one owner
+            var own = StationBody.Own(repo, station, liveOnly: true);
+            if (own.IsNull) return false;
+            side = ForceOf(repo, own);
+            return true;
         }
 
         /// <summary>

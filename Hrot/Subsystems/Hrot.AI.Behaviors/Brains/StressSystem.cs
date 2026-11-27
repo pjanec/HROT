@@ -66,7 +66,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static bool Feels(EntityRepository world, Entity e)
         {
             if (!world.IsAlive(e) || !world.HasComponent<BehaviorState>(e) || !world.HasComponent<Health>(e)) return false;
-            if (!world.IsComponentTypeRegistered<StanceIntent>() || !world.HasComponent<StanceIntent>(e)) return false;
+            if (!Fdp.Toolkit.Behavior.People.IsPersonBody(world, e)) return false;   // ⭐ C2 CC-6 — a person body (a stance, not an animal)
             if (world.IsComponentTypeRegistered<Fdp.Toolkit.Civilians.CivilianState>() && world.HasComponent<Fdp.Toolkit.Civilians.CivilianState>(e)) return false;
             return Armament.IsCombatant(world, e) && Injury.IsInTheFight(world, e);
         }

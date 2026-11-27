@@ -196,7 +196,7 @@ namespace Hrot.AI.Behaviors.Brains
                         var thing = buffer.Passengers[i];
                         if (thing.IsNull) continue;
                         if (CarryStations.IsConcealed(world, thing)) { now.ConcealedAtDemand++; continue; }
-                        if (Embarkation.IsWeaponSystem(world, thing) || now.OccupantCount >= 4) continue;
+                        if (Fdp.Toolkit.Combat.Items.IsMountable(world, thing) || now.OccupantCount >= 4) continue;
                         now.Occupants[now.OccupantCount++] = (long)thing.PackedValue;
                         world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
                         {

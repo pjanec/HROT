@@ -7,7 +7,7 @@ stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: UX_Feature_Tool_Model.md:302 "No keyboard shortcut activates any tool" — kept for TOOLS armed by a key? §4 Q5 decides (lean: a key may run the ACTION that arms a tool)
 related-designs:
-  - ../designs/devices/DESIGN_Simulated_Devices.md — SIMULATED DEVICES: a trainee's equipment as entities (carried in this station / scope / view), a generic I/O model with adapters, a recorded state block
+  - ../designs/devices/DESIGN_Simulated_Devices.md — SIMULATED DEVICES: a trainee's equipment as entities (carried in this station / scope / view), a generic I/O model with adapters, the logic as a behaviour on the brain with its state in [UnitMemory], its HUD drawn by one view-HUD mechanism (§3v, §3w)
   - DESIGN_Map_Interaction.md — E8: the drawing keys (Enter finish, Backspace, PgUp / PgDn level) as the armed tool's own keys on the backend
   - ../designs/gizmos-1/gizmo-input-focus-design.md — OWNS the dumb terminal (raw events, backend focus); the map scopes of the keymap are resolved on its backend side
   - DESIGN_Action_Catalogue.md — every key binds to an ACTION ID from the catalogue; the action declares its default key and scope (design 1, R-4125)

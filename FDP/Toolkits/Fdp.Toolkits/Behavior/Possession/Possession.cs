@@ -291,7 +291,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                 if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && !Alive(repo, unit))   // (an earlier release of this sweep may have taken it)
                 {
                     var held = repo.GetComponentRO<PossessedBy>(unit);
-                    FreeSeatOf(repo, unit);
+                    if (StationBody.IsBodyMode(held.Mode)) FreeSeatOf(repo, unit);   // ⭐ C3 CC-11 — a killed BODY steps out of its seat
                     Release(repo, unit);
                     // ⭐ CE-11027 S12-3 (Q114 G) — a RIDER killed: his station let go of the man only; the vehicle he drove is still held by it
                     if (held.Mode == PossessionMode.Riding) ReleaseStation(repo, held.StationNodeId);
@@ -376,7 +376,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             else repo.AddComponent(unit, held);
             if (repo.HasComponent<OperatorInput>(unit)) repo.RemoveComponent<OperatorInput>(unit);   // the new station starts clean
             Possessed++;
-            if (!already)   // a take-over keeps the running operator behaviour (and the task it paused)
+            if (!already && StationBody.IsBodyMode(held.Mode))   // a take-over keeps the running operator behaviour; ⭐ C3 CC-12 — only a BODY hold gets the operator's behaviour
                 repo.Bus.PublishManaged(new AssignBehaviorEvent
                 {
                     Entity = unit, BehaviorName = _operatorBehavior, JsonParams = "{}", Origin = BehaviorOrigin.Possession,

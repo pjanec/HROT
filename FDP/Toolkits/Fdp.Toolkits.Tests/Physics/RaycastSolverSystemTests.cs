@@ -466,9 +466,10 @@ namespace Fdp.Toolkit.Physics.Tests
         {
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>())
                 _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             var man = SpawnPerson(null);                                                     // at (10, 0), radius 0.4
             var javelin = SpawnCollider(new Vector2(10f, 0f), radius: 2.5f, layer: Fdp.Toolkit.Combat.CombatConstants.CombatCollisionLayer);
-            _world.AddComponent(javelin, new Fdp.Toolkit.Combat.WeaponSystemParams());
+            _world.AddComponent(javelin, new Fdp.Toolkit.Combat.WeaponSystemParams()); _world.AddComponent(javelin, new Fdp.Toolkit.Combat.Mountable());
 
             Assert.Equal(man, FireRound(new Vector3(0f, 0f, 1f), new Vector3(20f, 0f, 1f)).HitEntity);
         }
@@ -699,7 +700,7 @@ namespace Fdp.Toolkit.Physics.Tests
         private Entity SpawnHmg(Fdp.Toolkit.Combat.WeaponDeploy deploy, bool embarked = false)
         {
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _world.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) _world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemState>()) _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()) _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -709,7 +710,7 @@ namespace Fdp.Toolkit.Physics.Tests
             _world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             var hmg = SpawnCollider(new Vector2(10f, 0f), radius: 2.5f, layer: 1);   // the 2.5 m fallback collider, no height (CE-2182)
             _world.AddComponent(hmg, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(HmgType) });
-            _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+            _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _world.AddComponent(hmg, new Fdp.Toolkit.Combat.Mountable());
             _world.AddComponent(hmg, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = deploy });
             if (embarked) _world.AddComponent(hmg, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag());
             return hmg;

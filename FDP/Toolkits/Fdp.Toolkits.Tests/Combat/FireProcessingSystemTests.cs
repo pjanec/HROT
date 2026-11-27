@@ -386,14 +386,14 @@ namespace Fdp.Toolkit.Combat.Tests
         public void S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity()
         {
             _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
-            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();
             _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             var carrier = new Vector3(70f, 0f, 0f);
             var heli = SpawnTarget(new Vector3(0f, 0f, 100f));
             _world.AddComponent(heli, new SimVelocity { Linear = carrier });
             _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
             var m134 = SpawnShooter(new Vector3(3f, 1.35f, 99.3f), muzzleVelocity: 850f);
-            _world.AddComponent(m134, new WeaponSystemParams { NeedsOperator = 1 });
+            _world.AddComponent(m134, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _world.AddComponent(m134, new Fdp.Toolkit.Combat.Mountable());
             _world.AddComponent(m134, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Seat = 9 });
             var target = SpawnTarget(new Vector3(0f, 400f, 0f));   // abeam to the left
 

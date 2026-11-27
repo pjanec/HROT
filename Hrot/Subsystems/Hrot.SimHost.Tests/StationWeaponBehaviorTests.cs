@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
                     () => { if (!Repo.IsComponentTypeRegistered<OpenPassengerCabin>()) Repo.RegisterComponent<OpenPassengerCabin>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<IsEmbarkedTag>()) Repo.RegisterComponent<IsEmbarkedTag>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<ActorCapabilityState>()) Repo.RegisterComponent<ActorCapabilityState>(); },
-                    () => { if (!Repo.IsComponentTypeRegistered<WeaponSystemParams>()) Repo.RegisterComponent<WeaponSystemParams>(); },
+                    () => { if (!Repo.IsComponentTypeRegistered<WeaponSystemParams>()) Repo.RegisterComponent<WeaponSystemParams>(); if (!Repo.IsComponentTypeRegistered<Mountable>()) Repo.RegisterComponent<Mountable>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<WeaponState>()) Repo.RegisterComponent<WeaponState>(); },
                     () => { if (!Repo.IsComponentTypeRegistered<EntityInfo>()) Repo.RegisterComponent<EntityInfo>(); },
                     () => { if (!Repo.Bus.IsRegistered<RestationEvent>()) Repo.Bus.Register<RestationEvent>(); },

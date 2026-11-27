@@ -50,7 +50,7 @@ namespace Hrot.Common.Orders
             bool carrier = world.IsComponentTypeRegistered<PassengerBuffer>() && world.HasComponent<PassengerBuffer>(entity);
             bool person = world.IsComponentTypeRegistered<PersonCarrier>() && world.HasComponent<PersonCarrier>(entity);
             if (carrier && !person) return false;
-            return !(world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>() && world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(entity));
+            return !Fdp.Toolkit.Combat.Items.IsMountable(world, entity);
         }
 
         private static Entity VehicleOf(EntityRepository world, Entity passenger)

@@ -308,7 +308,7 @@ namespace Hrot.SimHost.Tests
         {
             var w = new World();
             var m2 = w.Repo.CreateEntity();
-            w.Repo.AddComponent(m2, new Fdp.Toolkit.Combat.WeaponSystemParams());
+            w.Repo.AddComponent(m2, new Fdp.Toolkit.Combat.WeaponSystemParams()); w.Repo.AddComponent(m2, new Fdp.Toolkit.Combat.Mountable());
             w.Repo.AddComponent(w.Unit, new IsEmbarkedTag { VehicleEntity = m2 });
             w.StartSop();
             w.Run(0.3);

@@ -502,8 +502,8 @@ public sealed class MenuOrdersTests : IDisposable
     public void CE1205_AWeapon_IsNotPossessed_TheMenuSaysWhy_AndTheOrderIsRefused()
     {
         var (mi, _) = Live();
-        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
-        _w.AddComponent(_unit, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) _w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+        _w.AddComponent(_unit, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(_unit, new Fdp.Toolkit.Combat.Mountable());
         var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
         Assert.Contains("Possess (FPS)", menu);
         Assert.Contains(Fdp.Toolkit.Behavior.Possession.Possessability.WeaponIsManned, menu);

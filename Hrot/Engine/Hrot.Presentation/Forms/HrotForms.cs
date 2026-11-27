@@ -409,7 +409,7 @@ public static class HrotForms
         {
             if (!stations.IsStation(i)) continue;
             var weapon = buf.Passengers[i];
-            if (weapon.IsNull || !w.IsAlive(weapon) || !Fdp.Toolkit.Behavior.Embarkation.IsWeaponSystem(w, weapon)) continue;
+            if (weapon.IsNull || !w.IsAlive(weapon) || !Fdp.Toolkit.Combat.Items.IsMountable(w, weapon)) continue;
             into.Add(new FormListItem(stations.IsConcealed(i) ? StationWords[2] : stations.IsStowed(i) ? StationWords[1] : StationWords[0], NameOf(w, weapon, "(a weapon)"), weapon));
         }
     }
@@ -417,7 +417,7 @@ public static class HrotForms
     private static string? AddWeapon(EntityRepository w, Entity man, Entity weapon)
     {
         if (!HasStations(w, man)) return "he has nowhere to carry a weapon";
-        if (!Fdp.Toolkit.Behavior.Embarkation.IsWeaponSystem(w, weapon)) return "that is not a weapon";
+        if (!Fdp.Toolkit.Combat.Items.IsMountable(w, weapon)) return "that is not a weapon";
         return Fdp.Toolkit.Behavior.Embarkation.CanEmbark(w, weapon, man) switch
         {
             Fdp.Toolkit.Behavior.EmbarkResult.Applied => Hrot.Common.Orders.EmbarkOrders.Embark(w, weapon, man) ? null : "not sent",

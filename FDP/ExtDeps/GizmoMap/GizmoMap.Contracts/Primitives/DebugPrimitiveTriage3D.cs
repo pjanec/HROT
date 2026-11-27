@@ -120,20 +120,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
             foreach (ref readonly var p in primitives)
             {
-                switch (p.Shape)
-                {
-                    case DebugPrimitiveShape.SpatialAnchor:
-                    case DebugPrimitiveShape.ContextMenuBinding:
-                    case DebugPrimitiveShape.InputCaptureBinding:
-                    case DebugPrimitiveShape.MainMenuBinding:
-                    case DebugPrimitiveShape.LayerControlMask:
-                        continue;
-                }
+                if (PrimitiveKind.IsMeta(p.Shape)) continue;   // ⭐ CC-14 — the one classifier
 
                 if ((p.TargetView & AcceptedTargets) == 0) { CulledByTarget++; continue; }
                 if ((p.TargetView & PipelineTarget.FlatOnly) != 0) { CulledByTarget++; continue; }   // ⭐ a 2-D symbol, never in 3-D
                 // ⭐ CE-3149 — a panel is not a map layer (the 2-D renderer's exemption, kept identical).
-                if (HonourLayerMask && p.Shape != DebugPrimitiveShape.StructInspector && !layers.IsSet(p.DebugLayer))
+                if (HonourLayerMask && !PrimitiveKind.IsPanel(p.Shape) && !layers.IsSet(p.DebugLayer))
                 { CulledByLayer++; continue; }
 
                 var t = new TriagedPrimitive3D { Primitive = p };

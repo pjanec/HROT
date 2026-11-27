@@ -139,4 +139,28 @@ public sealed partial class PossessionStationTests
         var h = HandOverFor(u);
         Assert.Equal(u.Me, h.HeldHere(out _));                                   // the newer Fps of ANOTHER station does not count
     }
+
+    /// <summary>⭐ C3 CC-10 (docs/DESIGN_Capability_Components.md §4.3) — <see cref="StationBody"/>, the one owner of the body: riding his vehicle,
+    /// the station DRIVES the vehicle (camera) while its OWN body is the man (side, briefing); another station's newer hold never counts; and
+    /// <see cref="StationClaims.TrySideOf"/> takes the side from the own body. 🔴 Mutation: <c>Own</c> returning <c>Driven</c> ⇒ the side is the vehicle's.</summary>
+    [Fact]
+    public void C3_StationBody_DrivesTheVehicle_WhileTheOwnBodyIsTheRider_AndNamesTheSide()
+    {
+        using var u = new UseWorld();
+        var bmp = u.Vehicle(new Vector3(2f, 0f, 0f), 88);
+        var theirs = u.Vehicle(new Vector3(9f, 0f, 0f), 89);
+        Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, u.Me, bmp, SeatRole.Driver));
+        u.W.SetComponent(u.Me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)0, Mode = PossessionMode.Riding, Epoch = 2 });
+        u.W.AddComponent(bmp, new PossessedBy { StationNodeId = (Fdp.Core.StationId)0, Mode = PossessionMode.Fps, Epoch = 3 });
+        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.StationId)7, Mode = PossessionMode.Fps, Epoch = 9 });
+        if (!u.W.IsComponentTypeRegistered<EntityInfo>()) u.W.RegisterComponent<EntityInfo>();
+        if (u.W.HasComponent<EntityInfo>(u.Me)) u.W.SetComponent(u.Me, new EntityInfo { ForceId = ForceId.Friend }); else u.W.AddComponent(u.Me, new EntityInfo { ForceId = ForceId.Friend });
+        if (u.W.HasComponent<EntityInfo>(bmp)) u.W.SetComponent(bmp, new EntityInfo { ForceId = ForceId.Neutral }); else u.W.AddComponent(bmp, new EntityInfo { ForceId = ForceId.Neutral });
+
+        Assert.Equal(bmp, StationBody.Driven(u.W, 0));                 // the camera goes into the vehicle he drives
+        Assert.Equal(u.Me, StationBody.Own(u.W, 0));                   // ...while he is still himself
+        Assert.Equal(theirs, StationBody.Driven(u.W, 7));              // station 7 sees only its own hold
+        Assert.True(StationClaims.TrySideOf(u.W, 0, out var side));
+        Assert.Equal(ForceId.Friend, side);                            // the man's side, not the vehicle's
+    }
 }

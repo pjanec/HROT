@@ -135,7 +135,7 @@ namespace Hrot.AI.Behaviors.Brains
             var buffer = world.GetComponentRO<PassengerBuffer>(vehicle);
             byte n = 0;
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
-                if (!buffer.Passengers[i].IsNull && !Embarkation.IsWeaponSystem(world, buffer.Passengers[i])) n++;
+                if (!buffer.Passengers[i].IsNull && !Fdp.Toolkit.Combat.Items.IsMountable(world, buffer.Passengers[i])) n++;
             return n;
         }
     }

@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-10-21 (§9 the ROUND never meets what rides with its shooter, CE-1238) · 2026-10-21 (W-H amended for a possessed gunner, CE-1210 / Entity Control §8n) · 2026-10-16 (§6 CE-2182 row superseded by CE-3214: a weapon not embarked is hit by its parts; §5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — BUILT; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
+updated: 2026-11-27 (§3 / §9 Capability components C1: `Mountable` split out of `WeaponSystemParams`) · 2026-10-21 (§9 the ROUND never meets what rides with its shooter, CE-1238) · 2026-10-21 (W-H amended for a possessed gunner, CE-1210 / Entity Control §8n) · 2026-10-16 (§6 CE-2182 row superseded by CE-3214: a weapon not embarked is hit by its parts; §5c air defence: MANPADS 613/614, ZU-23-2 615, presets 202/203/110 — BUILT; §5b CE-3203: a weapon is broken by fragments and blast, configured per type — as built)
 build-state: BUILT (backend WS-1…WS-4, §9; behaviors WS-6 ManWeapon, §9 — ⭐ the rest of WS-6 BUILT `2026-10-16` (§10; `ua-weapon-systems` LIVE PASS 5/5); 404 door stations and 2006 / 2007 not built — §9) — 🔒 user, 2026-10-14: W-A…W-H approved ("Automatic turret is required" · "the host's gunner seat operates the weapon" · "Sounds good" · "Ok write it") (R-2016); W-I (presets seat their crew) "Agreed" — steered to backend in docs/blueprints/batches/STEER_Behaviors_To_Backend_Weapon_Systems_Crew_Presets.md
 current-answer: ⭐ §10 WS-6 the weapon behaviours (orders, set up / pack up / carry) · §2 who runs it, §3 classes, §4 sequences, §5 the TKB, §6 rules, §7 decisions, §8 slices and rails, ⭐ §9 AS BUILT (its DEVIATION rows supersede §2–§6 where they differ) — §1 is the measured ground.
 stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount — ⭐ WS-4 LANDED (§9): they are now presets (a pickup host + a weapon system in its station + a gunner), same numbers; that §6 is history for the weapon, still true for the pickup.
 related-designs:
+  - ../../DESIGN_Capability_Components.md — splits `Mountable { MountKinds, Portable, CarrySpeedFactor }` out of `WeaponSystemParams` and gives "item" its own predicate (CC-1 … CC-4); §3 / §9 here carry the C1 as-built (2026-11-27)
+  - ../devices/DESIGN_Simulated_Devices.md — simulated devices: a device mounted in a Station seat beside the weapons (MountKinds.Device), operated from a crew seat
   - DESIGN_Flame_Weapons.md — the flamethrower (WeaponCategory.Flamethrower, a FlameJet instead of a round) and the napalm bomb
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it
   - docs/DESIGN_Entity_Control.md — §8h (CE-1144, PRELIMINARY): the FPS use key lets a possessed man take a standalone weapon's Gunner seat and fire it (U-5); ⭐ §8n (CE-1210, R-1018) seat switching — a POSSESSED gunner controls his vehicle's station (W-H amended)
@@ -112,6 +114,12 @@ classDiagram
     X Y Z · FacingDegrees · Pose «existing»
   }
   class SeatRole { <<existing enum, grows>> Passenger · Driver · Gunner · Commander · +Station ★ }
+  class WeaponSystemParams { <<★ component, type fact, FIRE facts>> NeedsOperator · FireWhileCarried · DeploySeconds · PackSeconds · Charge }
+  class Mountable { <<★ C1 component, type fact, ITEM facts — SUPERSEDES Portable / CarrySpeedFactor / MountKinds on WeaponSystemParams>> MountKinds · Portable · CarrySpeedFactor }
+  class Items { <<★ static, Fdp.Toolkits Combat>> +IsMountable(world, e) «the ONE item test» }
+  WeaponSystemDto ..> WeaponSystemParams : WeaponSystemTkbTranslator writes
+  WeaponSystemDto ..> Mountable : the same translator writes, for every weapon type
+  Items ..> Mountable : has
   class WeaponSystemState { <<★ component on the weapon, owner-written, dtWeaponSystemState>> Deploy : Stowed | Deploying | Deployed | Packing ; Until }
   class WeaponSystems {
     <<★ static, Fdp.Toolkits Combat>>
@@ -434,6 +442,16 @@ at the REQUEST TIER — the same place a template's child blueprints are spawned
 | ⭐ **WS-6 `ManWeapon` — BUILT `2026-10-15`** (behaviors, for IF-4) | the library behaviour `ManWeapon { weapon }` (`EmbarkBehaviors.cs`) boards the weapon's `Gunner` seat: `EmbarkNodeParams.Role` / `EmbarkParams.Role` (APPENDED) carry the role and `EmbarkExecutor` asks `Embarkation.FreeSeat(role)` — a plain `Embark` still takes the first PASSENGER seat (the loader's), so it never controls the weapon. ⚠ **DEVIATION — the gunner keeps his fire**: `Embarkation.Board` stripped `CanMove | CanShoot` from every rider, so the man in a weapon's own Gunner seat — its controller (WS-3), who fires it AS the weapon through his own `WeaponChannel` — had every weapon action failed by `WeaponDispatcherSystem`'s capability gate before the executor ran. 📐 Found live (IF-4 ①: the section's FireAtPoint reported Failure with the executor never entered); the IF-1 rails missed it because they call the executor directly. ⇒ `Embarkation.StrippedOn(vehicle, seat)`: a weapon system's Gunner seat takes only `CanMove`; every other seat (a vehicle's crew seats included — W-I, the HOST fires there) is unchanged. Rails: `EmbarkNodesTests.CE2176_ManWeapon_TakesTheGunnerSeat_ControlsAndFiresTheWeapon_APlainEmbarkTakesTheLoadersSeat` · the `MannedMortar` premise in `AimAndFireExecutorTests` (IF-1's suite) | §4b's *"ManWeapon: the soldier boards the M2's Gunner seat"* as drawn; §6's capability side was never stated — it is now |
 | ⭐ **404 door stations — BUILT `2026-10-14`** (Air Ops 6a F4) | 🔒 user: *"extend the wire capacity … No problem extending"* ⇒ the passenger list is 12 wide ([Entity Interactions §7.4](../../DESIGN_Entity_Interactions.md)); 404 keeps its 8 riders (seats 0–7) and gains, per side, a door-gunner seat (`StartWith` rifleman 200) and a `Door` station operated by it (`StartWith` M134 602, `NeedsGunner`, arc 20…160° on its side) at seats 8–11. Rail `CreateEntityRequestSystemTests.F4_APlacedDoorsOffBlackHawk_HoldsTwoM134s_AndTwoDoorGunners_ItsRidersSeatsStayFree` | §5 |
 | ⛔ not built | ~~**404's door stations** — the type already has 8 seats (the wire's cap), so two stations + two door-gunner seats need 4 of its 8 passenger seats;~~ (built above) **2006 / 2007 as a soldier CARRYING a Javelin / NLAW** — their launcher is mount 0 of the soldier type today, and moving it to a carried entity re-orders the soldier's mounts under the behaviour lane's trees. Both are user decisions; the batch report carries the leans | §5 |
+
+⭐ **AS-BUILT `2026-11-27` (Capability components C1, [DESIGN_Capability_Components.md](../../DESIGN_Capability_Components.md) §4.1, CC-1…CC-4) — the ITEM facts leave `WeaponSystemParams`.**
+⛔ SUPERSEDES the shape in WS-1 above and in §3's earlier diagram, where `Portable`, `CarrySpeedFactor` and `MountKinds` were fields of `WeaponSystemParams`:
+they are now the unmanaged, `NoScenario` component **`Mountable`** (`GlobalComponentIds.Mountable` = 108, `Combat/WeaponSystems/Mountable.cs`), written beside
+`WeaponSystemParams` by the SAME `WeaponSystemTkbTranslator` from the SAME `WeaponSystemDto` (authoring unchanged) for every weapon type, static ones included.
+"Is it something that can be carried / mounted / boarded / manned" is `Items.IsMountable` (the ITEM sites: possession refusal, use actions, carry load and
+stations, embarkation, the round-vs-rider skip, `HitModel.BodyOf`, the checkpoint / stop-at-signal brains, the unit form, the carriage drawing, `EmbarkOrders`);
+"does it fire" stays `WeaponSystems.IsWeaponSystem` (`WeaponSystemParams`). `Embarkation.IsWeaponSystem` now delegates to it (CC-3).
+`WeaponDeployment.FractionOf(repo, weapon, now)` is the one deploy-fraction lookup the 3-D drawing calls (CC-4).
+⚠ Deviation: id 108 (a free hole in the Vis2D block), not a lane block — the lane blocks are full and 500–511 is test-only.
 
 ⭐ **AS-BUILT `2026-10-25` (ui, `CE-1356`, a cross-lane edit) — the station's arc NARROWS the weapon's own turret.** ⛔ SUPERSEDES WS-3's
 *"the arc check is the station's limits (`InStationArc`) — the weapon's own turret limits stay the muscle's `OutOfArc`"* for the TURRET:

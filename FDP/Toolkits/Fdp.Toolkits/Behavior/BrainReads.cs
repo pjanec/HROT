@@ -47,6 +47,7 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponState>();          // SquadGates.Track — a member firing
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();      // RoomDrill.FindThrower — a member's grenade mount
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>();              // SquadDefendPlay.LiftOwnHold — a member's weapon
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Mountable>();                       // ⭐ C1 — is a carried thing an item (Items.IsMountable: checkpoint / stop-at-signal, carry stations, operator use)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();            // CE-7035 — a civilian reads how a forces man holds his weapon (covered / aimed at: CE-2239, CE-2241)
             ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleParams>();               // CE-7035 — a civilian / rioter tells a vehicle from a man (its params)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.AmmoLoadout>();              // CE-7035 — what a forces man's weapon is loaded with (a baton round is no cover, CE-2239)

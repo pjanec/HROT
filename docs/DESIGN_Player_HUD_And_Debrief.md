@@ -6,6 +6,7 @@ current-answer: §3 (decisions) · §4 (phases) · §6 (AS BUILT H1 + H2) · §7
 stale-below: nothing
 known-rot: none
 related-designs:
+  - designs/devices/DESIGN_Simulated_Devices.md — simulated devices: a view shows a SOURCE (a device, a weapon sight, a cockpit) whose HUD is a projector run (`HudScope`); ⚠ known-conflict: the hud.* features vs the device HUD, reconciled in its §3w R3-7
   - DESIGN_Man_Downed_Event.md — OWNS the one kill authority (`ManDownedEvent`); PH-7 (the kill feed) reads it — and needs its wire topic (D5)
   - docs/DESIGN_Scenario_Rules.md — OWNS the decisions: SR-106 (messages, built — CE-1461), SR-107 (the player's own evaluation on the HUD), SR-112 (the two profiles, the debrief, the round summary); §00.11 S4 (measures, group, MemberEvaluation — behaviors) and §00.12 S6 (capture, counters, whileTrue — backend)
   - docs/designs/rules-view/README.md — the mockups HudTraining · HudGame · TraineeDebrief · GameSummary; the SR rows win where they differ

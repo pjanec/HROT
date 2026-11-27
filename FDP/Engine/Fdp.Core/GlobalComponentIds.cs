@@ -29,6 +29,7 @@ namespace Fdp.Core
     /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
     /// <para>⭐ CE-4628 (ui, 2026-11-19; docs/designs/animals/DESIGN_Animals.md §10a) — the shared creature components take <c>Group</c> 139 (⚠ the agg-behaviors note above listed 139 as reserved for it; no branch declares it — measured 2026-11-19) and <c>AnimalTasks</c> 163 (was <c>InFormationTag</c>'s).</para>
     /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
+    /// <para>⭐ C1 (coordinator, 2026-11-27; docs/DESIGN_Capability_Components.md CC-1) — <c>Mountable</c> takes 218, a toolkit hole: the coordinator block 476–495 is full and 108 is the convoy lane's (R-4282); measured FREE by <c>ComponentIdCatalogueTests</c> the same day.</para>
     /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
     /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
@@ -934,6 +935,11 @@ namespace Fdp.Core
         /// <summary><c>WeaponSystemState</c> — ⭐ WS-1: a weapon system's deploy state (Stowed · Deploying · Deployed · Packing), written by
         /// its owner, replicated (<c>dtWeaponSystemState</c>), saved. ⚠ 380 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int WeaponSystemState = 380;
+
+        /// <summary><c>Mountable</c> — ⭐ Capability components C1 (docs/DESIGN_Capability_Components.md §4.1, CC-1): the ITEM facts (what it mounts on, how many carry it,
+        /// how it slows the carrier) split out of <c>WeaponSystemParams</c>; every node, never saved or replicated. ⚠ 218 is a toolkit hole, listed FREE by
+        /// <c>ComponentIdCatalogueTests</c> on coordinator 2026-11-27 (the lane blocks 476–495 are full; 108 is the convoy lane's, R-4282).</summary>
+        public const int Mountable = 218;
 
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>

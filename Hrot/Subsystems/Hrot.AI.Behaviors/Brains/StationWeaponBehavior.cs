@@ -114,7 +114,7 @@ namespace Hrot.AI.Behaviors.Brains
             return false;
         }
 
-        private static bool IsWeapon(EntityRepository world, Entity thing)
-            => !thing.IsNull && world.IsAlive(thing) && world.IsComponentTypeRegistered<WeaponSystemParams>() && world.HasComponent<WeaponSystemParams>(thing);
+        // ⭐ C1 CC-2 — both uses ask "is this thing a carried ITEM" (what a station holds / restations); the FIRE meaning is not used here
+        private static bool IsWeapon(EntityRepository world, Entity thing) => Items.IsMountable(world, thing);
     }
 }

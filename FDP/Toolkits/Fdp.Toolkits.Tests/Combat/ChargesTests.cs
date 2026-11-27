@@ -39,7 +39,7 @@ namespace Fdp.Toolkit.Tests.Combat
             _world.RegisterComponent<WeaponMountInfo>();
             _world.RegisterComponent<PartMetadata>();
             _world.RegisterComponent<AmmoLoadout>();
-            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();
             _world.RegisterComponent<WeaponSystemState>();
             _world.RegisterComponent<PassengerBuffer>();
             _world.RegisterComponent<CarrierSeats>();

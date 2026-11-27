@@ -12,6 +12,7 @@ namespace Fdp.Toolkit.Combat
     /// ⭐⭐ Weapon systems WS-1 (R-2016, docs/designs/weapons/DESIGN_Weapon_Systems.md §3, §5) — how a weapon-system entity is handled,
     /// projected from its TKB <see cref="WeaponSystemDto"/> (<c>Gen.WeaponSystem</c>) on every node. Its presence MAKES the entity a weapon
     /// system (<c>WeaponSystems.IsWeaponSystem</c>). A type fact: never saved, never replicated.
+    /// ⭐ C1 (docs/DESIGN_Capability_Components.md CC-1): the ITEM facts (<c>MountKinds</c>, <c>Portable</c>, <c>CarrySpeedFactor</c>) moved to <see cref="Mountable"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.WeaponSystemParams)]
@@ -20,23 +21,18 @@ namespace Fdp.Toolkit.Combat
     {
         /// <summary>1 when it fires only while someone operates it; 0 = AUTOMATIC (W-E).</summary>
         public byte NeedsOperator;
-        /// <summary><see cref="WeaponPortability"/>.</summary>
-        public byte Portable;
-        public float CarrySpeedFactor;
         /// <summary>1 when it fires while carried (stowed).</summary>
         public byte FireWhileCarried;
         public SimDuration DeploySeconds;
         public SimDuration PackSeconds;
-        /// <summary><see cref="MountKinds"/>.</summary>
-        public byte MountKinds;
         /// <summary>⭐ <c>CE-3233</c> (B-11b) — 1 for an explosive charge: detonated, never fired.</summary>
         public byte Charge;
 
         public static WeaponSystemParams From(WeaponSystemDto d) => new()
         {
-            NeedsOperator = (byte)(d.NeedsOperator ? 1 : 0), Portable = (byte)d.Portable, CarrySpeedFactor = d.CarrySpeedFactor,
+            NeedsOperator = (byte)(d.NeedsOperator ? 1 : 0),
             FireWhileCarried = (byte)(d.FireWhileCarried ? 1 : 0), DeploySeconds = d.DeploySeconds, PackSeconds = d.PackSeconds,
-            MountKinds = (byte)d.MountKinds, Charge = (byte)(d.Charge ? 1 : 0),
+            Charge = (byte)(d.Charge ? 1 : 0),
         };
     }
 
@@ -69,7 +65,7 @@ namespace Fdp.Toolkit.Combat
     }
 
     /// <summary>
-    /// ⭐ WS-1 — projects a weapon-system type's <see cref="WeaponSystemDto"/>: <see cref="WeaponSystemParams"/> (a type fact, always rewritten)
+    /// ⭐ WS-1 — projects a weapon-system type's <see cref="WeaponSystemDto"/>: <see cref="WeaponSystemParams"/> and <see cref="Mountable"/> (type facts, always rewritten)
     /// and, the first time only, <see cref="WeaponSystemState"/> <see cref="WeaponDeploy.Deployed"/> — a placed weapon stands ready (a loaded
     /// scenario keeps the state it saved; a carried one is stowed by whoever picks it up).
     /// </summary>
@@ -80,6 +76,7 @@ namespace Fdp.Toolkit.Combat
         public IEnumerable<Type> GetProducedComponents()
         {
             yield return typeof(WeaponSystemParams);
+            yield return typeof(Mountable);   // ⭐ C1 CC-1 — the item facts, written beside the fire facts for every weapon type
             yield return typeof(WeaponSystemState);
             yield return typeof(ChargeTimer);   // ⭐ CE-4621 M-5 — registered with the weapon system (a charge is one); added only when armed
         }
@@ -93,6 +90,12 @@ namespace Fdp.Toolkit.Combat
                 var p = WeaponSystemParams.From(dto);
                 if (repo.HasComponent<WeaponSystemParams>(entity)) repo.SetComponent(entity, p);
                 else repo.AddComponent(entity, p);
+            }
+            if (repo.IsComponentTypeRegistered<Mountable>())
+            {
+                var m = Mountable.From(dto);
+                if (repo.HasComponent<Mountable>(entity)) repo.SetComponent(entity, m);
+                else repo.AddComponent(entity, m);
             }
             if (repo.IsComponentTypeRegistered<WeaponSystemState>() && !repo.HasComponent<WeaponSystemState>(entity))
                 repo.AddComponent(entity, new WeaponSystemState { Deploy = WeaponDeploy.Deployed });
@@ -168,7 +171,10 @@ namespace Fdp.Toolkit.Combat
         }
 
         /// <summary>⭐ <c>CE-3214</c> — how far <paramref name="weapon"/> is deployed now, from its replicated state; 1 without one.</summary>
-        public static float FractionOf(EntityRepository repo, Entity weapon)
+        public static float FractionOf(EntityRepository repo, Entity weapon) => FractionOf(repo, weapon, Now(repo));
+
+        /// <summary>⭐ C1 CC-4 — the same at a caller-supplied <paramref name="now"/> (the drawing's own sim time).</summary>
+        public static float FractionOf(EntityRepository repo, Entity weapon, double now)
         {
             if (!repo.IsComponentTypeRegistered<WeaponSystemState>() || !repo.HasComponent<WeaponSystemState>(weapon)) return 1f;
             var state = repo.GetComponentRO<WeaponSystemState>(weapon);
@@ -178,7 +184,7 @@ namespace Fdp.Toolkit.Combat
                 var p = repo.GetComponentRO<WeaponSystemParams>(weapon);
                 seconds = state.Deploy == WeaponDeploy.Packing ? p.PackSeconds : p.DeploySeconds;
             }
-            return Fraction(state.Deploy, state.Until, Now(repo), seconds);
+            return Fraction(state.Deploy, state.Until, now, seconds);
         }
 
         /// <summary>⭐ <c>CE-3470</c> — would <see cref="Deploy"/> (<paramref name="deploy"/>) or <see cref="Pack"/> start now? READS only, so a brain in

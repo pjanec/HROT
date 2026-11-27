@@ -1640,18 +1640,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
 
     /// <summary>⭐ CE-1087 — how far <paramref name="weapon"/> is deployed now (0 stowed … 1 deployed); 1 without a deploy state.</summary>
     public static float DeploymentOf(EntityRepository world, Entity weapon, double now)
-    {
-        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemState>() || !world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemState>(weapon))
-            return 1f;
-        var state = world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemState>(weapon);
-        float seconds = 0f;
-        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>() && world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon))
-        {
-            var p = world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon);
-            seconds = state.Deploy == Fdp.Toolkit.Combat.WeaponDeploy.Packing ? p.PackSeconds : p.DeploySeconds;
-        }
-        return WeaponKits.Deployment(state.Deploy, state.Until, now, seconds);
-    }
+        => Fdp.Toolkit.Combat.WeaponDeployment.FractionOf(world, weapon, now);   // ⭐ C1 CC-4 — the ONE lookup (was a copy of it)
 
     /// <summary>
     /// ⭐ CE-1089 (N-5) / ⭐ CE-1114 (§6n) — the turret and gun pose of a weapon system or a self-propelled gun: its turret part's

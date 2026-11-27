@@ -1954,7 +1954,7 @@ public sealed class Map3DFrameRail
         Reg<Fdp.Toolkit.Behavior.Components.CarrierStations>(); Reg<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
         Reg<Fdp.Toolkit.Behavior.Components.PersonCarrier>(); Reg<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         Reg<Fdp.Toolkit.Behavior.Components.IsAssistingTag>(); Reg<Fdp.Toolkit.Combat.Components.InjuryThresholds>();
-        Reg<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); Reg<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        Reg<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(); Reg<Fdp.Toolkit.Combat.WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>();
         Reg<Fdp.Toolkit.Combat.WeaponSystemState>(); Reg<Fdp.Toolkit.Terrain.DoorState>(); Reg<Fdp.Toolkit.Motion.Locomotion>();
         Reg<Fdp.Core.CommandHierarchy.UnitEntity>(); Reg<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();
         if (!world.IsComponentTypeRegistered<EntityInfo>()) world.RegisterComponent<EntityInfo>();
@@ -2496,7 +2496,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<StanceIntent>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         var tkb = Map3DTests.BuiltIn();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
@@ -2532,7 +2532,7 @@ public sealed class Map3DFrameRail
             var gun = world.CreateEntity();
             world.AddComponent(gun, new SimTransform { Position = hawkAt + new Vector3(doorSeats[gunnerSeat + 1].X, doorSeats[gunnerSeat + 1].Y, doorSeats[gunnerSeat + 1].Z), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, side * MathF.PI / 2f) });
             world.AddComponent(gun, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_M134Minigun) });
-            world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+            world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(gun, new Fdp.Toolkit.Combat.Mountable());
             world.AddComponent(gun, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
             world.AddComponent(gun, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = hawk, Exposed = 1, Seat = (byte)(gunnerSeat + 1) });
             if (side < 0) doorGun = gun;
@@ -2589,7 +2589,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<StanceIntent>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         var tkb = Map3DTests.BuiltIn();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
@@ -2615,7 +2615,7 @@ public sealed class Map3DFrameRail
                 if (seats[s].Role == Fdp.Toolkit.Behavior.Components.SeatRole.Station)
                 {
                     world.AddComponent(e, new SimTransform { Position = at + new Vector3(seats[s].X, seats[s].Y, seats[s].Z), Rotation = Quaternion.Identity });
-                    world.AddComponent(e, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+                    world.AddComponent(e, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(e, new Fdp.Toolkit.Combat.Mountable());
                     world.AddComponent(e, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed });
                     weapons++;
                 }
@@ -3228,7 +3228,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsAssistingTag>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         var tkb = Map3DTests.BuiltIn();
         world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(tkb);
         world.SetSingletonUnmanaged(new GlobalTime { TotalTime = 0.0 });
@@ -3262,7 +3262,7 @@ public sealed class Map3DFrameRail
         var mortar = world.CreateEntity();
         world.AddComponent(mortar, new SimTransform { Position = world.GetComponentRO<SimTransform>(gunner).Position, Rotation = Quaternion.Identity });
         world.AddComponent(mortar, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_Mortar120) });
-        world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = (byte)WeaponPortability.TwoMan });
+        world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(mortar, new Fdp.Toolkit.Combat.Mountable { Portable = (byte)WeaponPortability.TwoMan });
         world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
         var crew = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = loader };
         crew.Passengers[1] = mortar;
@@ -4300,7 +4300,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<TkbIdentity>();
         world.RegisterComponent<StanceIntent>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
@@ -4324,7 +4324,7 @@ public sealed class Map3DFrameRail
         Entity Weapon(long type, float dx, float dy, Fdp.Toolkit.Combat.WeaponDeploy deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed)
         {
             var w = Put(type, dx, dy);
-            world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, DeploySeconds = 3f, PackSeconds = 3f });
+            world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, DeploySeconds = 3f, PackSeconds = 3f }); world.AddComponent(w, new Fdp.Toolkit.Combat.Mountable { Portable = 1 });
             world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = deploy });
             return w;
         }
@@ -4440,7 +4440,7 @@ public sealed class Map3DFrameRail
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.BallisticProjectile>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
@@ -4484,7 +4484,7 @@ public sealed class Map3DFrameRail
         Entity Weapon(long type, float dx, float dy, Fdp.Toolkit.Combat.WeaponDeploy deploy = Fdp.Toolkit.Combat.WeaponDeploy.Deployed)
         {
             var w = Put(type, dx, dy);
-            world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, DeploySeconds = 3f, PackSeconds = 3f });
+            world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, DeploySeconds = 3f, PackSeconds = 3f }); world.AddComponent(w, new Fdp.Toolkit.Combat.Mountable { Portable = 1 });
             world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = deploy });
             return w;
         }

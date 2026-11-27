@@ -249,7 +249,8 @@ namespace Hrot.Common.Orders
             {
                 if (other == keep || !_world.IsAlive(other)) continue;
                 var held = _world.GetComponentRO<PossessedBy>(other);
-                if (held.Mode == PossessionMode.Riding || held.StationNodeId != StationFor(other)) continue;
+                // ⭐ C3 CC-11 — a station drives ONE body: release its other driven (non-Riding body-mode) holds; a non-body hold is not its body
+                if (!StationBody.IsBodyMode(held.Mode) || held.Mode == PossessionMode.Riding || held.StationNodeId != StationFor(other)) continue;
                 Publish(new ReleasePossessionEvent { Unit = other, StationNodeId = held.StationNodeId });
             }
         }
@@ -292,9 +293,7 @@ namespace Hrot.Common.Orders
         }
 
         /// <summary>⭐ CE-3174 — this node as a station, for <paramref name="entity"/> (C-8): what <see cref="Fdp.Toolkit.Behavior.Possession.PossessedBy.StationNodeId"/> says when THIS station holds it.</summary>
-        public int StationFor(Entity entity)
-            => Station ?? (_world.IsComponentTypeRegistered<NetworkAuthority>() && _world.HasComponent<NetworkAuthority>(entity)
-                ? _world.GetComponentRO<NetworkAuthority>(entity).LocalNodeId : 0);
+        public int StationFor(Entity entity) => StationBody.StationOf(_world, entity, Station);   // ⭐ C3 — the one station rule
 
         private void Publish<T>(T evt) where T : unmanaged
         {

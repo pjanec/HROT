@@ -7,21 +7,21 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "test-town",
-    "description": "What: Test-town. An M1 \"Tank\" (BasicVehicleSop, no order) stands in the open at (262,215), 65 m north of the 15 m block's north leg (x 230-250, y 110-150) — ⛔ not (262,195): since CE-4691 (a hide hides the WHOLE hull) it reaches a true hide behind the block in ~9 s, before the TOW is ready, and nothing is ever launched; ⛔ not (262,165): the L-Block hides it from the Bradley there (measured /perception/los). \"Shooter\", an M2 Bradley 170 m west (100,225), is told to attack it (LandPlatformAttack) with its TOW. Judge: (1) the Bradley launches a TOW at the tank (2) within 3 s of the launch the tank fires ONE salvo of its smoke dischargers (mount 2) at the Bradley — the fan of grenades bursts 30 m out between them (3) the tank leaves the open: it backs out of the Bradley's sight into its own hide (~288,227 from this start, measured CE-4691; it chooses it, the cover search) (5) the Bradley never hits it again after the screen (4) a second salvo never follows the first within 30 s. Fail: no salvo, a salvo without a launch, or the tank stays in the open. CE-4670 VA-S5, DESIGN_Vehicle_Appearance_State §6f."
+    "description": "What: Test-town. An M1 \"Tank\" stands in the open at (262,195), FACING WEST towards the threat, 45 m north of the 15 m block's north leg (x 230-250, y 110-150), serving under an idle \"Tank Platoon\" HQ — ⭐ CE-4703: contact is its commander's, so it HOLDS until a missile is launched at it (its own reaction); \"Shooter\", an M2 Bradley 165 m west (100,225), is told to attack it (LandPlatformAttack) with its TOW. ⭐ Why staged so (backend, 2026-11-27, unreal-ig's live report): with the tank free to react to first contact the outcome was a RACE — it reached a true hide before the TOW was ready on some runs (live: nothing fired) and not on others; facing EAST every TOW struck its rear and took its mobility, so it could never back out. Judge: (1) the Bradley launches a TOW at the tank (2) within 3 s of the launch the tank fires ONE salvo of its smoke dischargers (mount 2) at the Bradley — the fan of grenades bursts 30 m out between them (3) the tank leaves the open: it backs out of the Bradley's sight into its own hide (~288,227 from this start, measured CE-4691; it chooses it, the cover search) (5) the Bradley never hits it again after the screen (4) a second salvo never follows the first within 30 s. Fail: no salvo, a salvo without a launch, or the tank stays in the open. CE-4670 VA-S5, DESIGN_Vehicle_Appearance_State §6f."
   },
   "entities": {
     "c4670d00-0000-4000-8000-000000000001": {
       "SimTransform": {
         "Position": [
           262,
-          215,
+          195,
           0
         ],
         "Rotation": [
           0,
           0,
-          0,
-          1
+          1,
+          0
         ]
       },
       "TkbIdentity": {
@@ -42,6 +42,10 @@
         "Name": "BasicVehicleSop",
         "Params": {},
         "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c4670d00-0000-4000-8000-000000000003",
+        "Designation": "Wingman"
       }
     },
     "c4670d00-0000-4000-8000-000000000002": {
@@ -88,6 +92,28 @@
           "Target": "c4670d00-0000-4000-8000-000000000001"
         },
         "Origin": "Superior"
+      }
+    },
+    "c4670d00-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          300,
+          90,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 303
+      },
+      "EntityInfo": {
+        "Name": "Tank Platoon",
+        "ForceId": "Hostile"
       }
     }
   }

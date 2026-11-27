@@ -140,7 +140,7 @@ namespace Fdp.Toolkit.Behavior
         private static EmbarkResult Recarry(EntityRepository repo, Entity passenger, Entity vehicle, int seat, CarryMode mode, Entity assistant, bool apply)
         {
             if (mode == CarryMode.Seated && assistant.IsNull) return EmbarkResult.AlreadyAboard;
-            if (!IsPersonCarrier(repo, vehicle) || IsWeaponSystem(repo, passenger)) return EmbarkResult.AlreadyAboard;
+            if (!IsPersonCarrier(repo, vehicle) || Fdp.Toolkit.Combat.Items.IsMountable(repo, passenger)) return EmbarkResult.AlreadyAboard;
             if (mode == CarryMode.Seated) mode = CarryMode.Carried;
             ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(vehicle);
             var current = list.ModeOf(seat);
@@ -175,12 +175,12 @@ namespace Fdp.Toolkit.Behavior
             //   man; every other load refuses one. Only a person carries a team load.
             bool team = IsPersonCarrier(repo, vehicle) && (mode == CarryMode.Stretcher || IsTwoManWeapon(repo, passenger));
             if (team ? !FitAssistant(repo, vehicle, passenger, assistant) : !assistant.IsNull) return EmbarkResult.Invalid;
-            if (mode == CarryMode.Stretcher && (!IsPersonCarrier(repo, vehicle) || IsWeaponSystem(repo, passenger))) return EmbarkResult.Invalid;
+            if (mode == CarryMode.Stretcher && (!IsPersonCarrier(repo, vehicle) || Fdp.Toolkit.Combat.Items.IsMountable(repo, passenger))) return EmbarkResult.Invalid;
             // ⭐⭐ Weapon systems WS-2 (W-B, R-2016; DESIGN_Weapon_Systems §6) — a WEAPON SYSTEM boards a Station seat whose Accepts
             //   shares one of its mount kinds — never a seat for a man; onto a PERSON only a portable one, and only while he is in the fight.
-            if (IsWeaponSystem(repo, passenger))
+            if (Fdp.Toolkit.Combat.Items.IsMountable(repo, passenger))
             {
-                var kinds = repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(passenger);
+                var kinds = repo.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(passenger);
                 if (IsPersonCarrier(repo, vehicle)
                     && (kinds.Portable == (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.Static || !Fdp.Toolkit.Combat.Injury.IsInTheFight(repo, vehicle)))
                     return EmbarkResult.Invalid;
@@ -209,8 +209,8 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>⭐ T-a — is <paramref name="e"/> a weapon system two men carry (<c>Portable = TwoMan</c>)?</summary>
         public static bool IsTwoManWeapon(EntityRepository repo, Entity e)
-            => IsWeaponSystem(repo, e)
-               && repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(e).Portable == (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.TwoMan;
+            => Fdp.Toolkit.Combat.Items.IsMountable(repo, e)
+               && repo.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(e).Portable == (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.TwoMan;
 
         /// <summary>
         /// ⭐⭐ Team carry T-a (R-2017 T4) — may <paramref name="assistant"/> take the rear of <paramref name="carrier"/>'s team load? Alive and
@@ -293,15 +293,15 @@ namespace Fdp.Toolkit.Behavior
                                                          : PassengerBuffer.UndeclaredSeats;
             if (seat < 0 || seat >= seats) return EmbarkResult.Invalid;
             bool station = Has<CarrierStations>(repo, vehicle) && repo.GetComponentRO<CarrierStations>(vehicle).IsStation(seat);
-            if (IsWeaponSystem(repo, passenger))
+            if (Fdp.Toolkit.Combat.Items.IsMountable(repo, passenger))
             {
                 if (!station || (repo.GetComponentRO<CarrierStations>(vehicle).Seats[seat].Accepts
-                                 & repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(passenger).MountKinds) == 0) return EmbarkResult.Invalid;
+                                 & repo.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(passenger).MountKinds) == 0) return EmbarkResult.Invalid;
             }
             else if (station) return EmbarkResult.Invalid;
             if (!repo.GetComponentRO<PassengerBuffer>(vehicle).Passengers[seat].IsNull) return EmbarkResult.Full;
             if (!IsPersonCarrier(repo, vehicle)) return Seat(repo, passenger, vehicle, seat, CarryMode.Seated);
-            if (IsWeaponSystem(repo, passenger) || mode == CarryMode.Seated) mode = CarryMode.Carried;
+            if (Fdp.Toolkit.Combat.Items.IsMountable(repo, passenger) || mode == CarryMode.Seated) mode = CarryMode.Carried;
             bool team = mode == CarryMode.Stretcher || IsTwoManWeapon(repo, passenger);
             if (!team || assistant.IsNull || !repo.IsAlive(assistant) || assistant == passenger || assistant == vehicle) assistant = Entity.Null;
             if (mode == CarryMode.Stretcher && assistant.IsNull) mode = CarryMode.Carried;   // ⛔ no stretcher with one man
@@ -321,7 +321,7 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>⭐ WS-2 — is <paramref name="e"/> a weapon system (its type declares <c>Gen.WeaponSystem</c>)?</summary>
-        public static bool IsWeaponSystem(EntityRepository repo, Entity e) => Has<Fdp.Toolkit.Combat.WeaponSystemParams>(repo, e);
+        public static bool IsWeaponSystem(EntityRepository repo, Entity e) => Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(repo, e);   // ⭐ C1 CC-3 — the ONE test
 
         /// <summary>
         /// ⭐⭐ Weapon systems WS-2 (W-B) — the first free <see cref="SeatRole.Station"/> of <paramref name="vehicle"/> whose <c>Accepts</c>
@@ -509,7 +509,7 @@ namespace Fdp.Toolkit.Behavior
             // ⭐ CE-2152 (R-2011 C7) — a person carrying or dragging a casualty has his hands full: no fire (back on ReleaseCarrier).
             //   ⭐ WS-2 — a carried WEAPON does not: the soldier still fights (he may even fire it, FireWhileCarried).
             //   ⭐ T-a (R-2017 T5) — a TEAM load (a two-man weapon) fills his hands as a casualty does.
-            if (IsPersonCarrier(repo, vehicle) && (!IsWeaponSystem(repo, passenger) || !AssistantOf(repo, vehicle).IsNull)
+            if (IsPersonCarrier(repo, vehicle) && (!Fdp.Toolkit.Combat.Items.IsMountable(repo, passenger) || !AssistantOf(repo, vehicle).IsNull)
                 && Has<ActorCapabilityState>(repo, vehicle))
                 repo.GetComponentRW<ActorCapabilityState>(vehicle).Capabilities &= ~ActorCapabilities.CanShoot;
             var mode = Has<PassengerBuffer>(repo, vehicle) ? repo.GetComponentRO<PassengerBuffer>(vehicle).ModeOf(seat) : CarryMode.Seated;
@@ -566,7 +566,7 @@ namespace Fdp.Toolkit.Behavior
             ref readonly var list = ref repo.GetComponentRO<PassengerBuffer>(carrier);
             if (!list.Assistant.IsNull) return true;
             for (int i = 0; i < PassengerBuffer.Capacity; i++)
-                if (!list.Passengers[i].IsNull && !IsWeaponSystem(repo, list.Passengers[i])) return true;
+                if (!list.Passengers[i].IsNull && !Fdp.Toolkit.Combat.Items.IsMountable(repo, list.Passengers[i])) return true;
             return false;
         }
 

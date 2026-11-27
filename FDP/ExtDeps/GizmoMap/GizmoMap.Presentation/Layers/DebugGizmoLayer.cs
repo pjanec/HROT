@@ -630,7 +630,7 @@ namespace GizmoMap.Presentation
             for (int i = primitives.Length - 1; i >= 0; i--)
             {
                 ref readonly var prim = ref primitives[i];
-                if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding || prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
+                if (PrimitiveKind.IsMeta(prim.Shape) || PrimitiveKind.IsPanel(prim.Shape)) continue;   // ⭐ CC-14 — only a Box2D / Sphere can hit below, so this is the same set
 
                 if (prim.AnchorIndex == 0 && prim.SubElementId == 0 && prim.BoxAnchorId == 0) continue;
                 // ⭐⭐ CE-1466 — in 3-D an entity the view DRAWS as a body is hit by the camera's RAY (its drawn box + a few pixels), never by its 2-D
