@@ -20,7 +20,8 @@ namespace Fdp.Toolkit.Terrain
         /// <summary>⭐ T-7b — the overlay's bridges (<c>bridges[]</c>): which structure each is, its road segments and its SUMO edges.</summary>
         public System.Collections.Generic.IReadOnlyList<OverlayBridge> Bridges { get; init; } = Array.Empty<OverlayBridge>();
 
-        private static OverlayBridge[] ParseBridges(JsonArray? rows)
+        /// <summary>The <c>bridges[]</c> rows of an overlay header or (⭐ CE-11075) of a base terrain's <c>terrain.json</c>: <c>{key, snapped, segments, sumoEdges}</c>.</summary>
+        public static OverlayBridge[] ParseBridges(JsonArray? rows)
         {
             if (rows == null) return Array.Empty<OverlayBridge>();
             var list = new System.Collections.Generic.List<OverlayBridge>(rows.Count);

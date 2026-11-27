@@ -19,7 +19,16 @@ public sealed partial class TerrainImporter : ITerrainImporter
     /// 5 = an OSM bridge edge becomes a DECK from bank to bank, the net's bridged lanes on it (CE-5057 / CE-11063, DESIGN_Terrain_OSM_Bridges). 4 = a two-way road is ONE corridor (CE-4694 ②: no cliff down its middle). 3 = entrance steps for raised ground doors (CE-5056 ④). 2 = 1.2 m doors and stairs clear of the ground doors (CE-5056, village-street: 234 of 582 ground
     /// doors had no path through). 1 = everything before (recorded as none).
     /// </summary>
-    public const int Revision = 5;
+    /// <summary>⭐ CE-11075 — a deck's bridge row: <c>Key</c> = its structure label (the collapse names it), every SUMO edge it bridges (both directions) and their road segments.</summary>
+    internal static Fdp.Toolkit.Terrain.OverlayBridge DeckRow(Bridges.Deck d, IReadOnlyDictionary<string, List<int>> segmentsOfEdge)
+    {
+        var segs = new SortedSet<int>();
+        foreach (var e in d.EdgeIds) if (segmentsOfEdge.TryGetValue(e, out var l)) foreach (int i in l) segs.Add(i);
+        var edges = d.EdgeIds.Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        return new Fdp.Toolkit.Terrain.OverlayBridge(d.Id, true, segs.ToArray(), edges);
+    }
+
+    public const int Revision = 6;   // ⭐ CE-11075 — 6: terrain.json carries each OSM deck's bridge row (its road segments and SUMO edges), so a fallen OSM bridge closes its road
 
     private readonly string? _terrainsRoot, _scenariosRoot;
 
@@ -84,6 +93,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
             string? netFile = null, roadsFile = null;
             double ax = m.AnchorX + swX, ay = m.AnchorY + swY;
             List<TerrainWoods.RoadSegment> roads = new();
+            var segmentsOfEdge = new Dictionary<string, List<int>>(StringComparer.Ordinal);   // ⭐ CE-11075 — each SUMO edge's road-graph segments
             if (set.RoadsNet is string net)
             {
                 netFile = name + ".net.xml";
@@ -91,7 +101,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
                 roads = NetRoads.Read(net, ax, ay);
                 // ⭐ CE-6001 (§18k) — and the VEHICLES' road network from the same net, so a bridge (T-7a) has road nodes to snap to
                 roadsFile = name + ".roads.json";
-                File.WriteAllText(Path.Combine(tmp, roadsFile), NetRoadNetwork.Read(net, ax, ay).ToJsonString(), new System.Text.UTF8Encoding(false));
+                File.WriteAllText(Path.Combine(tmp, roadsFile), NetRoadNetwork.Read(net, ax, ay, segmentsOfEdge).ToJsonString(), new System.Text.UTF8Encoding(false));
             }
             else rep.Warnings.Add("the input set has no roads/roads.net.xml — the terrain has no SUMO net");
             progress?.Report(new ImportProgress("roads", 1));
@@ -118,6 +128,9 @@ public sealed partial class TerrainImporter : ITerrainImporter
             var bridgeParts = decks.Select(d => (d.Id, (IReadOnlyList<Fdp.Toolkit.Terrain.DeckGeometry.Part>)Fdp.Toolkit.Terrain.DeckGeometry.BuildAlong(
                 d.Line, d.Width, d.ZAt, p => finalGround.Sample(p.X, p.Y)))).ToList();
             rep.Bridges = decks.Count;
+            // ⭐⭐ CE-11075 (DESIGN_Terrain_OSM_Bridges.md §8) — each deck's BRIDGE ROW (the overlay's shape): its structure label, the road segments and SUMO edges it carries, so the
+            //   closure step (BridgeClosureSystem) drops them from both nets when the deck collapses — as an authored bridge's
+            var bridgeRows = decks.Select(d => DeckRow(d, segmentsOfEdge)).ToList();
             Stage("pads"); progress?.Report(new ImportProgress("levelling", 0.6));
             HeightStage.Write(posts, postCols, postRows, Path.Combine(tmp, heightsFile), rep);
             Stage("store"); progress?.Report(new ImportProgress("levelling", 0.8));
@@ -170,7 +183,7 @@ public sealed partial class TerrainImporter : ITerrainImporter
 
             string worldFile = name + ".world.geojson";
             TerrainFolderWriter.WriteWorld(Path.Combine(tmp, worldFile), Describe(set), width, height, heightsFile, water, veg.Woods, built, walls, veg.LoneTrees, entrances, bridgeParts);
-            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)), Revision);
+            TerrainFolderWriter.WriteTerrainJson(Path.Combine(tmp, "terrain.json"), name, worldFile, m.Frame, swX, swY, netFile, ax, ay, roadsFile, Hrot.Terrain.InputSet.Manifest.Sha256(set.PathOf(InputSetLayout.Manifest)), Revision, bridgeRows);
             progress?.Report(new ImportProgress("write", 1));
             Stage("write");
             ct.ThrowIfCancellationRequested();

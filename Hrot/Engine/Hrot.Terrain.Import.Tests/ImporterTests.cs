@@ -297,6 +297,35 @@ public class ImporterTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ <c>CE-11075</c> (DESIGN_Terrain_OSM_Bridges.md §8) — the import writes each deck's BRIDGE ROW into <c>terrain.json</c>: keyed by the deck's structure label (what a collapse
+    /// names), with BOTH directions' SUMO edges and the road-graph segments over the river — so <c>BridgeClosureSystem</c> closes a fallen OSM bridge like an authored one.
+    /// 🔴 Red-proof: write no rows ⇒ <c>Bridges</c> is empty.
+    /// </summary>
+    [Fact]
+    public async Task CE11075_EachDeck_HasABridgeRow_WithBothEdges_AndTheSegmentsOverTheRiver()
+    {
+        const string twoWay = "<edge id=\"e2\" from=\"b\" to=\"c\"><lane id=\"e2_0\" index=\"0\" width=\"3.5\" shape=\"-20,-1.75 20,-1.75\"/>{tag}</edge>" +
+                              "<edge id=\"-e2\" from=\"c\" to=\"b\"><lane id=\"-e2_0\" index=\"0\" width=\"3.5\" shape=\"20,1.75 -20,1.75\"/>{tag}</edge>";
+        var mini = new MiniSet { Ground = Dip, Net = true, NetXml = BridgeNet(twoWay) };
+        var (folder, world, _) = await Import(mini, "rows");
+        var def = Fdp.Toolkit.Terrain.TerrainFolderWorld.ReadDefinition(Path.Combine(folder, "terrain.json"));
+        var row = Assert.Single(def.Bridges);
+        Assert.Equal("osm-bridge/e2", row.Key);
+        Assert.Contains(world.Buildings, b => b.Label == row.Key && b.Structure);
+        Assert.Equal(new[] { "-e2", "e2" }, row.SumoEdges);
+        Assert.NotEmpty(row.Segments);
+        var roads = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Directory.GetFiles(folder, "*.roads.json").Single()))!["segments"]!.AsArray();
+        foreach (int i in row.Segments)
+        {
+            var cp = roads[i]!["controlPoints"]!;
+            double mx = ((double)cp["p0"]!["x"]! + (double)cp["p1"]!["x"]!) / 2 + mini.MinX;   // back to net x
+            Assert.InRange(mx, -20.5, 20.5);   // the bridged stretch, not the bank roads
+        }
+        Assert.Equal(3, roads.Count);                 // bank road, bridge, bank road (a two-way pair is one segment)
+        Assert.Single(row.Segments);                  // only the bridge's
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-5057</c> A-2 — a bridge SPLIT at a junction on it (two bridged edges) is ONE deck with no step at the joint, and the junction on it lies on the deck; a TWO-WAY
     /// bridge (one edge per direction) is ONE deck as wide as both. 🔴 Mutation: no chaining ⇒ two decks.
     /// </summary>

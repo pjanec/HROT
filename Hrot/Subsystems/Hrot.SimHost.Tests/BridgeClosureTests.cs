@@ -46,7 +46,7 @@ public sealed class BridgeClosureTests : IDisposable
     private World Build() => Build(authoredBridge: true);
 
     /// <param name="authoredBridge">false ⇒ the river and the roads only (no authored Bridge feature, no overlay): the ground a LAID bridge is placed on (CE-4692).</param>
-    private World Build(bool authoredBridge, JsonObject? extraEntities = null, bool baseWall = false)
+    private World Build(bool authoredBridge, JsonObject? extraEntities = null, bool baseWall = false, bool baseBridge = false)
     {
         string terrains = Path.Combine(_root, "assets", "terrain"), folder = Path.Combine(terrains, "t"), scenario = Path.Combine(_root, "scn");
         Directory.CreateDirectory(folder); Directory.CreateDirectory(scenario);
@@ -66,6 +66,16 @@ public sealed class BridgeClosureTests : IDisposable
               {"id":2,"startNodeId":1,"endNodeId":4,"controlPoints":{"p0":{"x":190,"y":200},"t0":{"x":25,"y":-140},"p1":{"x":215,"y":60},"t1":{"x":25,"y":-140}},"speedLimit":14,"laneWidth":3.5,"laneCount":1},
               {"id":3,"startNodeId":4,"endNodeId":2,"controlPoints":{"p0":{"x":215,"y":60},"t0":{"x":25,"y":140},"p1":{"x":240,"y":200},"t1":{"x":25,"y":140}},"speedLimit":14,"laneWidth":3.5,"laneCount":1}]}
             """);
+        if (baseBridge)
+        {
+            // ⭐ CE-11075 — an IMPORTED terrain's bridge: a base deck structure "osm-bridge/e" over the river, the base road graph's crossing segment 4 on it, and the
+            //   importer's bridge row in terrain.json (the overlay header's shape) naming segment 4 and the two SUMO edges
+            File.WriteAllText(Path.Combine(folder, "terrain.json"), """{"schemaVersion":2,"world":"w.geojson","roadNetworks":["roads.json"],"sumoNet":{"file":"t.net.xml","anchor":[0,0]},"bridges":[{"key":"osm-bridge/e","snapped":true,"segments":[4],"sumoEdges":["-e","e"]}]}""");
+            File.WriteAllText(Path.Combine(folder, "w.geojson"), """{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,400,400],"groundZ":0},"features":[{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[200,0],[230,0],[230,400],[200,400],[200,0]]]}},{"type":"Feature","properties":{"kind":"slab","zRef":"ground","structure":"osm-bridge/e","label":"osm-bridge/e/0"},"geometry":{"type":"Polygon","coordinates":[[[190,196,1],[240,196,1],[240,204,1],[190,204,1],[190,196,1]]]}}]}""");
+            var roadsDoc = JsonNode.Parse(File.ReadAllText(Path.Combine(folder, "roads.json")))!.AsObject();
+            roadsDoc["segments"]!.AsArray().Add(JsonNode.Parse("""{"id":4,"startNodeId":1,"endNodeId":2,"controlPoints":{"p0":{"x":190,"y":200},"t0":{"x":50,"y":0},"p1":{"x":240,"y":200},"t1":{"x":50,"y":0}},"speedLimit":14,"laneWidth":3.5,"laneCount":1}"""));
+            File.WriteAllText(Path.Combine(folder, "roads.json"), roadsDoc.ToJsonString());
+        }
         var dom = new JsonObject
         {
             ["header"] = new JsonObject { ["terrainName"] = "t" },
@@ -86,6 +96,12 @@ public sealed class BridgeClosureTests : IDisposable
             plain.Terrain = plain.Repo.GetSingletonManaged<TerrainWorld>()!;
             plain.Bridge = -1;
             plain.Repo.RegisterComponent<NavigationIntent>(); plain.Repo.RegisterComponent<NavigationStatus>(); plain.Repo.RegisterComponent<NavState>(); plain.Repo.RegisterComponent<SimTransform>();
+            if (baseBridge)
+            {
+                plain.Bridge = plain.Terrain.Buildings.ToList().FindIndex(b => b.Label == "osm-bridge/e");
+                plain.Repo.RegisterComponent<BuildingDamage>();
+                plain.Repo.RegisterManagedComponent<TerrainObjectKey>();
+            }
             return plain;
         }
         Assert.True(OverlayCompiler.Compile(dom, scenario, catalog.ResolveDefinition, bakeNavtiles: false, bridgeNet: new FakeBridgeNet()).Wrote);
@@ -202,6 +218,30 @@ public sealed class BridgeClosureTests : IDisposable
             for (int i = 0; i < 200; i++) system.Execute(w.Repo, 0.1f);
             Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-11075</c> (DESIGN_Terrain_OSM_Bridges.md §8) — an IMPORTED terrain's OSM bridge (a base deck structure, no overlay) is closed when it falls, like an authored one: the
+    /// residency publishes terrain.json's bridge rows in <c>ResolvedBridges</c>, and the collapse of the structure drops its segment from the vehicles' net (the route takes the
+    /// detour) and names its SUMO edges for closure. 🔴 Red-proof: the residency ignores <c>definition.Bridges</c> ⇒ no row, the road stays.
+    /// </summary>
+    [Fact]
+    public void CE11075_AFallenImportedBridge_IsDroppedFromTheRoadNet_AndNamesItsSumoEdges()
+    {
+        using var w = Build(authoredBridge: false, baseBridge: true);
+        Assert.True(w.Bridge >= 0, "the base deck is a structure building");
+        var row = Assert.Single(w.Repo.GetSingletonManaged<TerrainDefinition>()!.ResolvedBridges.Items);
+        Assert.Equal("osm-bridge/e", row.Key);
+        Assert.Equal(new[] { "-e", "e" }, row.SumoEdges);
+        var system = new BridgeClosureSystem(runtime: null, () => w.Pool);
+        var west = new Vector2(160, 200); var east = new Vector2(290, 200);
+        system.Execute(w.Repo, 0.1f);
+        Assert.True(RoadMetres(w.Holder, west, east) < 150f, "standing, the bridge carries the road");
+        Collapse(w);
+        system.Execute(w.Repo, 0.1f);
+        Assert.Equal(1, system.Fallen);
+        Assert.Equal(1, system.Blocked);
+        Assert.True(RoadMetres(w.Holder, west, east) > 250f, "fallen, the route takes the detour");
     }
 
     // ── ⭐⭐ CE-11070 (docs/designs/engineering/DESIGN_Breachable_Obstacle_Walls.md §8 V-1, V-2, V-7) — scenario feature WALLS close lanes ─────────────────

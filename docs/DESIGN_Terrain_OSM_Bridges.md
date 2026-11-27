@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT (2026-11-27) — the synthetic net (A-1…A-4) and Stechovice (A-5: the Vltava crossings are decks; stechovice-battle's bridge rows pass on them)
-updated: 2026-11-26 (§8 as built — the synthetic net) · 2026-11-26 (first version)
-current-answer: §8 as built · §2 the decision · §3 the UML · §4 the claim table · §5 open questions with leans · §6 acceptance
+updated: 2026-11-27 (§8a: a fallen OSM bridge closes its road, revision 6; CE-11077 / CE-11078 answered) · 2026-11-26 (§8 as built — the synthetic net) · 2026-11-26 (first version)
+current-answer: §8 as built (+ §8a) · §2 the decision · §3 the UML · §4 the claim table · §5 open questions with leans · §6 acceptance
 stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_From_OSM.md §5.3 says "a bridge stays SUMO-elevated with the valley under it untouched" — the valley stays untouched here too, but the importer's net re-elevation (G-25) DRAPES the bridge's road onto the valley today (measured, §1); this design makes the bridge's road follow its deck
@@ -194,6 +194,26 @@ graph TD
 **Stechovice (A-5), `2026-11-26`, after `unreal-ig`'s net (24 bridged edges) and D-1a / D-3a (final):** 9 decks, none more than 0.9 m under the ground (a side corner on a cross-sloped bank) — ⭐ **the Vltava south (`26476508`, 124 m, 0–5.7 m over the ground) and north (`4412124` "most Vltavanů", 300 m, up to 15.8 m) crossings**; footbridges (`153205115#1` "Starý davelský most" 148 m, `4929683` 106 m, `1151327975`) and small street / path bridges kept (men cross them); no rail; the merged path / track edges give only their real dips (or none). ⚠ Before D-1a / D-3a the same net gave a 2 694 m rail deck 25.6 m under the ground and the path 15 m under a hill.
 
 **Gates (`2026-11-26`):** `ImporterTests.CE5057_*` 4 / 4 — each red-proved by a compiling mutation (no stage ⇒ 3 red; no net override ⇒ 2 red; no chaining ⇒ 1 red; no pairing of bridged edges ⇒ the committed-set rail red) · `Hrot.Terrain.Import.Tests` 93 / 1 / 1 — ⚠ the one red is **CE-5021** (*"red wherever SUMO is installed"* — SUMO was installed for this set's net; pre-existing) · `Hrot.Terrain.InputSet.Tests` 19 / 19 · `Fdp.Toolkits` deck / feature / world 109 / 109 · ⭐ **`scripts/scenario-regression.sh te-osm-bridge` — 3 / 3 PASS** (the tank reaches the east bank at 33 s, never below the banks' height over the river; the squad's objective Achieved).
+
+### 8a. A fallen OSM bridge closes its road — CE-11075 (`terrain`, `2026-11-27`; `unreal-ig`'s live test: a SUMO HMMWV drove onto the fallen deck and stopped in the air)
+
+| piece | as built |
+|---|---|
+| the cause | `BridgeClosureSystem` closes the rows of `TerrainDefinition.ResolvedBridges`, which came only from an OVERLAY's `bridges[]`: an importer's `osm-bridge/*` decks are BASE structures with no row — D-6's *"destruction as the authored bridge"* held for the deck, not for the road |
+| `NetRoadNetwork.Read(…, segmentsOfEdge)` | each SUMO edge id's road-graph segments (an edge and its reverse share one set — the reverse is not written twice) |
+| `TerrainImporter.DeckRow` → `terrain.json` `bridges[]` | per deck: `key` = its structure label, `sumoEdges` = every bridged edge (both directions), `segments` = their road-graph segments — the overlay header's row shape (`TerrainOverlayHeader.ParseBridges` reads both) |
+| `TerrainDefinition.Bridges` → `TerrainResidency` | the base rows published in `ResolvedBridges`, the overlay's appended (base segment indices come first in the merged net) — `BridgeClosureSystem` unchanged |
+| `TerrainImporter.Revision` | **6** — every machine re-imports a bridged terrain once (Stechovice: its 9 decks get their rows) |
+| rails (red-proved) | `ImporterTests.CE11075_*` (the row: key, both edges, only the bridge's segment); `BridgeClosureTests.CE11075_*` (a base deck's collapse drops its segment — the route takes the detour) |
+
+⭐ **CE-11077 (lane shapes under the deck) — not reproduced:** on the revision-5 import of input manifest `7a73289d…` every bridged lane follows the deck within 0.15 m of its edge
+shape (`4412124_0` lowest 211.03 vs its edge 211.14; `26476508_0` 202.75 vs 202.90; the junction lanes at both ends on the deck too), in all three copies on this machine
+(`assets/terrain`, `data/shared`, `data/nodes/node-1`). ⇒ lean: the reading came from a copy WITHOUT bridges (CE-11078's reverted `fe13be9c…` import). Re-measure on revision 6.
+
+⭐ **CE-11078 (which folder is "the" import):** the MACHINE ROOT (`TerrainSources.SharedImportRoot` — `assets/terrain/<name>` in a dev checkout; else the NAS shared root;
+`TerrainCatalog.SharedImportTarget`, CE-11039 / CE-11061). `data/shared/…` and `data/nodes/*/Terrain/…` are a run's copies; a copy whose recorded input manifest or importer revision
+differs from the input set is STALE and is never used — the stale hit re-imports into the machine root (exactly what the live run did). ⛔ Not determinable here: what wrote the
+older `fe13be9c…` import into `data/shared` at that editor's start (on this machine every copy is `7a73289d…`) — the editor log's terrain lines of that start would say.
 
 ## 7. INVENTORY
 

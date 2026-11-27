@@ -129,6 +129,7 @@ namespace Fdp.Toolkit.Terrain
                 Name          = obj["name"]?.GetValue<string>() ?? string.Empty,
                 RoadNetworks  = roads,
                 World         = obj["world"]?.GetValue<string>() ?? string.Empty,
+                Bridges       = TerrainOverlayHeader.ParseBridges(obj["bridges"] as JsonArray),   // ⭐ CE-11075 — the BASE terrain's bridges (an importer's OSM decks), the overlay rows' shape
             };
         }
     }

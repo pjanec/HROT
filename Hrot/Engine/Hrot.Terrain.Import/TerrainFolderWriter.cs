@@ -124,7 +124,8 @@ internal static class TerrainFolderWriter
     /// import by <c>SourceImport.TryReadInputDefinition</c>, so both answer the same origin by construction.</summary>
     public static (double Lat, double Lon) OriginOf(UtmFrame frame, double swX, double swY) => Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
 
-    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null, string? inputManifestSha256 = null, int importerRevision = 0)
+    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null, string? inputManifestSha256 = null, int importerRevision = 0,
+                                        IReadOnlyList<Fdp.Toolkit.Terrain.OverlayBridge>? bridges = null)
     {
         var (lat, lon) = OriginOf(frame, swX, swY);
         using var ms = new MemoryStream();
@@ -152,6 +153,19 @@ internal static class TerrainFolderWriter
                 w.WriteString("file", netFile);
                 w.WriteStartArray("anchor"); w.WriteNumberValue(anchorX); w.WriteNumberValue(anchorY); w.WriteEndArray();
                 w.WriteEndObject();
+            }
+            if (bridges is { Count: > 0 })   // ⭐ CE-11075 — one row per OSM deck, the overlay header's shape (TerrainOverlayHeader.ParseBridges reads both)
+            {
+                w.WriteStartArray("bridges");
+                foreach (var b in bridges)
+                {
+                    w.WriteStartObject();
+                    w.WriteString("key", b.Key); w.WriteBoolean("snapped", b.Snapped);
+                    w.WriteStartArray("segments"); foreach (int s in b.Segments) w.WriteNumberValue(s); w.WriteEndArray();
+                    w.WriteStartArray("sumoEdges"); foreach (var e in b.SumoEdges) w.WriteStringValue(e); w.WriteEndArray();
+                    w.WriteEndObject();
+                }
+                w.WriteEndArray();
             }
             w.WriteEndObject();
         }

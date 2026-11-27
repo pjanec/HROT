@@ -81,6 +81,13 @@ namespace Fdp.Toolkit.Terrain
         public TerrainBridges ResolvedBridges { get; set; } = TerrainBridges.None;
 
         /// <summary>
+        /// ⭐ <c>CE-11075</c> (DESIGN_Terrain_OSM_Bridges.md §8) — the BASE terrain's bridges, from <c>terrain.json</c> <c>bridges[]</c>: an importer writes one row per OSM deck (its structure
+        /// label, the road-graph segments and SUMO edges it carries — both directions), the same rows an overlay's Bridge features get. The residency publishes them with the
+        /// overlay's in <see cref="ResolvedBridges"/>, so a fallen OSM bridge closes its road like an authored one. Empty for a terrain without.
+        /// </summary>
+        public IReadOnlyList<OverlayBridge> Bridges { get; init; } = System.Array.Empty<OverlayBridge>();
+
+        /// <summary>
         /// The terrain name resident in <paramref name="world"/> — the scenario's <c>TerrainName</c> to save —
         /// or <c>null</c> when no terrain is loaded.
         /// </summary>

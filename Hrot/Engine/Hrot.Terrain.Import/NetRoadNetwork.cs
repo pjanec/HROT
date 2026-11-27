@@ -11,14 +11,18 @@ namespace Hrot.Terrain.Import;
 /// </summary>
 internal static class NetRoadNetwork
 {
-    public static JsonObject Read(string netPath, double anchorX, double anchorY)
+    public static JsonObject Read(string netPath, double anchorX, double anchorY) => Read(netPath, anchorX, anchorY, null);
+
+    /// <summary>⭐ CE-11075 — as above; <paramref name="segmentsOfEdge"/> (when given) gets every SUMO edge id's segment indices — an edge and its reverse share one set (the
+    /// reverse is not written twice).</summary>
+    public static JsonObject Read(string netPath, double anchorX, double anchorY, Dictionary<string, List<int>>? segmentsOfEdge)
     {
         var settings = new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null };
         var junctions = new Dictionary<string, (double X, double Y)>(StringComparer.Ordinal);
-        var edges = new List<(string From, string To, List<(double X, double Y)> Shape, double Speed, double Width, int Lanes)>();
+        var edges = new List<(string Id, string From, string To, List<(double X, double Y)> Shape, double Speed, double Width, int Lanes)>();
         using (var r = XmlReader.Create(netPath, settings))
         {
-            string? from = null, to = null; int lanes = 0; List<(double, double)>? shape = null; double speed = 14, width = 3.5; bool inEdge = false;
+            string? from = null, to = null, eid = null; int lanes = 0; List<(double, double)>? shape = null; double speed = 14, width = 3.5; bool inEdge = false;
             while (r.Read())
             {
                 if (r.NodeType == XmlNodeType.Element && r.Name == "junction" && r.GetAttribute("id") is { } jid && !jid.StartsWith(':'))
@@ -26,7 +30,7 @@ internal static class NetRoadNetwork
                 else if (r.NodeType == XmlNodeType.Element && r.Name == "edge")
                 {
                     inEdge = r.GetAttribute("function") != "internal" && r.GetAttribute("from") != null;
-                    from = r.GetAttribute("from"); to = r.GetAttribute("to"); lanes = 0; shape = null;
+                    from = r.GetAttribute("from"); to = r.GetAttribute("to"); eid = r.GetAttribute("id"); lanes = 0; shape = null;
                     if (r.IsEmptyElement) inEdge = false;
                 }
                 else if (inEdge && r.NodeType == XmlNodeType.Element && r.Name == "lane")
@@ -38,7 +42,7 @@ internal static class NetRoadNetwork
                 }
                 else if (inEdge && r.NodeType == XmlNodeType.EndElement && r.Name == "edge")
                 {
-                    if (from != null && to != null && shape is { Count: >= 2 }) edges.Add((from, to, shape.Select(p => (p.Item1, p.Item2)).ToList(), speed, width, Math.Max(1, lanes)));
+                    if (from != null && to != null && shape is { Count: >= 2 }) edges.Add((eid ?? "", from, to, shape.Select(p => (p.Item1, p.Item2)).ToList(), speed, width, Math.Max(1, lanes)));
                     inEdge = false;
                 }
             }
@@ -54,10 +58,19 @@ internal static class NetRoadNetwork
             return id;
         }
         var written = new HashSet<(string, string)>();
+        var segsOf = new Dictionary<(string, string), List<int>>();   // ⭐ CE-11075 — a written (from, to)'s segments, for its id and its reverse's
         foreach (var e in edges)
         {
-            if (!junctions.TryGetValue(e.From, out var a) || !junctions.TryGetValue(e.To, out var b) || written.Contains((e.To, e.From))) continue;   // the reverse of an edge already there
+            if (!junctions.TryGetValue(e.From, out var a) || !junctions.TryGetValue(e.To, out var b)) continue;
+            if (written.Contains((e.To, e.From)))   // the reverse of an edge already there: it shares that edge's segments
+            {
+                if (segmentsOfEdge != null && segsOf.TryGetValue((e.To, e.From), out var shared)) segmentsOfEdge[e.Id] = shared;
+                continue;
+            }
             written.Add((e.From, e.To));
+            var mine = new List<int>();
+            segsOf[(e.From, e.To)] = mine;
+            if (segmentsOfEdge != null) segmentsOfEdge[e.Id] = mine;
             var chain = new List<(string Key, double X, double Y)> { ("j" + e.From, a.X, a.Y) };
             for (int i = 1; i < e.Shape.Count - 1; i++) chain.Add((e.From + ">" + e.To + "#" + i, e.Shape[i].X, e.Shape[i].Y));
             chain.Add(("j" + e.To, b.X, b.Y));
@@ -65,6 +78,7 @@ internal static class NetRoadNetwork
             {
                 int n0 = Node(chain[i].Key, chain[i].X, chain[i].Y), n1 = Node(chain[i + 1].Key, chain[i + 1].X, chain[i + 1].Y);
                 if (n0 == n1) continue;
+                mine.Add(segments.Count);
                 double dx = Math.Round(chain[i + 1].X - chain[i].X, 3), dy = Math.Round(chain[i + 1].Y - chain[i].Y, 3);
                 JsonObject P(double x, double y) => new() { ["x"] = Math.Round(x - anchorX, 3), ["y"] = Math.Round(y - anchorY, 3) };
                 segments.Add(new JsonObject

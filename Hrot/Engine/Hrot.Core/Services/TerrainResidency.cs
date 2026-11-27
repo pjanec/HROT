@@ -270,8 +270,9 @@ public sealed class TerrainResidency
                         $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
                 var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!), baseWorld.Height, variant);   // ⭐ CE-5014 — the overlay's walls / trees on the resident relief
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
-                if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(header.Bridges);
+                if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(Concat(definition.Bridges, header.Bridges));   // ⭐ CE-11075 — the base's OSM decks AND the overlay's
             }
+            if (staged.Bridges.Items.Count == 0 && definition.Bridges.Count > 0) staged.Bridges = new TerrainBridges(definition.Bridges);   // ⭐ CE-11075 — no overlay rows: the base's own
             staged.World = Indexed(baseWorld);
 
             Fdp.Core.LoadProgress.Report();   // ⭐ CE-2417 — the world is parsed (its features reported as they went)
@@ -534,6 +535,14 @@ public sealed class TerrainResidency
     /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
     /// line and every EQS point placement scanned every piece.
     /// </summary>
+    private static OverlayBridge[] Concat(IReadOnlyList<OverlayBridge> a, IReadOnlyList<OverlayBridge> b)
+    {
+        var all = new OverlayBridge[a.Count + b.Count];
+        for (int i = 0; i < a.Count; i++) all[i] = a[i];
+        for (int i = 0; i < b.Count; i++) all[a.Count + i] = b[i];
+        return all;
+    }
+
     private static string OverlayAbsentOf(string? overlayFolder, int variant)
     {
         if (variant == 0 || string.IsNullOrEmpty(overlayFolder)) return "";
