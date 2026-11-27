@@ -2,7 +2,7 @@
 state: LIVE
 build-state: DESIGN (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
 updated: 2026-11-27 (rev 2: a placed wall is a terrain-feature WALL; rev 1's segment design is HISTORY)
-current-answer: §2 the decision · §3 the UML · §5 decisions with leans · §6 acceptance · §7 claim table · §8 the review of rev 2
+current-answer: §8 the review's answers (supersede §2 A-1, §5 D-2/D-3/D-4) · §2 the decision · §3 the UML · §5 decisions · §6 acceptance · §9 stages
 stale-below: ⛔ HISTORY (rev 1, segments) — must NOT be quoted as the design
 known-rot: none
 known-conflict: DESIGN_City_Battle_Showcase.md D-6 ("removal mandatory, even as disappearing") — still true for every non-wall obstacle; a WALL is breached in part (R-11022) · DESIGN_Terrain_Editor_UX.md TE-5 / R-4264 (drawn sandbag walls and jersey barriers are obstacle ENTITIES) — rev 2 proposes them as feature walls (D-1, the user's call)
@@ -187,6 +187,17 @@ query time (`TerrainWorld.cs:1004-1020`); the dozer cuts hull width + 1 m (`Blad
 
 Could not verify: whether SUMO cars are stopped by a wall on an open lane; whether the vehicle navmesh passes a 4.7 m gap; how many imported walls cross
 roads; nothing was run. ⇒ the acceptance scenario measures the first two.
+
+## 9. Stages and tracked items (`2026-11-27`; S1–S4 handed to `terrain` — [HANDOFF_UiIntegration_To_Terrain_Breachable_Walls.md](../../blueprints/batches/HANDOFF_UiIntegration_To_Terrain_Breachable_Walls.md))
+
+| stage | id | lane | what |
+|---|---|---|---|
+| S1 | CE-11069 | terrain | per-material default wall thickness (V-4) |
+| S1 | CE-11070 | terrain | road closure by scenario feature walls — the line-blocker rule on the replicated breach table (V-1, V-2, V-7) |
+| S2 | CE-11071 | terrain | roadblock content: `roadblock-blast`, city-battle walls in the scenario (V-3) |
+| S3 | CE-11072 | terrain | acceptance scenario `va-dozer-breach-wall` (§6) |
+| S4 | CE-11073 | terrain | ⏳ the obstacle tool's wall types draw a feature wall (D-1) — after the user's answer |
+| S5 | CE-11074 | unreal-ig | scenario terrain features on DPS; Unreal draws the wall and places gaps by Centre / Normal / From–To (D-6, V-5) |
 
 ## ⛔ HISTORY — rev 1 (segments), withdrawn `2026-11-27`
 
