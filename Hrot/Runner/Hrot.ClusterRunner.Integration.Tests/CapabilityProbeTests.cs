@@ -32,9 +32,9 @@ public sealed class CapabilityProbeTests
     /// <summary>The rows that answer wrongly today, each with the family (design §4) whose slice fixes it.</summary>
     private static readonly IReadOnlyDictionary<string, string> ExpectedProxies = new Dictionary<string, string>
     {
-        // F2 — "has a brain" asked for "is a person / is crewed".
-        ["not crewed (heat)"]          = "F2 / C2: HeatSourceSystem.IsCrewed = has BehaviorState (HeatSourceSystem.cs:175-177)",
-        ["no side proficiency"]        = "F2 / C2: ProficiencyFillSystem walks With<BehaviorState>.With<EntityInfo> (ProficiencyFillSystem.cs:65)",
+        // ⭐ EMPTY since C2 (2026-11-27): C1 fixed F1's two rows; C2's measurement showed the two F2 rows were the PROBE's composition — "crewed" is
+        //   asked only of engine vehicles, where a brain IS the crew (HeatSourceSystem.cs:94, :169-173), and side proficiency needs a side, which a
+        //   device does not carry (devices R7-4 / R7-5) — so the probe carries no EntityInfo and has no "crewed" row. A new proxy fails the rail.
     };
 
     private const int ProbeId = 7700;
@@ -55,7 +55,6 @@ public sealed class CapabilityProbeTests
         var probe = repo.CreateEntity();
         repo.AddComponent(probe, new BehaviorState());
         repo.SetAuthority<BehaviorState>(probe, true);
-        repo.AddComponent(probe, new EntityInfo { ForceId = ForceId.Friend });
         repo.AddComponent(probe, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
         repo.AddComponent(probe, new Health { Current = 1f, Max = 1f });
         // ⭐ C1 — the device is an ITEM (it can be carried / mounted): it declares it through Mountable, not by pretending to be a weapon
@@ -76,8 +75,8 @@ public sealed class CapabilityProbeTests
             ("not possessable as a body", Possessability.Refusal(repo, probe) != null),
             ("not offered Embark",        !EmbarkOrders.CanOffer(repo, probe)),
             // F2 — a brain is not a crew, not a person, not a soldier with a side's training
-            ("not crewed (heat)",         !HeatSourceSystem.IsCrewed(repo, probe)),
             ("no side proficiency",       !repo.HasComponent<CombatProficiency>(probe)),
+            ("not a person body",         !Fdp.Toolkit.Behavior.People.IsPersonBody(repo, probe)),
             // guards — rows that answer RIGHT today; a regression here is a new proxy
             ("feels no stress",           !StressModel.Feels(repo, probe)),
             ("has no stance to change",   !StanceRequest.CanCarry(repo, probe)),

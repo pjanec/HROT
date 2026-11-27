@@ -685,8 +685,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>CE-2141</c> (A4) — a member that is itself a unit (a platoon's squad): it receives ORDERS, not behaviours.</summary>
-        public static bool IsUnit(EntityRepository world, Entity member)
-            => world.IsComponentTypeRegistered<UnitEntity>() && world.HasComponent<UnitEntity>(member);
+        public static bool IsUnit(EntityRepository world, Entity member) => Fdp.Toolkit.Squad.CombatEffective.IsUnit(world, member);   // ⭐ C2 CC-8 — the one copy
 
         /// <summary>The order the COMMANDER's run gives a member: recorded on the commander (released when that run ends —
         /// <see cref="SubordinateOrders"/>, A5), then published at Superior.</summary>

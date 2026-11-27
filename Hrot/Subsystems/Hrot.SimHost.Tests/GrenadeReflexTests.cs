@@ -221,6 +221,27 @@ namespace Hrot.SimHost.Tests
             Assert.All(new[] { near, mid, far }, m => Assert.Equal("Idle", w.TaskOf(m)));                                // each back to his task
         }
 
+        /// <summary>⭐ C2 CC-6 (docs/DESIGN_Capability_Components.md Q-5) — a FREEZING animal (the rabbit: a brain, health AND a stance) beside a live
+        /// grenade is no person: it keeps its task and calls no "grenade!", while the man beside it reacts. 🔴 Before C2 the reflex asked only
+        /// "has a stance" (<c>StanceRequest.CanCarry</c>) and took the rabbit for a man.</summary>
+        [Fact]
+        public void C2_AFreezingAnimalBesideAGrenade_IsNoPerson_ItKeepsItsTask_TheManReacts()
+        {
+            var w = new World();
+            if (!w.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Animals.AnimalState>()) w.Repo.RegisterComponent<Fdp.Toolkit.Animals.AnimalState>();
+            var thrower = w.Repo.CreateEntity();
+            w.Repo.AddComponent(thrower, new SimTransform { Position = new Vector3(0, 20, 0), Rotation = Quaternion.Identity });
+            var rabbit = w.Man(new Vector3(-2f, 0, 0));
+            w.Repo.AddComponent(rabbit, new Fdp.Toolkit.Animals.AnimalState());   // the one component that makes it an animal (Animals.IsAnimal)
+            var man = w.Man(new Vector3(2f, 0, 0));
+            w.Run(0.1);
+
+            w.Grenade(Vector3.Zero, 4f, thrower);
+            w.Run(0.1);
+            Assert.Equal(BehaviorNames.EvadeGrenade, w.TaskOf(man));
+            Assert.Equal("Idle", w.TaskOf(rabbit));
+        }
+
         /// <summary>⭐ I-1 (measured live, <c>rf-grenade-reaction</c>) — on the BRAIN's node a thrown grenade is only a lying REPLICA
         /// (<c>LightweightRound</c>, flown by the thrower's body node, no fuze here): the men react all the same — its fuze estimated from its
         /// warhead less the time since it appeared, its thrower where it appeared — once it has LANDED (kept still), never in flight. ✅ Red-proofs:
