@@ -11,7 +11,7 @@ namespace Hrot.SimHost.Modules
     /// <para><b>Systems registered (in execution order):</b></para>
     /// <list type="number">
     ///   <item><b>Input phase</b> — <see cref="FireProcessingSystem"/>, <see cref="RaycastSolverSystem"/>, <see cref="HitResolutionSystem"/></item>
-    ///   <item><b>Post-sim phase</b> — <see cref="BallisticsSystem"/></item>
+    ///   <item><b>Post-sim phase</b> — <see cref="BallisticsSystem"/> (and the rest of the round path), then the device lasers' <see cref="Fdp.Toolkit.Behavior.Devices.LaserSpotSystem"/></item>
     /// </list>
     ///
     /// <para>
@@ -45,6 +45,8 @@ namespace Hrot.SimHost.Modules
                 new GuidedRoundSystem(),   // ⭐ M4 (DESIGN_Missiles_And_Ammo §3) — steer the guided rounds, then sweep them
                 new BallisticsSystem(),
                 new CombatTraceSystem(),   // ⭐ CE-3117 — the recorded traces the map draws, after the systems that end a shot
+                // ⭐ Simulated devices S1c (DESIGN_Simulated_Devices §3.8 LS-15) — every device laser's spot, synchronous, EVERY frame (paused ⇒ a Preview)
+                new Fdp.Toolkit.Behavior.Devices.LaserSpotSystem(),
             };
         }
     }

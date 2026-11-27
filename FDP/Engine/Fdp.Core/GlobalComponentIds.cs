@@ -952,6 +952,15 @@ namespace Fdp.Core
         /// <summary><c>DevicePose</c> — ⭐ Simulated devices S1b-3: a device's orientation and offset relative to where it is carried / mounted. ⚠ 229, a toolkit hole listed FREE (2026-11-27).</summary>
         public const int DevicePose = 229;
 
+        /// <summary><c>LaserPointing</c> — ⭐ Simulated devices S1c (§3.8 LS-14): whether a device's laser is on, its band, power, direction (device frame) and request seq. ⚠ 231, a toolkit hole listed FREE (2026-11-27).</summary>
+        public const int LaserPointing = 231;
+
+        /// <summary><c>LaserSpot</c> — ⭐ S1c (§3.8 LS-14): where the laser lands — up to 4 points, each with its range, strength and the entity hit; written by the muscle only. ⚠ 232, FREE (2026-11-27).</summary>
+        public const int LaserSpot = 232;
+
+        /// <summary><c>DevicePanel</c> — ⭐ S1c (§3.7 D-28): a device's generic panel outputs (lamps, blinks, 16 values, 4 text lines), written on change. ⚠ 233, FREE (2026-11-27).</summary>
+        public const int DevicePanel = 233;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;

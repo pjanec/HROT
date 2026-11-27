@@ -24,7 +24,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **S1b-1** the operator: `PossessionMode.Operated`, `DeviceOperators` (the walk, run by the device pre-pass), possession's release paths and frame loop skip `Operated` | ✅ | `DeviceOperatorTests` (4, red-proved) |
 | **S1b-2** device frames: `DeviceControl` (axes, press counters, trackers, body offset, Viewed) in its OWN `DeviceFrameEvent` (event id 5204) → `DeviceInput` (component id 228), ingested by the device tick; `PossessionSystem.ApplyFrame` the one body routine | ✅ | rail red-proved; ⚠ deviation: not in the body frame (CE-11027 pins its recorded layout) |
 | **S1b-3** `MountKinds.Device = 32`; four KIT stations appended to `CarrierDefDto.PersonCarrier()` (seats 4–7, Accepts Device only); `DevicePose` (id 229) + `DevicePoses.TryWorld` | ✅ | rails red-proved; ⚠ every person type's seat data changed ⇒ goldens move hash-only (CarrierSeats / CarrierStations / PassengerBuffer) — like CE-4711 |
-| S1c the rangefinder: `LaserPointing{Power}` / `LaserSpot` / `LaserSpotSystem` / `DevicePanel` / the device folder | ⏳ | — |
+| **S1c** the rangefinder: `LaserPointing` (231, + request `Seq`) / `LaserSpot` (232) / `LaserSpotSystem` (muscle, `CombatModule` PostSimulation) / `DevicePanel` (233) / `Hrot.AI.Behaviors/Devices/Rangefinder/` (`DeviceRangefinder`) | ✅ | the S1c commit — `LaserSpotSystemTests` (8), `RangefinderBehaviorTests` (7, end to end + 0 B, parallel checks green); two red-proofs; deviations in the design's S1c AS BUILT (no TKB `DeviceDefDto` yet; `DevicePose` from the frame → S1d) |
 | S1d the HUD to the mockups: `HudScope`, `BeginScope`/`EndScope`, bound-view draw, binoculars device replaces CE-1219 | ⏳ | — |
 | S1e the scenario grammar + SD-S1 scenarios | ⏳ | — |
 
@@ -37,3 +37,8 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⛔ Never add a field to `OperatorControlFrameEvent` / `OperatorInput` / `PossessedBy` / the possession events: `PossessionReplicationTests` pins their recorded layout hashes (old recordings must replay). New data = a new event / component.
 - A person now has 8 seats (`PersonCarrierTests.TheProfile_IsStampedFromTheType`).
 - The composition snapshots (`TheHostCompositionIsFrozenTests`) were stale before this work — CE-4710; do not chase them.
+- ⭐ S1c: a request seq (`LaserPointing.Seq` echoed by `LaserSpot.PointingSeq`) is what lets a device tell THIS emission's spot from a stale one — reuse it for any device that asks the muscle.
+- A curated device behaviour needs `[Behavior(Params = NoParams, Requires = new[]{ typeof(DeviceInfo) })]` (CE-1431 wants a contract; `Requires` keeps it off every unit's picker) and moves `Snapshots/BehaviourHosting/hosting.txt` by one line (`HROT_RECORD_HOSTING=1`).
+- `StatefulAction` on a `BTreeBuilder` is an extension in `Hrot.AI.Behaviors.Brains` — a behaviour outside that namespace needs the `using`.
+- `SpatialHashGrid` is a STRUCT: a test keeps it in a non-readonly field and re-publishes `SpatialGridData` after `Add` (origin via `Create(…, originX, originY)`).
+- `SimHostCoreLogicPackTests` asserts `SimulationSystems.Count == 28` and the pack has 29 — stale before S1c (S1c adds only a PostSimulation system); not chased.

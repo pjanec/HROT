@@ -400,5 +400,10 @@ namespace Hrot.Map.Definitions.Behavior
         // ⭐ rules S2-c (DESIGN_Scenario_Rules §10.11) — the trigger: the one behaviour of a Trigger entity (TKB 8861)
         /// <summary>when a condition rises: hold, wait, run a list of actions, cool down (§10.11).</summary>
         public const string Trigger = "Trigger";
+
+        // ⭐ Simulated devices S1c (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 D-57) — a DEVICE's logic: the one behaviour its type
+        //   names (DeviceInfo.Behavior), started and kept running by the device tick; offered to nothing else (Requires = DeviceInfo).
+        /// <summary>The laser rangefinder: RANGE measures (laser on until the spot answers), MODE / MENU step its modes (§3.8).</summary>
+        public const string DeviceRangefinder = "DeviceRangefinder";
     }
 }

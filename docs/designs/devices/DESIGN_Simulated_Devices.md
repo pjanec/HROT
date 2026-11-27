@@ -152,22 +152,22 @@ classDiagram
   class BehaviorIngressSystem { <<existing>> AssignNow on the configured instance · refuses a device's assign or clear from others }
   class BrainPhaseRunner { <<existing code, extracted>> serial + parallel phase · BehaviorRunners · one restart callback · fault · no Prepare }
   class RangefinderParams { <<NEW, params DTO>> }
-  class RangefinderState { <<NEW, UnitMemory, brain only>> Mode · Menu · zoom step · LastRange · last Seq, Epoch and press counts · link inbox }
+  class RangefinderState { <<BUILT S1c, UnitMemory, brain only>> Mode · Power · Menu · Ranging · LastRange · request Seq · Epoch and press counts — zoom S1d, link inbox SD-S5b }
   class RangefinderBehavior { <<NEW>> resolver · BTreeDefinition · StatefulAction · origin Self }
   class RangefinderHudGizmo { <<NEW, GizmoProjector>> rule DeviceInfo + PossessedBy · screen primitives }
   class IGizmoVisibilityPolicy { <<existing>> IsEntityVisible — the device TYPE and HasAuthority of BehaviorState }
-  class DevicePanel { <<NEW, unmanaged, replicated on change>> Revision · LampBits · BlinkBits · Values16 · Text4 }
+  class DevicePanel { <<BUILT S1c, unmanaged, written on change>> Revision · LampBits · BlinkBits · Values16 · Text4 }
   class DevicePose { <<NEW, unmanaged, replicated>> Orientation · Offset — written by the device only }
   class DevicePoses { <<NEW, one resolver>> World of view and device = the mount chain ∘ pose }
   class DeviceLinks { <<NEW>> Peer2 — where its messages go }
   class DeviceMessageEvent { <<NEW>> Target · From · Seq · Kind · 64 B binary or JSON }
   class OperatorControlFrameEvent { <<existing, grows>> Target · Seq · Axes4 · PressSeq16 · Orientation · Position · BodyOffset · Binoculars until SD-S5, then ViewedDevice }
-  class LaserPointing { <<NEW, unmanaged>> On · Band · Power · Direction }
+  class LaserPointing { <<BUILT S1c, unmanaged>> On · Band · Power · Direction in the device frame · Seq echoed by the spot }
   class FireControl { <<NEW, unmanaged, replicated>> Ready · Target · AimPoint · LaunchSeq — on the device, SD-S4 / SD-S7 }
   class OperatorControlBehavior { <<existing>> the weapon controller's brain — fires through ITS weapon channel }
   RangefinderBehavior --> FireControl : self only (a launcher device)
   OperatorControlBehavior ..> FireControl : reads, previous frame · LaunchSeq moved and Ready
-  class LaserSpot { <<NEW, unmanaged>> up to 4 points, each strength and the Entity hit · Preview in pause — written by the muscle }
+  class LaserSpot { <<BUILT S1c, unmanaged>> up to 4 points, each range, strength and the Entity hit · Preview in pause · PointingSeq — written by the muscle }
   class LaserLayer3D { <<NEW, every map host>> }
   class DebugPrimitiveBuffer { <<existing, Fdp.Diagnostics.Contracts, grows>> BeginScope · EndScope — Count stamped at the scope's slot }
   class DebugGizmoLayer { <<existing, grows>> Screen primitives join the card pass · FrameFor keeps the bound source's run }
@@ -358,6 +358,31 @@ carrier definition `CarrierDefDto.PersonCarrier()` (seats 4–7, `Accepts = Devi
 (as CE-4711). `DevicePose` (component id 229) + `DevicePoses.TryWorld`: ⚠ simplified from D-48's "walks the mount chain" — the engine already
 places every embarked item at its host station each frame (`EmbarkedStateSystem.cs:144-149`, WS-2, chaining through a device on a device), so the
 world pose is the device's own `SimTransform` ∘ `DevicePose` (seam law).
+
+⭐ **S1c AS BUILT (`2026-11-27`)** — the laser rangefinder. **Components** (unmanaged, recorded, `NoScenario`; `FDP/Toolkits/Fdp.Toolkits/Behavior/Devices/`):
+`LaserPointing { On, Band, Power, Direction, Seq }` (id 231), `LaserSpot { Points[4] {Point, Range, Strength, Hit, Part}, Count, Preview, PointingSeq }`
+(232), `DevicePanel { Revision, LampBits, BlinkBits, Values[16], Text[4] FixedString32 }` (233) + `DevicePanels.Write` (the one on-change writer,
+bumps `Revision`). **`LaserSpotSystem`** (`EveryFrame`, `PostSimulation`, registered in `CombatModule` beside the round path — the SimHost's and the
+editor's muscle): from `DevicePoses.TryWorld` along the pointing, terrain by `WorldQuery.Of(view).Trace(…, Fire)` (the first solid crossing, a wood's
+share-stop skipped), bodies by `SpatialHashGrid.QuerySegment` + `BodyPartRay.TryHit` (the round's part test) else the collider's cylinder; never its
+carrier / his ride / another device / carried gear; nearest first; `Preview` when dt = 0; off under `ReplayState`; written only on change; 0 B steady.
+**The device folder** `Hrot/Subsystems/Hrot.AI.Behaviors/Devices/Rangefinder/`: `RangefinderState` (`[UnitMemory]`: mode, power, menu, ranging,
+`LastRange` / `LastHit` / preview, request `Seq`, the epoch and the four press counters last seen) and `RangefinderBehavior` (`DeviceRangefinder`, one
+`StatefulAction`, `NoParams`): presses = moved counters, re-based on a new `PossessedBy.Epoch` or on input appearing after none (R7-11); RANGE starts
+a request (`Seq` + 1, laser on), the spot answering THAT seq gives the range (SINGLE: laser off; CONTINUOUS: on until RANGE again); MODE / MENU /
+SELECT step the mode and the menu (MODE · POWER · EXIT); pointing and panel written on change; answers in pause. Rails: `LaserSpotSystemTests` (8),
+`RangefinderBehaviorTests` (7, incl. end-to-end through the production registry + `DeviceTickSystem` + `LaserSpotSystem`, in pause, and 0 B).
+⚠ **Deviations, argued:** ① `LaserPointing` gains a request **`Seq`** echoed by `LaserSpot.PointingSeq` — without it a device one hop from the muscle
+reads the spot of its PREVIOUS emission as the answer; and it drops LS-14's "origin offset" — the origin is the device's world pose, which already
+composes `DevicePose.Offset`. `Direction` is in the **device's frame** (zero = its forward +X), so a carried device never rewrites its pointing as its
+carrier moves (sent on change only). ② `Preview` is per SPOT, not per point (all points come from one trace on one frame). ③ S1c writes the first
+return only (`Count ≤ 1`); the four slots wait for partial obscurants (SD-S6). ④ `Hit` is this node's `Entity` — SD-C's descriptor translates it
+(like `IsEmbarkedTag`), not an `EntityRef` now. ⑤ Strength is a documented stand-in, `Power / (1 + (range / 1 km)²)`; max range 10 km. ⑥ **No TKB
+`DeviceDefDto` yet** (R7-4): `DeviceInfo.Behavior` already names the behaviour the device tick runs, and no translator creates a device from its type
+until a scenario places one (S1e). The behaviour declares `[Behavior(Requires = DeviceInfo)]` so `BehaviorFit` offers it to no unit. Channels
+(RANGE 0, MODE 1, MENU 2, SELECT 3) and panel slots are placeholders in `RangefinderChannels` / `RangefinderPanel` until the type names them (D-26).
+⑦ `RangefinderState` holds no zoom step (the binoculars, S1d) and no link inbox (SD-S5b). ⑧ The device does NOT yet write `DevicePose` from the
+frame's orientation (R5-13) — it needs the station's look, S1d.
 
 ### 3.6 Views and the HUD
 
