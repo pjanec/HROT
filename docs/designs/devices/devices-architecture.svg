@@ -20,7 +20,7 @@
 
   <rect width="1680" height="1180" fill="#fafafa"/>
   <text x="24" y="38" font-size="24" font-weight="700" fill="#102027">Simulated devices — the planned architecture</text>
-  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 13: §2, §3f–§3aa) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
+  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 14 consolidated: §2, §3) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
   <!-- legend -->
   <g transform="translate(1110,22)">
     <rect x="0" y="0" width="16" height="12" class="new"/><text x="22" y="11" class="s">new</text>
@@ -152,8 +152,8 @@
   <text x="502" y="482" class="h2">Interaction transport (existing)</text>
   <text x="502" y="502" class="mono">OperatorControlFrameEvent</text><text x="680" y="502" class="s"> — ONE per</text>
   <text x="502" y="519" class="s">operated entity, Target · Axes[4] · PressSeq[16] · ViewedDevice</text>
-  <text x="502" y="536" class="s">the target's owner applies it if HeldBy (PossessedBy, a device:</text>
-  <text x="502" y="553" class="s">Mode=Operated, new epoch per operator); newest Seq</text>
+  <text x="502" y="536" class="s">the target's owner applies it if HeldBy (PossessedBy; a device's</text>
+  <text x="502" y="553" class="s">row is written by the DeviceTickSystem walk); newest Seq</text>
 
   <!-- device entity -->
   <rect x="490" y="576" width="470" height="440" rx="8" fill="#ffffff" stroke="#2e7d32" stroke-width="1.6"/>
@@ -189,7 +189,7 @@
   <text x="992" y="519" class="s">  every brain EXCEPT devices</text>
   <text x="992" y="536" class="s">DeviceTickSystem ★ (every frame,</text>
   <text x="992" y="553" class="s">  paused or not): DeviceInfo only;</text>
-  <text x="992" y="570" class="s">  ingests device frames, then ticks</text>
+  <text x="992" y="570" class="s">  operator walk, frames, then tick</text>
   <text x="992" y="587" class="s">  — sim dt (0 in pause); restarts</text>
   <text x="992" y="607" class="s">shared: BrainPhaseRunner ★ (no Prepare)</text>
 
@@ -202,7 +202,7 @@
   <text x="992" y="744" class="s">UnitMemory state and emits</text>
   <text x="992" y="761" class="mono">BeginScope(src)</text><text x="1104" y="761" class="s"> … EndScope</text>
   <text x="992" y="778" class="s">(HudScope{Source,Count}); keyed per</text>
-  <text x="992" y="795" class="s">device TYPE + BehaviorState</text>
+  <text x="992" y="795" class="s">type + brain authority (policy)</text>
   <text x="992" y="815" class="s">runs every frame, pause too</text>
 
   <rect x="980" y="846" width="262" height="98" rx="6" class="ex"/>
@@ -258,8 +258,8 @@
   <text x="1306" y="1006" class="s">  the adapters (rails)</text>
   <text x="1306" y="1028" class="s">• a new DEVICE = a TKB type + one C# folder;</text>
   <text x="1306" y="1045" class="s">  a new PANEL = one adapter; the wire never changes</text>
-  <text x="1306" y="1067" class="s">• binoculars: a device in slice 1 (issued to</text>
-  <text x="1306" y="1084" class="s">  every slot); the held item stays the pose</text>
+  <text x="1306" y="1067" class="s">• binoculars: a device in slice 1; B keeps</text>
+  <text x="1306" y="1084" class="s">  CE-1219 for men without one (until SD-S5)</text>
   <text x="1306" y="1106" class="s">• out of scope: what any munition does with a spot</text>
   <text x="1306" y="1123" class="s">  (the weapons design)</text>
 
