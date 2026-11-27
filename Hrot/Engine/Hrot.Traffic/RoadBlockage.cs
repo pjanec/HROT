@@ -70,6 +70,212 @@ public static class RoadBlockage
         }
     }
 
+    // ── ⭐⭐ CE-11070 — scenario feature WALLS close lanes by a LINE rule ─────────────────────────────────────────────────────────────────────────────────
+    //   📄 docs/designs/engineering/DESIGN_Breachable_Obstacle_Walls.md §8 V-1, V-2, V-7. A wall is thin (0.3–0.6 m) and may cross a road at any angle, so the
+    //   station sampling above (one station's whole cross-line inside a polygon) would catch it only by luck, and any 0.5 m hole would re-open the road. Instead:
+    //   a wall line that crosses a LANE from edge to edge closes that lane; the lane re-opens only where a passable gap (merged Passages) at least
+    //   minDriveThroughM wide covers the point where the wall crosses the lane's centreline. ⭐ Read from the wall PANELS and the REPLICATED breach table
+    //   (every node the same), never the navmesh bake's re-cut prisms (V-2). ⭐ Scenario feature walls only (V-7): a base / imported wall never closes a road.
+
+    /// <summary>One scenario feature wall line: its posts and the arclength (m) at each, and the passable gaps along it (arclength intervals, each at least the minimum width).</summary>
+    public sealed record WallLine(string Key, Vector2[] Points, float[] At, (float From, float To)[] Gaps);
+
+    /// <summary>
+    /// ⭐ CE-11070 — true when <paramref name="label"/> is a scenario FEATURE's line label, <c>&lt;entity guid&gt;/0</c> (<see cref="FeatureExpander.OfKind"/>: the key is the feature
+    /// entity's guid, on the live overlay and the compiled one alike). A base or imported wall carries its own name (or none) and never matches. Content-derived ⇒ the same on every node.
+    /// </summary>
+    public static bool IsScenarioWallLabel(string? label)
+        => label is { Length: > 2 } && label.EndsWith("/0", StringComparison.Ordinal) && Guid.TryParse(label.AsSpan(0, label.Length - 2), out _);
+
+    /// <summary>
+    /// ⭐ CE-11070 — the scenario feature wall lines of <paramref name="world"/> (free panels, <see cref="IsScenarioWallLabel"/>, one line per <see cref="WallGroups"/> group, posts in
+    /// panel order), each with its PASSABLE GAPS from <paramref name="damage"/>: the Passages on its panels in line arclength, merged where they touch, kept when at least
+    /// <paramref name="minGapM"/> wide. Cold (called on a change only).
+    /// </summary>
+    public static void FeatureWallLines(TerrainWorld world, BuildingDamageTable? damage, float minGapM, List<WallLine> into)
+    {
+        into.Clear();
+        var panels = world.Panels;
+        int i = 0;
+        var pts = new List<Vector2>(); var at = new List<float>(); var gaps = new List<(float, float)>();
+        while (i < panels.Count)
+        {
+            var p = panels[i];
+            if (p.Building >= 0 || !IsScenarioWallLabel(p.Label)) { i++; continue; }
+            int group = WallGroups.Of(world, i);
+            pts.Clear(); at.Clear(); gaps.Clear();
+            pts.Add(p.A); at.Add(0f);
+            float s = 0f;
+            for (; i < panels.Count && panels[i].Building < 0 && WallGroups.Of(world, i) == group; i++)
+            {
+                var q = panels[i];
+                if (damage != null)
+                    foreach (var b in damage.BreachesOf(i))
+                        if (b.Kind == BreachKind.Passage) gaps.Add((s + b.From, s + b.To));
+                s += q.Length;
+                pts.Add(q.B); at.Add(s);
+            }
+            gaps.Sort((x, y) => x.Item1.CompareTo(y.Item1));
+            var merged = new List<(float From, float To)>();
+            foreach (var g in gaps)
+            {
+                if (merged.Count > 0 && g.Item1 <= merged[^1].To + 0.05f) merged[^1] = (merged[^1].From, MathF.Max(merged[^1].To, g.Item2));
+                else merged.Add(g);
+            }
+            merged.RemoveAll(g => g.To - g.From < minGapM);
+            into.Add(new WallLine(WallGroups.LineKey(world, group) ?? p.Label!, pts.ToArray(), at.ToArray(), merged.ToArray()));
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11070 — true when a wall of <paramref name="walls"/> CLOSES the lane along <paramref name="line"/> (its centreline, terrain-local) <paramref name="width"/> m wide: a wall
+    /// segment crosses the centreline, the wall reaches BOTH lane edges from that crossing (on opposite sides, without ending inside the lane), and no passable gap covers the crossing.
+    /// A wall that ends inside the lane closes nothing (it is partial); a diagonal wall closes like a square one.
+    /// </summary>
+    public static bool LaneClosedByWalls(Vector2[] line, float width, IReadOnlyList<WallLine> walls)
+    {
+        if (walls.Count == 0 || line.Length < 2 || width <= 0f) return false;
+        float half = width * 0.5f;
+        for (int w = 0; w < walls.Count; w++)
+        {
+            var wall = walls[w];
+            for (int k = 0; k + 1 < wall.Points.Length; k++)
+            {
+                var a = wall.Points[k]; var b = wall.Points[k + 1];
+                for (int j = 0; j + 1 < line.Length; j++)
+                {
+                    var c = line[j]; var d = line[j + 1];
+                    if (!Intersect(a, b, c, d, out float tw, out _)) continue;
+                    float u = wall.At[k] + (wall.At[k + 1] - wall.At[k]) * tw;
+                    if (InGap(wall.Gaps, u)) continue;   // the crossing is in a passable gap: this wall leaves the lane open here
+                    var dir = d - c; float len = dir.Length();
+                    if (len < 1e-6f) continue;
+                    var side = new Vector2(-dir.Y, dir.X) / len;
+                    if (Reaches(wall, k, tw, c, side, half, +1) && Reaches(wall, k, tw, c, side, half, -1)) return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /// <summary>Walks the wall from the crossing (segment <paramref name="k"/> at fraction <paramref name="t"/>) toward its end (<paramref name="towards"/> +1) or start (−1): true when it
+    /// reaches a lateral offset of <paramref name="half"/> (either side) from the lane line through <paramref name="origin"/> before the wall ends.</summary>
+    private static bool Reaches(WallLine wall, int k, float t, Vector2 origin, Vector2 side, float half, int towards)
+    {
+        var pts = wall.Points;
+        if (towards > 0)
+        {
+            for (int m = k + 1; m < pts.Length; m++) if (MathF.Abs(Vector2.Dot(pts[m] - origin, side)) >= half) return true;
+        }
+        else
+        {
+            for (int m = k; m >= 0; m--) if (MathF.Abs(Vector2.Dot(pts[m] - origin, side)) >= half) return true;
+        }
+        return false;
+    }
+
+    private static bool InGap((float From, float To)[] gaps, float u)
+    {
+        for (int i = 0; i < gaps.Length; i++) if (u >= gaps[i].From && u <= gaps[i].To) return true;
+        return false;
+    }
+
+    /// <summary>Segment–segment intersection: the fractions along a→b and c→d.</summary>
+    private static bool Intersect(Vector2 a, Vector2 b, Vector2 c, Vector2 d, out float t, out float v)
+    {
+        t = v = 0f;
+        var r = b - a; var q = d - c;
+        float den = r.X * q.Y - r.Y * q.X;
+        if (MathF.Abs(den) < 1e-9f) return false;
+        var ac = c - a;
+        t = (ac.X * q.Y - ac.Y * q.X) / den;
+        v = (ac.X * r.Y - ac.Y * r.X) / den;
+        return t >= 0f && t <= 1f && v >= 0f && v <= 1f;
+    }
+
+    /// <summary>
+    /// ⭐ CE-11070 — the segments of <paramref name="blob"/> the walls CLOSE: every lane of the segment (its centreline offset across the road, <c>LaneCount</c> lanes of <c>LaneWidth</c>)
+    /// is closed by a wall (<see cref="LaneClosedByWalls"/>). A segment with one lane open stays (our graph has no per-lane closure; a vehicle picks the open lane).
+    /// </summary>
+    public static void WallClosedSegments(in RoadNetworkBlob blob, IReadOnlyList<WallLine> walls, HashSet<int> into)
+    {
+        if (walls.Count == 0 || !blob.Segments.IsCreated) return;
+        for (int i = 0; i < blob.Segments.Length; i++)
+        {
+            var s = blob.Segments[i];
+            int lanes = Math.Max(1, s.LaneCount);
+            float length = MathF.Max(s.Length, Vector2.Distance(s.P0, s.P1));
+            int n = Math.Max(2, (int)MathF.Ceiling(length / 1f)) + 1;
+            bool all = true;
+            for (int l = 0; l < lanes && all; l++)
+            {
+                float off = -s.LaneWidth * lanes * 0.5f + s.LaneWidth * (l + 0.5f);
+                var pts = new Vector2[n];
+                for (int k = 0; k < n; k++)
+                {
+                    float t = (float)k / (n - 1);
+                    var p = RoadGraphNavigator.EvaluateHermite(t, s.P0, s.T0, s.P1, s.T1);
+                    var d = RoadGraphNavigator.EvaluateHermiteTangent(t, s.P0, s.T0, s.P1, s.T1);
+                    var dir = d.LengthSquared() > 1e-9f ? Vector2.Normalize(d) : Vector2.UnitX;
+                    pts[k] = p + new Vector2(-dir.Y, dir.X) * off;
+                }
+                all = LaneClosedByWalls(pts, s.LaneWidth, walls);
+            }
+            if (all) into.Add(i);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11070 — SUMO, per LANE: each lane's shape and width is judged by <see cref="LaneClosedByWalls"/>; an edge whose every lane is closed goes into <paramref name="closedEdges"/>
+    /// (SUMO closes edges: a two-way road is two edges, so a cut over one lane of a two-lane road re-opens that direction). <paramref name="closedLanes"/> gets every closed lane id
+    /// (diagnostics, and the lanes of a multi-lane edge left partly open — ⚠ SumoSharp closes edges only, so such a lane stays drivable: a finding in the design §9).
+    /// </summary>
+    public static void WallClosedEdges(Sim.Ingest.NetworkModel net, Func<double, double, (double X, double Y)> toLocal, IReadOnlyList<WallLine> walls, List<string> closedEdges, List<string>? closedLanes = null)
+    {
+        if (walls.Count == 0) return;
+        foreach (var edge in net.Edges)
+        {
+            if (edge.Lanes.Count == 0 || edge.Id.StartsWith(':')) continue;
+            bool all = true;
+            foreach (var lane in edge.Lanes)
+            {
+                var pts = new Vector2[lane.Shape.Count];
+                for (int i = 0; i < pts.Length; i++) { var (x, y) = toLocal(lane.Shape[i].X, lane.Shape[i].Y); pts[i] = new Vector2((float)x, (float)y); }
+                bool closed = LaneClosedByWalls(pts, (float)lane.Width, walls);
+                if (closed) closedLanes?.Add(lane.Id);
+                all &= closed;
+            }
+            if (all) closedEdges.Add(edge.Id);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11070 — the change test: a hash of the scenario wall lines' geometry and of the PASSAGES on their panels in <paramref name="damage"/> — a hole in a house, a Hole in a wall or a
+    /// new world with the same walls leaves it unchanged (no recompute). Allocation-free: a walk of the world's panels and the table's per-panel spans.
+    /// </summary>
+    public static ulong WallSignature(TerrainWorld world, BuildingDamageTable? damage)
+    {
+        ulong h = 1469598103934665603UL;
+        var panels = world.Panels;
+        for (int i = 0; i < panels.Count; i++)
+        {
+            var p = panels[i];
+            if (p.Building >= 0 || !IsScenarioWallLabel(p.Label)) continue;
+            h = Mix(h, (ulong)i);
+            h = Mix(h, (ulong)(long)MathF.Round(p.A.X * 100f)); h = Mix(h, (ulong)(long)MathF.Round(p.A.Y * 100f));
+            h = Mix(h, (ulong)(long)MathF.Round(p.B.X * 100f)); h = Mix(h, (ulong)(long)MathF.Round(p.B.Y * 100f));
+            if (damage == null) continue;
+            foreach (var b in damage.BreachesOf(i))
+            {
+                if (b.Kind != BreachKind.Passage) continue;
+                h = Mix(h, (ulong)(long)MathF.Round(b.From * 100f)); h = Mix(h, (ulong)(long)MathF.Round(b.To * 100f));
+            }
+        }
+        return h;
+    }
+
+    private static ulong Mix(ulong h, ulong v) { h ^= v; return h * 1099511628211UL; }
+
     /// <summary>
     /// The road along <paramref name="at"/>(s), s in [0, 1] over <paramref name="length"/> m, <paramref name="width"/> m wide: 2 = closed (a station fully
     /// covered), 1 = partly covered, 0 = clear.

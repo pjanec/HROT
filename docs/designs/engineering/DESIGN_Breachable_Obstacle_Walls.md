@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
+build-state: BUILDING — S1 built (§9a) (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
 updated: 2026-11-27 (rev 2: a placed wall is a terrain-feature WALL; rev 1's segment design is HISTORY)
 current-answer: §8 the review's answers (supersede §2 A-1, §5 D-2/D-3/D-4) · §2 the decision · §3 the UML · §5 decisions · §6 acceptance · §9 stages
 stale-below: ⛔ HISTORY (rev 1, segments) — must NOT be quoted as the design
@@ -198,6 +198,24 @@ roads; nothing was run. ⇒ the acceptance scenario measures the first two.
 | S3 | CE-11072 | terrain | acceptance scenario `va-dozer-breach-wall` (§6) |
 | S4 | CE-11073 | terrain | ⏳ the obstacle tool's wall types draw a feature wall (D-1) — after the user's answer |
 | S5 | CE-11074 | unreal-ig | scenario terrain features on DPS; Unreal draws the wall and places gaps by Centre / Normal / From–To (D-6, V-5) |
+
+### 9a. As built — S1 (`terrain`, 2026-11-27)
+
+| id | built | where | rails |
+|---|---|---|---|
+| CE-11069 | ✅ `FeatureExpander.WallThicknessOf(material)`: sandbags 0.6 m, concrete 0.4 m, others 0 (= the parser's 0.3 m) — a `Wall` feature's line part carries it | `FeatureKinds.cs` | `FeatureKindsTests.CE11069_*` — 0.6 / 0.4 / 0.3 m; a 1 m sandbag wall's strength 60 > the ramming car's 40, ≤ the IFV's 150 |
+| CE-11070 | ✅ the LINE rule: `RoadBlockage.FeatureWallLines` (the scenario wall lines + their passable gaps: Passages merged where they touch, kept ≥ `minDriveThroughM`), `LaneClosedByWalls` (a wall segment crosses the lane's centreline, reaches BOTH lane edges, and the crossing is in no gap), `WallClosedSegments` (our graph: a segment closes when every lane does), `WallClosedEdges` (SUMO, per lane: an edge closes when every lane does), `WallSignature` (geometry + Passages only) | `RoadBlockage.cs`, `BridgeClosureSystem.Execute/Recompute` | `BridgeClosureTests.CE11070_*` (3) — closes; 0.8 m hole keeps it; a Hole does not recompute; a 4.7 m cut re-opens; two nodes agree; 0 B steady; a base wall and a half-across wall close nothing; SUMO: square, diagonal, one lane of a 7 m two-way road re-opens |
+
+⭐ **"Scenario wall" = a free panel whose label is `<guid>/0`** (`IsScenarioWallLabel`): the feature's key is its entity guid on the live and the compiled overlay alike, while a
+base / imported wall carries its own name — content-derived, so every node agrees without the feature entities. ⚠ It covers every scenario LINE kind (wall, fence, hedge): a
+scenario fence across a road closes it too (none is placed across a road today — measured: only `Wall` features exist in `scenarios/`).
+
+⚠ **Finding — a multi-lane one-way SUMO edge with ONE lane cut stays open** (`WallClosedEdges` reports the closed lane): SumoSharp closes EDGES (`Engine.CloseEdge`, routing only) —
+a lane closure needs a SumoSharp lane permission at run time. A two-way road is two edges, so the design's "one lane of a 7 m road" case works.
+
+⚠ **Finding — CE-11071's city-battle half is BLOCKED** (stopped, R-106): the three `city-battle/roadblock` instances carry `Presence: 0.6` (each stands in 60 % of runs), and the
+overlay compiler reads every saved feature entity without `Presence` (`OverlayCompiler.cs`) — moving the macro's walls into the scenario (V-3) would make them stand in EVERY run. ⇒ needs
+a decision: Presence on feature walls (the compiler or the residency honouring it), or the walls always standing.
 
 ## ⛔ HISTORY — rev 1 (segments), withdrawn `2026-11-27`
 

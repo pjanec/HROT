@@ -51,6 +51,34 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.False(wps[i].Position.X > 299.5f && wps[i].Position.X < 300.5f && MathF.Abs(wps[i].Position.Y - 250f) < 40f, $"waypoint {i} {wps[i].Position} is inside the hedge");
         }
 
+        // ── a wall's thickness is its material's (CE-11069) ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-11069</c> (DESIGN_Breachable_Obstacle_Walls.md §8 V-4) — a SANDBAG wall feature is built 0.6 m thick, a CONCRETE one 0.4 m, a brick one at the parser's 0.3 m as before; and the 1 m
+        /// sandbag wall's contact strength (resistance × thickness × height, <c>ContactBreach.Identify</c>) is above a ramming car's limit (a car is held) and within an IFV's (it breaks it), from
+        /// <c>contact-breach.json</c>. 🔴 Red-proof: <c>WallThicknessOf</c> returns 0 ⇒ the sandbag panel is 0.3 m and its strength 30 — below the car's 40.
+        /// </summary>
+        [Fact]
+        public void CE11069_AWallFeature_IsItsMaterialsThickness_AndASandbagWallHoldsARammingCar()
+        {
+            const string S = "c4000000-0000-4000-8000-000000000004", C = "c5000000-0000-4000-8000-000000000005", B = "c6000000-0000-4000-8000-000000000006";
+            var world = Merged((S, OverlayFixture.Feature(TerrainFeature.Wall, 300, 250, "sandbags", 0, 1.0f, 0, (0, -6), (0, 6))),
+                               (C, OverlayFixture.Feature(TerrainFeature.Wall, 320, 250, "concrete", 0, 0.8f, 0, (0, -6), (0, 6))),
+                               (B, OverlayFixture.Feature(TerrainFeature.Wall, 340, 250, "brick", 0, 2.0f, 0, (0, -6), (0, 6))));
+            TerrainWallPanel Of(string guid) => world.Panels.First(p => p.Label == guid + "/0");
+            var sand = Of(S);
+            Assert.Equal(0.6f, sand.Thickness, 3);
+            Assert.Equal(0.4f, Of(C).Thickness, 3);
+            Assert.Equal(0.3f, Of(B).Thickness, 3);
+
+            float strength = sand.Material.ResistanceMmRhaPerMetre * sand.Thickness * (sand.TopZ - sand.BaseZ);
+            var table = ContactBreachTable.Shared;
+            var car = table.Rows.First(r => r.Name == "ramming-car");
+            var ifv = table.Rows.First(r => r.Name == "ifv");
+            Assert.True(strength > car.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must hold a ramming car (limit {car.SmallMaxStrength})");
+            Assert.True(strength <= ifv.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must break under an IFV (limit {ifv.SmallMaxStrength})");
+        }
+
         // ── a wood conceals ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A WOOD feature (a forest surface from its polygon) conceals as the base's woods do: 100 m apart inside it is hidden, 20 m is seen. 🔴 Red-proof: expand a wood to an <c>open</c> surface ⇒ 100 m is seen.</summary>
