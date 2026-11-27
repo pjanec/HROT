@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN (rev 2 — leans for the user's approval in §5; the independent review in §8)
+build-state: DESIGN (rev 2 + the review's answers in §8, which SUPERSEDE §2 A-1, §5 D-2 / D-3 / D-4 where they differ)
 updated: 2026-11-27 (rev 2: a placed wall is a terrain-feature WALL; rev 1's segment design is HISTORY)
 current-answer: §2 the decision · §3 the UML · §5 decisions with leans · §6 acceptance · §7 claim table · §8 the review of rev 2
 stale-below: ⛔ HISTORY (rev 1, segments) — must NOT be quoted as the design
@@ -167,7 +167,26 @@ keeps it closed); the closure recomputes on a breach (a new world instance).
 
 ## 8. Independent review of rev 2
 
-*(pending — a fresh agent checks this design against the code; its findings are folded here)*
+Verdict (a fresh agent, the code, `2026-11-27`): *"the breach half works today for a scenario feature wall … the road-closure half (A-1) will not work
+as written … the macro half of D-4 is not possible today."* ✅ Verified true: overlay free panels are indexed and breached (`BuildingPanelGrid.cs:77-81`,
+`AreaEffectSystem.cs:582-599`); one wall line per feature with a stable key, remapped by key (`BuildingDamage.cs:242-266`, `TerrainResidency.cs:686-700`);
+breaches replicated by key; a node without the overlay gets "no wall", nothing worse (`TerrainObjectRequests.cs:75-104`); the hull guard sees breaches at
+query time (`TerrainWorld.cs:1004-1020`); the dozer cuts hull width + 1 m (`BladeCut.cs:107-122`).
+
+| # | sev | finding (evidence; ✅ = re-checked by the main session) | ⭐ the design's answer |
+|---|---|---|---|
+| V-1 | ⛔ blocker | ✅ `RoadBlockage.Covered` closes a road only where ONE station's whole cross-line is inside a blocker, stations 0.5 m apart (`:77-100`); a 0.3 m wall is caught only by luck, a diagonal one never; SUMO samples ~1.5 m apart; and any ≥ 0.5 m gap re-opens — a 0.8 m infantry hole would open the road to cars | ⭐ **A-1 becomes a LINE-blocker rule** of its own: a free wall that crosses a lane from edge to edge closes it; it re-opens only where a Passage at least `minDriveThroughM` (4.2 m) wide lies inside that lane. Judged per lane (SUMO gets per-lane closures: a 4.7 m cut opens one lane of a 7 m road) |
+| V-2 | ⛔ blocker | ✅ the panel is re-cut only by the bake, only for Passages, only on nodes with a navmesh (`TerrainResidency.cs:582 BakesDamage`), after a 0.5 s wall-clock debounce — `BridgeClosureSystem` runs on every node ⇒ nodes would disagree, and not deterministically | ⭐ **A-1 reads the free-wall PANELS + the replicated breach table** (`DoorStates.Of(repo, terrain).Damage`, its Passages) — as craters and minefields are read — never the re-cut prisms; the trigger is the table reference filtered by a hash of FREE-wall Passages (a house hole must not recompute; `ClosedEdges` allocates) |
+| V-3 | ⛔ blocker | macros cannot carry a feature wall to the cluster: `OverlayCompiler` reads only the saved scenario's entities (`OverlayCompiler.cs:42-48`); macro members are transient | ⭐ D-4 revised: the roadblock's WALLS are placed in the SCENARIO itself (not in the macro), the macro keeps its non-wall members; teaching the compiler macros is rejected (a second expansion path) |
+| V-4 | important | ✅ `TerrainFeature` has no thickness; a wall gets the parser's 0.3 m (`TerrainWorldParser.cs:206-207`); contact strength = resistance × thickness × height (`ContactBreach.cs:279-286`): sandbags at 0.3 m = 30 < a ramming car's 40 | ⭐ D-3 revised: a per-MATERIAL default thickness in `FeatureKinds` (sandbags 0.6 m, concrete 0.4 m) — no struct field (the recorded layout stays) |
+| V-5 | important | the breach's `Panel` is the piece's rank within the line, and a sloped segment is split into pieces (CE-5015) — not the polyline segment | ⭐ D-6: the gateway tells Unreal to place a gap by `Centre`, `Normal` and `From` / `To` (T-075 already sends them), not by panel rank |
+| V-6 | important | a feature wall placed DURING a run reaches other nodes only after a save; the SUMO body feed for a partly covered road counts entities only; a clear order names a point, never the wall | ⭐ walls are scenario CONTENT (placed in the editor before the run, as every terrain feature); placing one mid-run is out of scope — said in D-1 |
+| V-7 | important | D-2 would make imported OSM walls / fences that cross roads (gates, driveways) start closing roads | ⭐ D-2 revised: **scenario feature walls only** (the overlay's), not base walls |
+| V-8 | important | only a player-possessed hull or a `RamOrder` breaks (`HullBreakGate.cs:22-31`, B-D1) | the acceptance row says *player-driven or ram order* |
+| V-9 | minor | the free-wall contact cut is the hull's footprint at its crossing angle + margins, ≥ 4.2 m (not hull width + margin); `ClearObstacle.Resolve` prefers an obstacle entity within the pick radius over the wall (`ClearObstacleBehavior.cs:101-111`) | §2 wording; the dozer scenario keeps cars out of the pick radius |
+
+Could not verify: whether SUMO cars are stopped by a wall on an open lane; whether the vehicle navmesh passes a 4.7 m gap; how many imported walls cross
+roads; nothing was run. ⇒ the acceptance scenario measures the first two.
 
 ## ⛔ HISTORY — rev 1 (segments), withdrawn `2026-11-27`
 
