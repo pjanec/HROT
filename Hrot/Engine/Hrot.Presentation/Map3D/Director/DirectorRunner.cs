@@ -333,6 +333,7 @@ namespace Hrot.UI.Common.Map3D.Director
         private readonly List<ItemReport> _reports = new();
         public string? Error { get; private set; }
         public string? MoviePath { get; private set; }
+        private string? _movieAsked;
         /// <summary>Frames <see cref="Tick"/> has run (rails).</summary>
         public long Frames { get; private set; }
 
@@ -1272,6 +1273,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_encoding is not { IsCompleted: true } done) return;
             if (done.IsFaulted) Error = "encoding failed: " + done.Exception!.GetBaseException().Message;
             else if (done.Result is { } err) Error = err;
+            else MoviePath = _movieAsked;   // ⭐ CE-11068 — the movie is named only when it was written
             EndRun();
             Phase = DirectorPhase.Done;
         }
@@ -1281,7 +1283,7 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var c = _request!.Capture!;
             var movie = Path.GetFullPath(c.Movie ?? Path.Combine(c.Dir, (_request.Reel.Name.Replace('/', '-')) + ".mp4"));
-            MoviePath = movie;
+            _movieAsked = movie;   // ⭐ CE-11068 — MoviePath is set only once the encode WROTE it (TickEncoding)
             var frames = FramesDir;
             var dir = c.Dir;
             var manifest = new JsonArray(_manifest.Select(m => (JsonNode?)new JsonObject
@@ -1304,7 +1306,9 @@ namespace Hrot.UI.Common.Map3D.Director
             File.WriteAllText(metaPath, meta.ToString());
             string? wav = Path.Combine(dir, "sound.wav");
             var simTimes = _manifest.OrderBy(m => m.Frame).Select(m => m.Shot == 0 ? double.NaN : m.SimTime + ItemOffset(m.Item)).ToList();
-            bool clientSound = c.Sound == Hrot.Common.Infrastructure.FilmSound.Client;   // ⭐ CE-11021 — the soundtrack is the linked client's: HROT's own is not made
+            // ⭐ CE-11021 — the soundtrack is the linked client's: HROT's own is not made. ⭐ CE-11068 (unreal-ig H-8) — only when the client FILMED the job: a job whose frames
+            //   went to HROT's map (frames: map, or no client could film) has no client track, so it takes HROT's own sound instead of failing
+            bool clientSound = c.Sound == Hrot.Common.Infrastructure.FilmSound.Client && _sink?.FilmsOnClient == true;
             if (clientSound || _sound == null || !_sound.EndLog(wav, simTimes, c.Fps)) wav = null;
             int fps = c.Fps, frameCount = _frameNo;
             var pending = _pendingCapture ?? Task.CompletedTask;

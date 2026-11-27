@@ -1488,7 +1488,9 @@ public sealed class FilmDirectorTests
         {
             var store = new TakeStore(() => root, () => Path.Combine(repo, "films"));
             foreach (var (scenario, names) in store.AllTakes())
-                foreach (var n in names) yield return (store, scenario, n);
+                foreach (var n in names)
+                    // ⭐ the SEEDED takes only (from docs/films/clips.json: each carries its "clip"); an authored take (CE-11064's ig-director-check) uses graphics on purpose
+                    if (store.Load(scenario, n).Value?.Extra?.ContainsKey("clip") == true) yield return (store, scenario, n);
         }
     }
 

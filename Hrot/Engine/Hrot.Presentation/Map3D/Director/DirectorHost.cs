@@ -138,6 +138,9 @@ namespace Hrot.UI.Common.Map3D.Director
         /// "HROT's map: the linked client 'dps' cannot film now"); null before the first job. The status shows it so a fallback is never silent.</summary>
         string? Route => null;
 
+        /// <summary>⭐ CE-11068 — the CURRENT job's frames go to a linked client (read before the job ends): its sound can be the client's. Default: the map.</summary>
+        bool FilmsOnClient => false;
+
         /// <summary>A scene frame of the job, with what a renderer elsewhere needs besides the overlay (<see cref="FilmFrameContext"/>).</summary>
         Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay, FilmFrameContext context) => Frame(path, width, height, supersample, overlay);
 
