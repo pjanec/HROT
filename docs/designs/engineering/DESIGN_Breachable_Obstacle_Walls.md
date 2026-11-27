@@ -190,3 +190,14 @@ approach would rebuild, for obstacle rows, what feature walls already do (R-1, R
 ⭐ Lean (pending ① measured): **feature walls** — one breach mechanism for every wall, built-in, authored or placed; the segment approach is withdrawn
 if ① holds. R-4264 (drawn obstacles are entities) stays true for the non-wall obstacles.
 
+### 10a. ① and ② measured (`2026-11-27`)
+
+| question | measured | consequence |
+|---|---|---|
+| ① does a feature wall close a road for traffic like an obstacle entity? | ⛔ **no.** `RoadBlockage` (CE-4590, the ONE road-closure geometry for SUMO's lanes and our road graph) takes the footprints of ACTIVE static obstacle ENTITIES (`RoadBlockage.cs:23-31`), crater bowls (CE-4591) and marked minefields (CE-4624) — no terrain wall | ⭐ a small, one-place addition: the overlay's free-wall prisms (after the breach re-cut, so a gap is a gap) join the blockers, recomputed when the wall damage changes. A road then closes under a wall and re-opens when a breach spans its width — the existing closure rule |
+| ② does every node bake feature walls? | ⚠ **the editor live, the others from the COMPILED overlay.** `LiveOverlay` is held only by the editor's bake (`EditorNodeBootstrapper.cs:396`; its doc: *"on every other host a block is inert data (the compiled overlay reaches those at load)"*); the overlay is compiled at SAVE (`StorageProcessManager.CompileTerrainOverlay`, `:225-240`), kept by hash for recordings (O-8), re-compiled after a re-import (AQ112 C) | ✅ every node of a SAVED scenario has the walls; ⚠ the compiled folder is git-ignored, so a scenario fresh from git reaches cluster nodes without its walls until it is saved once — the same for every feature today (bridges, water), not new here |
+
+⭐ **Lean, with ① and ② measured: feature walls**, plus (a) `RoadBlockage` counts overlay free walls, (b) the city-battle roadblock macro's walls / barrier
+lines become feature walls, (c) Unreal's `TerrainFeature` topic (its open ask) so the client draws the wall and, from the existing `BuildingDamage`
+`wall:<label>`, its gaps. The segment approach (§2–§8) is withdrawn if the user agrees.
+
