@@ -191,6 +191,11 @@ namespace Hrot.SimHost.Tests.Gizmos
             Assert.False(all.IsSet(DebugTraceLayers.DetectionLevels), "the detection overlay defaults off");
             Assert.True(new LayerControlDto { Ai = { DetectionLevels = true } }.ToMask().IsSet(DebugTraceLayers.DetectionLevels));
             Assert.True(DebugTraceLayers.DetectionLevels < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
+            // ⭐ CE-6504 — the road nodes: a Map row, OFF by default, its own bit
+            Assert.False(all.IsSet(DebugTraceLayers.RoadNodes), "the road nodes default off");
+            Assert.True(all.IsSet(DebugTraceLayers.Roads), "the roads themselves stay on");
+            Assert.True(new LayerControlDto { Map = { RoadNodes = true } }.ToMask().IsSet(DebugTraceLayers.RoadNodes));
+            Assert.True(DebugTraceLayers.RoadNodes < LayerControlDto.FirstUntoggledLayer, "a toggled layer lies below the always-on range");
             // ⭐ CE-1065 — the heading arrows / stance labels and the spatial grid have their own toggles, OFF by default
             foreach (var bit in new[] { DebugTraceLayers.UnitDetails, DebugTraceLayers.SpatialGrid, DebugTraceLayers.Concealed })   // ⭐ CE-1169 — the ExCon layer too
             {

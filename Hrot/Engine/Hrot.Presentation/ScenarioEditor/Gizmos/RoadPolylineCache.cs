@@ -64,11 +64,12 @@ public sealed class RoadPolylineCache
                 a = b;
             }
         }
+        if (!draw.IsLayerActive(DebugTraceLayers.RoadNodes)) return;   // ⭐ CE-6504 — the nodes have their own row, off by default: no work while hidden
         for (int i = 0; i < _nodeCount; i++)
         {
             var p = _nodes[i];
             if (view != null && !view.Overlaps(new Vector2(p.X - 2f, p.Y - 2f), new Vector2(p.X + 2f, p.Y + 2f))) continue;
-            draw.DrawSphere(p, 2f, RoadNetworkGizmo.NodeColor, layer: DebugTraceLayers.Roads, fillColor: RoadNetworkGizmo.NodeColor);
+            draw.DrawSphere(p, 2f, RoadNetworkGizmo.NodeColor, layer: DebugTraceLayers.RoadNodes, fillColor: RoadNetworkGizmo.NodeColor);
         }
     }
 
