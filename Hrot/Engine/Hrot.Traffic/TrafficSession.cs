@@ -250,8 +250,8 @@ public sealed class TrafficSession : IDisposable
             else
             {
                 if (!_refused.ContainsKey(h.NetworkId))   // ⭐ CE-11072 — the FIRST refusal of a hand-over is logged (a retry every RetrySeconds is not)
-                    Fdp.Core.Logging.FdpLog<TrafficSession>.Info("[Traffic] SUMO refused to take vehicle {0} at ({1:0.0}, {2:0.0}) to ({3:0.0}, {4:0.0}) — no lane near it or no open route; retried every {5} s",
-                        h.NetworkId, h.X, h.Y, h.DestX, h.DestY, RetrySeconds);
+                    Fdp.Core.Logging.FdpLog<TrafficSession>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                        $"[Traffic] SUMO refused to take vehicle {h.NetworkId} at ({h.X:0.0}, {h.Y:0.0}) to ({h.DestX:0.0}, {h.DestY:0.0}) — no lane near it or no open route; retried every {RetrySeconds} s"));
                 _refused[h.NetworkId] = _sim.Time;
             }
         }
