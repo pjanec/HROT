@@ -24,8 +24,10 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **S1b-1** the operator: `PossessionMode.Operated`, `DeviceOperators` (the walk, run by the device pre-pass), possession's release paths and frame loop skip `Operated` | ✅ | `DeviceOperatorTests` (4, red-proved) |
 | **S1b-2** device frames: `DeviceControl` (axes, press counters, trackers, body offset, Viewed) in its OWN `DeviceFrameEvent` (event id 5204) → `DeviceInput` (component id 228), ingested by the device tick; `PossessionSystem.ApplyFrame` the one body routine | ✅ | rail red-proved; ⚠ deviation: not in the body frame (CE-11027 pins its recorded layout) |
 | **S1b-3** `MountKinds.Device = 32`; four KIT stations appended to `CarrierDefDto.PersonCarrier()` (seats 4–7, Accepts Device only); `DevicePose` (id 229) + `DevicePoses.TryWorld` | ✅ | rails red-proved; ⚠ every person type's seat data changed ⇒ goldens move hash-only (CarrierSeats / CarrierStations / PassengerBuffer) — like CE-4711 |
-| **S1c** the rangefinder: `LaserPointing` (231, + request `Seq`) / `LaserSpot` (232) / `LaserSpotSystem` (muscle, `CombatModule` PostSimulation) / `DevicePanel` (233) / `Hrot.AI.Behaviors/Devices/Rangefinder/` (`DeviceRangefinder`) | ✅ | the S1c commit — `LaserSpotSystemTests` (8), `RangefinderBehaviorTests` (7, end to end + 0 B, parallel checks green); two red-proofs; deviations in the design's S1c AS BUILT (no TKB `DeviceDefDto` yet; `DevicePose` from the frame → S1d) |
-| S1d the HUD to the mockups: `HudScope`, `BeginScope`/`EndScope`, bound-view draw, binoculars device replaces CE-1219 | ⏳ | — |
+| **S1c** the rangefinder: `LaserPointing` (231, + request `Seq`) / `LaserSpot` (232) / `LaserSpotSystem` (muscle, `CombatModule` PostSimulation) / `DevicePanel` (233) / `Hrot.AI.Behaviors/Devices/Rangefinder/` (`DeviceRangefinder`) | ✅ | `6cf30d6a0` (pushed) — `LaserSpotSystemTests` (8), `RangefinderBehaviorTests` (7, end to end + 0 B, parallel checks green); two red-proofs; deviations in the design's S1c AS BUILT (no TKB `DeviceDefDto` yet; `DevicePose` from the frame → S1d) |
+| **S1d-1** `HudScope` meta-primitive, `BeginScope`/`EndScope`, the one run-skip helper, `FrameFor` keeps the bound source's run, reader rails, R7-13 contiguity | 🔨 | dispatched to the S1c worker (warm) |
+| S1d-2 the rangefinder HUD projector (DeviceHud layer, visibility policy, screen pass) to the mockups + fidelity renders | ⏳ | — |
+| S1d-3 the binoculars device replaces CE-1219 (`Viewed` raises the held item), `DevicePose` from the station look | ⏳ | — |
 | S1e the scenario grammar + SD-S1 scenarios | ⏳ | — |
 
 ## 2. Rules learned this run (do not re-learn)
@@ -42,3 +44,4 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - `StatefulAction` on a `BTreeBuilder` is an extension in `Hrot.AI.Behaviors.Brains` — a behaviour outside that namespace needs the `using`.
 - `SpatialHashGrid` is a STRUCT: a test keeps it in a non-readonly field and re-publishes `SpatialGridData` after `Add` (origin via `Create(…, originX, originY)`).
 - `SimHostCoreLogicPackTests` asserts `SimulationSystems.Count == 28` and the pack has 29 — stale before S1c (S1c adds only a PostSimulation system); not chased.
+- `TheTaskPickerTests.H5_TheOpenPicker…` counts (14→18, 6→7) are stale since `0926ff85c` (2026-11-09) — one curated device behaviour behind `Requires` cannot move a folder by 4; not chased.
