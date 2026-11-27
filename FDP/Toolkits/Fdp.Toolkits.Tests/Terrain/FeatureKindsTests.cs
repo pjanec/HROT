@@ -79,6 +79,50 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.True(strength <= ifv.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must break under an IFV (limit {ifv.SmallMaxStrength})");
         }
 
+        // ── a feature wall that stands in some variants only (CE-11071) ──────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-11071</c> (DESIGN_Breachable_Obstacle_Walls.md §9c) — a wall feature with <c>Presence 0.6</c> and <c>PresenceWith</c> a roadblock macro instance's guid: the compiled overlay stamps its
+        /// part, and reading the overlay for a run drops the wall EXACTLY in the variants where the scenario load drops the roadblock (<c>ScenarioVariants.Apply</c> on the same DOM — the one
+        /// decision); variant 0 keeps it; a wall without Presence is never dropped. 🔴 Red-proof: <c>OverlayPresence.Keep</c> returns true ⇒ the wall stands in a variant whose roadblock is absent.
+        /// 🔴 Red-proof: <c>Apply</c> rolls under the entity's own key (ignores PresenceWith) ⇒ the wall and the roadblock disagree in some variant.
+        /// </summary>
+        [Fact]
+        public void CE11071_AWallWithPresenceWith_StandsExactlyWhenItsRoadblockDoes()
+        {
+            const string Wall = "c7000000-0000-4000-8000-000000000007", Plain = "c8000000-0000-4000-8000-000000000008", Roadblock = "cb000000-0000-4000-8000-00000000000b";
+            var wall = OverlayFixture.Feature(TerrainFeature.Wall, 300, 250, "concrete", 0, 1.0f, 0, (0, -3), (0, 3));
+            wall["Presence"] = 0.6; wall["PresenceWith"] = Roadblock;
+            _f.Compile(_f.Scenario((Wall, wall), (Plain, OverlayFixture.Feature(TerrainFeature.Wall, 320, 250, "brick", 0, 2.0f, 0, (0, -3), (0, 3)))));
+            bool Stands(int variant, string guid)
+            {
+                var o = TerrainFolderWorld.ReadOverlay(_f.Overlay, "base-t", TerrainAssets.RecipesSibling(_f.TerrainFolder), null, variant);
+                return o.World.Panels.Any(p => p.Label == guid + "/0");
+            }
+            bool RoadblockStands(int variant)
+            {
+                var dom = new JsonObject { ["entities"] = new JsonObject
+                {
+                    [Roadblock] = new JsonObject { ["Presence"] = 0.6, ["EntityInfo"] = new JsonObject { ["Name"] = "Roadblock N" } },
+                    [Wall] = new JsonObject { ["Presence"] = 0.6, ["PresenceWith"] = Roadblock, ["EntityInfo"] = new JsonObject { ["Name"] = "wall" } },
+                } };
+                Fdp.Toolkit.Scenario.ScenarioVariants.Apply(dom, variant, Guid.Empty, "t");
+                var ents = (JsonObject)dom["entities"]!;
+                Assert.Equal(ents.ContainsKey(Roadblock), ents.ContainsKey(Wall));   // the load drops them together
+                return ents.ContainsKey(Roadblock);
+            }
+            Assert.True(Stands(0, Wall));
+            int absent = 0, present = 0;
+            for (int v = 1; v <= 40; v++)
+            {
+                bool rb = RoadblockStands(v);
+                Assert.Equal(rb, Stands(v, Wall));
+                Assert.True(Stands(v, Plain), $"a wall without Presence stands in variant {v}");
+                if (rb) present++; else absent++;
+            }
+            Assert.True(absent > 0 && present > 0, $"40 variants should drop the roadblock in some and keep it in others (absent {absent}, present {present})");
+        }
+
         // ── a wood conceals ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A WOOD feature (a forest surface from its polygon) conceals as the base's woods do: 100 m apart inside it is hidden, 20 m is seen. 🔴 Red-proof: expand a wood to an <c>open</c> surface ⇒ 100 m is seen.</summary>

@@ -65,6 +65,23 @@ def instance(macro, x, y, rot, args):
             'MacroInstance': {'Macro': macro, 'Args': args}}
 
 
+# ⭐ CE-11071 (DESIGN_Breachable_Obstacle_Walls.md §8 V-3, §9c) — each roadblock's WALLS, offsets from its anchor (the macro instance, unrotated): the two concrete
+#   barriers across the road (staggered: each closes one lane, a chicane) and the MG nests' sandbags. Terrain-feature walls (breached in part, R-11022), placed in the
+#   scenario because a macro cannot carry a feature; each rolls with its roadblock (Presence + PresenceWith the instance).
+ROADBLOCK_WALLS = [   # (name, from (dx, dy), to (dx, dy), material, height m)
+    ('barrier 1', (-14, -5.2), (-14, 0.8), 'concrete', 1.0),
+    ('barrier 2', (-16, -0.4), (-16, 5.6), 'concrete', 1.0),
+    ('MG Nest S sandbags', (4, -16), (4, -12), 'sandbags', 1.2),
+    ('MG Nest N sandbags', (4, 12), (4, 16), 'sandbags', 1.2),
+]
+
+
+def wall(name, a, b, material, height):
+    return {'SimTransform': at(a[0], a[1]), 'TkbIdentity': {'TkbType': 8818}, 'EntityInfo': {'Name': name},
+            'TerrainFeature': {'Kind': 2, 'Template': material, 'HeadingDeg': 0, 'Pad': height, 'Seed': 0},
+            'EditablePolyline': {'Points': [{'X': 0, 'Y': 0}, {'X': round(b[0] - a[0], 2), 'Y': round(b[1] - a[1], 2)}], 'Version': 0}}
+
+
 def obstacle(tkb, name, x, y, yaw_deg, l, w, h):
     a = math.radians(yaw_deg) / 2
     return {'SimTransform': at(x, y, rot=[0, 0, round(math.sin(a), 7), round(math.cos(a), 7)]), 'TkbIdentity': {'TkbType': tkb},
@@ -280,12 +297,13 @@ def build(civilians=200, seed=6010, variants=True):
             s.add(5, unit(403, f'Red FPV {t}-{j + 1}', H, *A(role, 4 + 3 * j, 4), hp=20))
     # ③ PREPARED POSITIONS (D-3) — a roadblock macro where each attack road enters the main line (blocks + cars across the road west of the anchor,
     #    an MG nest behind sandbags each side, an AT team), the outposts forward
+    roadblock_keys = {}
     for k in ('N', 'C', 'S'):
         rb = instance('city-battle/roadblock', *A(f'roadblock-{k}'), ID, {})
         rb['EntityInfo']['Name'] = f'Roadblock {k}'
         if variants:
             rb['Presence'] = ROADBLOCK_PRESENCE   # ⭐ CE-6011 — the ROADBLOCK SET: each roadblock kept or dropped WHOLE by one roll
-        s.add(6, rb)
+        roadblock_keys[k] = s.add(6, rb)
     for k, role in (('North', 'outpost-N'), ('South', 'outpost-S')):
         for j in range(2):
             s.add(6, unit(2003, f'Outpost {k} {j + 1}', H, *A(role, 0, 3 * j), rot=FACE_W))
@@ -373,7 +391,7 @@ def build(civilians=200, seed=6010, variants=True):
             '4 IFV each), the air-assault platoon beside 4 UH-60s (held), A-10 + AH-64 parked (held), mortar section, 2 drone teams, 3 Javelin teams, '
             'an engineer squad + the bulldozer, HQ and jammer HMMWVs; defender (Hostile) - 1/2/3 Coy (defender-company macros: 3 militia platoons + 2 '
             'technicals each) north to south behind the ring road, the reserve company east of the river, mortars + ZU-23 + Stinger / Igla on the hill, '
-            '2 drone teams, roadblocks (concrete blocks + cars) on the three ring-road crossings with MG nests behind sandbags, AT teams, two outposts; '
+            '2 drone teams, roadblocks (concrete barrier walls + cars) on the three ring-road crossings with MG nests behind sandbag walls (terrain-feature walls, breached in part, rolling with their roadblock: CE-11071), AT teams, two outposts; '
             f'{civilians} civilians on the streets of the west belt and the old town + 6 parked cars. Visibility 5 km, 10:00 (daylight). '
             'The scripted top is intent only: phase lines PL A-D, two sectors, the objectives (seize the town hall, A / B Coy reach PL B), the defenders '
             'take positions at 0 s, A Coy attacks to PL B at 5 min, B Coy at 8; a company that reached PL B goes on to PL C (else at 15 / 18 min); the 2nd wave (macro) enters at 20 and attacks; the reserve counterattacks when the attacker holds the town hall (else at 28); the end when the town hall is held (else at 45). '
@@ -387,6 +405,14 @@ def build(civilians=200, seed=6010, variants=True):
                                   'WindSpeedMps': [0] * 8, 'WindGustMps': [0] * 8, 'CloudBaseM': [1500, 0, 0, 0],
                                   'CloudThicknessM': [600, 0, 0, 0], 'CloudOctas': [3, 0, 0, 0], 'CloudKind': [1, 0, 0, 0]}},
     }
+    # ⭐ CE-11071 — each roadblock's WALLS (ROADBLOCK_WALLS), added LAST so every earlier entity keeps its id
+    for k, rb_key in roadblock_keys.items():
+        ax, ay = A(f'roadblock-{k}')
+        for (wn, (fx, fy), (tx, ty), material, height) in ROADBLOCK_WALLS:
+            w = wall(f'Roadblock {k} {wn}', (ax + fx, ay + fy), (ax + tx, ay + ty), material, height)
+            if variants:
+                w['Presence'] = ROADBLOCK_PRESENCE; w['PresenceWith'] = rb_key   # stands exactly when its roadblock does
+            s.add(6, w)
     return {'$meta': {'docType': 'Hrot.Scenario', 'schemaVersion': 1}, 'header': header, 'entities': s.ents}, placed
 
 

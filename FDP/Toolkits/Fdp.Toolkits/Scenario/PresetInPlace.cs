@@ -60,7 +60,7 @@ namespace Fdp.Toolkit.Scenario
                 var forms = world.GetManagedComponentRO<VariantForms>(e);
                 if (forms == null) continue;
                 string key = world.GetComponentRO<EntityGuid>(e).Value.ToString();
-                if (forms.Presence is double p && !ScenarioVariants.IsPresent(variant, Guid.Empty, key, p)) { absent.Add(e); continue; }
+                if (forms.Presence is double p && !ScenarioVariants.IsPresent(variant, Guid.Empty, forms.PresenceWith ?? key, p)) { absent.Add(e); continue; }
 
                 int positionChosen = forms.PositionChosen, macroChosen = forms.MacroChosen;
                 if (forms.PositionsJson != null && ScenarioVariants.PositionsOf(JsonNode.Parse(forms.PositionsJson)) is { Count: > 0 } places)

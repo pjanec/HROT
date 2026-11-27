@@ -24,6 +24,8 @@ namespace Fdp.Toolkit.Scenario
         public int Variant { get; init; }
         /// <summary>The authored <c>Presence</c>, null when the entity had none.</summary>
         public double? Presence { get; init; }
+        /// <summary>⭐ CE-11071 — the authored <c>PresenceWith</c> (the guid whose roll this entity shares), null when none.</summary>
+        public string? PresenceWith { get; init; }
         /// <summary>The authored <c>Positions</c> list as JSON text, null when none.</summary>
         public string? PositionsJson { get; init; }
         /// <summary>Which entry of <see cref="PositionsJson"/> the variant chose (variant 0 ⇒ 0).</summary>
@@ -38,6 +40,7 @@ namespace Fdp.Toolkit.Scenario
         {
             var o = new JsonObject { [nameof(Variant)] = Variant };
             if (Presence is double p) o[nameof(Presence)] = p;
+            if (PresenceWith != null) o[nameof(PresenceWith)] = PresenceWith;
             if (PositionsJson != null) { o[nameof(PositionsJson)] = PositionsJson; o[nameof(PositionChosen)] = PositionChosen; }
             if (MacroChoicesJson != null) { o[nameof(MacroChoicesJson)] = MacroChoicesJson; o[nameof(MacroChosen)] = MacroChosen; }
             return o;
@@ -48,6 +51,7 @@ namespace Fdp.Toolkit.Scenario
         {
             Variant = Int(o, nameof(Variant)),
             Presence = o[nameof(Presence)] is JsonValue pv && pv.TryGetValue<double>(out var p) ? p : null,
+            PresenceWith = Str(o, nameof(PresenceWith)),
             PositionsJson = Str(o, nameof(PositionsJson)),
             PositionChosen = Int(o, nameof(PositionChosen)),
             MacroChoicesJson = Str(o, nameof(MacroChoicesJson)),
@@ -100,6 +104,7 @@ namespace Fdp.Toolkit.Scenario
             var vf = ((ISimulationView)repo).GetManagedComponentRO<VariantForms>(entity);
             var output = new Dictionary<string, object>();
             if (vf.Presence is double p) output[ScenarioVariants.PresenceKey] = JsonValue.Create(p)!;
+            if (vf.PresenceWith != null) output[ScenarioVariants.PresenceWithKey] = JsonValue.Create(vf.PresenceWith)!;   // ⭐ CE-11071
             if (vf.PositionsJson != null && JsonNode.Parse(vf.PositionsJson) is JsonArray places && places.Count > 0)
             {
                 if (repo.IsComponentTypeRegistered<SimTransform>() && repo.HasComponent<SimTransform>(entity))

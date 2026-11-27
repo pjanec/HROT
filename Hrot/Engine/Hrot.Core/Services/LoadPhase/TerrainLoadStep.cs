@@ -99,7 +99,10 @@ public sealed class TerrainLoadStep : ILoadPartProvider
             overlayFolder = _residency.ResolveOverlay(overlayHash)
                 ?? throw new System.IO.FileNotFoundException(
                     $"[Terrain] The staged scenario names terrain overlay '{overlayHash}' for terrain '{requested}', but no overlays/{overlayHash}/overlay.json exists under any terrain root. Loading it is mandatory: a broken deployment.");
-        var staged = _residency.Prepare(requested, overlayFolder);
+        // ⭐ CE-11071 — the run's variant (the same arg every node's scenario load reads): overlay features that variant leaves out are not merged
+        //   (a replay's context carries the recording's args when it has them; none ⇒ variant 0, every feature)
+        int variant = Fdp.Toolkit.Scenario.ScenarioVariants.VariantOf(context.ScenarioArgsJson);
+        var staged = _residency.Prepare(requested, overlayFolder, variant);
         if (staged.HasWork)
             lock (_stagedGate) _staged[context.TransactionId] = staged;
 

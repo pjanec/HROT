@@ -833,15 +833,17 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         _terrain ??= new Hrot.Map.Common.Services.TerrainResidency(TerrainCatalog, _terrainRoads);
 
         string? name = null, overlayHash = null;
+        int variant = 0;
         TerrainWarning = null;
         if (_manager.Contexts.TryGetValue(_manager.LocalEntitiesProviderNodeId, out var primary))
         {
             name = primary.Playback?.Metadata?.TerrainName;
             overlayHash = primary.Playback?.Metadata?.OverlayHash;
+            variant = Fdp.Toolkit.Scenario.ScenarioVariants.VariantOf(primary.Playback?.Metadata?.ScenarioArgs);   // ⭐ CE-11071 — the recorded run's variant: its absent overlay features stay absent
         }
         if (string.IsNullOrEmpty(name))
             foreach (var ctx in _manager.Contexts.Values)
-                if (!string.IsNullOrEmpty(name = ctx.Playback?.Metadata?.TerrainName)) { overlayHash = ctx.Playback?.Metadata?.OverlayHash; break; }
+                if (!string.IsNullOrEmpty(name = ctx.Playback?.Metadata?.TerrainName)) { overlayHash = ctx.Playback?.Metadata?.OverlayHash; variant = Fdp.Toolkit.Scenario.ScenarioVariants.VariantOf(ctx.Playback?.Metadata?.ScenarioArgs); break; }
 
         if (string.IsNullOrEmpty(name))
             Fdp.Core.Logging.FdpLog<ReplayBrowserSubsystem>.Info(
@@ -858,7 +860,7 @@ public sealed partial class ReplayBrowserSubsystem : ISubsystem, IWindowRegistra
         {
             if (overlayFolder != null)
             {
-                try { _terrain.Commit(_terrainCarrier, _terrain.Prepare(name, overlayFolder)); return; }
+                try { _terrain.Commit(_terrainCarrier, _terrain.Prepare(name, overlayFolder, variant)); return; }
                 catch (Exception ex) when (ex is System.IO.IOException or System.Text.Json.JsonException or InvalidOperationException or ArgumentException)
                 {
                     Warn($"this recording's terrain additions {overlayHash} cannot be used here ({ex.Message}) — the map shows the base terrain '{name}' only.");
