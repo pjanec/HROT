@@ -261,6 +261,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();   // ⭐ Simulated devices S1a — the device marker
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
         //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in

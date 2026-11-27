@@ -323,6 +323,17 @@ run; his views choose what each shows (§3.6).
 | R6-4 / R-4300 | **pause = sim time** for a device (dt = 0, `GlobalTime` frozen): anything that simulates (a battery, a timer, a drone's state) freezes. In pause a device changes only ITSELF (state, panel, pose, pointing) — ⛔ no world effect. Only observation runs on the WALL clock — input and camera / joystick smoothing — and that lives on the station; a HUD's visual blink is the projector's, by frame count | 🔒 user: *"drone battery must freeze … only observation related stuff should keep working, using wall clock time"*; R-4300 is the device-local exception to R-3114 |
 | D-72 / R3-10 | read once; newest `Seq`, the press counters and the message `Seq` stay as cheap guards | — |
 
+⭐ **S1a AS BUILT (`2026-11-27`)** — `FDP/Toolkits/Fdp.Toolkits/Behavior/Devices/DeviceTickSystem.cs` + `DeviceInfo.cs`. ⚠ **Deviation from D-72, argued:** NOT an
+extracted `BrainPhaseRunner` — **`DeviceTickSystem` is a SUBCLASS of `BrainTickSystem`** with its own `[TickMode(EveryFrame)]` (the attribute is
+`Inherited = false`, `SystemAttributes.cs:80`, so each type states its own mode): it runs LITERALLY the same tick code, serial and parallel, with
+each instance's own records — less code than an extraction and no second loop. `BrainTickSystem` gains four hooks (`IsDeviceTick`,
+`BeforeDeviceTick`, `RequestRestart`, the `Without<DeviceInfo>` / `With<DeviceInfo>` tier filter) and skips its AI-only steps on the device
+instance (retiring the dead, `BrainPhase.Prepare`, the experimental cadence, the SOP slots). `DeviceInfo { DeviceType, Behavior }` (component id
+219, recorded) is the marker AND names the behaviour the pre-pass starts (in pause too) and restarts after a finish; a refused start is not
+retried every frame; nothing during a replay; registered by `CognitiveRuntimeModule(…, deviceIngress)` LAST, on the CGF pack's configured ingress.
+Rails: `DeviceTickSystemTests` (6, incl. 0 B per steady frame). 📌 Found on the way: a lambda capturing a local in `ExecuteCore` allocated its
+closure EVERY frame (32 B) — caught by the existing CE505 / CE417 0 B rails, fixed by building the queries in their own method.
+
 ### 3.6 Views and the HUD
 
 | # | decision | why / evidence |

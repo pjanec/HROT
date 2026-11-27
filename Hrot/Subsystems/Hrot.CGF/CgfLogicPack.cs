@@ -154,7 +154,7 @@ namespace Hrot.CGF
             //   create, because a promoted ghost owns nothing — CE-256's own failure, reproduced by its
             //   own fix.
             _missionControlModule   = new MissionControlModule(behaviorRegistry, gateOnAuthority);
-            _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry, gateOnAuthority);
+            _cognitiveRuntimeModule = new CognitiveRuntimeModule(behaviorRegistry, gateOnAuthority, deviceIngress: _missionControlModule.Ingress);   // ⭐ devices S1a — the device tick, on the configured ingress
             _missionExecutionSystem              = new MissionControlExecutionSystem(entityMap, behaviorRegistry, mapperRegistry);
             _missionAdapterSystem                = new MissionAdapterSystem();
             // ⭐ CE-3167 (Entity Commanding §2.5d) — what an order with ClearsPriorIntent clears, registered once here: the

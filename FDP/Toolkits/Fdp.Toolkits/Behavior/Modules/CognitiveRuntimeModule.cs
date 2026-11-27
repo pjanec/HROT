@@ -53,7 +53,10 @@ namespace Fdp.Toolkit.Behavior.Modules
         /// <c>CE-256</c> while fixing it. ⇒ turn it on in the same breath as handing over the policy
         /// (step 4).</para>
         /// </param>
-        public CognitiveRuntimeModule(BehaviorRegistry registry, bool gateOnAuthority = false)
+        /// <param name="deviceIngress">⭐ Simulated devices S1a — the host's CONFIGURED behaviour ingress (devices R7-12: the instance, never a private
+        /// <c>new BehaviorIngressSystem</c>, which would drop its settings): when given, the device tick (<see cref="Fdp.Toolkit.Behavior.Devices.DeviceTickSystem"/>)
+        /// is appended LAST — after <see cref="BrainTickSystem"/> (R6-6), and after the five systems the rails index by position.</param>
+        public CognitiveRuntimeModule(BehaviorRegistry registry, bool gateOnAuthority = false, BehaviorIngressSystem? deviceIngress = null)
         {
             _registry = registry;
             // ⭐ CE-2076 — the unit's recent sensing changes, recorded in Input so every brain tick of this frame sees them.
@@ -78,6 +81,11 @@ namespace Fdp.Toolkit.Behavior.Modules
                 //    could not be ordered against this one anyway.
                 new BehaviorFrameSystem(),
             };
+            if (deviceIngress != null)
+            {
+                var list = new List<IEcsModuleSystem>(SimulationSystems) { new Fdp.Toolkit.Behavior.Devices.DeviceTickSystem(_registry, deviceIngress, gateOnAuthority) };
+                SimulationSystems = list;
+            }
         }
     }
 }

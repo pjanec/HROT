@@ -137,6 +137,30 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         private readonly Fdp.Toolkit.Blueprints.Systems.IReloadLogSink _reloadLog;
 
+        // ════ ⭐⭐ Simulated devices S1a — the hooks DeviceTickSystem overrides (docs/designs/devices/DESIGN_Simulated_Devices.md §3.5, D-72) ════
+        //   ONE tick routine for brains and devices: the device tick is this class, filtered to DeviceInfo, scheduled every frame. ⛔ No second loop.
+
+        /// <summary>True on the device tick (<see cref="Fdp.Toolkit.Behavior.Devices.DeviceTickSystem"/>): it walks only devices and skips the AI-only steps.</summary>
+        protected virtual bool IsDeviceTick => false;
+
+        /// <summary>The device tick's serial pre-pass (start / restart the device behaviours); false = nothing to tick this frame.</summary>
+        protected virtual bool BeforeDeviceTick(EntityRepository repo) => true;
+
+        /// <summary>A relayout restart of the same run (CE-452): the brain tick publishes the assign, read by the time-advancing ingress; the device tick
+        /// overrides it to start inline (devices R7-2 — an event would be re-read at resume, a second restart).</summary>
+        protected virtual void RequestRestart(EntityRepository repo, Entity entity, string behaviorName, string json)
+            => repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = behaviorName, JsonParams = json, Origin = BehaviorOrigin.Self });
+
+        private EntityQuery?[] BuildTierQueries(EntityRepository repo)
+            => BlueprintTierTable.BuildTierQueries(repo, qb => DeviceFilter(repo, qb.WithOwnedWhen<BehaviorState>(_gateOnAuthority)));
+
+        /// <summary>The brain tick walks every brain EXCEPT the devices; the device tick only the devices.</summary>
+        private QueryBuilder DeviceFilter(EntityRepository repo, QueryBuilder qb)
+        {
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInfo>()) return qb;
+            return IsDeviceTick ? qb.With<Fdp.Toolkit.Behavior.Devices.DeviceInfo>() : qb.Without<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+        }
+
         public void Execute(ISimulationView view, float deltaTime)
         {
             long tExecute = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bExecute = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();          // ⭐ CE-4395 B-1 — the whole tick, on the slots' basis
@@ -164,7 +188,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"{nameof(BrainTickSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
-            RetireTheDead(repo);   // ⭐⭐ CE-4668 — serial, before either path (it clears slots — structural)
+            // ⭐⭐ Simulated devices S1a — the DEVICE tick (DeviceTickSystem, a subclass) runs this SAME routine over the devices only, every frame;
+            //   the AI-only steps below (retiring the dead, the brain pre-pass, the experimental cadence, the SOP slots) are this brain tick's alone.
+            if (IsDeviceTick && !BeforeDeviceTick(repo)) return;
+            if (!IsDeviceTick) RetireTheDead(repo);   // ⭐⭐ CE-4668 — serial, before either path (it clears slots — structural)
 
             // ⭐⭐⭐ DISCOVERY IS THE TIER WALK — the shape BlueprintTickSystem has had since B3, and
             //   which BTree adopted in O7c-②. 📐 There is no brain COMPONENT left to query on: both
@@ -172,8 +199,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   store", and BrainTier discriminates inside the loop.
             //   📄 §31.7 — BuildTierQueries owns smallest-first ordering, build-once caching and the
             //   skip for a tier this world never registered.
-            _tierQueries ??= BlueprintTierTable.BuildTierQueries(
-                repo, qb => qb.WithOwnedWhen<BehaviorState>(_gateOnAuthority));
+            _tierQueries ??= BuildTierQueries(repo);   // ⚠ a separate method: a lambda capturing `repo` here would allocate its closure on EVERY entry (measured: 32 B/frame)
 
             var tiers = BlueprintTierTable.Ascending;
 
@@ -202,7 +228,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (++_cadenceSweep >= 300) { _cadenceSweep = 0; SweepStaleCadenceReaders(repo); }
             bool drain = CadenceDrain.TakeRequest(repo);   // ⭐ CE-2385 (D8) — a checkpoint is due: every cadenced slot ticks this frame
             // ⚠ CE-4433 P-4 — EXPERIMENT ONLY (HROT_SOLDIER_CADENCE, default off): a brain no policy cadences is woken by its senses (the SOP's wake)
-            if (ExperimentalSoldierCadence > 0f && _history != null)
+            if (ExperimentalSoldierCadence > 0f && _history != null && !IsDeviceTick)
                 foreach (var evt in repo.ReadEvents<Fdp.Toolkit.Perception.Events.SensorChangedEvent>())
                     if (repo.IsAlive(evt.Unit) && repo.HasComponent<BehaviorState>(evt.Unit))
                     {
@@ -215,7 +241,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐⭐ CE-10005 (air lane, cross-lane — said) — the SERIAL brains need the same pre-pass (the per-frame indexes brain code reads):
             //   📐 measured on a `--mode all` cluster (serial): the arena index was never built, so the fighters saw no arena — no merge, no
             //   floor, no shot cap, no stalemate clock — while the editor (parallel) had them. One pre-pass for both paths
-            if (!Parallel) BrainPhase.Prepare(repo);
+            if (!Parallel && !IsDeviceTick) BrainPhase.Prepare(repo);   // ⭐ devices R6-3 — never the world-wide brain pre-pass (it writes the stalemate clock)
             if (Parallel) RunParallel(repo, tiers, deltaTime, now, drain);
             else
             for (int t = 0; t < tiers.Count; t++)
@@ -232,7 +258,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                     var behavior = repo.GetComponent<BehaviorState>(entity);
                     // ⚠ CE-4433 P-4 — EXPERIMENT ONLY: every brain no policy owns (soldiers, vehicles) becomes Periodic at the switch's period, due now
-                    if (ExperimentalSoldierCadence > 0f && _history != null && behavior.CadencePolicy == 0 && behavior.Cadence == CadenceMode.EveryFrame)
+                    if (ExperimentalSoldierCadence > 0f && _history != null && !IsDeviceTick && behavior.CadencePolicy == 0 && behavior.Cadence == CadenceMode.EveryFrame)
                     {
                         ref var w = ref repo.GetComponentRW<BehaviorState>(entity);
                         w.Cadence = CadenceMode.Periodic; w.CadencePeriod = ExperimentalSoldierCadence; w.CadenceNextTick = now;
@@ -281,7 +307,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (drain) CadenceDrain.MarkDrained(repo);                              // ⭐ CE-2385 — no window is open now
             CadenceDrain.SetWindowsOpen(repo, _cadenceReaders.Count > 0);
             long tSops = Fdp.Toolkit.Diagnostics.QueryTimings.Begin(), bSops = Fdp.Toolkit.Diagnostics.QueryTimings.Bytes();
-            TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
+            if (!IsDeviceTick) TickSopSlots(repo, deltaTime, now);   // ⭐ CE-3035 — the SOP slot, after every task has ticked
             if (tSops != 0) Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Sops, tSops, bSops);
         }
 
@@ -320,7 +346,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         private void RunParallel(EntityRepository repo, IReadOnlyList<BlueprintTierSpec> tiers, float deltaTime, double now, bool drain)
         {
-            BrainPhase.Prepare(repo);   // registrations (structural) and the per-frame indexes brain code reads — never built inside the phase
+            if (!IsDeviceTick) BrainPhase.Prepare(repo);   // registrations (structural) and the per-frame indexes brain code reads — never built inside the phase
             int n = 0;
             for (int t = 0; t < tiers.Count; t++)
             {
@@ -330,7 +356,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 {
                     if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.IsFirstVisit(repo, entity, t)) continue;
                     var behavior = repo.GetComponent<BehaviorState>(entity);
-                    if (ExperimentalSoldierCadence > 0f && _history != null && behavior.CadencePolicy == 0 && behavior.Cadence == CadenceMode.EveryFrame)
+                    if (ExperimentalSoldierCadence > 0f && _history != null && !IsDeviceTick && behavior.CadencePolicy == 0 && behavior.Cadence == CadenceMode.EveryFrame)
                     {
                         ref var w = ref repo.GetComponentRW<BehaviorState>(entity);
                         w.Cadence = CadenceMode.Periodic; w.CadencePeriod = ExperimentalSoldierCadence; w.CadenceNextTick = now;
@@ -884,8 +910,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 return false;
             }
 
-            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = name!, JsonParams = json ?? "{}",
-                Origin = BehaviorOrigin.Self });   // ⭐ CE-3034 — a restart of the same run keeps its origin
+            RequestRestart(repo, entity, name!, json ?? "{}");   // ⭐ CE-3034 — a restart of the same run keeps its origin (Self)
             _blueprintLayout[entity.Index] = (behavior.InstanceId, behavior.ActiveBehaviorHash, def.BlueprintStructureHash, true);
             _reloadLog.OnHardReset(behavior.ActiveBehaviorHash, entity,
                 known ? started.Layout : 0UL, def.BlueprintStructureHash);
