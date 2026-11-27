@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-27 (rev 5 — the HUD reads the device's full [UnitMemory] state; the device store replicated, §3i) · 2026-11-27 (rev 3 — ONE generic output description (a display list + lamps + fields) drawn as screen-space gizmos and recorded; the device ticks in pause, never acting on the world) · 2026-11-27 (rev 2 — the device runs on the BRAIN: its state is a [UnitMemory] record in its blackboard, reachable from C#, BTree / HSM and blueprints; inputs replicate as events, outputs as replicated state)
+updated: 2026-11-27 (rev 6 — the HUD drawn on the brain, shipped as a station-keyed frame on change; the blackboard never replicated, §3j) · 2026-11-27 (rev 5 — the HUD reads the device's full [UnitMemory] state; the device store replicated, §3i) · 2026-11-27 (rev 3 — ONE generic output description (a display list + lamps + fields) drawn as screen-space gizmos and recorded; the device ticks in pause, never acting on the world) · 2026-11-27 (rev 2 — the device runs on the BRAIN: its state is a [UnitMemory] record in its blackboard, reachable from C#, BTree / HSM and blueprints; inputs replicate as events, outputs as replicated state)
 build-state: READY-TO-BUILD (rev 4, `2026-11-27`: the diagrams redrawn on §3a–§3h; the scenarios in §5a) — the framing's leans ACCEPTED by the user (2026-11-27); the shape below (§3) for the user's nod; slices in §5
 current-answer: ⭐ rev 4 — §2 (the diagrams), §5 / §5a (slices and their scenarios), §3h (the HUD projector), §3g (the seat), §3f (measured) · ⭐ §3b rev 3 (generic outputs as a display list, the HUD as gizmos, pause) — it SUPERSEDES SD-14 and SD-7's HUD model · ⭐ §3a rev 2 (the brain, unit memory, the I/O wire) — it SUPERSEDES SD-2, SD-6 and the state block in §2 · §3 the other decisions · §5 the slices · §9 the open questions
 stale-below: §2's `DeviceStateBlock` boxes and SD-2 / SD-6 in §3 — superseded by §3a (kept for the reasoning)
@@ -66,91 +66,91 @@ extensions, the control frame (HTTP / DDS).
 
 ⚠ rev 1's diagrams (a `DeviceRuntime` on the player node, a state block, `IDeviceLogic`) are moved to `## ⛔ HISTORY` at the bottom.
 
-### 2a. The module view — who runs what, and who calls it each frame
+### 2a. The module view — who runs what, and who calls it each frame *(rev 6, §3j)*
 
 ```mermaid
 graph TD
-  subgraph STATION["the node that hosts the STATION — the editor (all-in-one) or a player node; the gateway hosts one per DPS client"]
+  subgraph STATION["the node that hosts the STATION — a player node; or the editor (all-in-one); the gateway hosts one per DPS client"]
     KM["keyboard / mouse adapter — the keymap's device scope"]
     PAD["gamepad adapter — Raylib gamepad API"]
     REP["replica adapter — a node extension"]
     PS["PossessionStation (existing, every frame)<br/>fills the control frame's DEVICE SECTION"]
-    SGS["StatelessGizmoSystem (existing, EveryFrame)<br/>runs every [GizmoProjector]"]
-    HUDP["DeviceHudGizmo per device type — NEW<br/>[GizmoProjector(DeviceOutputs)] · draws only the<br/>VIEWING station's active device"]
+    SUB["HUD subscriber — the CE-215 batch subscriber, keyed by station<br/>fills THIS station's DeviceHud layer; resolves ValueBindings with local values"]
     MAP["3-D map (internal)"]
-    GW["gateway: HrotGizmoHost (existing) → GizmoFrame"]
+    GW["gateway → GizmoFrame (Producer = station, Layer DeviceHud)"]
   end
-  subgraph BRAIN["the node that owns the device entity (the brain)"]
+  subgraph BRAIN["the node that owns the device entity (the brain) — its blackboard NEVER leaves it"]
     DTS["DeviceTickSystem — NEW, EveryFrame<br/>ticks the DEVICE brain tier only"]
-    DB["the device's behaviour (one stateful action)<br/>+ its [UnitMemory] state — ON the device entity"]
+    DB["the device's behaviour (one stateful action)<br/>+ its UnitMemory state — ON the device entity"]
+    HUDS["DeviceHudSystem — NEW, EveryFrame<br/>for each device ACTIVE at a station: its type's HUD projector<br/>reads the UnitMemory state → primitives; publishes on CHANGE"]
     BTS["BrainTickSystem (existing, WhenTimeAdvances)<br/>skips the device tier"]
     POS["PossessionSystem (existing, WhenTimeAdvances)"]
   end
   subgraph MUSCLE["the node that moves the bodies (the muscle)"]
     LSS["LaserSpotSystem — NEW, EveryFrame<br/>traces LaserPointing → writes LaserSpot"]
   end
-  REC["Recorder (existing, every frame; wall-clock stamped)"]
+  REC["Recorder (existing): the device entity's store is recorded on the brain"]
   KM --> PS
   PAD --> PS
   REP --> PS
   PS -->|"OperatorControlFrameEvent — interaction transport, every frame, also in pause"| DTS
   DTS --> DB
-  DB -->|"the device's blackboard store: its UnitMemory state, replicated on change (D-11), recorded"| SGS
+  DB --> HUDS
+  HUDS -->|"StationHud frame — keyed by StationId, state QoS, sent only when it changed"| SUB
+  SUB --> MAP
+  SUB --> GW
   DB -->|"LaserPointing"| LSS
   LSS -->|"LaserSpot (replicated)"| DB
-  SGS --> HUDP
-  HUDP --> MAP
-  HUDP --> GW
   DB --> REC
   PS -.->|"⛔ not in pause — the device does not depend on it"| POS
   BTS -.->|"⛔ never ticks a device"| DB
 ```
 
-*What the picture shows that prose hid: nothing device-specific runs on the station node except the device type's own PROJECTOR, which is found by
-the same reflection registrar on every map host AND inside the gateway — so the internal map and the external IG draw one HUD by construction. The
-two dashed edges are the systems that do NOT run a device: both are `WhenTimeAdvances`, which is why the device needs its own every-frame tick.*
+*What the picture shows that prose hid: the device's state is read only where it lives — the brain draws the HUD from it and ships the PICTURE,
+keyed by station; the station node runs no device code at all, only the generic subscriber, so the internal map and the gateway draw one HUD by
+construction. In the editor configuration the publish and the subscribe are the same node (the frame goes straight into the local layer). The two
+dashed edges are the systems that do NOT run a device: both are `WhenTimeAdvances`.*
 
-### 2b. The classes
+### 2b. The classes *(rev 6)*
 
 ```mermaid
 classDiagram
-  class SeatDto { <<existing, grows>> Role Station · Accepts : MountKinds (+ Device ★) · OperatedBy · StartWith }
+  class SeatDto { <<existing, grows>> Role Station · Accepts : MountKinds plus Device · OperatedBy · StartWith }
   class WeaponSystems { <<existing, reused>> StationsOperatedBy(seat) → the devices a seat runs }
-  class DeviceDefDto { <<NEW, TKB>> Schema field names · the HUD projector's key · mount kinds }
-  class BehaviorState { <<existing>> + the DEVICE brain tier ★ }
-  class DeviceTickSystem { <<NEW, EveryFrame>> device tier only · Paused flag in the context }
-  class RangefinderDevice { <<NEW, one class per device type>> [BTreeDefinition] StatefulAction(Rangefinder) · Step(input, ref state) }
-  class RangefinderState { <<NEW, UnitMemory, replicated with the device store>> Mode · Menu · LastRange · everything the HUD shows }
-  class RangefinderHudGizmo { <<NEW, same file>> IStatelessGizmo · GizmoProjector on the device tag · Draw reads RangefinderState via GetInView }
-  class DeviceOutputs { <<NEW, LOCAL buffer, not replicated>> Lamps · Values[16] — filled by PanelOut for a replica adapter, D-12 }
-  class OperatorControlFrameEvent { <<existing, grows>> + DeviceSection: Device · Axes[4] · PressSeq[16] }
+  class BehaviorState { <<existing>> plus the DEVICE brain tier }
+  class DeviceTickSystem { <<NEW, EveryFrame, brain>> device tier only · Paused flag in the context }
+  class RangefinderDevice { <<NEW, one class per device type>> BTreeDefinition StatefulAction(Rangefinder) · Step(input, ref state) }
+  class RangefinderState { <<NEW, UnitMemory, brain only>> Mode · Menu · LastRange · everything the HUD shows }
+  class RangefinderHud { <<NEW, same file>> Draw(in state, IDebugDrawBuilder) · PanelOut(in state, ref DeviceOutputs) }
+  class DeviceHudSystem { <<NEW, EveryFrame, brain>> per active device: Draw into a per-station buffer · hash · publish on change }
+  class StationHudFrame { <<NEW wire type>> StationId key · Revision · DebugPrimitive blob · intern map · DeviceOutputs }
+  class HudSubscriber { <<existing CE-215 subscriber, keyed by station>> fills the station's DeviceHud layer · resolves ValueBinding }
+  class ValueBinding { <<meta-primitive, section 3c>> put local value X here }
+  class OperatorControlFrameEvent { <<existing, grows>> plus DeviceSection: Device · Axes[4] · PressSeq[16] }
   class IDeviceAdapter { <<NEW>> Fill(ref DeviceSection) · Show(in DeviceOutputs) }
   class LaserPointing { <<NEW, unmanaged>> On · Band · Direction — written by whoever points }
   class LaserSpot { <<NEW, unmanaged>> Point · Entity · Part · Range — written by the muscle }
-  class ViewingStation { <<NEW, node-local singleton>> the station this node's view belongs to }
-  class StatelessGizmoSystem { <<existing>> }
-  class HrotGizmoHost { <<existing, gateway>> runs the same projectors per station }
   SeatDto ..> WeaponSystems : OperatedBy
+  DeviceTickSystem --> RangefinderDevice : ticks
+  DeviceTickSystem ..> BehaviorState : device tier
   RangefinderDevice --> RangefinderState : own entity only
   RangefinderDevice --> LaserPointing : writes
   RangefinderDevice ..> LaserSpot : reads
   RangefinderDevice ..> OperatorControlFrameEvent : reads DeviceSection
-  DeviceTickSystem --> RangefinderDevice : ticks
-  DeviceTickSystem ..> BehaviorState : device tier
-  RangefinderHudGizmo ..> RangefinderState : reads via GetInView
-  RangefinderDevice ..> DeviceOutputs : PanelOut, locally
-  RangefinderHudGizmo ..> ViewingStation : draws only its device
-  RangefinderHudGizmo ..> WeaponSystems : active device of the seat
-  StatelessGizmoSystem --> RangefinderHudGizmo
-  HrotGizmoHost --> RangefinderHudGizmo
+  DeviceHudSystem --> RangefinderHud : per active device
+  RangefinderHud ..> RangefinderState : reads
+  DeviceHudSystem ..> WeaponSystems : which station runs it
+  DeviceHudSystem --> StationHudFrame : publishes
+  HudSubscriber ..> StationHudFrame : reads
+  HudSubscriber ..> ValueBinding : resolves
   IDeviceAdapter ..> OperatorControlFrameEvent : fills
+  IDeviceAdapter ..> StationHudFrame : lamps and displays
 ```
 
-*What the picture shows that prose hid: a new DEVICE TYPE is ONE class with three parts — the action, its `[UnitMemory]` state, its HUD projector —
-and touches nothing else; a new PANEL is one `IDeviceAdapter`. The only replicated device state is the device's own store (its `[UnitMemory]` state,
-D-11) and the two laser components — never a list of primitives.*
+*What the picture shows that prose hid: a new DEVICE TYPE is ONE class with three parts — the action, its `[UnitMemory]` state, its HUD drawing —
+all on the brain; a new PANEL is one `IDeviceAdapter`. Nothing device-specific exists on the station node, and the blackboard never crosses the wire.*
 
-### 2c. The sequence — a button press changes the HUD (and the same in pause)
+### 2c. The sequence — a button press changes the HUD (and the same in pause) *(rev 6)*
 
 ```mermaid
 sequenceDiagram
@@ -160,23 +160,23 @@ sequenceDiagram
   participant T as DeviceTickSystem (brain, every frame)
   participant D as RangefinderDevice (on the device entity)
   participant M as LaserSpotSystem (muscle)
-  participant G as RangefinderHudGizmo (every map host, the gateway)
+  participant H as DeviceHudSystem (brain)
+  participant U as HUD subscriber (station node)
   P->>A: the RANGE button pressed
   A->>S: DeviceSection: PressSeq[range] + 1
   S->>T: OperatorControlFrameEvent (the newest kept)
   T->>D: Step(the section, ref state)
-  D->>D: a new press ⇒ LaserPointing On (a pulse)
-  D-->>M: LaserPointing (replicated)
-  M->>M: trace terrain + bodies (synchronous, also in pause)
-  M-->>D: LaserSpot (Range 452 m)
-  D->>D: state.LastRange = 452 (its UnitMemory — changed ⇒ the store is written)
-  D-->>G: the device store (replicated on change, recorded)
-  G->>G: the viewing station runs this device ⇒ GetInView(state) ⇒ draw "452" on the screen layer
-  Note over T,D: paused: the same path — the tick and the trace run every frame, the device writes only itself (R-4300)
+  D-->>M: LaserPointing On (a pulse, replicated)
+  M-->>D: LaserSpot (Range 452 m, replicated)
+  D->>D: state.LastRange = 452 (its UnitMemory, on the brain)
+  H->>H: RangefinderHud.Draw(state) → primitives · hash changed
+  H-->>U: StationHud frame for this station (only because it changed)
+  U->>U: the station's DeviceHud layer ← the primitives · ValueBindings ← the local look
+  Note over T,H: paused: the same path — the tick, the trace and the HUD system run every frame, the device writes only itself (R-4300)
 ```
 
-*What the picture shows that prose hid: the range is TWO hops (device → muscle → device), so the HUD shows it one frame after the spot — in the
-editor configuration everything is local and the two hops are the same frame's systems.*
+*What the picture shows that prose hid: the range is two replicated hops (device → muscle → device) and the HUD one more (brain → station) — in
+the editor configuration all of them are the same frame's systems on one node.*
 
 ## 3. Decisions (leans — for the user's nod)
 
@@ -476,12 +476,38 @@ enormous amount of variability. So it's not just a few fields in some output com
 | # | decision (lean) | why |
 |---|---|---|
 | D-10 | ⭐⭐ **the device's `[UnitMemory]` state struct IS what the HUD draws from** — the HUD projector reads it with `UnitMemory.GetInView<RangefinderState>(view, device)`, the same struct and accessor the action writes. ⛔ supersedes D-3″'s `DeviceOutputs` as the HUD's source | 🔒 user; one state, read where it is written and where it is drawn — the HUD can be as rich as the state |
-| D-11 | ⭐⭐ **replicate the blackboard store of DEVICE entities** (only theirs): a descriptor for the device entity's blackboard tier, brain-owned, sent on change ⇒ the station node (and the gateway's station host, and a late joiner) holds the same state. ⭐ In the EDITOR configuration (SD-S1) nothing is needed — the store is already local | ✅ a device runs its own brain on its own entity (D-7), so its store holds only the device's state — replicating it carries nothing of any unit's brain. ⚠ unit brains' stores stay off the wire |
+| D-11 | ⛔ *WITHDRAWN by §3j D-15 — the blackboard is never replicated* ⭐⭐ **replicate the blackboard store of DEVICE entities** (only theirs): a descriptor for the device entity's blackboard tier, brain-owned, sent on change ⇒ the station node (and the gateway's station host, and a late joiner) holds the same state. ⭐ In the EDITOR configuration (SD-S1) nothing is needed — the store is already local | ✅ a device runs its own brain on its own entity (D-7), so its store holds only the device's state — replicating it carries nothing of any unit's brain. ⚠ unit brains' stores stay off the wire |
 | D-12 | ⭐ **everything else is PROJECTED from that state on the station node, by the device type's own class**: the HUD (`<Device>HudGizmo`), the replica panel's lamps and displays (`<Device>.PanelOut(in state, ref DeviceOutputs)` — `DeviceOutputs` becomes a LOCAL, unreplicated buffer for the adapter), the scenario's `device` cue (a field of the state struct BY NAME) | ✅ one replicated thing per device; every view of it is local code next to the logic |
 | D-13 | ⚠ **measured BEFORE SD-C (the cluster tier)**: that a device's store does not change bytes on a steady tick — the brain framework's own slots (the action's working state, the cadence) must not churn, or the store would be resent every frame; and the store's tier size per device type (256 / 1024 B) | the replicated cost is "one store per CHANGE" only if a steady tick writes nothing |
 
 ⚠ What changes in §2: the edge *"DeviceOutputs, written on CHANGE (replicated)"* is now *"the device's blackboard store — its `[UnitMemory]`
 state (replicated on change, recorded)"*, and the projector reads the state struct (diagrams updated in place).
+
+## 3j. ⭐ rev 6 — the HUD is drawn ON THE BRAIN; the blackboard never leaves it (user, `2026-11-27`)
+
+🔒 User: *"what's the issue with the replication? The brain runs on the brain node, it stores unit memory and whatever in the blackboard, and it never
+needs to be replicated to anywhere else because the head-up display gizmos are running on the same brain node and send the head-up display gizmo
+primitives over the network. So the blackboard basically never needs to be replicated and never should be replicated over the network."*
+
+| claim | code | design basis |
+|---|---|---|
+| the blackboard store is brain-owned and off the wire, by design | ✅ `HrotOwnershipGroups.cs:41-44`; 0 refs in `Hrot/Network` | `DESIGN_Role_Affinity_Ownership.md` §3.9 |
+| HROT already ships primitives between nodes | ✅ `DebugPrimitivesBatch` (`FrameNumber`, `NodeId`, a `DebugPrimitive` blob) + its subscriber (CE-215, `DebugPrimitivesBatchSubscriberSystem`) — but per NODE, the whole buffer, every frame: a diagnostic stream | — |
+| the gateway keys a station's gizmos by station + layer, complete frames, state QoS | ✅ SimNetGateway `GizmoFrame` (`Producer` + `Layer`) | DD-017 §3.2a |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-14 | ⭐⭐ **the HUD is DRAWN ON THE BRAIN**: a `DeviceHudSystem` (`EveryFrame`, after the device tick) finds every device that is ACTIVE at a station (`StationsOperatedBy` → the seat → its station), calls the device type's HUD drawing over its `[UnitMemory]` state (`UnitMemory.Get`), into a per-station buffer of `DebugPrimitive`s | 🔒 user; the state is read only where it lives |
+| D-15 | ⭐⭐ **⛔ D-11 WITHDRAWN — the blackboard is never replicated.** What crosses the wire is the PICTURE: a `StationHud` frame (the existing batch encoding — a `DebugPrimitive` blob with its intern map — plus the panel outputs), **keyed by `StationId`, state QoS (a late joiner gets the last one), published only when its hash changed** | 🔒 user; no per-frame stream, no device state off the brain |
+| D-16 | ⭐ **the station node runs NO device code**: the CE-215 subscriber, keyed by station, fills THAT station's `DeviceHud` layer, which the internal 3-D map draws and the gateway forwards as `GizmoFrame` (`Producer` = the station) | 🔒 *"we do not desire to hard-code the rendering logic on the player node"* — met by construction |
+| D-17 | ⭐ **local values come back as `ValueBinding` meta-primitives (§3c, ⛔ D-3d withdrawn)** — the brain's picture says *"the look heading goes here"*, the station fills it each frame, so the reticle follows the mouse with no round trip | the picture is drawn far from the local values; §3c's two-pass resolve is exactly this |
+| D-18 | ⭐ **the replica panel's lamps and displays ride in the same frame** (`DeviceOutputs`, filled by the device's `PanelOut` on the brain) | one message per station change |
+| D-19 | ⭐ **recording and replay**: the frames are NOT recorded; the device's store IS (on the brain). Replay re-runs the same `DeviceHudSystem` over the restored state, so the HUD replays exactly, paused frames included (D-6) | one source of truth, the state |
+| D-20 | ⭐ **the editor configuration** (SD-S1): the brain and the station are one node — `DeviceHudSystem` writes straight into the local station's layer; the wire path is SD-C's | D-9′ |
+
+⛔ Superseded by this section: D-10's *"on the station node"* (the drawing reads the state ON THE BRAIN), D-11 (replicate the store — withdrawn),
+D-12's local projection (moves to the brain), D-13 (no store on the wire, nothing to measure), D-3c's `ViewingStation` (the brain draws per station),
+D-3d (bindings are back). D-3f stands: the HUD is a gizmo LAYER (`DeviceHud`) on every station display.
 
 ## 4. Rejected — one line each
 
@@ -496,7 +522,7 @@ state (replicated on change, recorded)"*, and the projector reads the state stru
 
 | slice | builds | where judged |
 |---|---|---|
-| **SD-S1** the framework + the rangefinder binoculars | the device entity on a carry station and on a vehicle `Station` (`MountKinds.Device`, `StartWith`) · the device brain tier + `DeviceTickSystem` · the control frame's `DeviceSection` + the keyboard / mouse adapter (the keymap's device scope) · `DeviceOutputs` + `DeviceDefDto` · `ViewingStation` + the rangefinder's HUD projector · `LaserPointing` / `LaserSpot` + `LaserSpotSystem` (the spot only — no drawn beam) · switching devices at a seat · the checks grammar extensions (§5a) | the EDITOR configuration (D-9′) |
+| **SD-S1** the framework + the rangefinder binoculars | the device entity on a carry station and on a vehicle `Station` (`MountKinds.Device`, `StartWith`) · the device brain tier + `DeviceTickSystem` · the control frame's `DeviceSection` + the keyboard / mouse adapter (the keymap's device scope) · the rangefinder's HUD drawing + `DeviceHudSystem` (on the brain) + the station-keyed HUD frame and its subscriber filling the station's `DeviceHud` layer (in the editor: straight into the local layer) + `ValueBinding` (§3c) · `LaserPointing` / `LaserSpot` + `LaserSpotSystem` (the spot only — no drawn beam) · switching devices at a seat · the checks grammar extensions (§5a) | the EDITOR configuration (D-9′) |
 | **SD-S2** the gamepad + the drone operator station | the gamepad adapter; the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the operator panel of a manned weapon system | a device that drives a weapon `Station` it is mounted beside (optics, zoom, sensor modes, the procedure); what the weapon does stays the weapons design's | editor |
@@ -541,7 +567,7 @@ mockup (R-4138 — the ui lane draws the mockup first).
 ## 6. Rules this respects — rev 4
 
 - **R-4212 parallel**: a device's behaviour runs ON the device entity and writes only it; the laser spot is written only by the muscle.
-- **Recorded components unmanaged**: the device's `[UnitMemory]` state (in its store), `LaserPointing`, `LaserSpot`; primitives are never stored.
+- **Recorded components unmanaged**: the device's `[UnitMemory]` state (in its store, brain only — never on the wire), `LaserPointing`, `LaserSpot`; HUD primitives travel as a keyed frame on change and are never stored.
 - **Hot path (R-2084)**: the device tick steps only devices; the projector draws only the viewing station's active device; both 0 B per steady frame (rails).
 - **R-3114 / R-4300**: in pause a device changes only itself; world effects wait for time to advance.
 - **R-4295**: the wire carries its own types; translators convert.
@@ -552,7 +578,7 @@ mockup (R-4138 — the ui lane draws the mockup first).
 | # | question | ⭐ lean |
 |---|---|---|
 | Q-2 | the replica protocol's transport | a node extension on a local socket, one generic frame (the `DeviceSection` in, `DeviceOutputs` out); DDS later if a replica sits on another machine |
-| Q-4 | which lane | **ui** builds SD-S1's station half (adapters, keymap scope, `ViewingStation`, the projector, the mockup); **backend** the entity half (the mount kind, the device tier, `DeviceTickSystem`, the laser spot, the grammar extensions) — cross-lane allowed |
+| Q-4 | which lane | **ui** builds SD-S1's station half (adapters, keymap scope, the `DeviceHud` layer and its subscriber, `ValueBinding`, the rangefinder's HUD drawing to the mockup); **backend** the brain half (the mount kind, the device tier, `DeviceTickSystem`, `DeviceHudSystem`, the laser spot, the grammar extensions) — cross-lane allowed |
 | Q-5 | the device wheel's key and the HUD layout | the ui lane's mockup first (R-4143) |
 | Q-8 | the gateway's wire (D-5) | a SimNetGateway row when SD-C is dispatched: the primitive's space on the wire |
 | ~~Q-1, Q-3, Q-6, Q-7~~ | answered | SD-2′ (unit memory) · §3f (Raylib gamepad) · R-4300 · D-3″ (no primitive list) |
