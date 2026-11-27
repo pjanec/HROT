@@ -29,7 +29,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | S1d-2 the rangefinder HUD projector (DeviceHud layer, visibility policy, screen pass) to the mockups + fidelity renders | ⏳ | — |
 | S1d-3 the binoculars device replaces CE-1219 (`Viewed` raises the held item), `DevicePose` from the station look | ⏳ | — |
 | S1e the scenario grammar + SD-S1 scenarios | ⏳ | — |
-| **queued (user `2026-11-27`)** SD-S4b steer the round in flight (both modes, crosshair first) + the missile's-view toggle — design §3.13a (D-80–D-91), §5 row, §5a `dv-steer-*` (5), §9 Q-15 | ⏳ | after SD-S4 `FireControl`; real joystick = SD-S2 |
+| **queued (user `2026-11-27`)** SD-S4b steer the round in flight (both modes, crosshair first) + the missile's-view toggle — design §3.13a (D-80–D-91), §5 row, §5a `dv-steer-*` (5), Q-15 answered (R-4301: the device goes straight into `GuidedRound`) | ⏳ | after SD-S4 `FireControl`; real joystick = SD-S2 |
 
 ## 2. Rules learned this run (do not re-learn)
 
@@ -37,7 +37,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⛔ A lambda capturing a LOCAL in a per-frame method allocates its closure on every entry (32 B/frame, S1a) — build such things in their own method.
 - A refused start must not be retried every frame (string + allocation).
 - `CgfLogicPackTests` counts the CGF pack's systems — adding a system updates three counts.
-- ⛔ Never add a field to `OperatorControlFrameEvent` / `OperatorInput` / `PossessedBy` / the possession events: `PossessionReplicationTests` pins their recorded layout hashes (old recordings must replay). New data = a new event / component.
+- ⛔⛔ SUPERSEDED by R-4301 (user, `2026-11-27`: no recording compatibility): a pinned layout hash (`PossessionReplicationTests`, CE-11027) is UPDATED when a type grows — never a reason to route data around it. (S1b-2's separate `DeviceFrameEvent` stays: one event per device is §3q's own shape.)
 - A person now has 8 seats (`PersonCarrierTests.TheProfile_IsStampedFromTheType`).
 - The composition snapshots (`TheHostCompositionIsFrozenTests`) were stale before this work — CE-4710; do not chase them.
 - ⭐ S1c: a request seq (`LaserPointing.Seq` echoed by `LaserSpot.PointingSeq`) is what lets a device tell THIS emission's spot from a stale one — reuse it for any device that asks the muscle.
