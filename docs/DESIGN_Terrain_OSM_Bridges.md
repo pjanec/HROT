@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-build-state: BUILT on the synthetic net (2026-11-26, §8 as built) — ⏳ A-5 (Stechovice) waits for unreal-ig's regenerated input-set net
+build-state: BUILT (2026-11-27) — the synthetic net (A-1…A-4) and Stechovice (A-5: the Vltava crossings are decks; stechovice-battle's bridge rows pass on them)
 updated: 2026-11-26 (§8 as built — the synthetic net) · 2026-11-26 (first version)
 current-answer: §8 as built · §2 the decision · §3 the UML · §4 the claim table · §5 open questions with leans · §6 acceptance
 stale-below: nothing
