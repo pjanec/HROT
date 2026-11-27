@@ -57,7 +57,7 @@ public sealed partial class PossessionStationTests
                 () => W.RegisterComponent<Health>(), () => W.RegisterComponent<PassengerBuffer>(), () => W.RegisterComponent<CarrierSeats>(),
                 () => W.RegisterComponent<CarrierStations>(), () => W.RegisterComponent<OpenPassengerCabin>(), () => W.RegisterComponent<PersonCarrier>(),
                 () => W.RegisterComponent<IsEmbarkedTag>(), () => W.RegisterComponent<IsAssistingTag>(), () => W.RegisterComponent<InjuryThresholds>(),
-                () => W.RegisterComponent<ActorCapabilityState>(), () => W.RegisterComponent<WeaponSystemParams>(), () => W.RegisterComponent<WeaponSystemState>(),
+                () => W.RegisterComponent<ActorCapabilityState>(), () => W.RegisterComponent<WeaponSystemParams>(), () => W.RegisterComponent<Mountable>(), () => W.RegisterComponent<WeaponSystemState>(),
                 () => W.RegisterComponent<DoorState>(), () => W.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>(), () => W.RegisterComponent<TkbIdentity>(),
                 () => W.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>(), () => W.RegisterComponent<OperatorUseStatus>(),
             }) register();

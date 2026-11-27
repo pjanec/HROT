@@ -248,7 +248,7 @@ namespace Fdp.Toolkit.Physics.Systems
                 //   skipped the combat layer it sits on alone.
                 //   ⭐⭐ CE-3214 (hit location §11 S2b-1) — EXCEPT a weapon NOT embarked (placed, deployed, lying stowed) whose type has a body:
                 //   it is met by its parts below, like a vehicle. Embarked (on a back, in a station) it keeps the skip.
-                if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(repo, candidate)
+                if (PhysicsConstants.IsBulletRay(req.RayId) && Fdp.Toolkit.Combat.Items.IsMountable(repo, candidate)
                     && !(VehicleParts && !IsEmbarked(repo, candidate) && Fdp.Toolkit.Physics.BodyParts.VehicleBody.Of(repo, candidate) != null)) continue;
 
                 var collider = repo.GetComponent<PhysicsCollider>(candidate);

@@ -484,9 +484,9 @@ namespace Fdp.Toolkit.Physics.Tests
         [Fact]
         public void CE3214_AWrecked_Weapon_Part_BreaksTheWeapon_ATripodLegDoesNot()
         {
-            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();
             var w = Body(Hmg, health: 80f);
-            _world.AddComponent(w, new WeaponSystemParams());
+            _world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams()); _world.AddComponent(w, new Fdp.Toolkit.Combat.Mountable());
             Apply(w, WeaponPart.Mount, 30f);    // the tripod: level 96, no effect
             Assert.False(WeaponSystems.IsBroken(_world, w));
             Apply(w, WeaponPart.Weapon, 25f);   // level 80 ≥ 64 ⇒ the firepower wound

@@ -3416,7 +3416,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Reg<PersonCarrier>();
             Reg<ActorCapabilityState>();
             Reg<Health>();
-            Reg<WeaponSystemParams>();
+            Reg<WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>();
             Reg<WeaponSystemState>();
         }
 

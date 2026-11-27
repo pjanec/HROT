@@ -24,9 +24,9 @@ namespace Fdp.Toolkit.Behavior
                 if (load.IsNull) continue;
                 // ⭐ T-a (R-2017 T3) — a carried WEAPON slows him by its own CarrySpeedFactor (a two-man weapon's is the pair's); a stretcher
                 //   by the type's StretcherSpeedFactor. ⚠ WS-2 used the casualty factor for a carried weapon (a LAW halved his speed).
-                if (Embarkation.IsWeaponSystem(repo, load))
+                if (Fdp.Toolkit.Combat.Items.IsMountable(repo, load))
                 {
-                    float f = repo.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(load).CarrySpeedFactor;
+                    float f = repo.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(load).CarrySpeedFactor;
                     return f > 0f ? f : 1f;
                 }
                 return buffer.ModeOf(i) switch

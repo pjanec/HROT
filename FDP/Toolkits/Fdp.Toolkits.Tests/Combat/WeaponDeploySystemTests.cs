@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         public WeaponDeploySystemTests()
         {
-            _w.RegisterComponent<WeaponSystemParams>();
+            _w.RegisterComponent<WeaponSystemParams>(); _w.RegisterComponent<Mountable>();
             _w.RegisterComponent<WeaponSystemState>();
             _w.RegisterComponent<NetworkAuthority>();
             Tick(0);
@@ -52,7 +52,7 @@ namespace Fdp.Toolkit.Combat.Tests
         {
             var m2 = Weapon();
             Assert.Equal(WeaponDeploy.Deployed, State(m2));
-            Assert.Equal((byte)WeaponPortability.TwoMan, _w.GetComponentRO<WeaponSystemParams>(m2).Portable);
+            Assert.Equal((byte)WeaponPortability.TwoMan, _w.GetComponentRO<Mountable>(m2).Portable);
             Assert.False(WeaponDeployment.Deploy(_w, m2));   // already deployed
 
             Assert.True(WeaponDeployment.Pack(_w, m2));

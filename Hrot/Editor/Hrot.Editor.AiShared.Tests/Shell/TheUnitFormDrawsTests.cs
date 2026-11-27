@@ -403,7 +403,7 @@ public sealed class TheUnitFormDrawsTests
         using var world = new EntityRepository();
         world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
         byte carried = (byte)Fdp.Toolkit.Tkb.Domain.MountKinds.Carried;
         Entity Weapon(string name, int net)
@@ -411,7 +411,7 @@ public sealed class TheUnitFormDrawsTests
             var wpn = world.CreateEntity();
             world.AddComponent(wpn, new EntityInfo { Name = new FixedString64(name) });
             world.AddComponent(wpn, new NetworkIdentity(net));
-            world.AddComponent(wpn, new Fdp.Toolkit.Combat.WeaponSystemParams { MountKinds = carried });
+            world.AddComponent(wpn, new Fdp.Toolkit.Combat.WeaponSystemParams()); world.AddComponent(wpn, new Fdp.Toolkit.Combat.Mountable { MountKinds = carried });
             return wpn;
         }
         var crate = world.CreateEntity();

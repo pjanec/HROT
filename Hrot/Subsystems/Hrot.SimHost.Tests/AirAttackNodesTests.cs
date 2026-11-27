@@ -609,7 +609,7 @@ namespace Hrot.SimHost.Tests
         /// 10 right) and a Door station operated by him (9, 11) holding an M134, its arc 20…160° on its side. The M134s are mounts 32 / 33.</summary>
         private Entity SpawnDoorHeli(Vector3 at, out Entity leftGun, out Entity rightGun, out Entity leftGunner, out Entity rightGunner)
         {
-            Reg<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            Reg<Fdp.Toolkit.Combat.WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>();
             Reg<IsEmbarkedTag>();
             Reg<PassengerBuffer>();
             Reg<CarrierStations>();
@@ -645,7 +645,7 @@ namespace Hrot.SimHost.Tests
                 _w.AddComponent(r, new IsEmbarkedTag { VehicleEntity = e, Seat = seat, Exposed = 1 });
                 if (gun)
                 {
-                    _w.AddComponent(r, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+                    _w.AddComponent(r, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(r, new Fdp.Toolkit.Combat.Mountable());
                     _w.AddComponent(r, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(DoorGun) });
                     _w.AddComponent(r, new WeaponState { Ammo = 3000, MuzzleVelocity = DoorGunMuzzle });
                 }

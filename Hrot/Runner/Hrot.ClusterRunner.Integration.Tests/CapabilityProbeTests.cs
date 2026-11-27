@@ -32,9 +32,6 @@ public sealed class CapabilityProbeTests
     /// <summary>The rows that answer wrongly today, each with the family (design §4) whose slice fixes it.</summary>
     private static readonly IReadOnlyDictionary<string, string> ExpectedProxies = new Dictionary<string, string>
     {
-        // F1 — "is a weapon" asked for "is an item". ⚠ The probe can only express "I am an item" once C1 adds Mountable — C1 adds it to the probe.
-        ["not possessable as a body"]  = "F1 / C1: Possessability refuses only WeaponSystemParams (Possessability.cs:19-20)",
-        ["not offered Embark"]         = "F1 / C1: EmbarkOrders.CanOffer refuses only WeaponSystemParams (EmbarkOrders.cs:53)",
         // F2 — "has a brain" asked for "is a person / is crewed".
         ["not crewed (heat)"]          = "F2 / C2: HeatSourceSystem.IsCrewed = has BehaviorState (HeatSourceSystem.cs:175-177)",
         ["no side proficiency"]        = "F2 / C2: ProficiencyFillSystem walks With<BehaviorState>.With<EntityInfo> (ProficiencyFillSystem.cs:65)",
@@ -61,6 +58,12 @@ public sealed class CapabilityProbeTests
         repo.AddComponent(probe, new EntityInfo { ForceId = ForceId.Friend });
         repo.AddComponent(probe, new SimTransform { Position = new Vector3(10f, 10f, 0f), Rotation = Quaternion.Identity });
         repo.AddComponent(probe, new Health { Current = 1f, Max = 1f });
+        // ⭐ C1 — the device is an ITEM (it can be carried / mounted): it declares it through Mountable, not by pretending to be a weapon
+        if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) repo.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+        repo.AddComponent(probe, new Fdp.Toolkit.Combat.Mountable
+        {
+            MountKinds = (byte)Fdp.Toolkit.Tkb.Domain.MountKinds.Carried, Portable = (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.OneMan, CarrySpeedFactor = 1f,
+        });
         h.EntityMap.Register(ProbeId, probe);
 
         // every system of the node runs over it — PumpFrames steps the time controller each frame (EditorHarness.PumpFrames), so

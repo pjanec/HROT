@@ -83,7 +83,7 @@ public static class Carriage
                         _ => new FigureCarriage(CarriageKind.Free, Wounded: wounded),
                     };
                 // ⭐ CE-1088 (§6n N-2) — a man in a weapon system's own seat mans it (a tripod HMG, a mortar): drawn AT the weapon
-                if (WeaponSystems.IsWeaponSystem(world, holder))
+                if (Items.IsMountable(world, holder))
                     return new FigureCarriage(CarriageKind.Manning, holder, SeatOf(world, holder, tag.Seat, tkb), wounded);
                 if (tag.Exposed != 0 && SeatOf(world, holder, tag.Seat, tkb) is { HasPlace: true } seat)
                     return new FigureCarriage(CarriageKind.Seated, holder, seat, wounded);
@@ -119,7 +119,7 @@ public static class Carriage
             {
                 var p = list.Passengers[i];
                 if (p.IsNull || !world.IsAlive(p)) continue;
-                if (WeaponSystems.IsWeaponSystem(world, p)) { if (load.IsNull) load = p; }
+                if (Items.IsMountable(world, p)) { if (load.IsNull) load = p; }
                 else if (casualty < 0) casualty = i;
             }
             bool paired = !list.Assistant.IsNull && world.IsAlive(list.Assistant);
@@ -152,7 +152,7 @@ public static class Carriage
         {
             var p = list.Passengers[i];
             if (p.IsNull || !world.IsAlive(p)) continue;
-            if (WeaponSystems.IsWeaponSystem(world, p)) { if (weapon.IsNull && Embarkation.IsTwoManWeapon(world, p)) weapon = p; }
+            if (Items.IsMountable(world, p)) { if (weapon.IsNull && Embarkation.IsTwoManWeapon(world, p)) weapon = p; }
             else if (list.ModeOf(i) == CarryMode.Stretcher) return (true, default);
         }
         return (false, weapon);

@@ -37,7 +37,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<SimTransform>();
             _world.RegisterEvent<DamageAssessedEvent>();
             _world.RegisterComponent<IsAssistingTag>();                 // ⭐ T-a
-            _world.RegisterComponent<WeaponSystemParams>();             // ⭐ T-a — a two-man weapon
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();             // ⭐ T-a — a two-man weapon
             _world.RegisterComponent<CarrierStations>();                // ⭐ T-a — the soldier's carry station (WS-2)
             if (!_world.IsComponentTypeRegistered<EntityInfo>()) _world.RegisterComponent<EntityInfo>();
         }

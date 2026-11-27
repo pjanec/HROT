@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<CarrierStations>();
             _world.RegisterComponent<OpenPassengerCabin>();
             _world.RegisterComponent<PersonCarrier>();
-            _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); _world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             _world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             _world.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             _world.RegisterComponent<Fdp.Toolkit.Combat.Components.InjuryThresholds>();

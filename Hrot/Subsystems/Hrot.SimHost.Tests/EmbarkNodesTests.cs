@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Tests
                 seats.Roles[0] = SeatRole.Gunner;
                 seats.Roles[1] = SeatRole.Passenger;   // the loader
                 _w.AddComponent(m, seats);
-                _w.AddComponent(m, new WeaponSystemParams { NeedsOperator = 1 });
+                _w.AddComponent(m, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(m, new Fdp.Toolkit.Combat.Mountable());
                 return m;
             }
             var rider = Mortar();
@@ -757,7 +757,7 @@ namespace Hrot.SimHost.Tests
             var seats = new CarrierSeats { SeatCount = 1 };
             seats.Roles[0] = SeatRole.Gunner;
             _w.AddComponent(k, seats);
-            _w.AddComponent(k, new WeaponSystemParams { NeedsOperator = 1 });
+            _w.AddComponent(k, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(k, new Fdp.Toolkit.Combat.Mountable());
             _w.AddComponent(k, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(KornetType) });
             _w.AddComponent(k, new WeaponState { Ammo = 2 });
             return k;

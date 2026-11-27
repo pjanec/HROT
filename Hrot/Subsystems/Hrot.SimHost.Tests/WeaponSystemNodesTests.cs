@@ -21,7 +21,7 @@ namespace Hrot.SimHost.Tests
 
         public WeaponSystemNodesTests()
         {
-            _w.RegisterComponent<WeaponSystemParams>();
+            _w.RegisterComponent<WeaponSystemParams>(); _w.RegisterComponent<Mountable>();
             _w.RegisterComponent<WeaponSystemState>();
             _w.RegisterComponent<NetworkAuthority>();
             Tick(0);

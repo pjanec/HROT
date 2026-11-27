@@ -878,10 +878,10 @@ public sealed class Map3DTests
 
     private static Entity WeaponSystem(EntityRepository world, Vector3 at)
     {
-        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         var w = world.CreateEntity();
         world.AddComponent(w, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1 });
+        world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(w, new Fdp.Toolkit.Combat.Mountable { Portable = 1 });
         return w;
     }
 
@@ -1201,7 +1201,7 @@ public sealed class Map3DTests
         {
             world.SetSingletonManaged<ITkbDatabase>(db);
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
-            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             bool Shoulders(Entity man, int mount)
             {
@@ -1222,7 +1222,7 @@ public sealed class Map3DTests
             var tube = world.CreateEntity();
             world.AddComponent(tube, new SimTransform { Position = new Vector3(10f, 0f, 0f), Rotation = Quaternion.Identity });
             world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_Javelin) });
-            world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, FireWhileCarried = 1 });
+            world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, FireWhileCarried = 1 }); world.AddComponent(tube, new Fdp.Toolkit.Combat.Mountable { Portable = 1 });
             world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Stowed });
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
@@ -1253,7 +1253,7 @@ public sealed class Map3DTests
         using (world)
         {
             world.SetSingletonManaged<ITkbDatabase>(db);
-            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
             var man = Man(world, new Vector3(10f, 20f, 0f));
@@ -2126,10 +2126,10 @@ public sealed class Map3DTests
             // a two-man weapon: the 120 mm mortar in the carry station, an assistant at its rear
             var crewFront = Man(world, new Vector3(20f, 0f, 0f));
             var crewRear = Man(world, new Vector3(18f, 0f, 0f));
-            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             var mortar = world.CreateEntity();
             world.AddComponent(mortar, new SimTransform { Position = new Vector3(20f, 0f, 0f), Rotation = Quaternion.Identity });
-            world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = (byte)WeaponPortability.TwoMan });
+            world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(mortar, new Fdp.Toolkit.Combat.Mountable { Portable = (byte)WeaponPortability.TwoMan });
             world.AddComponent(crewFront, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
             var crew = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = crewRear };
             crew.Passengers[1] = mortar;

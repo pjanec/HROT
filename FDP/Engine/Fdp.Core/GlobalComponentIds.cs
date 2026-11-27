@@ -935,6 +935,11 @@ namespace Fdp.Core
         /// its owner, replicated (<c>dtWeaponSystemState</c>), saved. ⚠ 380 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int WeaponSystemState = 380;
 
+        /// <summary><c>Mountable</c> — ⭐ Capability components C1 (docs/DESIGN_Capability_Components.md §4.1, CC-1): the ITEM facts (what it mounts on, how many carry it,
+        /// how it slows the carrier) split out of <c>WeaponSystemParams</c>; every node, never saved or replicated. ⚠ 108 is a free hole in the Vis2D block
+        /// (80–109), measured free in every <c>[ComponentId(n)]</c> literal and constant on coordinator 2026-11-27 — the lane blocks are full (476–495) and 500–511 is test-only (R-44).</summary>
+        public const int Mountable = 108;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;

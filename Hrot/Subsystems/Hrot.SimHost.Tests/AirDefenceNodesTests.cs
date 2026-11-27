@@ -36,7 +36,7 @@ namespace Hrot.SimHost.Tests
             CognitiveComponentRegistry.RegisterAll(_w);
             void Reg<T>() where T : unmanaged { if (!_w.IsComponentTypeRegistered<T>()) _w.RegisterComponent<T>(); }
             Reg<PassengerBuffer>(); Reg<IsEmbarkedTag>(); Reg<CarrierSeats>(); Reg<CarrierStations>(); Reg<OpenPassengerCabin>();
-            Reg<PersonCarrier>(); Reg<PresetSeatIntent>(); Reg<WeaponSystemParams>(); Reg<WeaponSystemState>(); Reg<Health>();
+            Reg<PersonCarrier>(); Reg<PresetSeatIntent>(); Reg<WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>(); Reg<WeaponSystemState>(); Reg<Health>();
             Reg<TkbIdentity>(); Reg<TargetMemory>(); Reg<WeaponChannel>();
             if (!_w.Bus.IsRegistered<WeaponFireIntent>()) _w.Bus.Register<WeaponFireIntent>();
             _w.SetSingletonManaged<ITkbDatabase>(_tkb);

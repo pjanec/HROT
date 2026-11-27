@@ -74,8 +74,8 @@ namespace Fdp.Toolkit.Behavior
             if (from < 0) return false;
             if (from == seat) return true;
             if (!buffer.Passengers[seat].IsNull) return false;
-            byte kinds = world.IsComponentTypeRegistered<WeaponSystemParams>() && world.HasComponent<WeaponSystemParams>(thing)
-                ? world.GetComponentRO<WeaponSystemParams>(thing).MountKinds : (byte)0;
+            byte kinds = Fdp.Toolkit.Combat.Items.IsMountable(world, thing)
+                ? world.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(thing).MountKinds : (byte)0;
             if ((stations.Seats[seat].Accepts & kinds) == 0) return false;
             var mode = buffer.ModeOf(from);
             buffer.Passengers[seat] = thing;

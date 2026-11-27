@@ -374,7 +374,7 @@ namespace Fdp.Toolkit.Combat.Tests
             _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
             _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             _repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
-            _repo.RegisterComponent<WeaponSystemParams>();
+            _repo.RegisterComponent<WeaponSystemParams>(); _repo.RegisterComponent<Mountable>();
             _repo.RegisterComponent<WeaponSystemState>();
         }
 

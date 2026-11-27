@@ -3654,9 +3654,10 @@ namespace Hrot.SimHost.Tests
                 s.Repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>())
                 s.Repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            if (!s.Repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) s.Repo.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             var ied = s.Repo.CreateEntity();
             s.Repo.AddComponent(ied, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7701 });
-            s.Repo.AddComponent(ied, new Fdp.Toolkit.Combat.WeaponSystemParams { Charge = 1 });
+            s.Repo.AddComponent(ied, new Fdp.Toolkit.Combat.WeaponSystemParams { Charge = 1 }); s.Repo.AddComponent(ied, new Fdp.Toolkit.Combat.Mountable());
             s.Repo.AddComponent(s.Commander, new Fdp.Toolkit.Behavior.Components.EngagementArea
             {
                 ArcSet = 1, ArcOrigin = new Vector3(4, 0, 0), LeftBearing = 330f, RightBearing = 30f, MaxRange = 200f, SetBy = BehaviorOrigin.Operator,
