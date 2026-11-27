@@ -89,6 +89,11 @@ private:
 	uint64 AdvanceFrame = 0;
 	double PhaseStart = 0;
 	int32 Frames = 0, Written = 0, Failed = 0, Silences = 0, WarmUps = 0, BarrierWaits = 0, BarrierTimeouts = 0, Overcounts = 0;
+	// CE-11064 (gateway T-086): after a world boundary inside a job the station writes the outstanding FrameRequest AGAIN, an exact repeat. A
+	// repeat of a frame already presented is answered from its FrameDone, never rendered twice; a repeat of one still queued is dropped
+	struct FDone { int64 StepSeq = 0; bool bOk = true; FString File, Why; float Ms = 0; int32 AudioSamples = 0; };
+	TMap<int32, FDone> Presented;   // FrameIndex -> the FrameDone sent, this job
+	int32 Repeats = 0;
 	bool bHadFrame = false; FVector3d LastP = FVector3d::ZeroVector; FQuat4d LastQ = FQuat4d::Identity; int64 LastEpoch = -1;
 	// the soundtrack (segments: recorded mixer output, zeros for a silence frame)
 	TArray<float> Track;   // interleaved, the device's channels
@@ -117,6 +122,7 @@ private:
 	void Advance(const FRequest& R);
 	void RenderFrame(const FRequest& R);
 	void Present(const FRequest& R, bool bOk, const FString& File, const FString& Why, float Ms, int32 AudioSamples);
+	void WriteDone(const FString& Job, int32 Index, const FDone& D);
 	int32 MixFrame(bool bSilence);
 	void StartRecording();
 	void StopRecording();

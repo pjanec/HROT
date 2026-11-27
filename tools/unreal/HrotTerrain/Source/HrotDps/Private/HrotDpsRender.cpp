@@ -240,7 +240,8 @@ void UHrotDpsRender::BeginJob(const FRenderJob& J)
 	bAudio = J.Audio; SampleRate = J.SampleRate; Channels = FMath::Max(1, int32(J.Channels));
 	Dir = UTF8_TO_TCHAR(J.Dir);
 	Queue.Reset(); StepsSeen.Reset();
-	Frames = Written = Failed = Silences = WarmUps = BarrierWaits = BarrierTimeouts = Overcounts = 0;
+	Frames = Written = Failed = Silences = WarmUps = BarrierWaits = BarrierTimeouts = Overcounts = Repeats = 0;
+	Presented.Reset();
 	bHadFrame = false; LastEpoch = -1;
 	Track.Reset(); TrackChannels = TrackRate = 0; AudioCarry = 0; Silent.Reset(); TrackFilmSamples = 0;
 	// the limits first: a job larger than we can is refused before frame 0, with the limit named
@@ -328,6 +329,16 @@ void UHrotDpsRender::EndJob(bool bDone)
 
 // ── steps and frames ──
 
+void UHrotDpsRender::WriteDone(const FString& Job, int32 Index, const FDone& Done)
+{
+	SimNetGateway_Protocol_DdsPlayer_FrameDone D{};
+	D.ClientId = ClientId; RenderCopy(D.JobId, sizeof(D.JobId), Job);
+	D.FrameIndex = Index; D.StepSeq = Done.StepSeq;
+	D.Status = Done.bOk ? SimNetGateway_Protocol_DdsPlayer_FrameStatusWritten : SimNetGateway_Protocol_DdsPlayer_FrameStatusFailed;
+	RenderCopy(D.File, sizeof(D.File), Done.File); D.AudioSamples = Done.AudioSamples; RenderCopy(D.Reason, sizeof(D.Reason), Done.Why); D.RenderMs = Done.Ms;
+	GEngine->GetEngineSubsystem<UHrotDpsSubsystem>()->Client().Write(TEXT("DPS_FrameDone"), &D);
+}
+
 void UHrotDpsRender::OnStep(const FHrotDpsSample& S)
 {
 	if (!S.bValid || !bJob) return;
@@ -340,6 +351,21 @@ void UHrotDpsRender::OnFrame(const FHrotDpsSample& S)
 	if (!S.bValid || !bJob) return;
 	const FFrameReq& D = *static_cast<const FFrameReq*>(S.Data);
 	if (JobId != UTF8_TO_TCHAR(D.JobId)) return;
+	// a repeat (T-086): answered from the frame already presented, or dropped while the first copy is still queued — never rendered twice
+	if (const FDone* Was = Presented.Find(D.FrameIndex))
+	{
+		++Repeats;
+		UE_LOG(LogHrotDpsRender, Display, TEXT("frame %d repeated by the station (step %lld) - answered from the frame already presented"), D.FrameIndex, D.StepSeq);
+		WriteDone(JobId, D.FrameIndex, *Was);
+		return;
+	}
+	for (const FRequest& Q : Queue)
+		if (Q.Index == D.FrameIndex)
+		{
+			++Repeats;
+			UE_LOG(LogHrotDpsRender, Display, TEXT("frame %d repeated by the station while still queued - answered once, when presented"), D.FrameIndex);
+			return;
+		}
 	FRequest R;
 	R.JobId = JobId; R.Index = D.FrameIndex; R.Kind = uint8(D.Kind); R.StepSeq = D.StepSeq; R.SimTime = D.SimTime;
 	R.FilmRate = D.FilmRate > 0 ? D.FilmRate : 1.f;
@@ -518,12 +544,9 @@ void UHrotDpsRender::Present(const FRequest& R, bool bOk, const FString& File, c
 		C.Write(TEXT("DPS_StepAck"), &A);
 	}
 	StepsSeen.Remove(R.StepSeq);
-	SimNetGateway_Protocol_DdsPlayer_FrameDone D{};
-	D.ClientId = ClientId; RenderCopy(D.JobId, sizeof(D.JobId), R.JobId);
-	D.FrameIndex = R.Index; D.StepSeq = R.StepSeq;
-	D.Status = bOk ? SimNetGateway_Protocol_DdsPlayer_FrameStatusWritten : SimNetGateway_Protocol_DdsPlayer_FrameStatusFailed;
-	RenderCopy(D.File, sizeof(D.File), File); D.AudioSamples = AudioSamples; RenderCopy(D.Reason, sizeof(D.Reason), Why); D.RenderMs = Ms;
-	C.Write(TEXT("DPS_FrameDone"), &D);
+	FDone Done; Done.StepSeq = R.StepSeq; Done.bOk = bOk; Done.File = File; Done.Why = Why; Done.Ms = Ms; Done.AudioSamples = AudioSamples;
+	WriteDone(R.JobId, R.Index, Done);
+	Presented.Add(R.Index, MoveTemp(Done));
 	if (!bOk) { LastWhy = Why; UE_LOG(LogHrotDpsRender, Warning, TEXT("frame %d failed: %s"), R.Index, *Why); }
 }
 
@@ -657,8 +680,8 @@ void UHrotDpsRender::DrawOverlay(const FRequest& R, UCanvas* Canvas, FVector2D S
 FString UHrotDpsRender::Describe() const
 {
 	Audio::FMixerDevice* M = MixerOf(GetWorld());
-	return FString::Printf(TEXT("%s %s frames %d written %d failed %d silence %d | warm-ups %d | audio %d samples @ %d x %d (%s) | barrier waits %d, timeouts %d, over %d | queue %d | last: %s"),
+	return FString::Printf(TEXT("%s %s frames %d written %d failed %d silence %d | warm-ups %d | audio %d samples @ %d x %d (%s) | barrier waits %d, timeouts %d, over %d | repeats %d | queue %d | last: %s"),
 		bJob ? *JobId : TEXT("no job"), bJob ? (bJobOk ? TEXT("ok") : TEXT("failed")) : TEXT("-"), Frames, Written, Failed, Silences, WarmUps,
 		TrackChannels > 0 ? Track.Num() / TrackChannels : 0, TrackRate, TrackChannels, NrtOf(M) ? TEXT("nrt") : TEXT("real-time"), BarrierWaits, BarrierTimeouts, Overcounts,
-		Queue.Num(), LastWhy.IsEmpty() ? TEXT("-") : *LastWhy);
+		Repeats, Queue.Num(), LastWhy.IsEmpty() ? TEXT("-") : *LastWhy);
 }
