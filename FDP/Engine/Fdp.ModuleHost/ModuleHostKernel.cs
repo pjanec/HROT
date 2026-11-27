@@ -1042,8 +1042,12 @@ namespace Fdp.ModuleHost
             
             // 4. Run Module with Timeout Race
             // We return Exception? to avoid throwing on thread pool which might crash test runner
-            var tickTask = Task.Run<Exception?>(() => 
+            // ⭐ CE-11076 — the run's own budget (half the timeout) live; none on a stepped frame (R-3035: never the wall clock)
+            double runBudgetMs = deterministic ? 0 : timeout * ModuleRunContext.BudgetShare;
+            int runEpoch = _timelineEpoch;
+            var tickTask = Task.Run<Exception?>(() =>
             {
+                using var runContext = ModuleRunContext.Enter(runBudgetMs, runEpoch);
                 try
                 {
                     // Auto-execute and profile the module's simulation systems

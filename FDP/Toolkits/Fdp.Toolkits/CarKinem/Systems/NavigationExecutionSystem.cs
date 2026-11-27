@@ -95,12 +95,43 @@ namespace CarKinem.Systems
         /// </summary>
         public const float NoProgressLimitSeconds = 4f;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11076</c> — a point move WAITING for its path (no trajectory yet, standing) is not frustrated: it re-asks the solver every this many
+        /// sim seconds — the request/reply contract's own timeout. 📌 <c>stechovice-battle</c> live: the solver's runs timed out (the host DISCARDS an
+        /// abandoned run's answers, CE-3066) and its circuit opened for 10 s at a time, so a move asked once never heard back and the 2 s speed rule
+        /// failed it <see cref="NavigationResult.FailedBlocked"/> with nothing in its way.
+        /// </summary>
+        public const float PathRetrySeconds = 3f;
+
+        /// <summary>⭐ <c>CE-11076</c> — sim seconds a point move may wait for a path answer before it fails (<see cref="NavigationResult.FailedUnreachable"/>,
+        /// logged as no answer): longer than the host's 10 s circuit break, so one outage never fails a move.</summary>
+        public const float PathWaitLimitSeconds = 30f;
+
+        /// <summary>⭐ <c>CE-11076</c> — a move that FAILED unreachable re-plans on a navmesh change (CE-4674) at most once per this many sim seconds.
+        /// 📐 Live on stechovice-battle the overlay bake changed the mesh all the time: 42 of 97 unreachable requests were these re-plans, each an A*
+        /// to its cap (80–270 ms), several a second for one move.</summary>
+        public const float UnreachableReplanIntervalSeconds = 5f;
+
+        /// <summary>⭐ <c>CE-11076</c> — a point move with no path yet: the bridge holds it (mode None, speed 0, no trajectory) until the solver answers.
+        /// ⛔ Not a crowd agent (the crowd moves it, not a path).</summary>
+        public static bool AwaitingPath(EntityRepository repo, Entity entity, in NavigationIntent intent)
+        {
+            if (intent.Mode != NavMode.PathToPoint || !repo.HasComponent<NavState>(entity)) return false;
+            if (repo.IsComponentTypeRegistered<Fdp.Toolkit.Navigation.CrowdAgent>() && repo.HasComponent<Fdp.Toolkit.Navigation.CrowdAgent>(entity)) return false;
+            ref readonly var nav = ref repo.GetComponentRO<NavState>(entity);
+            return nav.Mode == KinematicsMode.None && nav.TrajectoryId == 0;
+        }
+
         // ── ⭐ CE-4391 S-3 (UTM §8.1 P3-b) — the stale-path check ─────────────────────────────────────────────
 
         private readonly CarKinem.Trajectory.TrajectoryPoolManager? _pool;
 
         /// <param name="trajectoryPool">The pool the solver registers paths in. With it the system replans a path whose tiles a rebake changed (P3-b); without, it behaves as before.</param>
         public NavigationExecutionSystem(CarKinem.Trajectory.TrajectoryPoolManager? trajectoryPool = null) => _pool = trajectoryPool;
+
+        /// <summary>⭐ CE-11076 — path requests this system re-sent because a point move heard no answer (rails / diagnostics).</summary>
+        [field: Fdp.Core.WorldDerived("diagnostic counter of path re-asks, only incremented and exposed as a property")]
+        public long PathRetries { get; private set; }
 
         /// <summary>Paths this system asked to replan because a tile they cross changed (rails / diagnostics).</summary>
         [field: Fdp.Core.WorldDerived("diagnostic counter of tile replans, only incremented and exposed as a property")]
@@ -231,13 +262,22 @@ namespace CarKinem.Systems
                 // until the Brain issues a new intent (increments IntentId).
                 if (status.Result != NavResult.InProgress)
                 {
+                    // ⭐ CE-11076 — the re-plan below waits out its interval (sim time, so a stepped run agrees)
+                    if (frustration.UnreachableReplanCooldown > 0f && status.Result == NavResult.FailedUnreachable)
+                    {
+                        frustration.UnreachableReplanCooldown = MathF.Max(0f, frustration.UnreachableReplanCooldown - deltaTime);
+                        repo.SetComponent(entity, frustration);
+                    }
                     // ⭐ CE-4674 (HANDOFF_Coordinator_To_Backend_Path_Retry; CE-5039's second half) — a move that FAILED because its target was unreachable
                     //   re-plans ONCE when the navmesh changes after it failed (a breach, a building made enterable, an overlay bake): the tile change
                     //   sequence it failed at (NavmeshVersionObserved, set by the failure) is older than the mesh's. Not on a timer; a still-unreachable
                     //   target fails again at the new sequence and says so (P1) — one re-plan per mesh version, never a storm.
                     if (status.Result == NavResult.FailedUnreachable && intent.Mode == NavMode.PathToPoint && tileSequence != 0
-                        && status.NavmeshVersionObserved < tileSequence)
+                        && status.NavmeshVersionObserved < tileSequence && frustration.UnreachableReplanCooldown <= 0f)
                     {
+                        frustration.UnreachableReplanCooldown = UnreachableReplanIntervalSeconds;
+                        frustration.PathWaitSeconds = 0f;
+                        repo.SetComponent(entity, frustration);
                         status.NavmeshVersionObserved = tileSequence;
                         RequestReplan(repo, entity, in intent, ref status, tf.Position);
                         MeshReplans++;
@@ -308,6 +348,32 @@ namespace CarKinem.Systems
                         }
                     }
                 }
+
+                // ── ⭐⭐ CE-11076 — waiting for the FIRST path is not frustration: re-ask on the request/reply timeout, give up late ─────────
+                if (AwaitingPath(repo, entity, in intent))
+                {
+                    float waited = frustration.PathWaitSeconds;
+                    frustration.PathWaitSeconds = waited + deltaTime;
+                    frustration.Ticks = 0; frustration.SlowSeconds = 0f;
+                    frustration.NoProgressSeconds = 0f;
+                    if (frustration.PathWaitSeconds >= PathWaitLimitSeconds)
+                    {
+                        frustration.PathWaitSeconds = 0f;
+                        repo.SetComponent(entity, frustration);
+                        FailNoPathAnswer(repo, entity, in intent, ref status, tileSequence, waited + deltaTime);
+                        continue;
+                    }
+                    if ((int)(frustration.PathWaitSeconds / PathRetrySeconds) > (int)(waited / PathRetrySeconds))
+                    {
+                        PathRetries++;
+                        repo.Bus.Publish(PathRequests.FromIntent(repo, entity, in intent, tf.Position,
+                            ((long)entity.Index << 32) | (uint)repo.GlobalVersion));
+                    }
+                    repo.SetComponent(entity, frustration);
+                    repo.SetComponent(entity, status);   // ProgressS persisted, as on the steady-state path
+                    continue;
+                }
+                if (frustration.PathWaitSeconds != 0f) { frustration.PathWaitSeconds = 0f; repo.SetComponent(entity, frustration); }
 
                 // ── Frustration guard ─────────────────────────────────────────────────────────
                 // ⭐ Buildings 5d-3 — a DELIBERATE hold (NavState.IsBlocked: waiting at a door it is opening) is not being
@@ -479,6 +545,24 @@ namespace CarKinem.Systems
                     IsAutoRefresh = 1,
                 });
             }
+        }
+
+        /// <summary>⭐ <c>CE-11076</c> — the solver never answered within <see cref="PathWaitLimitSeconds"/>: the move fails for want of a path
+        /// (<see cref="NavResult.FailedUnreachable"/> — a new result value would change the wire enum), logged so the cause is in the log, and a
+        /// later navmesh change re-plans it once (CE-4674) as any unreachable move.</summary>
+        public static void FailNoPathAnswer(EntityRepository repo, Entity entity, in NavigationIntent intent, ref NavigationStatus status, uint tileSequence, float waited)
+        {
+            status.Result = NavResult.FailedUnreachable;
+            status.NavmeshVersionObserved = tileSequence;
+            repo.SetComponent(entity, status);
+            Fdp.Core.Logging.FdpLog<NavigationExecutionSystem>.Warn(
+                $"[Nav] entity #{entity.Index}: no path answer in {waited:F0} s (the solver timed out or is not running) — the move fails unreachable.");
+            repo.Bus.Publish(new MoveCompletedEvent
+            {
+                Target      = entity,
+                Reason      = NavResult.FailedUnreachable,
+                RouteHandle = intent.RouteHandle,
+            });
         }
 
         /// <summary>⭐ The move cannot go on: <see cref="NavResult.FailedBlocked"/> and its <see cref="MoveCompletedEvent"/>.</summary>

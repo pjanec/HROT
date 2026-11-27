@@ -140,6 +140,16 @@ rest of the simulation.
 > its circuit. ⛔ The frame never waits on it. Rail: `ResilienceIntegrationTests.Resilience_ASlowRunThatTimedOut_IsNeverOverlapped_AndTheModuleRunsAgainAfterIt_CE3066`
 > (red-proofed by disabling the guard).
 >
+> ⭐⭐ **`2026-11-27` (`CE-11076`) — the discard STAYS; a REQUEST/REPLY module is kept whole by its two ends, not by the host.** 📐 Live on
+> `stechovice-battle` the path solver timed out 64 times in 3 minutes (one unreachable request alone cost 80–270 ms), every discarded run lost
+> its answers, and a move asked once never heard back. ⭐ Two cooperating pieces, no change to the discard rule: ① the host tells each background
+> run its **own wall budget** — `ModuleRunContext.WallBudgetMs`, half `MaxExpectedRuntimeMs` live, **0 on a stepped frame** (R-3035: a step
+> never depends on the wall clock) — and its timeline epoch, so a cooperative module stops starting new work in time and carries the rest
+> (the solver does, Navigation v2 N8); ② the CALLER keeps the request/reply contract: it re-asks on its own timeout (Navigation v2 N6), so an
+> answer lost for any reason — a discarded run, an open circuit, a dropped sample — is recovered. ⛔ Requeueing an abandoned run's inputs in the
+> host was rejected: the host cannot tell which inputs the run had answered, and a module whose answers age (perception, EQS) must not get them
+> again. Rail: `PausedAndSteppedExecutionTests.CE11076_ABackgroundRun_IsToldItsBudget_LiveOnly`.
+>
 > ⛔ **Recording a sync failure does NOT skip the module.** The sync path has no `CanRun()` gate (the
 > async path does, at the top of its dispatch), so opening the circuit is *reporting*, not execution
 > control. That asymmetry is deliberate and load-bearing: closing it would change which modules tick.

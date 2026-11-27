@@ -50,6 +50,9 @@ namespace Hrot.UI.Common.Map3D.Director
         /// <summary>⭐ CE-11067 — where the last job's frames went, in words (see <see cref="IFrameSink.Route"/>).</summary>
         public string? Route { get; private set; }
 
+        /// <summary>⭐ CE-11068 — the current job is filmed by the linked client.</summary>
+        public bool FilmsOnClient => _client != null;
+
         public Task Begin(FilmJob job)
         {
             if (job == null) throw new ArgumentNullException(nameof(job));

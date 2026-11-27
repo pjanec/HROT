@@ -209,6 +209,8 @@ def landscape_grass(m, E, link, op, c1, ts, steep, roads):
     if not meshes: return
     try:
         lgt = fresh_asset("/Game/Hrot", tname("LGT_HrotMeadow"), unreal.LandscapeGrassType, unreal.LandscapeGrassTypeFactory())
+        # 2026-11-27: a grass type still referenced (a run stopped before its save) is not deleted, and create_asset then returns None - reuse it (every variety is set below)
+        lgt = lgt or unreal.load_asset(asset_path("/Game/Hrot", tname("LGT_HrotMeadow")))
         varieties = []
         for key, density, (s0, s1), cull in LANDSCAPE_GRASS:
             for path in [p_ for p_ in meshes if key in p_]:
@@ -483,6 +485,14 @@ def step_roads():
     log(f"roads: HROT's road scene, {len(spec['tiles'])} tiles, {n} triangles ({', '.join(f'{k} {v}' for k, v in spec['triangles'].items())})")
 
 
+def step_bridges():
+    """CE-11063: HROT's OSM bridge decks (hrot_bridge_mesh.py beside the export) - the same code hrot_add_bridges.py runs on an existing level."""
+    import sys
+    sys.path.insert(0, os.path.dirname(step_bridges.__code__.co_filename))   # no __file__ under -ExecutePythonScript
+    import hrot_add_bridges
+    hrot_add_bridges.bridges_into(JOB["exportDir"], JOB["terrain"], log)
+
+
 def two_sided_instance_of(parent_path, name):
     mi = fresh_asset("/Game/Hrot", name, unreal.MaterialInstanceConstant, unreal.MaterialInstanceConstantFactoryNew())
     mi.set_editor_property("parent", unreal.load_asset(parent_path))
@@ -546,7 +556,7 @@ def step_save():
     log(f"saved the map and every new asset ({'ok' if ok else 'some packages FAILED to save'})")
 
 
-STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_roads, step_grass, step_shots, None, step_save]
+STEPS = [step_level, step_ground, step_sky, step_ground_material, step_trees, step_buildings, step_bridges, step_roads, step_grass, step_shots, None, step_save]
 
 
 def tick(dt):

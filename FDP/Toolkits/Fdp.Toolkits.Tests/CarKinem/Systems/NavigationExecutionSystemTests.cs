@@ -159,6 +159,49 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-11076</c> ③ — a point move WAITING for its first path (the bridge holds it: mode None, speed 0, no trajectory) is not frustrated: at 2.5 s
+        /// it is still InProgress (it was <c>FailedBlocked</c> at 2 s — 📌 stechovice-battle live, every vehicle move whose answer the timed-out solver lost);
+        /// it re-asks the solver every <see cref="NavigationExecutionSystem.PathRetrySeconds"/>; it fails (unreachable, logged as no answer) only after
+        /// <see cref="NavigationExecutionSystem.PathWaitLimitSeconds"/>. Once it HAS a path, standing still is blocked after 2 s as before.
+        /// 🔴 Red-proof: drop the <c>AwaitingPath</c> branch ⇒ FailedBlocked at 2 s ⇒ red; drop the re-ask ⇒ 0 retries ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11076_AMoveWaitingForItsFirstPath_IsNotBlocked_ItReAsks_AndFailsOnlyAtTheLimit()
+        {
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<PathfindingRequestEvent>();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            var system = new NavigationExecutionSystem();
+            var e = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f);
+            var intent = repo.GetComponent<NavigationIntent>(e);
+            intent.Mode = NavMode.PathToPoint;
+            repo.SetComponent(e, intent);
+            repo.SetComponent(e, new SimVelocity());                                       // standing, as the bridge holds it
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.None, TrajectoryId = 0 });
+            const float Dt = 1f / 60f;
+
+            for (int i = 0; i < 150; i++) system.Execute(repo, Dt);                          // 2.5 s
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(e).Result);
+            Assert.Equal(0L, system.PathRetries);
+            for (int i = 0; i < 60; i++) system.Execute(repo, Dt);                           // 3.5 s: one re-ask
+            Assert.Equal(1L, system.PathRetries);
+            for (int i = 0; i < 60 * 26; i++) system.Execute(repo, Dt);                      // 29.5 s
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(e).Result);
+            Assert.Equal(9L, system.PathRetries);
+            for (int i = 0; i < 60; i++) system.Execute(repo, Dt);                           // 30.5 s
+            Assert.Equal(NavResult.FailedUnreachable, repo.GetComponent<NavigationStatus>(e).Result);
+
+            // with a path, the speed rule is the old one
+            var moving = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f, intentId: 7);
+            var mi = repo.GetComponent<NavigationIntent>(moving); mi.Mode = NavMode.PathToPoint; repo.SetComponent(moving, mi);
+            repo.SetComponent(moving, new SimVelocity());
+            repo.SetComponent(moving, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5 });
+            for (int i = 0; i < 130; i++) system.Execute(repo, Dt);
+            Assert.Equal(NavResult.FailedBlocked, repo.GetComponent<NavigationStatus>(moving).Result);
+        }
+
+        /// <summary>
         /// ⭐ CE-5040 — a move COMMANDED slow (0.2 m/s, detector pace) walking at 0.18 m/s is not frustrated: the threshold is half its own target speed; the same
         /// move standing still still fails blocked. ✅ Red-proof: the fixed threshold back ⇒ the slow walker fails ⇒ red.
         /// </summary>

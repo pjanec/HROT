@@ -235,6 +235,42 @@ public sealed class BuildingNavTests
         Assert.Equal(NavigationResult.FailedUnreachable, repo.GetComponentRO<NavigationStatus>(fresh).Result);
     }
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-11076</c> — on a mesh that keeps changing (a live overlay bake), a move that keeps failing unreachable re-plans at most once per
+    /// <see cref="NavigationExecutionSystem.UnreachableReplanIntervalSeconds"/> of sim time, not on every frame: each answer comes back stamped with a sequence the
+    /// mesh has already moved past. 📐 stechovice-battle live: 42 of 97 unreachable requests were these re-plans, an A* to its cap each, several a second for
+    /// one move. 🔴 Red-proof: drop the cooldown test ⇒ it re-plans on every frame ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11076_AFailedUnreachableMove_OnAMeshThatKeepsChanging_ReplansAtMostOncePerInterval()
+    {
+        var (node, first, second) = TwoPublishes();
+        var pool = new TrajectoryPoolManager();
+        using var repo = Fdp.Toolkit.Navigation.Tests.NavigationTestWorldFactory.Create();
+        repo.SetSingletonManaged<INavmeshProvider>(node);
+        var e = repo.CreateEntity();
+        repo.AddComponent(e, new SimTransform { Position = new Vector3(25f, 2f, 0f) });
+        repo.AddComponent(e, new SimVelocity());
+        repo.AddComponent(e, new NavigationIntent { Mode = NavigationMode.PathToPoint, IntentId = 1, FinalDestination = new Vector3(25f, 25f, 0f), ArrivalRadius = 1f });
+        repo.AddComponent(e, new NavigationStatus { IntentId = 1, Result = NavigationResult.FailedUnreachable, NavmeshVersionObserved = first });
+        repo.AddComponent(e, new FrustrationTicks());
+        var sys = new NavigationExecutionSystem(pool);
+        void FailsAgainOnAnOlderMesh()
+        {
+            var st = repo.GetComponentRO<NavigationStatus>(e);
+            st.Result = NavigationResult.FailedUnreachable;
+            st.NavmeshVersionObserved = first;   // planned while the mesh moved on
+            repo.SetComponent(e, st);
+        }
+
+        sys.Execute(repo, 0.1f);
+        Assert.Equal(1L, sys.MeshReplans);                 // the first change re-plans at once (CE-4674, unchanged)
+        for (int i = 0; i < 45; i++) { FailsAgainOnAnOlderMesh(); sys.Execute(repo, 0.1f); }   // 4.5 s of a mesh that is always newer
+        Assert.Equal(1L, sys.MeshReplans);
+        for (int i = 0; i < 10; i++) { FailsAgainOnAnOlderMesh(); sys.Execute(repo, 0.1f); }   // past 5 s: once more
+        Assert.Equal(2L, sys.MeshReplans);
+    }
+
     /// <summary>⭐ CE-4674 — the failure records the mesh it was planned on: an unreachable path result stamps the status with the result's tile sequence (the
     /// sequence the re-plan rule compares). 🔴 Red-proof: drop the stamp ⇒ 0.</summary>
     [Fact]
