@@ -7,6 +7,7 @@ stale-below: nothing yet
 known-rot: D-4's "they light nothing" is SUPERSEDED by R-1057 (§9): sources may light their surroundings, cheaply, except in thermal
 known-conflict: none
 related-designs:
+  - ../devices/DESIGN_Simulated_Devices.md — SIMULATED DEVICES: a trainee's equipment as entities (carried in this station / scope / view), a generic I/O model with adapters, a recorded state block
   - ../thermal/DESIGN_Thermal_Drivers.md — owns the HEAT DRIVERS and the calculator (`ThermalDriversOps`): this view only READS them; TD-14's "instructor's thermal-marks layer" is built HERE (§5d)
   - ../../DESIGN_Thermal_And_Acoustic_Sensing.md — owns the AI's thermal SENSOR (signature 0..1, `MinSignature`): the view outlines what it sees; its move to °C contrast is CE-1987, not this design
   - ../weather/DESIGN_Weather_And_Time.md — owns `WeatherSample` (sun, irradiance, clouds, the diurnal ground temperature): the view reads it; the MOON is added to it here (§4a)
