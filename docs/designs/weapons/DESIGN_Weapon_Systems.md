@@ -7,6 +7,7 @@ stale-below: nothing.
 known-rot: none. (2026-10-14: StationPresets → SeatPresets and StartWith on ANY seat — W-I; the earlier "StartWith : weapon type id" / "fills its StartWith stations" wording is superseded in place.)
 known-conflict: DESIGN_Vehicle_Exposure_Cycle.md §6 builds the technicals (104 HMG, 105 ATGM) as a pickup TYPE whose pintle is its own turret mount — ⭐ WS-4 LANDED (§9): they are now presets (a pickup host + a weapon system in its station + a gunner), same numbers; that §6 is history for the weapon, still true for the pickup.
 related-designs:
+  - ../../DESIGN_Capability_Components.md — splits `Mountable { MountKinds, Portable, CarrySpeedFactor }` out of `WeaponSystemParams` and gives "item" its own predicate (CC-1 … CC-4); §3 / §9 here are folded back when C1 is built
   - ../devices/DESIGN_Simulated_Devices.md — simulated devices: a device mounted in a Station seat beside the weapons (MountKinds.Device), operated from a crew seat
   - DESIGN_Flame_Weapons.md — the flamethrower (WeaponCategory.Flamethrower, a FlameJet instead of a round) and the napalm bomb
   - docs/OVERVIEW_Rules_And_Demos.md — the INDEX of the rules and demos built across the behaviour designs (rule → what implements it → demo); this design OWNS the rows that cite it

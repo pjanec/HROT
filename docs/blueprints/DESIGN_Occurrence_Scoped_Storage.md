@@ -122,6 +122,7 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
   - Architect_Question_87_Unit_Memory.md — OWNS unit memory (2026-10-09, proposed): unit-scoped shared blackboard structs — a designer-declared DTO, one slot per type in the unit's blackboard store (kind UnitMemory), created on first touch with its declared defaults, never swept by a behaviour switch — it LIVES in this store as a new slot kind, and its room is reserved at assign exactly like hosted demand (O7b-3)
 related-designs:
+  - ../DESIGN_Capability_Components.md — generalises this design's ruling "a tier component is not a proxy for 'is a brain'" to four proxy families
   - ../DESIGN_Parallel_Simulation.md — OWNS the per-entity rule and the merge (§18.5 D-31, §18.9 own adds read back); §34.7 here is how the store grows inside its phase
   - ../DESIGN_Entity_Brain_View.md — §9 BV-22 pins the §32.22 debug pump to one unit (the deferred pinning)
   - DESIGN_Behavior_Action_Binding.md — §5.7 (CE-3163): every HSM action reads ITS OWN block through HsmKernelBridge.Block (the generated thunks read the entity's root block, so a hosted HSM child read its host's)
