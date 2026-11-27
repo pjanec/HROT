@@ -140,8 +140,7 @@ classDiagram
   class RangefinderHudGizmo { <<NEW, GizmoProjector>> HudScope then screen primitives }
   class DevicePanel { <<NEW, unmanaged, replicated on change>> LampBits · Blink · Values16 · Text4 }
   class DevicePose { <<NEW, unmanaged, replicated>> Orientation · Offset — written by the device only }
-  class PoseFrom { <<NEW>> Source — the stacked master }
-  class DevicePoses { <<NEW, one resolver>> World(view, device) = mount ∘ pose, through PoseFrom }
+  class DevicePoses { <<NEW, one resolver>> World(view, device) = the mount chain ∘ pose }
   class DeviceLinks { <<NEW>> Peer2 — where its messages go }
   class DeviceMessageEvent { <<NEW>> Target · From · Kind · 64 B binary or JSON }
   class OperatorControlFrameEvent { <<existing, grows>> Target · Seq · Axes4 · PressSeq16 · Orientation · Position · BodyOffset }
@@ -166,7 +165,7 @@ classDiagram
   RangefinderBehavior ..> RangefinderParams : resolved from
   RangefinderHudGizmo ..> RangefinderState : reads
   DevicePoses ..> DevicePose : reads
-  DevicePoses ..> PoseFrom : follows
+  DevicePoses ..> Stations : walks the mount chain
   LaserLayer3D ..> LaserPointing : reads
   LaserLayer3D ..> LaserSpot : reads
   DebugGizmoLayer ..> RangefinderHudGizmo : draws its run
@@ -176,7 +175,7 @@ classDiagram
 
 *What the picture shows that prose hid: a device TYPE is the four `Rangefinder*` boxes — params, state, behaviour, HUD — in one folder (D-57); every
 other box is shared by all devices. Every arrow out of the behaviour is to its OWN components or to a message; the only cross-entity reads are
-`DevicePoses` following `PoseFrom` and the muscle's `LaserSpot`.*
+`DevicePoses` walking the mount chain and the muscle's `LaserSpot`.*
 
 ### 2c. The sequence — a press while PAUSED changes the HUD *(rev 8)*
 
@@ -739,12 +738,12 @@ their communication needs to be somehow safe."*
 | # | decision (lean) | why |
 |---|---|---|
 | D-48 | ⭐⭐ **a device has a POSE component**: `DevicePose { Orientation (relative to its mount), Offset (from its mount point) }` — unmanaged, replicated, recorded, written ONLY by the device's own brain (from the mouse look, a gamepad, or a tracker). ⭐ ONE function `DevicePoses.World(view, device)` = the mount point (host + station place) ∘ the pose — used by the views' camera, the HUD, the laser's direction, the renderer | where the device looks must be readable by other nodes and systems; one resolver so they all agree |
-| D-49 | ⭐⭐ **a rigid link — `PoseFrom { Entity Source }`** on the FOLLOWING device (B, stacked on A's tripod): `DevicePoses.World(B)` = A's world pose ∘ B's fixed stacking offset (from its type / its station). B has NO tracker and copies nothing — its pose is RESOLVED through A at the moment it is read | 🔒 *"linking to the other device, not … to the same tracker"*; no copy ⇒ no lag, no second writer, nothing to keep in step. ⚠ inside B's own brain step, reading A's pose is a DECLARED cross-entity read (the tick-start view — one tick behind, deterministic); every reader outside the phase (camera, renderer, muscle) reads it current |
+| D-49 | ⛔ *WITHDRAWN by §3u D-61 — stacking is mounting one device on another; no separate link* ⭐⭐ **a rigid link — `PoseFrom { Entity Source }`** on the FOLLOWING device (B, stacked on A's tripod): `DevicePoses.World(B)` = A's world pose ∘ B's fixed stacking offset (from its type / its station). B has NO tracker and copies nothing — its pose is RESOLVED through A at the moment it is read | 🔒 *"linking to the other device, not … to the same tracker"*; no copy ⇒ no lag, no second writer, nothing to keep in step. ⚠ inside B's own brain step, reading A's pose is a DECLARED cross-entity read (the tick-start view — one tick behind, deterministic); every reader outside the phase (camera, renderer, muscle) reads it current |
 | D-50 | ⭐ **trackers are input channels of the station**, bound to ONE entity each in the station's setup: an ORIENTATION tracker and / or a POSITION tracker → a device's control frame (the frame gains `Orientation` (quaternion) and `Position` (vector) with "present" flags); the device's brain turns them into its `DevicePose` | the same path as every other input (§3q): one frame per target, addressed to the device |
 | D-51 | ⚠ *§3t: `Lean` is a discrete side, so the frame gains a continuous `BodyOffset`; `Lean` stays* ⭐ **a body tracker moves the AVATAR relative to his base**: bound to the trainee's unit, it fills the UNIT's frame with a body offset; the unit's brain keeps it as an offset over the BASE position, which the player still moves by ordinary locomotion — the viewpoint and the held / mounted devices follow (they hang off the avatar's stations). ⚠ to measure before building: generalise the existing `Lean` (an eye offset the frame already carries) into this offset, rather than add a second one | one notion of "the body is displaced from its base"; ⛔ not a teleport of the base |
 | D-52 | ⭐⭐ **data between devices are MESSAGES, never shared memory**: `DeviceMessageEvent { Target, From, Kind, a small fixed payload }` (e.g. *"target location"* = a point + a time), raised by the sender's brain through its command buffer (played after the phase), carried by the interaction transport to the TARGET's owner, and read by the receiver's OWN brain on its next tick into its own `[UnitMemory]`. The payload's meaning is the pair of device types' contract (`Kind` named in their TKB types) | ✅ thread-safe by construction: nobody writes another entity, the receiver applies it itself, the order is the batch's (deterministic); it works the same when the two devices live on different nodes; ⛔ never a device reading the other's `[UnitMemory]` (brain-local, and a cross-entity read of mutable state) |
 | D-53 | ⭐ **a DATA link is just an address**: `DeviceLinks { Entity Peer[2] }` on a device (set in the scenario, or by the trainee pairing them) tells its logic WHERE to send; ⭐ the rigid link (D-49) and the data link are independent — two stacked devices need not exchange data, and two linked ones need not be stacked | 🔒 *"might be mounted as stacked … but don't need to be"* |
-| D-54 | ⭐ **a tripod is a host with stations** (a ground host type with one or two `Station` seats accepting `Device`) — the same mounting as a vehicle (§3q); stacking = two stations on one tripod, the upper device `PoseFrom` the lower | one mounting model |
+| D-54 | ⛔ *superseded by §3u D-60 / D-61 — a tripod device is the entity itself (manned with USE); stacking is mounting* ⭐ **a tripod is a host with stations** (a ground host type with one or two `Station` seats accepting `Device`) — the same mounting as a vehicle (§3q); stacking = two stations on one tripod, the upper device `PoseFrom` the lower | one mounting model |
 | D-55 | ⭐ **scenarios** (§5a, a later slice): `dv-linked-pair` — a rangefinder sends a target location to a second device (`device` cue on the receiver's stored point, within tolerance); `dv-stacked-tracker` — one scripted orientation drives both stacked devices (their world directions agree) | R-4277 |
 
 ## 3s. ⭐ The user's refinements to §3r (`2026-11-27`)
@@ -785,6 +784,42 @@ using to serialize/deserialize. Or a fixed byte buffer payload with the unmanage
 | does the batch subscriber hold the last batch when none arrives (D-24)? | ⛔ no — it appends only what arrives; nothing is redrawn without a new batch ⇒ ⭐ the cluster fix (R2-9) keeps the LAST batch PER PRODUCER and re-appends it each frame; with that, a change-only gate in the publisher is safe | `DebugPrimitivesBatchSubscriberSystem.cs:82-106` |
 | the cluster round trip (D-9′) | ✅ **measured live, `2026-11-27`** — 4 processes (orchestrator, CGF brain, SimHost muscle, player station), `showcases/player-station` (~600 entities), Debug build, 4-core VM, headless nodes capped at 240 Hz; possession + a walk control frame (12 trials, ±30 ms polling): **station → brain applied ≈ 120 ms median (88–146)** — ~7 CGF frames, the CGF node at ~58 Hz, the cause not split (CE-4708) · brain → the applied seq on the other nodes +15–25 ms · **station input → the result visible back on the station ≈ 230 ms median (146–352)**. ⇒ ⭐ for a device in a cluster: a button → its HUD change ≈ the input hop (~120 ms) + one replication back (~20 ms) ≈ **~150 ms**; a RANGE press (device → muscle → device → HUD) ≈ **~200–300 ms**. The trainee's own look, reticle and beam are local (LS-4, D-17) and do not wait for it. In the EDITOR configuration (SD-S1) it is one or two frames | the subagent's run (`scripts/cluster-node.sh`; `POST /entities/{id}/control`; polling `/entities/{id}` on every node) |
 
+## 3u. ⭐ Devices, avatars and USE — the attachment model in plain terms (user, `2026-11-27`)
+
+🔒 User: *"you mentioned the tripod is just a host with one or two Station seats … i do not understand. the devices are entities. player avatar is an
+entity. devices can be assigned to a player (player can use them - can cycle them on his single 3d map) and attached to player's avatar (attached
+devices moves with the player base position/orientation plus the BodyOffset …)"* · *"what if a device is stationary? player can go close and press
+'Use' … 'possess' the device in similar way how player possess a vehicle or a weapon system."* · *"what if a device represents a weapon system …
+does it lead to treating any weapon system as a device?"* · *"what if a device is portable and pickable? will picking it establish the attachment?"* ·
+*"could the unpicked (unattached) devices be rendered on their world locations?"* · *"how many devices can be picked? how is it different from
+picking a weapon?"*
+
+| claim | code |
+|---|---|
+| USE on a lone weapon: a PORTABLE one is **Taken** into the man's first open carry station; a STATIC one (a tripod gun) is **Manned** — he boards its own Gunner seat | `OperatorUse.cs:296-304` (CE-1207 PK-2, U-5) |
+| a person has THREE carry stations: Hands (fired from), Back (stowed, seen), Hidden (concealed) | `CarryStations.cs` (CE-3233, B-11) |
+| a weapon entity lying alone, carried or deployed is DRAWN by the 3-D body layer from its type | `EntityBodyLayer3D.cs:56, :442, :484` (CE-1087) |
+
+**The model — three ways a device belongs to a trainee, all existing mechanisms:**
+
+| situation | how (existing mechanism) | the device's world pose |
+|---|---|---|
+| ⭐ **carried** — binoculars, a rangefinder, a radio | it is IN one of his carry stations (Take = boarding his station); it moves with him | his base position / orientation **+ his `BodyOffset`** ∘ the station's place ∘ its own `DevicePose` (its tracker) |
+| ⭐ **stationary** — a device on its own tripod, a fixed console | it is an entity with its OWN operator seat; **USE ⇒ "Man"** — he boards that seat exactly as he mans a tripod gun, and from then on his station operates it | where it stands ∘ its `DevicePose` |
+| ⭐ **mounted on a vehicle / a weapon** | it is in a `Station` of the host, `OperatedBy` the crew seat he sits in (the §3q model) | the host ∘ the station ∘ its `DevicePose` |
+
+⇒ **"assigned to a player"** = the devices his station OPERATES: those in his own carry stations + those in stations his seat operates + the one he
+mans. All of them run; his VIEWS choose which one each shows (§3p) and he cycles them on his single 3-D map.
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-60 | ⭐ **a stationary device is MANNED with USE, as a static weapon is**: its type carries one operator seat (role `Gunner`, the existing `Man` verb); manning it makes it operated by his station. ⛔ supersedes D-54's "a tripod is a host with stations" — a tripod device IS the entity; no separate tripod | 🔒 user; ✅ `OperatorUse` already offers Man for a static item |
+| D-61 | ⭐ **stacking = MOUNTING one device on another**: a device type may declare a `Station` (Accepts `Device`); the upper device sits in it, so its world pose is the lower one's ∘ the station ∘ its own pose — it follows the lower device BY BEING MOUNTED, and ignores its own tracker while mounted (D-56). ⛔ `PoseFrom` (D-49) is WITHDRAWN as a separate link — mounting already says it | one relation, not two; the pose rule of §3r stays (`DevicePoses.World` walks the mount chain) |
+| D-62 | ⭐ **a PORTABLE device is TAKEN with USE, as a portable weapon is — and taking it IS the attachment** (it boards his carry station; dropping un-boards it, and it lies at its world position) | ✅ `OperatorUse.Take`; `Mountable.Portable` (§3q) makes the verb work for devices with no new code |
+| D-63 | ⭐ **devices get their OWN carry stations, so carrying them never costs the weapon slots**: a person type gains device stations (lean: 4 — `Kit1…Kit4`, `Accepts = Device`) beside Hands / Back / Hidden. **Difference from a weapon:** a weapon goes to Hands (fired) or Back / Hidden (stowed); a device goes to a kit station and is OPERATED through a view; while a view shows a hand-held device he raises it (the held-item pose, as binoculars today) and lowers it again | ✅ the same stations / `Accepts` data — a soldier carrying binoculars, a rangefinder and a radio keeps his rifle |
+| D-64 | ⭐ **every device is drawn at its world location** by the 3-D body layer from its type's look (a kit, as a weapon system's): lying, on its tripod, mounted; a carried one is drawn in his hands only while raised | ✅ the weapon-system drawing path, extended with a device kit |
+| D-65 | ⭐ **a weapon system is NOT turned into a device.** A weapon whose operation needs a richer panel gets a DEVICE MOUNTED on it (a `Station` of the weapon, `OperatedBy` its gunner seat — the operator panel of SD-S4); the weapon keeps its own logic and effects, the device adds the panel, its HUD and its logic | ✅ one concept per entity: a weapon fires, a device is operated; ⚠ nothing stops one entity carrying both a weapon's components and a device behaviour later, but it is not the default |
+
 ## 4. Rejected — one line each
 
 - **Typed components per device type** — the user's concern holds: dozens of types, each a component, descriptor and translator; the block keeps the recorder ignorant.
@@ -802,7 +837,7 @@ using to serialize/deserialize. Or a fixed byte buffer payload with the unmanage
 | **SD-S2** the gamepad + the drone operator station | the gamepad adapter; the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the operator panel of a manned weapon system | a device that drives a weapon `Station` it is mounted beside (optics, zoom, sensor modes, the procedure); what the weapon does stays the weapons design's | editor |
-| **SD-S5b** linked devices + trackers (§3r) | `DevicePose` + `DevicePoses.World`, `PoseFrom` (stacking), trackers as frame inputs, the body offset (generalised `Lean`), `DeviceMessageEvent` + `DeviceLinks`, a tripod host type | editor |
+| **SD-S5b** linked devices + trackers (§3r, §3u) | stacking by mounting a device on a device (D-61), a stationary device manned with USE (D-60), the kit carry stations (D-63), trackers as frame inputs, the body offset (generalised `Lean`), `DeviceMessageEvent` + `DeviceLinks`, a tripod host type | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (a Take / Drop verb for a device) · per-station node features | editor |
 | **SD-S6** the visible beam | the beam and spot drawn (a projector over `LaserPointing` / `LaserSpot`), the ONE visibility rule (eye · night · thermal) for the map, the IG and the AI's perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
 | **SD-C** the cluster tier | the timed round trip measured FIRST (D-9′); late join; the nightly cluster run of every slice's scenarios; the gateway's wire carries the space (D-5) | the nightly cluster run |
