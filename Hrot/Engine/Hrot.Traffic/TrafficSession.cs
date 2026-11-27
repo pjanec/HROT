@@ -248,9 +248,8 @@ public sealed class TrafficSession : IDisposable
                       || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, null, h.Priority);   // an unmapped type: SUMO's default car
             if (ok)
             {
-                if (_refused.ContainsKey(h.NetworkId))   // ⭐ CE-11072 — a hand-over SUMO refused before and takes now (a road re-opened) is logged
-                    Fdp.Core.Logging.FdpLog<TrafficSession>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
-                        $"[Traffic] SUMO took vehicle {h.NetworkId} at ({h.X:0.0}, {h.Y:0.0}) after refusing it"));
+                Fdp.Core.Logging.FdpLog<TrafficSession>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,   // ⭐ CE-11072 — every hand-over SUMO takes (cold: once per spawn)
+                    $"[Traffic] SUMO took vehicle {h.NetworkId} at ({h.X:0.0}, {h.Y:0.0}) to ({h.DestX:0.0}, {h.DestY:0.0}){(_refused.ContainsKey(h.NetworkId) ? " after refusing it" : "")}"));
                 _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId);
             }
             else
