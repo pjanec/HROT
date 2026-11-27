@@ -7,6 +7,7 @@ stale-below: §2's `DeviceStateBlock` boxes and SD-2 / SD-6 in §3 — supersede
 known-rot: §3c (ValueBinding) is history for the HUD — D-3d · LS-3 / LS-10 / LS-16, D-1, D-1′, D-3, D-3′, D-3a are superseded in place (marked)
 known-conflict: none
 related-designs:
+  - ../../DESIGN_Unit_Camera.md — OWNS the station camera (over the shoulder to move, from the eyes to aim — UC-3); §3v extends the aim rule to switch the view's source to the weapon's sight
   - ../../DESIGN_Replay_Time_Axis_And_Review.md — OWNS the replay's two axes (sim time collapses a pause; the wall-clock axis keeps it) — the paused-device scenarios are judged on the wall-clock axis
   - ../../DESIGN_Unit_Intent.md — OWNS unit intent and the brain's inputs; a device is a brain of its own on the device entity
   - ../../blueprints/Architect_Question_114_Seats_On_One_Node.md — OWNS several stations on one node (StationId = node + seat index); each station draws only its own device HUD
@@ -820,6 +821,34 @@ mans. All of them run; his VIEWS choose which one each shows (§3p) and he cycle
 | D-64 | ⭐ **every device is drawn at its world location** by the 3-D body layer from its type's look (a kit, as a weapon system's): lying, on its tripod, mounted; a carried one is drawn in his hands only while raised | ✅ the weapon-system drawing path, extended with a device kit |
 | D-65 | ⭐ **a weapon system is NOT turned into a device.** A weapon whose operation needs a richer panel gets a DEVICE MOUNTED on it (a `Station` of the weapon, `OperatedBy` its gunner seat — the operator panel of SD-S4); the weapon keeps its own logic and effects, the device adds the panel, its HUD and its logic | ✅ one concept per entity: a weapon fires, a device is operated; ⚠ nothing stops one entity carrying both a weapon's components and a device behaviour later, but it is not the default |
 
+## 3v. ⭐ One VIEW-HUD mechanism for devices AND possession — the sight unit, the weapon sight, the cockpit (user, `2026-11-27`)
+
+🔒 User: *"what about a missile launcher unit (having its own eyepiece and HUD) which is portable and shoulder fired, acting as a device (having
+buttons to switch day/night view etc, maybe various menus...)?"* · *"we do not have yet any specific HUD for usual weapons showing a view over their
+sights … this HUD is pretty similar to the device HUD. I do not say that every weapon should become a device … But some others like the shoulder fire
+sophisticated missile launcher might need one."* · *"when its over-the-shoulder-camera is in its front-most position and the weapon is in aimed
+position, maybe we could render the 'weapon HUD' (view through the weapon sights, or some kind of cockpit view if we possess an aircraft..) Not sure
+whether this non-device 'possession' HUD makes sense."* (Scope here: the VIEW and its HUD only — what a weapon does stays the weapons design's.)
+
+| claim | code |
+|---|---|
+| the station already switches the camera when AIMING: over the shoulder to move, **from the eyes to aim (RMB)** — on by default | `PossessionStation.cs:62-66` (CE-1201 §8p OS-1, CE-1293 UC-3) |
+| the possession HUD exists today as HAND-DRAWN station code: the crosshair spread and shock, the binocular overlay, the fire-mode lines; the aircraft has its own `FighterHud` model | `PossessionStation.cs:359-360, :488, :943`; `FighterHud.cs` |
+| a gizmo projector reads ANY component it names, on every map host where the data is (the gateway too) | `[GizmoProjector(...)]`, `GizmoReflectionRegistrar` (§3k) |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-66 | ⭐⭐ **a VIEW shows a SOURCE, and every source draws its HUD the same way**: a source is any entity the station operates — **a device**, **the possessed unit's weapon sight**, **a vehicle / aircraft cockpit**, or none (the plain eye). Each source type may have a HUD projector (`[GizmoProjector]`, opened by `HudScope { Source }`, screen-space primitives, the same renderer filter and screen pass). ⭐ The projector runs WHERE ITS DATA IS: a device's (its state is brain-only `[UnitMemory]`) on the brain; a weapon sight's or a cockpit's (replicated components: ammo, fire mode, speed, altitude) on any map host, the station's own included | 🔒 *"pretty similar to the device HUD"* — one mechanism, not a device HUD beside a possession HUD (ruling 9) |
+| D-67 | ⭐ **a weapon is not a device; a weapon may CARRY one**: the shoulder-fired launcher's sight unit (eyepiece, day / night, menus) is a DEVICE MOUNTED on the launcher (a `Station` of the weapon, `OperatedBy` its firer) — carried with it (the launcher in his Hands carries its mounted device), operated through his view, with its own HUD, state and buttons. A plain rifle has no device: its view is the plain WEAPON SIGHT source (D-68) | D-65 kept; 🔒 *"likely not the one that is kind of default part of the entity"* |
+| D-68 | ⭐ **the weapon-sight view for ordinary weapons**: the existing aim rule (aim ⇒ from the eyes, UC-3) is extended — **aimed with the camera at its front-most position ⇒ the view's source becomes the weapon's SIGHT**: the camera at the sight, its FOV from the weapon type (iron sight · optic), its HUD projector (reticle, rounds, fire mode); a weapon carrying a sight DEVICE ⇒ the view shows that device instead. Releasing aim returns to the previous source | ✅ the trigger exists; only the source behind it is new |
+| D-69 | ⭐ **the cockpit is a source too**: a possessed aircraft or vehicle's view (first person at the pilot / driver seat) uses its type's HUD projector — ⭐ `FighterHud`'s model and drawing move into one (§3e RV-16), keeping its rail | the second HUD model disappears |
+| D-70 | ⭐ **migration, not rush removal**: the station's hand-drawn HUD parts move into projectors one source at a time — the binoculars in SD-S1 (D-42), the weapon sight and the cockpit in a later slice (**SD-S7**, below) — each keeping its rails and its frame rail against a mockup | CLAUDE.md "no rush removals"; R-4138 fidelity |
+| D-71 | ⭐ **day / night of a view follows its source**: a device or a sight with a sensor mode sets THAT view's `SensorView` mode (Sensor View G-10, *"tie to a unit's sight"*, deferred there) — the map-wide setting stays for the plain eye | one sensor-view rule, chosen per view |
+
+| slice | builds | scenario |
+|---|---|---|
+| **SD-S7** the weapon sight and the cockpit as sources | the source model of D-66 for non-device sources; the aimed-front-most switch (D-68); weapon-sight HUD projectors (iron sight, optic); `FighterHud` → a cockpit projector (D-69); the station's hand-drawn reticle moved; a launcher's sight unit as a mounted device (D-67) | `dv-weapon-sight` — aiming at the front-most camera shows the sight source's HUD (`hud` cue), releasing returns; `dv-cockpit-hud` — a possessed jet's view shows the cockpit run |
+
 ## 4. Rejected — one line each
 
 - **Typed components per device type** — the user's concern holds: dozens of types, each a component, descriptor and translator; the block keeps the recorder ignorant.
@@ -840,6 +869,7 @@ mans. All of them run; his VIEWS choose which one each shows (§3p) and he cycle
 | **SD-S5b** linked devices + trackers (§3r, §3u) | stacking by mounting a device on a device (D-61), a stationary device manned with USE (D-60), the kit carry stations (D-63), trackers as frame inputs, the body offset (generalised `Lean`), `DeviceMessageEvent` + `DeviceLinks`, a tripod host type | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (a Take / Drop verb for a device) · per-station node features | editor |
 | **SD-S6** the visible beam | the beam and spot drawn (a projector over `LaserPointing` / `LaserSpot`), the ONE visibility rule (eye · night · thermal) for the map, the IG and the AI's perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
+| **SD-S7** the weapon sight and the cockpit as view sources (§3v) | the source model for non-device sources (D-66), the aimed-front-most switch (D-68), weapon-sight and cockpit HUD projectors (`FighterHud` folded in, D-69), a launcher's sight unit as a mounted device (D-67) | editor |
 | **SD-C** the cluster tier | the timed round trip measured FIRST (D-9′); late join; the nightly cluster run of every slice's scenarios; the gateway's wire carries the space (D-5) | the nightly cluster run |
 
 ## 5a. ⭐ The feature-test scenarios — the proof the concept works (R-4277)
