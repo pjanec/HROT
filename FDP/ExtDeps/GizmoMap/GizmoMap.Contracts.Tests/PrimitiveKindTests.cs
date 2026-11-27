@@ -28,6 +28,7 @@ namespace GizmoMap.Contracts.Tests
             [DebugPrimitiveShape.MainMenuBinding]     = PrimitiveClass.Meta,
             [DebugPrimitiveShape.LayerControlMask]    = PrimitiveClass.Meta,
             [DebugPrimitiveShape.FilledTriangle]      = PrimitiveClass.Geometry,
+            [DebugPrimitiveShape.HudScope]            = PrimitiveClass.Meta,       // ⭐ simulated devices S1d-1 — a HUD run's marker, protected
         };
 
         [Fact]

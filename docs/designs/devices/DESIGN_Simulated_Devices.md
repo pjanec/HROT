@@ -171,9 +171,9 @@ classDiagram
   OperatorControlBehavior ..> FireControl : reads, previous frame · LaunchSeq moved and Ready
   class LaserSpot { <<BUILT S1c, unmanaged>> up to 4 points, each range, strength and the Entity hit · Preview in pause · PointingSeq — written by the muscle }
   class LaserLayer3D { <<NEW, every map host>> }
-  class DebugPrimitiveBuffer { <<existing, Fdp.Diagnostics.Contracts, grows>> BeginScope · EndScope — Count stamped at the scope's slot }
-  class DebugGizmoLayer { <<existing, grows>> Screen primitives join the card pass · FrameFor keeps the bound source's run }
-  class HudScope { <<NEW meta-primitive, protected>> Source network id · Count — drawn only by a bound view }
+  class DebugPrimitiveBuffer { <<existing, Fdp.Diagnostics.Contracts, grown S1d-1>> BeginScope · EndScope · AppendHeld re-stamps — Count stamped at the scope's slot }
+  class DebugGizmoLayer { <<existing, grows>> BoundSource + ViewFrame keep the bound source's run (S1d-1) · Screen primitives join the card pass (S1d-2) }
+  class HudScope { <<BUILT S1d-1, meta-primitive, protected>> Source network id · Count — drawn only by a bound view; HudScopes is its one reader }
   SeatDto ..> Stations : OperatedBy
   Stations ..> Mountable : Accepts
   DeviceTickSystem ..> Stations : the operator walk
@@ -407,6 +407,29 @@ frame's orientation (R5-13) — it needs the station's look, S1d.
 | D-20 | editor configuration: brain and station are one process — the projector draws straight into the local buffer | — |
 | D-24 / D-27 | ⛔ change-only sending is NOT built (the publisher resends the node's buffer each frame a reader exists, `DebugPrimitivesBatchPublisherSystem.cs:33-50`; CE-1480 G5 only reuses the picture); lean: a GENERIC change gate in the publisher, safe once the subscriber keeps the last batch per producer (SD-C) | one rule for every gizmo |
 | R7-13 | ⚠ `BeginScope` / `EndScope` assume no other producer appends mid-run (`AppendRaw` is a lock-free `Interlocked` append) — **measured before SD-S1's ui half**; if `PostSimulation` producers run concurrently in the threaded node, the scope is written per producer buffer and merged | unverified |
+
+⭐ **S1d-1 AS BUILT (`2026-11-27`)** — the scope and the bound-view filter. `DebugPrimitiveShape.HudScope = 16` (Meta ⇒ protected, never refused by
+layer, never evicted; payload `HudScopeSource` long @24, `HudScopeCount` int @32 — no free field needed). ONE reader, **`HudScopes`**
+(`GizmoMap.Contracts/Primitives/HudScopes.cs`, beside the triage): `Keep(frame, boundSource, ref scratch)` (the bound run kept with its marker
+removed, every other run removed whole, the frame itself when it has no scope, 0 B), `Unscoped` (bound to nothing), `After(frame, i)` (the index-loop
+skip, clamped). Buffer (`Fdp.Diagnostics.Contracts`): `BeginScope(source)` returns the slot; `EndScope()` stamps the count at that slot; an empty scope
+rolls the cursor back (`EmptyScopesDropped`); a protected primitive evicting a run's line leaves a meta shape inside the run (already in
+`DroppedCount`); `AppendHeld(span)` re-appends a held picture re-opening each scope (used by `StatelessGizmoSystem`'s two reuse paths — CE-1480 G5 and
+CE-2402 — and by `DebugPrimitivesBatchSubscriberSystem`, so a run the receiving buffer refuses or drops in part never swallows the next producer's
+primitives); `ForeignAppendsInScope` counts appends from another thread while a scope is open (R7-13). Views: `DebugGizmoLayer.BoundSource`
+(station-local, 0 = the plain eye) + `ViewFrame()` — every read in the layer (2-D, 3-D triage, cards, the terminal's meta and picks, `FrameFor`) goes
+through it. Readers that skip runs whole: the 3-D triage (`CulledByScope` — Stride's `DebugPrimitiveRenderer3D` and every raw triage), GizmoMap's
+2-D renderer (the standalone `GizmoViewerFrontend`), `GizmoFramePanel`, `DebugApiService.Panels` (the HTTP dump; S1e's `hud` cue will read a run
+through a bound view), `MapSelfCheckSystem`. Pass-through, scopes kept: the batch publisher, the DDS publisher, the held pictures, the subscriber.
+Not readers of the shared buffer: `TerrainLayer2D` (its own plan buffers). Rails: `HudScopesTests` (5), `DebugPrimitiveBufferLayerTests.S1d1_*` (8),
+`DebugGizmoLayerGizmoTests.S1d1_*` (3), `GizmoFramePanelTests.S1d1_*`, `PrimitiveKindTests` (the table row).
+⚠ **Deviations, argued:** ① a run that OVERFLOWS keeps the count of what was STORED, not 0 — a 0 would release the stored part to every reader
+(R5-7 meant "the run is not trusted"; trimming it to what fit keeps it scoped). ② A scope opened on a FULL buffer is not stored (`BeginScope`
+returns −1, counted in `DroppedCount`) instead of evicting a plain primitive for a count-0 marker — the run's plain primitives could not be stored
+either, so the slot would buy nothing. ③ The gateway (`HrotGizmoHost`, SimNetGateway) is outside this repo — its meta drop stays an SD-C row
+(D-5). ④ The ingress translator (`DebugPrimitivesIngressTranslator`, to be retired at SD-C) still appends raw. ⑤ **R7-13's threaded-node rail is
+NOT built:** no rail in the repo boots the threaded node with a gizmo producer; built instead the detector (`ForeignAppendsInScope`, railed with a
+second thread) that such a run reads — S1d-2, whose projector opens real scopes, asserts it is 0 in a threaded-node run.
 
 ### Mockups
 

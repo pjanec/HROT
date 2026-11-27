@@ -17,6 +17,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         InputCaptureBinding = 12, // Non-visual meta-primitive: declares that the bound token wants raw HW events
         MainMenuBinding     = 13, // Non-visual meta-primitive: injects an interned JSON menu array into the global main menu
         LayerControlMask    = 14, // Non-visual meta-primitive: 256-bit layer visibility mask asserted by the backend
-        FilledTriangle      = 15  // A filled 2-D triangle in world space (TriA/TriB/TriC + Color) — terrain/area fills (DESIGN_Terrain_World W2)
+        FilledTriangle      = 15, // A filled 2-D triangle in world space (TriA/TriB/TriC + Color) — terrain/area fills (DESIGN_Terrain_World W2)
+        HudScope            = 16  // Non-visual meta-primitive: the next HudScopeCount primitives are the HUD of the source HudScopeSource (a network id) —
+                                  //   drawn ONLY by a view bound to that source (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-41, R3-4; HudScopes)
     }
 }

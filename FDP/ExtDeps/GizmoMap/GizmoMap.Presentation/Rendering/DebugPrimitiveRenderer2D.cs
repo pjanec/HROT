@@ -108,8 +108,12 @@ namespace GizmoMap.Presentation
             var sortBuffer = _sortBuffer;
             sortBuffer.Clear();
 
-            foreach (ref readonly var prim in primitives)
+            for (int pi = 0; pi < primitives.Length; pi++)
             {
+                ref readonly var prim = ref primitives[pi];
+                // ⭐ Simulated devices S1d-1 (R3-4 / R5-4) — a HUD run is drawn only by a view bound to its source (the map's layer filters it before
+                //   this renderer, HudScopes.Keep); a renderer fed a raw frame (the standalone viewer) skips the WHOLE run here.
+                if (HudScopes.IsScope(in prim)) { pi = HudScopes.After(primitives, pi) - 1; continue; }
                 // SpatialAnchor, meta-binding and control primitives are never dispatched directly (⭐ CC-14 — the triage's own skip).
                 if (PrimitiveKind.IsMeta(prim.Shape)) continue;
 

@@ -96,11 +96,10 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                 ReadOnlySpan<DebugPrimitive> prims =
                     MemoryMarshal.Cast<byte, DebugPrimitive>(new ReadOnlySpan<byte>(data));
 
-                foreach (ref readonly var p in prims)
-                {
-                    _buffer.AppendRaw(in p);
-                    AppendedPrimitiveCount++;
-                }
+                // ⭐ Simulated devices S1d-1 (D-41) — appended as a HELD picture: each HUD scope re-stamped for THIS buffer's slots, so a run this
+                //   buffer refuses or drops part of never swallows the next producer's primitives
+                _buffer.AppendHeld(prims);
+                AppendedPrimitiveCount += prims.Length;
 
                 ReceivedSampleCount++;
             }

@@ -189,4 +189,15 @@ public sealed class GizmoFramePanelTests
         Assert.Throws<ArgumentException>(() => GizmoFramePanel.AddressFor(""));
         Reset();
     }
+    /// <summary>⭐ Simulated devices S1d-1 (DESIGN_Simulated_Devices §3.6 R3-4 / R5-4) — the gizmo dump is bound to no source: a HUD run is skipped whole.</summary>
+    [Fact]
+    public void S1d1_TheDump_SkipsEveryHudRunWhole()
+    {
+        var buffer = WithOneSphere();
+        buffer.BeginScope(1001);
+        buffer.DrawSphere(new System.Numerics.Vector3(9f, 9f, 9f), 1f, new Rgba32(255, 0, 0, 255));
+        buffer.EndScope();
+        var model = GizmoFramePanel.BuildViewModel(buffer, Editor);
+        Assert.Equal(1, model.Count);
+    }
 }

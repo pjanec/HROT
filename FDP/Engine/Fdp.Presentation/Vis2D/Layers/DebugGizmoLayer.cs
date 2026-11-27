@@ -37,11 +37,23 @@ namespace Fdp.Toolkit.Vis2D.Layers
         };
 
         private DebugPrimitive[] _filmFrame = Array.Empty<DebugPrimitive>();
+        private DebugPrimitive[] _viewFrame = Array.Empty<DebugPrimitive>();
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1d-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-38 / D-66 / R3-4) — the SOURCE this view is bound to
+        /// (a device's network id; later a sight or a cockpit): the view draws that source's HUD run and nobody else's. <see cref="HudScopes.None"/>
+        /// (the default, the plain eye) ⇒ no HUD run at all. Station-local UI state, never simulation.
+        /// </summary>
+        public long BoundSource { get; set; }
+
+        /// <summary>⭐ S1d-1 — the buffer's frame as THIS view sees it: its bound source's HUD run kept, every other run removed whole
+        /// (<see cref="HudScopes.Keep"/>). Every reader in this layer reads it — the 2-D and 3-D draws, the cards, the terminal's meta and picks.</summary>
+        public ReadOnlySpan<DebugPrimitive> ViewFrame() => HudScopes.Keep(_buffer!.ReaderFrame(), BoundSource, ref _viewFrame);
 
         /// <summary>The buffer's frame as this pass draws it: all of it on screen, its film primitives in a film's pass.</summary>
         private ReadOnlySpan<DebugPrimitive> FrameFor(in RenderContext ctx)
         {
-            var all = _buffer!.ReaderFrame();   // ⭐ EXPERIMENT (X-4) — the published copy when the kernel ticks on another thread
+            var all = ViewFrame();   // ⭐ EXPERIMENT (X-4) — the published copy when the kernel ticks on another thread; ⭐ S1d-1 — filtered to the bound source
             if (!ctx.Film) return all;
             if (_filmFrame.Length < all.Length) _filmFrame = new DebugPrimitive[all.Length];
             var film = FilmLayers;
@@ -236,7 +248,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             else if (live != null)
             {
                 long tc = Fdp.Presentation.WindowManager.WindowTimings.Start();   // ⭐ CE-4388 — the cards alone
-                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, _buffer.ReaderFrame()));   // ⭐ CE-4432 — 0 B per frame
+                Cards.Draw(_renderer.CardPrimitives, CardAnchor2DReused(live, ViewFrame()));   // ⭐ CE-4432 — 0 B per frame
                 Fdp.Presentation.WindowManager.WindowTimings.Record("cards", tc);
                 LastCardsDrawn = Cards.CardsDrawn;
             }
@@ -351,7 +363,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             bool keyboardCaptured = ImGuiNET.ImGui.GetIO().WantCaptureKeyboard || !Fdp.Presentation.Input.KeyboardFocus.MapHasKeyboard;
             if (live != null)
                 _innerTerminal.HandleInput(
-                    _buffer.ReaderFrame(), _buffer.InternMap, _camera, OnInteraction,   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+                    ViewFrame(), _buffer.InternMap, _camera, OnInteraction,   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
                     screenToWorld: (screen, forDrag) => live.ScreenToWorld3D(screen, forDrag),
                     zoomAt: live.ZoomAt,
                     nextTypedKey: _nextTypedKey,
@@ -360,7 +372,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
                     rayOnlyAnchor: live is Fdp.Toolkit.Vis3D.MapCamera3D cam3D ? RayOnlyOf(cam3D) : null);
             else
                 _innerTerminal.HandleInput(
-                    _buffer.ReaderFrame(),   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+                    ViewFrame(),   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
                     _buffer.InternMap,
                     _camera,
                     OnInteraction,
@@ -495,7 +507,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
             //     construct this with their repository (and each one ALREADY passed a live world to the
             //     ctor overload deleted in DESIGN_Gizmo_Renderer_Seam.md §6 R3, which stored it nowhere).
             var anchorId = GizmoMap.Presentation.DebugGizmoLayer.PickTopmostAnchorId(
-                _buffer.ReaderFrame(), worldPos, zoom);   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+                ViewFrame(), worldPos, zoom);   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
             if (anchorId is not { } id) return null;
 
             var entity = Fdp.Toolkit.Replication.Services.NetworkIdResolver.ResolveAnchorId(   // ⭐ CE-4200: the one 64-bit-anchor rule
@@ -581,7 +593,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
         {
             if (_buffer == null) return;
 
-            var frame   = _buffer.ReaderFrame();   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
+            var frame   = ViewFrame();   // ⭐ POC 2 P-6 (A-4 ⑥) — the published frame on the drawing thread, never the worker's live buffer
             int boxes   = 0;
             float best  = float.MaxValue;
             long  bestId = 0;

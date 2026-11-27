@@ -163,6 +163,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         // StructInspector payload (generic struct editor projected via StructEdit schema)
         [FieldOffset(24)] public long StructNetworkId;    // stable network-level anchor ID
+        // ⭐ Simulated devices S1d-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-41 / R5-7) — a HudScope's payload: the SOURCE whose HUD the
+        //   run is (a network id; the view bound to it draws the run) and the run's length, stamped by DebugPrimitiveBuffer.EndScope at the scope's
+        //   ACTUAL slot. Read through HudScopes, never by hand.
+        [FieldOffset(24)] public long HudScopeSource;
+        [FieldOffset(32)] public int HudScopeCount;
         // InspNetworkId aliases StructNetworkId at the same offset; used by InputCaptureBinding
         // and ContextMenuBinding meta-primitives to carry the owning tool's anchor ID.
         [FieldOffset(24)] public long InspNetworkId;
@@ -580,6 +585,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 case DebugPrimitiveShape.MainMenuBinding:
                 case DebugPrimitiveShape.LayerControlMask:
                 case DebugPrimitiveShape.SpatialAnchor:   // it IS an identity source, not a consumer
+                case DebugPrimitiveShape.HudScope:        // ⭐ S1d-1 — a run marker: its source is a FILTER key, never picked or routed
                     return;
             }
 

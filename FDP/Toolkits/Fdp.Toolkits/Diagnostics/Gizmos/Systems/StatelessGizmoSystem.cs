@@ -456,7 +456,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                     }
                     if (kind == ChangeKind.Unchanged && pic.Valid && pic.SameAsNext())
                     {
-                        for (int k = 0; k < pic.PrimCount; k++) _buffer.AppendRaw(in pic.Prims[k]);
+                        _buffer.AppendHeld(new System.ReadOnlySpan<DebugPrimitive>(pic.Prims, 0, pic.PrimCount));   // ⭐ S1d-1 — a held picture's HUD scopes re-stamped (D-41)
                         RulePicturesReused++;
                         reuse = true;
                     }
@@ -504,7 +504,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos.Systems
                         if (age < period && i % period != slot)
                         {
                             var held = new System.ReadOnlySpan<DebugPrimitive>(hold.Prev, hold.PrevStart[i], hold.PrevLen[i]);
-                            for (int k = 0; k < held.Length; k++) _buffer!.AppendRaw(in held[k]);
+                            _buffer!.AppendHeld(held);   // ⭐ S1d-1 — a held picture's HUD scopes re-stamped (D-41)
                             hold.Put(i, gen, age, frame, held);
                         }
                         else

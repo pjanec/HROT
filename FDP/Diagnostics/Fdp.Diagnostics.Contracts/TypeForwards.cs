@@ -20,3 +20,4 @@ global using StringInternMap    = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Giz
 global using LayerMask256       = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.LayerMask256;   // ⭐ CE-1071
 global using PrimitiveKind      = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.PrimitiveKind;   // ⭐ CC-14
 global using PrimitiveClass     = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.PrimitiveClass;
+global using HudScopes          = GizmoMapContracts::Fdp.Toolkit.Diagnostics.Gizmos.HudScopes;   // ⭐ simulated devices S1d-1 — the one HUD-run reader

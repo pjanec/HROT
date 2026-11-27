@@ -17,6 +17,9 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
+        // ⭐ S1d-1 — the gizmo dump's frame with every HUD run removed (grown, never shrunk)
+        private DebugPrimitive[] _unscopedFrame = Array.Empty<DebugPrimitive>();
+
         /// <summary>
         /// GET /panels — what is instrumented, what actually published this frame, and the kinds map a
         /// cross-host conformance check groups by.
@@ -143,7 +146,9 @@ namespace Hrot.Editor.DebugApi
             //   The FIRST read after an idle spell finds the frame published while the gate was shut (empty); the next pulled tick draws, so a second read returns the
             //   primitives. `drawingStarted` says which case this was. A windowed editor / a cluster perspective has no lease: always drawing / its viewer holds the gate.
             bool drawingStarted = GizmoLease?.Touch() ?? false;
-            var frame = buffer.ReaderFrame();   // ⭐ POC 2 P-6 — the published frame when the kernel ticks on a worker
+            // ⭐ POC 2 P-6 — the published frame when the kernel ticks on a worker; ⭐ S1d-1 (R3-4) — bound to no source: every HUD run skipped whole
+            //   (S1e's `hud` cue reads a run through a view bound to its source, never through this dump)
+            var frame = Fdp.Toolkit.Diagnostics.Gizmos.HudScopes.Unscoped(buffer.ReaderFrame(), ref _unscopedFrame);
             var items = new JsonArray();
 
             int emitted = Math.Min(frame.Length, Math.Max(1, max));

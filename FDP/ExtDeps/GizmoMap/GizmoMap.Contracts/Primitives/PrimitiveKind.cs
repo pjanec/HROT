@@ -52,16 +52,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 case DebugPrimitiveShape.InputCaptureBinding:
                 case DebugPrimitiveShape.MainMenuBinding:
                 case DebugPrimitiveShape.LayerControlMask:
+                case DebugPrimitiveShape.HudScope:   // ⭐ simulated devices S1d-1 (D-41) — a HUD run's marker: never drawn, protected
                     return PrimitiveClass.Meta;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(s), s, "PrimitiveKind has no class for this shape — add it to ClassOfShape.");
             }
         }
 
-        /// <summary>A shape that is never drawn: the anchor, the three bindings and the layer mask.</summary>
+        /// <summary>A shape that is never drawn: the anchor, the three bindings, the layer mask and a HUD scope.</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static bool IsMeta(DebugPrimitiveShape s) => s is DebugPrimitiveShape.SpatialAnchor or DebugPrimitiveShape.ContextMenuBinding or DebugPrimitiveShape.InputCaptureBinding
-                  or DebugPrimitiveShape.MainMenuBinding or DebugPrimitiveShape.LayerControlMask;
+                  or DebugPrimitiveShape.MainMenuBinding or DebugPrimitiveShape.LayerControlMask or DebugPrimitiveShape.HudScope;
 
         /// <summary>A screen panel (drawn by ImGui, not a map layer).</summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
