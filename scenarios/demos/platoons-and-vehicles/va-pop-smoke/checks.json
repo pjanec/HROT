@@ -58,14 +58,14 @@
       "before": "tow+30"
     },
     {
-      "name": "the tank backs out of sight behind the block (its own hide, ~257,155)",
+      "name": "the tank backs out of sight behind the block (its own hide there: ~258,164 live, ~257,156 at fixed step)",
       "on": "close",
       "who": "Tank",
       "point": [
-        257,
-        156
+        258,
+        160
       ],
-      "m": 6,
+      "m": 7,
       "after": "tow"
     },
     {
