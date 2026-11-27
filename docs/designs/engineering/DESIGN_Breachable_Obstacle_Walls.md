@@ -1,203 +1,178 @@
 <!--STATUS
 state: LIVE
-build-state: DESIGN — ⛔ NOT READY: the independent review (§9) found two blockers; §10 asks the user which way
-updated: 2026-11-27 (first version, unreal-ig)
-current-answer: §2 the decision · §3 the UML · §5 decisions with leans · §6 acceptance · §9 the review
-stale-below: nothing
+build-state: DESIGN (rev 2 — leans for the user's approval in §5; the independent review in §8)
+updated: 2026-11-27 (rev 2: a placed wall is a terrain-feature WALL; rev 1's segment design is HISTORY)
+current-answer: §2 the decision · §3 the UML · §5 decisions with leans · §6 acceptance · §7 claim table · §8 the review of rev 2
+stale-below: ⛔ HISTORY (rev 1, segments) — must NOT be quoted as the design
 known-rot: none
-known-conflict: DESIGN_City_Battle_Showcase.md D-6 ("removal mandatory, even as disappearing") — still true for every non-wall obstacle; for a WALL, R-11022 makes the removal per SEGMENT, never of the whole wall
+known-conflict: DESIGN_City_Battle_Showcase.md D-6 ("removal mandatory, even as disappearing") — still true for every non-wall obstacle; a WALL is breached in part (R-11022) · DESIGN_Terrain_Editor_UX.md TE-5 / R-4264 (drawn sandbag walls and jersey barriers are obstacle ENTITIES) — rev 2 proposes them as feature walls (D-1, the user's call)
 related-designs:
-  - DESIGN_Terrain_Editor_UX.md §5 TE-5 — OWNS the obstacle ROW tool (a drawn line = N obstacle entities, one PlacementGroup, R-4264 / R-5041); this makes a wall ALWAYS such a row
-  - DESIGN_Peek_And_Fire.md §9 / §9.9 — OWNS the static obstacle as terrain (the prism bake) and its destruction (ObstacleDamage, ObstacleRemovalSystem, CE-6003); unchanged, applied per segment
-  - DESIGN_Vehicle_Breaching.md — OWNS contact breaching (ram, blade, push; ContactBreach) and the terrain-wall breach record (BuildingDamage, D-1); this does NOT add obstacle walls to that record (rejected alternative A, §4)
-  - designs/group-maneuvers/DESIGN_City_Battle_Showcase.md D-6 — OWNS the roadblock drill (breach + bypass, removal); its macro's stretched sandbag walls become rows here
-  - designs/engineering/DESIGN_Bridge_Laying.md — OWNS the WalkableDeck obstacle kind; a deck is not a wall
-  - SimNetGateway docs/design/DD-035 — OWNS the Obstacle topic and the destroyed-before-dispose rule the gateway sends
+  - DESIGN_Vehicle_Breaching.md — OWNS contact breaching of walls (ram, push, the dozer's blade, B-D3 / B-D11, D-1: one record for buildings and free walls); used unchanged
+  - DESIGN_Terrain_Import_UTM.md §8 — OWNS the breach rule (BreachRule, breaches.json, Passage vs Hole); used unchanged
+  - DESIGN_Terrain_Authoring.md §18 — OWNS terrain features (TerrainFeature kind Wall, the overlay compile, the live overlay); a placed wall IS one
+  - docs/DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS road closure (RoadBlockage, P-2); this adds free walls to its blockers
+  - DESIGN_Terrain_Editor_UX.md §5 TE-5 — OWNS the obstacle tool (R-4264); D-1 changes what its wall types make
+  - DESIGN_Peek_And_Fire.md §9.9 — OWNS obstacle destruction (CE-6003); unchanged for the non-wall obstacles
+  - designs/group-maneuvers/DESIGN_City_Battle_Showcase.md D-6 — OWNS the roadblock drill; its roadblock content per D-4
+  - SimNetGateway docs/design/DD-035 (Obstacle topic) and Unreal's TerrainFeature ask — the client side; a TerrainFeature topic is a separate gateway design (D-6)
 -->
-# Breachable obstacle walls — a wall is a ROW of segments, breached in part, never removed whole
+# Breachable walls — a placed wall is a terrain-feature WALL, breached in part like every other wall
 
-🔒 **R-11022, user `2026-11-27`:** *"we do not want to remove the whole wall, it's a nonsense. A wall is always breached. Only in part. Never the whole
-wall disappears."* · on how: *"maybe we could build the breachable obstacle walls from individual segments as individual entities to be removed when
-breached, as another obstacles?"*
+🔒 **R-11022, user `2026-11-27`:** *"A wall is always breached. Only in part. Never the whole wall disappears."* · on rev 1's review: *"write a design
+first and run an independent review if it will work as we expect"*.
 
-## 1. INVENTORY — the queries run (`2026-11-27`, unreal-ig, graph indexed this session)
+## 1. INVENTORY — the queries run (`2026-11-27`)
 
 | query | total | found |
 |---|---|---|
-| `search_graph name_pattern ".*Breach.*" label Class` | 17 | the terrain-wall breach (`BuildingDamage.WallBreach`, `BreachRule`, `BreachTable`), contact (`ContactBreach`, `ContactBreachEvent`, `ContactBreachTable`), the wire (`DdsWallBreach`, `ContactBreachTranslators`), behaviours (`BreachDoorBehavior`, minefield breach) — ⇒ none breaches an OBSTACLE in part |
-| `… ".*Obstacle.*" label Class` | 25 | `StaticObstacle`, `ObstacleShape`, `TerrainObstacles` (`PrismOf`), `StaticObstacleBakeSystem`, `ObstacleDamage`, `ObstacleRemovalSystem`, `ObstacleTkbTranslator`, `ObstacleRowOptions` (the row tool), `ClearObstacleBehavior`, `WreckObstacleSystem` (+ unrelated SUMO / ORCA obstacles) |
-| `… ".*BladeCut.*" label Class` | 5 | `BladeCut` (terrain walls / trunks at a point) and its wire |
-| `… ".*WallGroup.*" label Class` | 1 | `WallGroups` (buildings + free-wall lines of the BASE terrain) |
-| grep `PlacementGroup` | 1 component | `Fdp.Toolkit.Terrain.PlacementGroup { uint Id }`, id 309, saved (CE-5008) |
-| content scan: obstacles in `scenarios/` + `macros/` | 240 + the macro | ⭐ sandbag walls (8807) appear ONLY in `macros/city-battle/roadblock` — two stretched to **4 m** (type 3 m); concrete blocks stretched to 6 m (type 2 m) there and in `roadblock-blast`; jersey barriers (8821): none; no obstacle carries a `PlacementGroup` |
+| `search_graph name_pattern ".*Breach.*" label Class` | 17 | `BuildingDamage.WallBreach`, `BreachRule`, `BreachTable`, `ContactBreach(+Event, Table)`, the wire (`DdsWallBreach`, `ContactBreachTranslators`), behaviours — the ONE wall-breach mechanism (buildings + free walls, Vehicle Breaching D-1) |
+| `… ".*Obstacle.*" label Class` | 25 | `StaticObstacle`, `ObstacleShape`, `ObstacleDamage`, `ObstacleRemovalSystem`, `StaticObstacleBakeSystem`, `ObstacleRowOptions`, `ClearObstacleBehavior` … |
+| `… ".*WallGroup.*"` / `.*BladeCut.*` | 1 / 5 | `WallGroups` (buildings + free-wall lines); `BladeCut` (the dozer's cut of a wall at a point) |
+| grep `RoadBlockage` | 1 caller | `BridgeClosureSystem.Recompute` (`:212`) — blockers: obstacle entities, craters, marked minefields |
+| grep `TerrainFeature.Wall` | expansion | `FeatureKinds.OfKind` (`FeatureKinds.cs:34-35`): a `wall` line part, material = `Template`, height = `Pad`, label `<entity guid>/0` |
+| grep `LiveOverlay` | 1 holder | the editor's bake (`EditorNodeBootstrapper.cs:396`); other hosts get the COMPILED overlay (`StorageProcessManager.CompileTerrainOverlay`, at save) |
+| `git grep TerrainFeature / 8818 -- macros` | 0 | ⚠ no macro carries a terrain feature today |
 
 ⚠ `check_index_coverage` is not available through the CLI — the absence claims rest on the graph plus grep.
 
 ## 2. The decision
 
-⭐ **A wall obstacle is never ONE entity: it is a ROW of segment entities** (the row tool's own result, R-4264), each an ordinary destructible
-obstacle. A blast, a ram, a blade or a push destroys the SEGMENTS it reaches; each is removed as any obstacle is (CE-6003), and the rest of the row
-stands ⇒ **a gap**. Nothing new decides a breach: the existing per-obstacle damage already falls off with distance (`ObstacleDamage.BlastDamage`)
-and the contact paths already hit the obstacle they touch.
+⭐ **A placed wall — a sandbag wall, a barrier line — is a terrain feature of kind `Wall`** (a polyline, material `sandbags` / `concrete`, its height),
+not an obstacle entity. It is expanded into free-wall PANELS like any authored or imported wall, so **every existing wall breach applies unchanged**:
 
-What changes is only WHERE a wall can be one entity:
-
-| | today | after |
+| what breaches it | the existing path | the gap |
 |---|---|---|
-| a wall type (sandbag wall, jersey barrier) longer than one segment | ⛔ one stretched entity (`ObstacleShape.Length` > the type's) — removed whole | ⭐ a ROW of segments of the type's length, one `PlacementGroup` |
-| the row tool | already makes rows | unchanged |
-| a stretched wall in content (the city-battle roadblock macro) | 4 m sandbag walls | converted to rows (2 × 2 m, or the segment length §5 D-3 sets) |
-| a non-wall obstacle (car, block, crate, barrels, booth, wreck) | one entity, removed whole | unchanged (City Battle D-6 stands for them) |
-| the gateway | an `Obstacle` per entity; a removed one is disposed | unchanged shape + the destroyed state before the dispose (Unreal ask 1) + the `PlacementGroup` id (so a client draws a row as one wall) |
+| a charge, a shell, a bomb | `AreaEffectSystem.BreachWalls` → `BreachRule` (scaled distance, the material's resistance) | by the charge; ⭐ a cut to the ground on a low wall is a Passage (CE-4599, `BreachRule.Classify`) |
+| a tank ramming / pushing | `ContactBreach` (B-D3: sandbags are a small barrier a heavy armoured hull drives through) | hull-wide (`CutAlong(… hull.Width + 2·CutMarginM)`) |
+| the bulldozer | the point order's blade cut (B-4, `BladeCut`) | blade-wide |
+
+The record is `BuildingDamage` of the wall's group (keyed by the feature's stable label, remapped by key across loads and re-sorts); the gateway
+already sends it (`BuildingDamage`, `wall:<label>`). ⭐ **The whole wall never disappears** — by construction: walls are only ever breached.
+
+What is ADDED (each small, each in an existing place):
+
+| # | addition | where |
+|---|---|---|
+| A-1 | ⭐ **road closure counts free walls**: the world's free-wall prisms (after the breach re-cut) join the blockers; recomputed when the world changes (a bake, a breach) | `RoadBlockage` (a new `AddFreeWalls(TerrainWorld, …)`), `BridgeClosureSystem.Recompute` |
+| A-2 | the obstacle tool's **wall types draw a feature wall** (a line), not N entities (D-1) | the terrain editor's obstacle tool (TE-5) |
+| A-3 | the roadblock content: a barrier line becomes a feature wall (D-4) | `scenarios/showcases/city-battle/features/roadblock-blast`, `macros/city-battle/roadblock` (per D-4) |
+| A-4 | Unreal draws the wall: the scenario's terrain features on DPS (D-6) | the gateway (its own design) |
 
 ## 3. UML
 
-### 3a. Classes — what exists (white) and what is added (★)
+### 3a. Classes — existing (plain) and added (★)
 
 ```mermaid
 classDiagram
-  class StaticObstacleDto { Length Width Height Material MaxHealth Kind ★Wall }
-  class StaticObstacle { Material Kind ★IsWall }
-  class ObstacleShape { Length Width Height }
-  class PlacementGroup { uint Id }
-  class ObstacleTkbTranslator
-  class WallSegments { ★Split(type, line) ★SegmentLength }
-  class ObstacleRowOptions { Place() }
-  class ObstacleDamage { BlastDamage() Damage() }
-  class ObstacleRemovalSystem
-  class StaticObstacleBakeSystem
-  class ObstacleGather { gateway }
-  ObstacleTkbTranslator ..> StaticObstacle : projects from the DTO
-  StaticObstacleDto ..> ObstacleTkbTranslator
-  ObstacleRowOptions ..> WallSegments : a wall line
-  WallSegments ..> PlacementGroup : one id per row
-  ObstacleDamage ..> ObstacleRemovalSystem : Health 0
-  ObstacleRemovalSystem ..> StaticObstacleBakeSystem : the set changed, rebake
-  ObstacleGather ..> PlacementGroup : ★ sends the row id
+  class TerrainFeature { Kind=Wall Template=material Pad=height }
+  class EditablePolyline { Points }
+  class FeatureKinds { OfKind() }
+  class TerrainWorld { Panels Prisms }
+  class BuildingDamage { group key breaches }
+  class BreachRule
+  class ContactBreach
+  class BladeCut
+  class RoadBlockage { Blockers() AddCraters() AddMinefields() ★AddFreeWalls() }
+  class BridgeClosureSystem { Recompute() }
+  TerrainFeature --> EditablePolyline
+  FeatureKinds ..> TerrainFeature : expands to a wall line
+  FeatureKinds ..> TerrainWorld : panels + prisms
+  BreachRule ..> BuildingDamage
+  ContactBreach ..> BuildingDamage
+  BladeCut ..> BuildingDamage
+  BuildingDamage ..> TerrainWorld : re-cut prisms
+  BridgeClosureSystem ..> RoadBlockage
+  RoadBlockage ..> TerrainWorld : ★ free-wall prisms
 ```
 
-*What the picture shows that prose could hide:* the only new behaviour is a SPLIT at authoring / load (`WallSegments`) and a flag on the type; the damage,
-removal and bake boxes are untouched — a breach is just several removals.
+*What the picture shows that prose hides:* the only new arrow is road closure reading the wall prisms; every breach arrow already exists.
 
-### 3b. A dozer meets a sandbag wall row
+### 3b. A dozer cuts a sandbag wall across a road
 
 ```mermaid
 sequenceDiagram
-  participant D as Dozer (ClearObstacle or a ram)
-  participant S2 as segment 2 of 5
-  participant R as ObstacleRemovalSystem
-  participant B as StaticObstacleBakeSystem
-  participant G as Gateway ObstacleGather
-  participant U as Unreal
-  D->>S2: ObstacleDamage.Damage (the segment the blade touches)
-  S2->>R: Health 0
-  R->>R: NetworkEntityDestroy (segment 2 only)
-  G->>U: EntityState Damage destroyed (segment 2)
-  G->>U: Obstacle 2 disposed
-  R->>B: obstacle set changed
-  B->>B: rebake world, cover, navmesh without segment 2
-  Note over D,B: segments 1, 3, 4, 5 stand - a 1-segment gap
+  participant D as Dozer (point order)
+  participant BC as BladeCut
+  participant BD as BuildingDamage
+  participant W as TerrainWorld re-cut
+  participant RC as BridgeClosureSystem
+  participant G as Gateway
+  D->>BC: cut at the wall point (blade width)
+  BC->>BD: a Passage on the wall's panel
+  BD->>W: the panel's prisms with the gap
+  W->>RC: a new world - recompute
+  RC->>RC: blockers incl. the free walls, the gap spans the road
+  RC->>RC: the road re-opens (SUMO, the road graph)
+  BD->>G: BuildingDamage wall-label (already sent)
 ```
 
-### 3c. Who runs it — every host that runs the obstacle systems already
+### 3c. Who runs it
 
 ```mermaid
 graph TD
-  CIC[CoreInfrastructureCapabilities.HealthApplication] --> HA[HealthApplicationSystem]
-  HA --> ORS[ObstacleRemovalSystem]
-  ETP[EntityCreationPack / every ECS host] --> SOB[StaticObstacleBakeSystem]
-  ED[Editor: row tool, scenario load] --> WS[WallSegments.Split]
-  LOAD[Scenario load: a stretched wall entity] -.->|D-2 lean: split at load| WS
+  ED[Editor: LiveOverlay] -->|expands features live| TW[TerrainWorld]
+  SAVE[Scenario save: OverlayCompiler] -->|compiled overlay| NODES[every other node: merged at load]
+  NODES --> TW
+  TW --> BCS[BridgeClosureSystem on every node with roads]
+  BCS --> RB[RoadBlockage + ★ AddFreeWalls]
 ```
 
-*Caption:* nothing new runs per frame. The split runs at authoring and, for old content, once at load (D-2).
+*Caption:* a node that has not been given the compiled overlay (a scenario never saved since its walls were drawn) has no wall — true for every
+feature today (§7 row ②).
 
 ## 4. Rejected alternatives (one line each)
 
-- **A — bake a placed wall as wall PANELS and reuse the terrain-wall breach record (`BuildingDamage`).** `BuildingDamage` stores the group index and GLOBAL
-  panel indices (`BuildingDamage.cs` `Building`, `Panel[]`), stable only because the base panels are never reordered (`StaticObstacles.cs:168`); obstacle
-  panels come and go at run time, so recorded / replicated / saved / replayed breaches would point at the wrong panel unless every reader resolved them
-  by key — a change to every damage reader and to replay, for one obstacle type.
-- **B′ — one wall entity with its own list of gaps, baked as the solid pieces between them.** A second breach mechanism beside the terrain one (ruling 9),
-  a new component, a new wire field and a new bake path — where a row of segments needs none of them.
+- **Segments** (rev 1): a dozer and a ram open ONE segment, orders name one entity, ids are wall-clock, placement leaves seams — rebuilding for obstacle
+  rows what feature walls already do (review §HISTORY).
+- **Obstacle walls as panels in `BuildingDamage`**: a dynamic panel set in a record indexed by panel; the key remap exists, but a feature wall already
+  IS that, with authoring, save and the overlay solved.
+- **One wall entity with a gap list**: a second breach mechanism (ruling 9).
 
 ## 5. Decisions — leans for the user's approval
 
 | # | question | ⭐ lean | why / what would change it |
 |---|---|---|---|
-| **D-1** | which types are WALLS | ⭐ a TKB flag `Wall` on `StaticObstacleDto`: **sandbag wall (8807) and jersey barrier (8821)**; every other obstacle stays one object | a car, a crate, a booth is one thing that breaks as a whole; sandbags and barriers are laid as lines |
-| **D-2** | a stretched wall entity (Length > the type's) | ⭐ **never authored** (the editor's stretch of a wall makes a row) **and split at load** for old content — once, into a row with a new `PlacementGroup`; the content converted and re-saved | a split at load keeps every old scenario working; converting the content makes the saved file what runs |
-| **D-3** | the segment length | ⭐ **1.5 m for both** (half the type's 3 m box; height / width unchanged) | the gap a blade or a hull makes is 3–4 m: 1.5 m segments give a 3 m gap from two segments, a 3 m segment a 3 or 6 m gap. Costs 2× the entities (a 12 m wall = 8). ⚠ The user's call: 3 m keeps today's type size and count |
-| **D-4** | Health per segment | ⭐ the type's `MaxHealth` × segment length ÷ type length (sandbags 300 per 3 m ⇒ 150 per 1.5 m) | a charge that breached 3 m of wall before breaches the same 3 m now |
-| **D-5** | what a client is told | ⭐ ① the gateway's destroyed-before-dispose rule, verified on obstacles (Unreal measured a rammed barrel vanish with no destroyed state — the mechanism is not measured yet); ② `PlacementGroup.Id` appended to the gateway's `Obstacle` topic; ③ the obstacle's kind (Unreal ask 2) appended as an enum | ① and ② make a breach look like a breach and a row draw as one wall; ③ spares the client a list of HROT type ids |
-| **D-6** | partial HEIGHT holes, a gap narrower than a segment | ⛔ not in v1 | sandbags and barriers are low; a segment is the smallest gap |
+| **D-1** | what the obstacle tool's *sandbag wall* and *jersey barrier* make | ⭐ a **feature wall** line (material `sandbags` / `concrete`, height 1.0 / 0.8 m, the types' sizes); the single 3 m PIECE stays placeable as an obstacle entity (a lone piece, removed whole, as today) | ⚠ it changes R-4264 for these two types (drawn ⇒ a wall, not entities) — the user's call. Keeping both ⇒ a drawn row of pieces still vanishes piece by piece |
+| **D-2** | road closure | ⭐ every FREE wall of the world (`Building == -1`), not only the overlay's | the rule is geometric (a wall across a road's full width); a base wall across a road is as closed |
+| **D-3** | wall thickness | ⭐ the material's (sandbags 0.6 m via the feature's thickness, set by the tool) | ⚠ `FeatureKinds` passes thickness 0 for `Wall` (= the parser's default) — to set |
+| **D-4** | the roadblock content | ⭐ `roadblock-blast`'s 6 × 1 × 1 m concrete barrier across the gate → a concrete feature wall; the city-battle macro's MG-nest sandbags (cover, off the road) → feature walls ONLY if macros can carry features (⚠ none does today — §8 to check) | the gate barrier is a barrier line (R-11022); MG-nest cover is a wall too |
+| **D-5** | which non-wall obstacles stay entities | ⭐ car, concrete block (a lone 2 m block), crate, barrels, booth, wreck — removed whole (D-6 of the city battle) | they are objects, not walls |
+| **D-6** | how Unreal sees the wall | ⭐ the scenario's terrain features on DPS — Unreal's open ask — as a gateway design of its own; the wall's label = the breach record's key, so the existing `BuildingDamage wall:<label>` cuts the drawn wall | without it Unreal sees the gaps of a wall it does not draw |
 
 ## 6. Acceptance — scenarios (R-4277)
 
 | scenario | expect rows (`checks.json`) |
 |---|---|
-| ⭐ **`va-dozer-breach-roadblock`** (new, `demos/navigation-and-terrain/`, Unreal ask 4) — a dozer on order breaches a 12 m sandbag wall row across a road; a jersey barrier row and a concrete block beside it | the segments in the blade's path end (≥ 1, ≤ 3); **the other segments of the row stand at the end**; the dozer passes the wall line; the concrete block stands (not on the path) |
-| `roadblock-blast` / the city-battle roadblock | a charge at the sandbag wall ends the segments within its reach and **not the whole row**; the street opens for infantry |
-| a tank rams a row | the segments its hull meets end; the rest stand |
+| ⭐ **`va-dozer-breach-wall`** (new, `demos/navigation-and-terrain/`, Unreal ask 4) — a 12 m sandbag feature wall across a road; a dozer on a point order; a car beyond | the wall gets a Passage at the cut (a `BuildingDamage` breach on its label); **the wall's other panels stand**; the dozer passes the wall line; the road was CLOSED before (a SUMO car stops) and OPENS after (the car passes) |
+| `roadblock-blast` (D-4) | the charge breaches the concrete wall at the gate in part; the street opens for infantry; the rest of the wall stands |
+| a tank rams a sandbag wall | a hull-wide Passage; the rest stands |
 
-Rails: `WallSegments.Split` (a 12 m line at 1.5 m ⇒ 8 segments end to end, one group id, the Health share); the load-time split of a stretched wall; the
-gateway's destroyed state before the dispose for an obstacle; `PlacementGroup` on the `Obstacle` topic.
+Rails: `RoadBlockage.AddFreeWalls` (a wall across a road closes it; a breach spanning the road's width re-opens it; a breach narrower than the road
+keeps it closed); the closure recomputes on a breach (a new world instance).
 
 ## 7. Claim table
 
 | the design rests on | code — how it IS | design basis — how it was MEANT |
 |---|---|---|
-| a drawn row is N obstacle entities with one group id | ✅ `ObstacleRow.cs` (CE-5008), `PlacementGroup.cs` | ✅ R-4264, R-5041, Terrain Editor UX §5 TE-5 |
-| each obstacle is damaged and removed on its own | ✅ `ObstacleDamage`, `ObstacleRemovalSystem.cs:41-46` | ✅ Peek and Fire §9.9, CE-6003 |
-| a blast's damage falls off per obstacle with its distance | ✅ `AreaEffectSystem.cs:333` → `ObstacleDamage.BlastDamage(kg, d)` | ✅ `ObstacleDamage` header (the scaled-distance form of the breach rule) |
-| a ram crushes the obstacle it touches | ✅ `ContactBreach.cs:419-427` — ONE obstacle per contact (`p.ObstacleIndex`) | ⚠ a hull wider than a segment touches two: measured in the acceptance, not before (§9) |
-| the dozer clears ONE ordered obstacle | ✅ `ClearObstacleBehavior.cs` (`p.Obstacle`, push per tick) | ⚠ an order naming a ROW clears one segment — §9 asks whether the order should name the row's segment on the dozer's path |
-| the gateway sends a destroyed state before the dispose | ⚠ DD-035 says so for decks and obstacles; ⛔ Unreal measured a barrel with none | ⛔ not measured why — D-5 ① |
-| sandbag walls exist only in the city-battle macro | ✅ content scan §1 | — |
+| a wall feature expands to a free-wall line of its material and height | ✅ `FeatureKinds.cs:34-35` | ✅ Terrain Authoring §18 |
+| free walls are breached in part by blast, ram, push and the blade | ✅ `BreachRule`, `ContactBreach` `:241, 308-320`, `BladeCut` | ✅ Vehicle Breaching D-1, B-D3, B-D7, B-4 |
+| a low wall cut to the ground is passable | ✅ `BreachRule.Classify` (CE-4599) | ✅ Vehicle Breaching V-6 |
+| feature-wall breach records survive loads / re-sorts by key | ✅ `RemapDamageEntities` (`TerrainResidency.cs:687-700`), `BuildingDamageSave.cs:85-161` (from rev 1's review) | ✅ CE-4427 R-4, CE-4599 |
+| road closure does not count walls today | ✅ `RoadBlockage.cs:23-31`, `BridgeClosureSystem.cs:212-214` | ✅ Road Blockage P-2 (obstacles, craters, minefields) |
+| a breach makes a NEW world whose free-wall prisms have the gap (what A-1 would read) | ⛔ **not measured** — sight and fire read breaches at QUERY time (B-D8); whether the prisms are re-cut, and when, decides how A-1 reads a gap | — ⇒ §8 to verify |
+| the closure recomputes when the world changes | ⚠ it recomputes on the obstacle signature, craters, minefields, decks, and re-judges the collapse table on a new world (`BridgeClosureSystem.cs:150-200`) — ⛔ a breach's new world alone does not set `changed` today | — ⇒ A-1 must add that trigger |
+| every node bakes the feature wall | ⚠ the editor live; others from the compiled overlay (at save) | ✅ Terrain Authoring §18c / O-8 |
+| sandbags breach easily, concrete hard | ✅ `materials.json`: sandbags 100, concrete 1500 mm RHA / m | — |
+| the gateway already sends free-wall breaches | ✅ `BuildingDamage` with `wall:<label>` (Unreal's roadblocks note §"Also") | ✅ DD-030 / T-075 |
 
-## 9. Independent review (`2026-11-27`, a fresh agent with the code, not this design's reasoning) — ⭐ the findings, as checked
+## 8. Independent review of rev 2
 
-Verdict: *"building a wall as a row of segment entities is sound and fits R-4264 and the one-mechanism rule … but not ready to build."*
+*(pending — a fresh agent checks this design against the code; its findings are folded here)*
 
-| # | severity | finding (evidence) | consequence for this design |
-|---|---|---|---|
-| R-1 | ⛔ blocker | a dozer and a ram open ONE segment: `ClearObstacleBehavior.Clear` targets one entity and succeeds when it is gone (`:148-152`); `ContactBreach` crushes one obstacle per contact, and its per-hull grace holds ONE key (`:164, 194, 255-256, 421-427`) — whereas a TERRAIN wall is cut blade- or hull-wide (`CutAlong(… hull.Width + 2·CutMarginM)`, `:241, 308-320`) | the claim *"the contact paths already open a usable gap"* is false; a cut-width rule over the row's segments and a row- or point-level dozer order would be needed |
-| R-2 | ⛔ blocker | this file had no §9 although §5 / §7 pointed at it | fixed by this section |
-| R-3 | important | D-4 is false: `ObstacleDamage.BlastDamage` depends on kg and distance only (`ObstacleDamage.cs:36-43`), so halving Health WIDENS the gap | segment Health must be derived from the gap wanted at a charge, and railed |
-| R-4 | important | the content premise is wrong: the macro's two 4 m sandbag walls are MG-nest cover 14 m off the road; `roadblock-blast` holds a 6 × 1 × 1 m CONCRETE barrier, which R-11022's "barrier line" arguably covers | D-1 and the acceptance rows must be redone |
-| R-5 | important | the row tool spaces boxes (`Gap` default 1.5 m, `ObstacleRow.cs:48, 57`) and leaves wedges / overlaps at bends (`LinePlaces.cs:27-37`) | a continuous wall needs a new placement with bend handling and seam / bend rails for sight and the navmesh |
-| R-6 | important | `PlacementGroup` has no wire descriptor, so the gateway cannot see it | a new descriptor (and whether ghost promotion waits for it) |
-| R-7 | important | `PlacementGroup.NewId()` is the WALL CLOCK (✅ verified, `PlacementGroup.cs:18-27`): a load-time split differs per load and per node; roadblock members are transient macro members (`MacroTypes.cs:51-62`) | deterministic ids from the source key; the macro's local keys and bindings for N segments |
-| R-8 | important | orders name ONE entity (`ClearObstacleOrder.Obstacle`, the City Battle company call) | a row / point order shape; a row index in the serial pre-pass (D-26) |
-| R-9 | minor | removals within the bake's 0.5 s quiet period coalesce (`StaticObstacleBake.cs:60, 75-81, 223-227`); each bake rebuilds the world + the whole cover database; O(N) per-frame signature and gateway gather | negligible at today's counts; say it |
-| R-10 | minor | alternative A's rejection was overstated: a KEY-based remap already exists (`RemapDamageEntities`, `TerrainResidency.cs:687-700`; `BuildingDamageSave.cs:85-161`), and authored terrain-feature `Wall` lines (`TerrainBlock.cs:37`, kind 2) ARE already breached in part | ⭐ see §10 — this opens a third option |
+## ⛔ HISTORY — rev 1 (segments), withdrawn `2026-11-27`
 
-Not verified by the review: bake times, navmesh / sight leaks through a seam, how `checks.json` resolves a name shared by segments, the dozer's width, why
-Unreal saw no destroyed state, whether terrain-block walls reach cluster nodes outside the editor.
-
-## 10. ⭐ What the review changes — a third option, for the user
-
-R-10 shows that a breachable wall ALREADY EXISTS as authored content: a scenario terrain feature of kind **Wall** (a polyline, `EditablePolyline`;
-label `<entity guid>/<i>`) is expanded into wall PANELS of the scenario's overlay, so blasts (`BreachRule`), rams, pushes and the dozer's blade-wide
-POINT cut (B-4) breach it in part through `BuildingDamage`, and the key remap keeps its records right across loads and re-sorts. ⇒ the segment
-approach would rebuild, for obstacle rows, what feature walls already do (R-1, R-5, R-8 are all solved there).
-
-| option | reuse | what is missing |
-|---|---|---|
-| **segments** (§2) | removal, bake | R-1, R-3, R-5 … R-8: a cut-width rule, a row order, continuous placement, a wire descriptor, deterministic ids |
-| ⭐ **feature walls** — a sandbag wall / a barrier line is drawn as a terrain-feature WALL with that material and height | the whole terrain-wall breach (blast, ram, push, blade point cut), the key remap, the gateway's `BuildingDamage wall:<label>` | ① **to measure**: does a feature wall block road traffic (SUMO) and routes like an obstacle entity (R-4264's reason for entities); does every node bake it (the overlay); ② the WALL ITSELF does not reach Unreal yet — Unreal's open `TerrainFeature` ask ([NOTE_UnrealIg_To_UiIntegration_Scenario_Terrain_Features.md](../../blueprints/batches/NOTE_UnrealIg_To_UiIntegration_Scenario_Terrain_Features.md)) has to be answered either way; ③ the city-battle macro's walls / barriers become feature walls (macros already carry features: kind 9 / 10 / 16 in the bl-* and Stechovice scenarios) |
-
-⭐ Lean (pending ① measured): **feature walls** — one breach mechanism for every wall, built-in, authored or placed; the segment approach is withdrawn
-if ① holds. R-4264 (drawn obstacles are entities) stays true for the non-wall obstacles.
-
-### 10a. ① and ② measured (`2026-11-27`)
-
-| question | measured | consequence |
-|---|---|---|
-| ① does a feature wall close a road for traffic like an obstacle entity? | ⛔ **no.** `RoadBlockage` (CE-4590, the ONE road-closure geometry for SUMO's lanes and our road graph) takes the footprints of ACTIVE static obstacle ENTITIES (`RoadBlockage.cs:23-31`), crater bowls (CE-4591) and marked minefields (CE-4624) — no terrain wall | ⭐ a small, one-place addition: the overlay's free-wall prisms (after the breach re-cut, so a gap is a gap) join the blockers, recomputed when the wall damage changes. A road then closes under a wall and re-opens when a breach spans its width — the existing closure rule |
-| ② does every node bake feature walls? | ⚠ **the editor live, the others from the COMPILED overlay.** `LiveOverlay` is held only by the editor's bake (`EditorNodeBootstrapper.cs:396`; its doc: *"on every other host a block is inert data (the compiled overlay reaches those at load)"*); the overlay is compiled at SAVE (`StorageProcessManager.CompileTerrainOverlay`, `:225-240`), kept by hash for recordings (O-8), re-compiled after a re-import (AQ112 C) | ✅ every node of a SAVED scenario has the walls; ⚠ the compiled folder is git-ignored, so a scenario fresh from git reaches cluster nodes without its walls until it is saved once — the same for every feature today (bridges, water), not new here |
-
-⭐ **Lean, with ① and ② measured: feature walls**, plus (a) `RoadBlockage` counts overlay free walls, (b) the city-battle roadblock macro's walls / barrier
-lines become feature walls, (c) Unreal's `TerrainFeature` topic (its open ask) so the client draws the wall and, from the existing `BuildingDamage`
-`wall:<label>`, its gaps. The segment approach (§2–§8) is withdrawn if the user agrees.
-
+Rev 1 made a wall a ROW of 1.5 m obstacle entities, each removed when destroyed. Its independent review found two blockers — a dozer and a ram open
+only ONE segment (`ClearObstacleBehavior.cs:148-152`, `ContactBreach.cs:255, 421-427`) and the referenced review section was missing — and seven
+important findings: the segment-Health rule was false (`ObstacleDamage.BlastDamage` ignores size), the content premise was wrong (the macro's
+sandbags are MG cover; `roadblock-blast` holds a concrete barrier), the row tool spaces boxes and leaves bend wedges, `PlacementGroup` is not
+replicated and its id is the wall clock, orders name one entity. It also showed that authored feature walls already breach in part — which rev 2 builds on.
