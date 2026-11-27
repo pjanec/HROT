@@ -22,6 +22,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             w.RegisterComponent<DeviceInfo>();
             w.RegisterComponent<PossessedBy>();
             w.RegisterComponent<OperatorInput>();
+            w.RegisterComponent<DeviceInput>();
             w.RegisterComponent<PersonCarrier>();
             w.RegisterComponent<CarrierSeats>();
             w.RegisterComponent<CarrierStations>();
@@ -77,13 +78,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             var d = Device(w);
             Carry(w, man, d, 3);
             DeviceOperators.Sync(w, d);
-            w.AddComponent(d, new OperatorInput { Seq = 42 });
+            w.AddComponent(d, new DeviceInput { Seq = 42 });
 
             w.SetComponent(man, new PossessedBy { StationNodeId = Seven, Mode = PossessionMode.Fps, Epoch = 2 });   // another player takes the man
             DeviceOperators.Sync(w, d);
             Assert.Equal(Seven, w.GetComponentRO<PossessedBy>(d).StationNodeId);
             Assert.Equal(2u, w.GetComponentRO<PossessedBy>(d).Epoch);
-            Assert.False(w.HasComponent<OperatorInput>(d));                    // the new station starts clean (no phantom press)
+            Assert.False(w.HasComponent<DeviceInput>(d));                      // the new station starts clean (no phantom press)
 
             w.RemoveComponent<PossessedBy>(man);                               // nobody holds the man
             DeviceOperators.Sync(w, d);
@@ -139,6 +140,44 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(w.HasComponent<PossessedBy>(d));      // ...the device row is NOT (no clear of its logic)
             DeviceOperators.Sync(w, d);
             Assert.False(w.HasComponent<PossessedBy>(d));     // the walk removes it: nobody's body operates it now
+        }
+
+        /// <summary>⭐ S1b-2 (§3.4, D-72) — a control frame aimed at an operated device, from ITS station, becomes the device's own input — on a PAUSED
+        /// frame too (the device tick runs every frame); another station's frame is ignored; an older Seq never overwrites; the body's frame / input are untouched (their recorded layout is pinned). 🔴 Mutation: the ingest drops the HeldBy check ⇒ station 7's frame lands.</summary>
+        [Fact]
+        public void S1b2_ADeviceTakesItsOperatorsFrame_EvenPaused_AndNoOtherStationsFrame()
+        {
+            using var w = World();
+            var registry = new BehaviorRegistry();
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+            var tick = new DeviceTickSystem(registry, ingress);
+            if (!w.Bus.IsRegistered<DeviceFrameEvent>()) w.Bus.Register<DeviceFrameEvent>();
+            var man = Man(w, Five);
+            var d = Device(w);
+            w.SetAuthority<BehaviorState>(d, true);
+            Carry(w, man, d, 3);
+            tick.Execute(w, 0f);   // the walk writes the row
+
+            DeviceFrameEvent Frame(StationId from, uint seq, byte press)
+            {
+                var f = new DeviceFrameEvent { Device = d, StationNodeId = from, Seq = seq };
+                f.Control.Presses[2] = press;
+                f.Control.Axes[0] = 0.5f;
+                return f;
+            }
+            w.Bus.Publish(Frame(Five, 4, 1));
+            w.Bus.Publish(Frame(Seven, 9, 7));   // another station: not the device's operator
+            w.Bus.SwapBuffers();
+            tick.Execute(w, 0f);                 // a paused frame
+            var input = w.GetComponentRO<DeviceInput>(d);
+            Assert.Equal(4u, input.Seq);
+            Assert.Equal((byte)1, input.Control.Presses[2]);
+            Assert.Equal(0.5f, input.Control.Axes[0]);
+
+            w.Bus.Publish(Frame(Five, 3, 9));    // an older frame
+            w.Bus.SwapBuffers();
+            tick.Execute(w, 0f);
+            Assert.Equal(4u, w.GetComponentRO<DeviceInput>(d).Seq);
         }
     }
 }

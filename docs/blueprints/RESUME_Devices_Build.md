@@ -22,7 +22,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | HUD mockups (6 panels) | ✅ | `32d3f2432` — `docs/designs/devices/mockups/devices-hud.svg` |
 | **S1a** device tick (`DeviceTickSystem` = a `BrainTickSystem` subclass, `DeviceInfo` id 219) | ✅ | `563651aa7` — 6 rails |
 | **S1b-1** the operator: `PossessionMode.Operated`, `DeviceOperators` (the walk, run by the device pre-pass), possession's release paths and frame loop skip `Operated` | ✅ | `DeviceOperatorTests` (4, red-proved) |
-| S1b-2 the control frame's device fields + the device ingest (in `DeviceTickSystem`) | ⏳ | — |
+| **S1b-2** device frames: `DeviceControl` (axes, press counters, trackers, body offset, Viewed) in its OWN `DeviceFrameEvent` (event id 5204) → `DeviceInput` (component id 228), ingested by the device tick; `PossessionSystem.ApplyFrame` the one body routine | ✅ | rail red-proved; ⚠ deviation: not in the body frame (CE-11027 pins its recorded layout) |
 | S1b-3 kit carry stations + `MountKinds.Device` + `DevicePose` | ⏳ | — |
 | S1c the rangefinder: `LaserPointing{Power}` / `LaserSpot` / `LaserSpotSystem` / `DevicePanel` / the device folder | ⏳ | — |
 | S1d the HUD to the mockups: `HudScope`, `BeginScope`/`EndScope`, bound-view draw, binoculars device replaces CE-1219 | ⏳ | — |
@@ -34,4 +34,5 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⛔ A lambda capturing a LOCAL in a per-frame method allocates its closure on every entry (32 B/frame, S1a) — build such things in their own method.
 - A refused start must not be retried every frame (string + allocation).
 - `CgfLogicPackTests` counts the CGF pack's systems — adding a system updates three counts.
+- ⛔ Never add a field to `OperatorControlFrameEvent` / `OperatorInput` / `PossessedBy` / the possession events: `PossessionReplicationTests` pins their recorded layout hashes (old recordings must replay). New data = a new event / component.
 - The composition snapshots (`TheHostCompositionIsFrozenTests`) were stale before this work — CE-4710; do not chase them.

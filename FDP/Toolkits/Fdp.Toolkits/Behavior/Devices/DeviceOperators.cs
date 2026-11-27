@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Behavior.Devices
     /// mounted in (a vehicle's device station — §3q). The device's row names the station that holds that operator's BODY (its Fps / Riding hold —
     /// <see cref="StationBody.IsBodyMode"/>), or the device has no row. ⭐ Run by the device tick's serial pre-pass every frame on the device's
     /// brain owner, so the station never computes it: it reads the replicated row (R7-1), and the existing <c>HeldBy</c> gate authorises its frames.
-    /// A change of operator bumps <see cref="PossessedBy.Epoch"/> and clears the old <see cref="OperatorInput"/> — <c>Possess</c>'s own rule.
+    /// A change of operator bumps <see cref="PossessedBy.Epoch"/> and clears the old <see cref="DeviceInput"/> — <c>Possess</c>'s own rule.
     /// </summary>
     public static class DeviceOperators
     {
@@ -43,6 +43,11 @@ namespace Fdp.Toolkit.Behavior.Devices
             return StationBody.IsBodyMode(held.Mode) ? held.StationNodeId : null;
         }
 
+        private static void ClearInput(EntityRepository w, Entity device)
+        {
+            if (w.IsComponentTypeRegistered<DeviceInput>() && w.HasComponent<DeviceInput>(device)) w.RemoveComponent<DeviceInput>(device);
+        }
+
         /// <summary>Writes the device's row (see the class summary). Serial, on the device's brain owner. Changes only when the operator's station changes.</summary>
         public static void Sync(EntityRepository w, Entity device)
         {
@@ -54,14 +59,14 @@ namespace Fdp.Toolkit.Behavior.Devices
             {
                 if (!has) return;
                 w.RemoveComponent<PossessedBy>(device);
-                if (w.IsComponentTypeRegistered<OperatorInput>() && w.HasComponent<OperatorInput>(device)) w.RemoveComponent<OperatorInput>(device);
+                ClearInput(w, device);
                 return;
             }
             if (has && w.GetComponentRO<PossessedBy>(device).StationNodeId == s) return;   // same operator's station: nothing to write
             uint epoch = has ? w.GetComponentRO<PossessedBy>(device).Epoch + 1 : 1;
             var row = new PossessedBy { StationNodeId = s, Mode = PossessionMode.Operated, Epoch = epoch };
             if (has) w.SetComponent(device, row); else w.AddComponent(device, row);
-            if (w.IsComponentTypeRegistered<OperatorInput>() && w.HasComponent<OperatorInput>(device)) w.RemoveComponent<OperatorInput>(device);   // the new station starts clean
+            ClearInput(w, device);   // the new station starts clean
         }
     }
 }

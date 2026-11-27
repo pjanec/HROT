@@ -342,6 +342,15 @@ frame (R7-1 — the station reads the replicated row; the existing `HeldBy` gate
 `Operated` row (ReleaseStation, ReleaseDeparted, ReleaseKilled, ReleasePossessionEvent) and never applies its frames (the device tick will, S1b-2).
 Rails: `DeviceOperatorTests` (4; the release guard red-proved).
 
+⭐ **S1b-2 AS BUILT (`2026-11-27`)** — ⚠ **Deviation from R3-2 / R3-5, measured:** the device section is NOT added to the body's
+`OperatorControlFrameEvent` / `OperatorInput` — their recorded layout hashes are PINNED so earlier recordings replay (CE-11027,
+`PossessionReplicationTests`; adding a field changed them and `SchemaValidator` refuses a changed event). ⇒ ONE `DeviceControl` (4 axes, 16 press
+counters, tracker orientation / position + present-flags, body offset, `Viewed`) travels in its OWN `DeviceFrameEvent` (event id 5204) into its OWN
+`DeviceInput` (component id 228) on the device; the device tick ingests it every frame (the `HeldBy` gate, `Operated`, newest `Seq`); a change of
+operator clears it. `ViewedDevice` on the unit frame is replaced by the device frame's `Viewed` flag — the body's brain reads its carried binoculars
+device's `DeviceInput` (a cross-entity read of another phase: allowed). `PossessionSystem.ApplyFrame` is now the ONE body frame-apply routine.
+Local until SD-C (the interaction transport carries no device frame yet). Rails: `DeviceOperatorTests.S1b2_…` (red-proved).
+
 ### 3.6 Views and the HUD
 
 | # | decision | why / evidence |

@@ -946,6 +946,9 @@ namespace Fdp.Core
         /// runs. ⚠ 219 is a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> on coordinator 2026-11-27 (the lane blocks are full).</summary>
         public const int DeviceInfo = 219;
 
+        /// <summary><c>DeviceInput</c> — ⭐ Simulated devices S1b-2: the newest frame a device took. ⚠ 228, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-27).</summary>
+        public const int DeviceInput = 228;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;

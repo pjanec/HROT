@@ -64,6 +64,19 @@ namespace Fdp.Toolkit.Behavior.Devices
                 if (_ingress.AssignNow(repo, e, name, "{}", BehaviorOrigin.Self)) { Starts++; _refusedAtInstance.Remove(e.Index); }
                 else _refusedAtInstance[e.Index] = b.InstanceId;
             }
+            // ⭐ S1b-2 — the DEVICE INGEST (D-72): this frame's device frames aimed at a device this node runs, sent by the station its row names
+            //   (the existing HeldBy gate, PossessionMode.Operated); the newest Seq becomes the device's own DeviceInput. Every frame, so a press in
+            //   pause reaches the device, and each frame is read once.
+            if (repo.Bus.IsRegistered<DeviceFrameEvent>() && repo.IsComponentTypeRegistered<DeviceInput>() && repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
+                foreach (ref readonly var f in repo.ReadEvents<DeviceFrameEvent>())
+                {
+                    if (!DeviceMarker.IsDevice(repo, f.Device) || !Fdp.Toolkit.Behavior.Possession.PossessionSystem.OwnsBrain(repo, f.Device)) continue;
+                    if (!Fdp.Toolkit.Behavior.Possession.PossessionSystem.HeldBy(repo, f.Device, f.StationNodeId)) continue;
+                    if (repo.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(f.Device).Mode != Fdp.Toolkit.Behavior.Possession.PossessionMode.Operated) continue;
+                    if (repo.HasComponent<DeviceInput>(f.Device) && f.Seq <= repo.GetComponentRO<DeviceInput>(f.Device).Seq) continue;
+                    var input = new DeviceInput { Seq = f.Seq, Control = f.Control };
+                    if (repo.HasComponent<DeviceInput>(f.Device)) repo.SetComponent(f.Device, input); else repo.AddComponent(f.Device, input);
+                }
             return true;
         }
 

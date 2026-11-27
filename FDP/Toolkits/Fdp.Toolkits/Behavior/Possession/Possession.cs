@@ -33,6 +33,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         public const int ControlFrame = 5202;
         /// <summary>⭐ CE-11027 S12-3 — 5203 (free by a census of every <c>[EventId]</c> in the tree, <c>2026-11-21</c>).</summary>
         public const int ReleaseStation = 5203;
+        /// <summary>⭐ Simulated devices S1b-2 — a station's frame for ONE device it operates (<c>DeviceFrameEvent</c>).</summary>
+        public const int DeviceFrame = 5204;
     }
 
     /// <summary>
@@ -262,19 +264,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                     var frameMode = repo.GetComponentRO<PossessedBy>(f.Unit).Mode;
                     if (frameMode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
                     if (frameMode == PossessionMode.Operated) continue; // ⭐ devices S1b-1 — a device's frame is the device tick's (every frame, D-72)
-                    if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) continue;
-                    var input = new OperatorInput
-                    {
-                        Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
-                        Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
-                        ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
-                        UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
-                        Lean = f.Lean,                                                     // ⭐ CE-1212
-                        Binoculars = f.Binoculars,                                         // ⭐ CE-1219
-                        LookFrom = f.LookFrom, LookDir = f.LookDir, FirePref = f.FirePref, // ⭐ CE-4143
-                    };
-                    if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
-                    else repo.AddComponent(f.Unit, input);
+                    ApplyFrame(repo, in f);   // ⭐ devices S1b-2 — the ONE frame-apply routine (the device tick calls it too)
                 }
 
             if (repo.Bus.IsRegistered<ReleasePossessionEvent>())
@@ -389,6 +379,25 @@ namespace Fdp.Toolkit.Behavior.Possession
                 });
         }
 
+        /// <summary>⭐⭐ Devices S1b-2 — THE frame-apply routine, for a unit AND a device: the newest frame by <c>Seq</c> becomes the target's own
+        /// <see cref="OperatorInput"/>. The caller authorises (the brain's owner, <c>HeldBy</c> the sending station) — and nothing else applies a frame.</summary>
+        public static void ApplyFrame(EntityRepository repo, in OperatorControlFrameEvent f)
+        {
+            if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) return;
+            var input = new OperatorInput
+            {
+                Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
+                Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
+                ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
+                UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
+                Lean = f.Lean,                                                     // ⭐ CE-1212
+                Binoculars = f.Binoculars,                                         // ⭐ CE-1219
+                LookFrom = f.LookFrom, LookDir = f.LookDir, FirePref = f.FirePref, // ⭐ CE-4143
+            };
+            if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
+            else repo.AddComponent(f.Unit, input);
+        }
+
         /// <summary>⭐ Devices S1b-1 — an <see cref="PossessionMode.Operated"/> row is the device tick's (<c>DeviceOperators.Sync</c>): the possession core never releases it.</summary>
         private static bool IsOperatedRow(EntityRepository repo, Entity unit)
             => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).Mode == PossessionMode.Operated;
@@ -405,7 +414,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             => repo.IsComponentTypeRegistered<PossessedBy>() && repo.HasComponent<PossessedBy>(unit)
                 ? repo.GetComponentRO<PossessedBy>(unit).StationNodeId : null;
 
-        private static bool HeldBy(EntityRepository repo, Entity unit, int station)
+        internal static bool HeldBy(EntityRepository repo, Entity unit, int station)
             => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station;
 
         /// <summary>This node runs <paramref name="unit"/>'s brain — it applies possession events about it (the interaction codecs
