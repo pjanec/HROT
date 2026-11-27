@@ -179,8 +179,8 @@
   <rect x="504" y="920" width="442" height="44" rx="4" class="compn"/>
   <text x="512" y="939" class="mono">LaserSpot ★</text><text x="600" y="939" class="s">≤4 points + the Entity hit — by the MUSCLE</text>
   <text x="512" y="956" class="s">replicated · recorded · Preview when written in pause</text>
-  <text x="504" y="990" class="s">One FOLDER per device type: params DTO, state struct, logic</text>
-  <text x="504" y="1007" class="s">(action), HUD projector, PanelOut, message DTOs — side by side.</text>
+  <text x="504" y="990" class="mono">FireControl ★</text><text x="604" y="990" class="s">Ready · Target · AimPoint · LaunchSeq (S4/S7)</text>
+  <text x="504" y="1007" class="s">— read by the weapon's ONE controller, who fires; no channel</text>
 
   <!-- systems -->
   <rect x="980" y="462" width="262" height="160" rx="6" class="ex"/>
