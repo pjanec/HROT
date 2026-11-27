@@ -101,5 +101,14 @@ namespace CarKinem.Core
         /// <summary>⭐ <c>CE-11057</c> — the SIM SECONDS the current frustration episode has spent below the speed rule (beside <see cref="Ticks"/>, which
         /// counts frames): the watchdog decides on this (<c>NavigationExecutionSystem.FrustrationLimitSeconds</c>), so a live step and a fixed one agree.</summary>
         public float SlowSeconds;
+
+        /// <summary>⭐ <c>CE-11076</c> — the SIM SECONDS a point move has waited for its path with none yet (no trajectory, standing): not frustration
+        /// (nothing has blocked it), so the watchdog re-asks every <c>NavigationExecutionSystem.PathRetrySeconds</c> and gives up only after
+        /// <c>PathWaitLimitSeconds</c>. Appended.</summary>
+        public float PathWaitSeconds;
+
+        /// <summary>⭐ <c>CE-11076</c> — seconds before a move that FAILED unreachable may re-plan again on a navmesh change (CE-4674): a mesh that
+        /// changes every frame (a live overlay bake) re-planned it every solver run. Appended.</summary>
+        public float UnreachableReplanCooldown;
     }
 }

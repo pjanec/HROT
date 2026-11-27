@@ -414,5 +414,39 @@ namespace Fdp.Toolkit.Navigation.Tests
             roadNet.Dispose();
             pool.Dispose();
         }
+    
+        /// <summary>
+        /// ⭐⭐ <c>CE-11076</c> ② — a run over its wall budget CARRIES the requests it did not reach to the next run, which answers them first; with no
+        /// budget (a stepped run, R-3035) every request is answered at once; a new timeline (a load) drops what was carried. 📐 stechovice-battle live:
+        /// one unreachable request cost 80–270 ms and the host discarded the whole timed-out run. 🔴 Red-proof: answer every request whatever the
+        /// budget (drop the <c>OverBudget</c> test) ⇒ nothing is carried ⇒ red; carry without answering the carried first ⇒ the second run answers 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11076_ARunOverItsBudget_CarriesTheRest_AndTheNextRunAnswersThem()
+        {
+            using var pool = new TrajectoryPoolManager();
+            var solver = new PathfindingSolverSystem(default, pool);
+            int Run(double budgetMs, int epoch)
+            {
+                using var _ = ModuleRunContext.Enter(budgetMs, epoch);
+                _world.Bus.SwapBuffers();
+                solver.Execute(_world, 0.1f);
+                ((EntityCommandBuffer)((ISimulationView)_world).GetCommandBuffer()).Playback(_world);
+                _world.Bus.SwapBuffers();
+                return _world.Bus.Read<PathfindingResultEvent>().Length;
+            }
+            for (int i = 0; i < 5; i++) _world.Bus.Publish(new PathfindingRequestEvent { RequestId = ((long)i << 32) | 1, End = new Vector3(10f, 0f, 0f) });
+
+            Assert.Equal(0, Run(budgetMs: 1e-9, epoch: 0));        // the budget is spent before the first: all five carried, none dropped
+            Assert.Equal(5, solver.CarriedCount);
+            Assert.Equal(5, Run(budgetMs: 0, epoch: 0));           // no budget (stepped): the carried five answered
+            Assert.Equal(0, solver.CarriedCount);
+
+            for (int i = 0; i < 3; i++) _world.Bus.Publish(new PathfindingRequestEvent { RequestId = ((long)i << 32) | 2 });
+            Assert.Equal(0, Run(budgetMs: 1e-9, epoch: 0));
+            Assert.Equal(3, solver.CarriedCount);
+            Assert.Equal(0, Run(budgetMs: 0, epoch: 1));           // a new timeline: the carried requests are about a world that is gone
+            Assert.Equal(0, solver.CarriedCount);
+        }
     }
 }

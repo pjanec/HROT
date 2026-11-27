@@ -239,6 +239,50 @@ namespace Fdp.ModuleHost.Tests
             kernel.Dispose(); world.Dispose();
         }
 
+        /// <summary>A background module that records the wall budget the host gave its run.</summary>
+        [TickMode(TickPolicy.WhenTimeAdvances)]
+        private sealed class BudgetProbe : IEcsModule
+        {
+            public double Seen = -1;
+            public int Runs;
+            public string Name => nameof(BudgetProbe);
+            public ExecutionPolicy Policy => ExecutionPolicy.SlowBackground(10).WithTimeout(80);
+            public void Tick(ISimulationView view, float deltaTime)
+            {
+                Volatile.Write(ref Seen, ModuleRunContext.WallBudgetMs);
+                Interlocked.Increment(ref Runs);
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11076</c> — the host tells a background run its own wall budget (half its timeout) when the frame is LIVE, and NONE (0) on a
+        /// stepped frame (R-3035: a stepped run never depends on the wall clock); outside a run there is none either. 🔴 Red-proof: pass the budget
+        /// on a stepped frame too (drop the <c>deterministic ? 0</c>) ⇒ the stepped run sees 40 ⇒ red.
+        /// </summary>
+        [Theory]
+        [InlineData(TimeMode.Continuous, 40.0)]
+        [InlineData(TimeMode.Deterministic, 0.0)]
+        public void CE11076_ABackgroundRun_IsToldItsBudget_LiveOnly(TimeMode mode, double expected)
+        {
+            var world = new EntityRepository();
+            world.RegisterComponent<GlobalTime>();
+            world.SetSingletonUnmanaged(new GlobalTime());
+            var kernel = new ModuleHostKernel(world, new EventAccumulator());
+            var clock = new ScriptedClock { Mode = mode };
+            kernel.SetTimeController(clock);
+            var module = new BudgetProbe();
+            kernel.RegisterModule(module);
+            kernel.InitializeForTest();
+
+            for (int i = 0; i < 6 && Volatile.Read(ref module.Runs) == 0; i++) { Frame(kernel, clock, 0.1f); Thread.Sleep(20); }
+            Frame(kernel, clock, 0.1f);
+
+            Assert.True(Volatile.Read(ref module.Runs) > 0);
+            Assert.Equal(expected, Volatile.Read(ref module.Seen));
+            Assert.Equal(0.0, ModuleRunContext.WallBudgetMs);   // nothing leaks out of the run
+            kernel.Dispose(); world.Dispose();
+        }
+
         /// <summary>A background module slower than its own timeout: each run waits, then creates one entity through its command buffer.</summary>
         [TickMode(TickPolicy.WhenTimeAdvances)]
         private sealed class SlowerThanItsTimeout : IEcsModule
