@@ -20,7 +20,7 @@
 
   <rect width="1680" height="1180" fill="#fafafa"/>
   <text x="24" y="38" font-size="24" font-weight="700" fill="#102027">Simulated devices — the planned architecture</text>
-  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (§2 rev 8, §3f–§3t) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
+  <text x="24" y="60" class="s">docs/designs/devices/DESIGN_Simulated_Devices.md (rev 11: §2, §3f–§3y) · editor configuration = all three node boxes are ONE process; cluster = separate nodes</text>
   <!-- legend -->
   <g transform="translate(1110,22)">
     <rect x="0" y="0" width="16" height="12" class="new"/><text x="22" y="11" class="s">new</text>
@@ -49,8 +49,8 @@
   <text x="48" y="311" class="s">• OperatedBy = the crew seat that runs it</text>
   <text x="48" y="328" class="s">• StartWith = the type that starts in it</text>
   <text x="48" y="345" class="s">  (a weapon, a device, or a soldier for a crew seat)</text>
-  <text x="48" y="362" class="s">• a soldier type: Hands / Back + Kit1…4 (devices)</text>
-  <text x="48" y="379" class="s">  (Accepts Carried) — StartWith a rifle or a device</text>
+  <text x="48" y="362" class="s">• a soldier type: Hands / Back + Kit1…4 (devices, SD-S1)</text>
+  <text x="48" y="379" class="s">  Kit Accepts Device — StartWith a rifle or a device</text>
 
   <rect x="36" y="398" width="388" height="92" rx="6" class="ex"/>
   <text x="48" y="418" class="h2">Scenario</text>
@@ -60,7 +60,7 @@
 
   <rect x="36" y="502" width="388" height="70" rx="6" class="ex"/>
   <text x="48" y="522" class="h2">At creation (TKB translator)</text>
-  <text x="48" y="542" class="s">device entity + Mountable + TicksInPause + its behaviour,</text>
+  <text x="48" y="542" class="s">device + Mountable + DeviceInfo + its behaviour (set here),</text>
   <text x="48" y="559" class="s">boarded into its Station (Embarkation — as a weapon is)</text>
 
   <!-- ================= MOUNTING (left bottom) ================= -->
@@ -93,8 +93,8 @@
   <rect x="40" y="1050" width="380" height="96" rx="8" class="new"/>
   <text x="54" y="1072" class="h2">Mountable ★ { MountKinds, Portable }</text>
   <text x="54" y="1092" class="s">moved out of WeaponSystemParams; written for weapons AND</text>
-  <text x="54" y="1109" class="s">devices from the TKB; read by Embarkation (4×), CarryStations,</text>
-  <text x="54" y="1126" class="s">OperatorUse — the six existing readers, unchanged in meaning.</text>
+  <text x="54" y="1109" class="s">devices (EVERY weapon type); IsMountable = the item gate at ~40</text>
+  <text x="54" y="1126" class="s">sites (both IsWeaponSystem + direct checks); not possessable.</text>
 
   <!-- ================= STATION node (top right) ================= -->
   <rect x="470" y="84" width="1190" height="300" rx="10" fill="#e3f2fd" stroke="#1565c0" stroke-width="1.5"/>
@@ -124,8 +124,8 @@
   <rect x="966" y="178" width="172" height="112" rx="4" fill="#263238" stroke-dasharray="5 4" stroke="#90a4ae"/>
   <text x="976" y="198" font-size="11.5" fill="#80d8ff">view 2 (later)</text>
   <text x="976" y="218" font-size="11.5" fill="#80d8ff">rangefinder HUD  452 m</text>
-  <text x="782" y="310" class="s">Renderer keeps only the gizmo run whose</text>
-  <text x="782" y="327" class="mono">HudScope{Source}</text><text x="900" y="327" class="s"> matches the view's device;</text>
+  <text x="782" y="310" class="s">A view draws ONLY the HUD run whose</text>
+  <text x="782" y="327" class="mono">HudScope{Source}</text><text x="900" y="327" class="s"> is its source; others skip it;</text>
   <text x="782" y="344" class="s">screen-space primitives drawn as an overlay on</text>
   <text x="782" y="361" class="s">the 3-D map ★ (the 2-D renderer's screen-space code)</text>
 
@@ -151,16 +151,16 @@
   <rect x="490" y="462" width="360" height="98" rx="6" class="ex"/>
   <text x="502" y="482" class="h2">Interaction transport (existing)</text>
   <text x="502" y="502" class="mono">OperatorControlFrameEvent</text><text x="680" y="502" class="s"> — ONE per</text>
-  <text x="502" y="519" class="s">operated entity, Target = the device; + Axes[4], PressSeq[16]</text>
-  <text x="502" y="536" class="s">only the TARGET's owner applies it ⇒ reaches the device's</text>
-  <text x="502" y="553" class="s">brain wherever it lives; newest by Seq; presses are counters</text>
+  <text x="502" y="519" class="s">operated entity, Target · Axes[4] · PressSeq[16] · ViewedDevice</text>
+  <text x="502" y="536" class="s">the target's owner applies it if the station's BODY operates it;</text>
+  <text x="502" y="553" class="s">newest by Seq; StationId + Epoch reset on an operator change</text>
 
   <!-- device entity -->
   <rect x="490" y="576" width="470" height="440" rx="8" fill="#ffffff" stroke="#2e7d32" stroke-width="1.6"/>
   <text x="504" y="600" class="h2">Device ENTITY (e.g. the rangefinder) — its components</text>
   <rect x="504" y="612" width="210" height="28" rx="4" class="comp"/><text x="512" y="631" class="mono">TkbIdentity (its type)</text>
   <rect x="724" y="612" width="222" height="28" rx="4" class="compn"/><text x="732" y="631" class="mono">Mountable ★</text>
-  <rect x="724" y="646" width="222" height="28" rx="4" class="compn"/><text x="732" y="665" class="mono">TicksInPause ★ (tag)</text>
+  <rect x="724" y="646" width="222" height="28" rx="4" class="compn"/><text x="732" y="665" class="mono">DeviceInfo ★ (recorded)</text>
   <rect x="504" y="646" width="210" height="28" rx="4" class="comp"/><text x="512" y="665" class="mono">place in host's Station</text>
   <rect x="504" y="680" width="442" height="128" rx="4" class="comp"/>
   <text x="512" y="699" class="mono">BehaviorState + blackboard store (brain only)</text>
@@ -177,8 +177,8 @@
   <text x="512" y="887" class="mono">LaserPointing ★</text><text x="626" y="887" class="s">on · band · direction — written by whoever points</text>
   <text x="512" y="904" class="s">(the trainee's device logic, or an AI) · replicated</text>
   <rect x="504" y="920" width="442" height="44" rx="4" class="compn"/>
-  <text x="512" y="939" class="mono">LaserSpot ★</text><text x="600" y="939" class="s">up to 4 spot points — written by the MUSCLE</text>
-  <text x="512" y="956" class="s">replicated · recorded</text>
+  <text x="512" y="939" class="mono">LaserSpot ★</text><text x="600" y="939" class="s">≤4 points + the Entity hit — by the MUSCLE</text>
+  <text x="512" y="956" class="s">replicated · recorded · Preview when written in pause</text>
   <text x="504" y="990" class="s">One FOLDER per device type: params DTO, state struct, logic</text>
   <text x="504" y="1007" class="s">(action), HUD projector, PanelOut, message DTOs — side by side.</text>
 
@@ -189,9 +189,9 @@
   <text x="992" y="519" class="s">  every brain — step window kept</text>
   <text x="992" y="536" class="s">PausedDeviceTickSystem ★ (every</text>
   <text x="992" y="553" class="s">  frame): paused frames, only</text>
-  <text x="992" y="570" class="s">  TicksInPause — same routine,</text>
+  <text x="992" y="570" class="s">  DeviceInfo — same instance,</text>
   <text x="992" y="587" class="s">  devices change only themselves</text>
-  <text x="992" y="607" class="s">Behaviour ingress: the same pair</text>
+  <text x="992" y="607" class="s">off under ReplayState; no channels</text>
 
   <rect x="980" y="636" width="262" height="196" rx="6" class="ex"/>
   <text x="992" y="656" class="h2">StatelessGizmoSystem</text>
@@ -200,15 +200,15 @@
   <text x="992" y="710" class="s">HillAttackGizmo; for every</text>
   <text x="992" y="727" class="s">OPERATED device it reads the</text>
   <text x="992" y="744" class="s">UnitMemory state and emits</text>
-  <text x="992" y="761" class="mono">HudScope{Source}</text><text x="1104" y="761" class="s"> + screen-</text>
-  <text x="992" y="778" class="s">space primitives; HUD family</text>
-  <text x="992" y="795" class="s">always visible, no culling / LOD</text>
+  <text x="992" y="761" class="mono">BeginScope(src)</text><text x="1104" y="761" class="s"> … EndScope</text>
+  <text x="992" y="778" class="s">(HudScope{Source,Count}); keyed</text>
+  <text x="992" y="795" class="s">on DeviceInfo; never culled</text>
   <text x="992" y="815" class="s">runs every frame, pause too</text>
 
   <rect x="980" y="846" width="262" height="98" rx="6" class="ex"/>
   <text x="992" y="866" class="h2">Gizmo batch (existing)</text>
   <text x="992" y="886" class="s">DebugPrimitivesBatch + strings</text>
-  <text x="992" y="903" class="s">cluster: player-node subscriber,</text>
+  <text x="992" y="903" class="s">cluster: the ONE subscriber (IG too),</text>
   <text x="992" y="920" class="s">per-producer batches, 0 B — SD-C</text>
   <text x="992" y="937" class="s">editor: the local buffer directly</text>
 
@@ -220,9 +220,9 @@
   <rect x="490" y="1030" width="752" height="114" rx="6" class="new"/>
   <text x="502" y="1052" class="h2">Feature-test scenarios (machine-judged) — the proof</text>
   <text x="502" y="1072" class="s">grammar ★: do possess · do control (press / axis / aim, through the same frame path) · do pause N frames ·</text>
-  <text x="502" y="1089" class="s">cue device (a UnitMemory field by name) · cue hud (the drawn run of a view) · atPausedFrame (wall-clock axis)</text>
+  <text x="502" y="1089" class="s">cue field + memory (a UnitMemory field) · cue hud (the published run of a source) · atPausedFrame on expect AND do</text>
   <text x="502" y="1109" class="s">S1: dv-menu-and-modes · dv-range-targets · dv-vehicle-station · dv-switch-devices · dv-paused-operation ·</text>
-  <text x="502" y="1126" class="s">    dv-replay-hud · dv-two-stations</text>
+  <text x="502" y="1126" class="s">    dv-replay-hud   (dv-two-stations → SD-C, the cluster run)</text>
 
   <!-- ================= MUSCLE node ================= -->
   <rect x="1290" y="420" width="370" height="330" rx="10" fill="#ffebee" stroke="#c62828" stroke-width="1.5"/>
@@ -258,8 +258,8 @@
   <text x="1306" y="1006" class="s">  the adapters (rails)</text>
   <text x="1306" y="1028" class="s">• a new DEVICE = a TKB type + one C# folder;</text>
   <text x="1306" y="1045" class="s">  a new PANEL = one adapter; the wire never changes</text>
-  <text x="1306" y="1067" class="s">• binoculars become a device in slice 1</text>
-  <text x="1306" y="1084" class="s">  (the station's own binocular code is removed)</text>
+  <text x="1306" y="1067" class="s">• binoculars: a device in slice 1 (issued to</text>
+  <text x="1306" y="1084" class="s">  every slot); the held item stays the pose</text>
   <text x="1306" y="1106" class="s">• out of scope: what any munition does with a spot</text>
   <text x="1306" y="1123" class="s">  (the weapons design)</text>
 
