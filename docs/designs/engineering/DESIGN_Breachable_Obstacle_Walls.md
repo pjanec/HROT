@@ -213,6 +213,18 @@ scenario fence across a road closes it too (none is placed across a road today �
 ⚠ **Finding — a multi-lane one-way SUMO edge with ONE lane cut stays open** (`WallClosedEdges` reports the closed lane): SumoSharp closes EDGES (`Engine.CloseEdge`, routing only) —
 a lane closure needs a SumoSharp lane permission at run time. A two-way road is two edges, so the design's "one lane of a 7 m road" case works.
 
+### 9b. S3 measured — `va-dozer-breach-wall` (CE-11072, DRAFT: `checks.draft.json`)
+
+On `te-osm-bridge`: a 12 m sandbag wall (1 m) across the two-way road at x 50; a dozer on a point order at the eastbound lane's centre; a vehicle handed to SUMO driving east.
+Measured over five runs (the new cold log lines in `BridgeClosureSystem` / `TrafficSession`):
+
+| expectation (§6) | measured |
+|---|---|
+| the road is CLOSED before | ✅ `SUMO closed edges now [-west, west]` at load; SUMO REFUSES the car's hand-over (no open route) every 2 s; the car never passes the wall line |
+| the dozer cuts a Passage, the rest stands | ✅ the dozer reaches the wall at t 24 s and cuts; ⚠ it drove through its cut in 4 of 5 runs (1 run it backed off west) |
+| the road OPENS after | ✅ `closed edges now [-west]` right after the cut: the eastbound edge re-opens, the westbound (not cut) stays closed — the per-lane rule live |
+| the car passes | ⛔ SUMO TAKES the car (`took vehicle 1002`) once the edge re-opens, but the car does not move to the end of the run (intent `Traffic`, `InProgress`, its move `Running`) — the shadow is spawned and stands. ⛔ Not yet known why: a lane obstacle ahead (the dozer, fed as a body), or the shadow follow. **Open; the scenario stays a draft until it passes.** |
+
 ⚠ **Finding — CE-11071's city-battle half is BLOCKED** (stopped, R-106): the three `city-battle/roadblock` instances carry `Presence: 0.6` (each stands in 60 % of runs), and the
 overlay compiler reads every saved feature entity without `Presence` (`OverlayCompiler.cs`) — moving the macro's walls into the scenario (V-3) would make them stand in EVERY run. ⇒ needs
 a decision: Presence on feature walls (the compiler or the residency honouring it), or the walls always standing.
