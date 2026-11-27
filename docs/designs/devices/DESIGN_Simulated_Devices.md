@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
-build-state: DESIGN (rev 14 consolidated, 2026-11-27; awaiting the user's nod)
+build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
 current-answer: ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
@@ -576,9 +576,10 @@ per buffer-reader family (R5-4), the no-unit-system-touches-a-device rail (R5-5)
 | Q-5 | the device wheel's key and the HUD layout | the ui lane's mockup first (R-4143) |
 | Q-8 | the gateway's wire (D-5, D-36) | a SimNetGateway row when SD-C is dispatched: the primitive's space and the meta primitives on the wire; the beam's two components as entity data |
 | Q-9 | an AI leader's pocket binoculars stay a held item only; a trainee is ISSUED a binoculars device | ⭐ as stated — what would change it: a need for AI to use device menus |
-| Q-10 | does `LaserPointing` replicate to the muscle on a PAUSED frame (other viewers' paused preview)? | ⭐ likely yes — `NedReplicationModule` is `EveryFrame` with no pause gate (§3.12) — but component replication in pause is not measured; confirm before SD-S1's laser rows (the trainee's own view is local and does not depend on it) |
+| ~~Q-10~~ | does `LaserPointing` replicate to the muscle on a paused frame? | ✅ measured `2026-11-27`: YES — `NedReplicationModule` is `[TickMode(EveryFrame)]` (`NedReplicationModule.cs:55`; `DESIGN_Paused_And_Stepped_Execution.md` Appendix A row "NedReplicationModule … EVERY") ⇒ the muscle's every-frame `LaserSpotSystem` answers in pause, the spot marked `Preview` (D-78) |
 | ~~Q-11 + Q-12~~ | answered — D-75 (the user drops the current binoculars in SD-S1) | — |
 | ~~Q-13~~ | answered — D-76–D-78 (§3.13): the device is the weapon's FIRE CONTROL; devices use no channels | — |
+| R7-13′ | measured `2026-11-27` (partial): `StatelessGizmoSystem` runs its projectors SERIALLY (no `Parallel`, no thread pool — grep of the system); the scheduler runs a BACKGROUND module's systems on its worker thread (`SystemScheduler.cs:23`, CE-3293 S2) — whether such a module writes the SAME buffer was not proven | ⭐ S1d adds a rail in the threaded node: a scope's run is contiguous (no foreign primitive inside); if it ever fails, the scope is written per producer and merged |
 | ~~Q-1, Q-3, Q-6, Q-7~~ | answered | SD-2′ (unit memory) · §3f (Raylib gamepad) · R-4300 · §3k (the HUD is a projector; nothing stored) |
 
 ## ⛔ HISTORY — the decision record (rev 1 … rev 14)
