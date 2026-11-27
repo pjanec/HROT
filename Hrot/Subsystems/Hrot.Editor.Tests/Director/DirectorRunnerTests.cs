@@ -2163,7 +2163,7 @@ public sealed class DirectorRunnerTests : IDisposable
     }
 
     /// <summary>Plays the two titled takes through a fake linked client with a recording encoder (no ffmpeg); returns the runner and what the encoder was given.</summary>
-    private (DirectorRunner Runner, List<(string? Wav, int Fps)> Encodes, FakeClient Client) RunWithEncoder(Hrot.Common.Infrastructure.FilmSound sound, long offset = 0, bool noTrack = false)
+    private (DirectorRunner Runner, List<(string? Wav, int Fps)> Encodes, FakeClient Client) RunWithEncoder(Hrot.Common.Infrastructure.FilmSound sound, long offset = 0, bool noTrack = false, bool films = true, string? encodeError = null)
     {
         var store = Store();
         var host = new FakeEditor(store);
@@ -2172,13 +2172,13 @@ public sealed class DirectorRunnerTests : IDisposable
         using var film = new FilmCaptureLayer(canvas, view, () => host.Repo);
         view.Set(true, animate: false);
         var clients = new Hrot.Common.Infrastructure.LinkedClients();
-        var client = new FakeClient { SampleOffset = offset, NoTrack = noTrack };
+        var client = new FakeClient { SampleOffset = offset, NoTrack = noTrack, Films = films };
         clients.Offer(client);
         var runner = new DirectorRunner(host, new Cinema(), new Layers(), new RoutingFrameSink(new Sink(), () => clients), new HrotSound());
         var encodes = new List<(string? Wav, int Fps)>();
-        runner.Encoder = (frames, fps, chapters, wav, movie) => { lock (encodes) encodes.Add((wav, fps)); return null; };
+        runner.Encoder = (frames, fps, chapters, wav, movie) => { lock (encodes) encodes.Add((wav, fps)); return encodeError; };
         var request = new PlayRequest(new Reel { Name = "cs", Items = new[] { "s-a", "s-b" }.Select(sc => new ReelItem { Scenario = sc, Take = "main", Title = sc }).ToList() },
-                                      Capture: new CaptureOptions(Path.Combine(_root, "cs-" + sound + offset + noTrack), Fps: 30, Encode: true, Sound: sound));
+                                      Capture: new CaptureOptions(Path.Combine(_root, "cs-" + sound + offset + noTrack + films + (encodeError != null)), Fps: 30, Encode: true, Sound: sound));
         Assert.Empty(runner.Play(request));
         for (int f = 0; f < 40000 && runner.Busy; f++)
         {
@@ -2232,6 +2232,28 @@ public sealed class DirectorRunnerTests : IDisposable
         var (runner, encodes, _) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Client, noTrack: true);
         Assert.Contains("no track", runner.Error);
         Assert.Empty(encodes);
+    }
+
+    /// <summary>⭐ CE-11068 (unreal-ig director test H-8) — <c>sound: client</c> on a job whose frames went to HROT's MAP (the client could not film): no client track exists, so the movie
+    /// takes HROT's own sound instead of failing, and the status names the movie. 🔴 Mutation: clientSound ignores where the frames went ⇒ "no track" error.</summary>
+    [Fact]
+    public void CE11068_ClientSound_ButTheMapFilmed_TakesHrotsSound()
+    {
+        var (runner, encodes, client) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Client, films: false);
+        Assert.Null(runner.Error);
+        Assert.Empty(client.Begins);
+        var (wav, _) = Assert.Single(encodes);
+        Assert.EndsWith("sound.wav", wav);
+        Assert.NotNull(runner.MoviePath);
+    }
+
+    /// <summary>⭐ CE-11068 (H-8) — an encode that FAILED names no movie: the status said <c>movie: …mp4</c> with no file on disk. 🔴 Mutation: MoviePath set before the encode ⇒ red.</summary>
+    [Fact]
+    public void CE11068_AFailedEncode_NamesNoMovie()
+    {
+        var (runner, _, _) = RunWithEncoder(Hrot.Common.Infrastructure.FilmSound.Hrot, encodeError: "ffmpeg exited with 1");
+        Assert.Equal("ffmpeg exited with 1", runner.Error);
+        Assert.Null(runner.MoviePath);
     }
 
     /// <summary>⭐ CE-11021 — <c>sound: hrot</c> (the default) is unchanged: HROT's own track is muxed, the client's total is never checked (even a 100 000-sample miss passes) and its path is not used.</summary>
