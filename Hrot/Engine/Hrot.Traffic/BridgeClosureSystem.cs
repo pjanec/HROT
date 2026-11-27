@@ -268,7 +268,11 @@ public sealed class BridgeClosureSystem : IEcsModuleSystem
                 foreach (var e in _sumoScratch) if (!edges.Contains(e)) edges.Add(e);
             }
             edges.Sort(StringComparer.Ordinal);
-            if (!edges.SequenceEqual(_closed)) { _closed = edges.ToArray(); _runtime.SetClosedEdges(_closed); }
+            if (!edges.SequenceEqual(_closed))
+            {
+                _closed = edges.ToArray(); _runtime.SetClosedEdges(_closed);
+                Fdp.Core.Logging.FdpLog<BridgeClosureSystem>.Info("[Traffic] SUMO closed edges now [{0}] ({1} scenario wall line(s) judged)", string.Join(", ", _closed), _walls.Count);   // ⭐ CE-11072 — cold: on a change only
+            }
         }
 
         var added = PlanAdded(repo);   // ⭐ CE-4692 BL-7

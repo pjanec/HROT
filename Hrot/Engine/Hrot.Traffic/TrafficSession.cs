@@ -247,7 +247,13 @@ public sealed class TrafficSession : IDisposable
             bool ok = h.VType is { } t && _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, t, h.Priority)
                       || _sim.SpawnExternalVehicle(id, h.X, h.Y, h.Heading, h.Speed, h.DestX, h.DestY, null, h.Priority);   // an unmapped type: SUMO's default car
             if (ok) { _shadows[h.NetworkId] = h.IntentId; _refused.Remove(h.NetworkId); _capped.Remove(h.NetworkId); }
-            else _refused[h.NetworkId] = _sim.Time;
+            else
+            {
+                if (!_refused.ContainsKey(h.NetworkId))   // ⭐ CE-11072 — the FIRST refusal of a hand-over is logged (a retry every RetrySeconds is not)
+                    Fdp.Core.Logging.FdpLog<TrafficSession>.Info("[Traffic] SUMO refused to take vehicle {0} at ({1:0.0}, {2:0.0}) to ({3:0.0}, {4:0.0}) — no lane near it or no open route; retried every {5} s",
+                        h.NetworkId, h.X, h.Y, h.DestX, h.DestY, RetrySeconds);
+                _refused[h.NetworkId] = _sim.Time;
+            }
         }
         // ⭐ CE-9000 (C-6) — a convoy's escort slows while its column is stretched: its shadow's top speed is capped (H17 SetExternalVehicleMaxSpeed);
         //   null restores what it had. Told only when the cap changed.

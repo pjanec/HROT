@@ -1,0 +1,67 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-11072 va-dozer-breach-wall (see scenario.json's header). Keys on arrival and state, never a time. ⚠ The breach itself has no cue in the grammar (§9 asks for one): the cut is approximated by the dozer standing at the wall, then by it and the car beyond the wall line.",
+  "runFor": 150,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the dozer reaches the wall",
+      "on": "near",
+      "who": "Dozer",
+      "point": [
+        47.0,
+        98.25
+      ],
+      "within": 3
+    },
+    {
+      "name": "the car never passes the wall line before the dozer reaches it",
+      "never": {
+        "on": "field",
+        "who": "Car",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 48.0
+      },
+      "before": "the dozer reaches the wall"
+    },
+    {
+      "name": "the dozer drives through its cut",
+      "on": "near",
+      "who": "Dozer",
+      "point": [
+        64.0,
+        104.25
+      ],
+      "within": 4,
+      "after": "the dozer reaches the wall"
+    },
+    {
+      "name": "the car is handed to SUMO",
+      "on": "field",
+      "who": "Car",
+      "path": "NavigationIntent.Mode",
+      "op": "==",
+      "value": "Traffic"
+    },
+    {
+      "name": "the car passes the wall through the cut",
+      "on": "field",
+      "who": "Car",
+      "path": "SimTransform.Position.0",
+      "op": ">",
+      "value": 55.0,
+      "after": "the dozer reaches the wall"
+    },
+    {
+      "name": "the car reaches the east bank (SUMO ends a shadow up to 25 m short)",
+      "on": "near",
+      "who": "Car",
+      "point": [
+        180.0,
+        98.25
+      ],
+      "within": 25
+    }
+  ]
+}
