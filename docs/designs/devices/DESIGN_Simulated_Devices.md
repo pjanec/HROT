@@ -624,7 +624,7 @@ paused frame's control frame is consumed in that frame.
 | R2-3 🟠 | a device tick system would be a second brain loop; there is no "device tier" | ⭐ **ONE loop**: `BrainTickSystem` becomes `EveryFrame`; on a frame where time does not advance it ticks ONLY entities carrying `TicksInPause` (a tag a device type gets), and nothing else — R-3114 holds for every other brain; the replay gate unchanged. ⛔ withdraws `DeviceTickSystem` and the "device tier" | SD-S1 (backend) |
 | R2-4 🟠 | a behaviour cannot start or switch in pause (`BehaviorIngressSystem` runs only when time advances; sessions boot paused) | ⭐ the same filter on the ingress: on a paused frame it applies requests for `TicksInPause` entities only. ⭐ A device's behaviour is fixed by its TYPE (started at creation), so switching devices never switches a behaviour | SD-S1 (backend) |
 | R2-5 🟠 | nothing owns "the active device"; the brain's copy of the control frame is stale in pause | ⭐ **the STATION owns the choice**: the input frame carries `ActiveIndex` among the seat's operated devices; each device reads the newest frame ITSELF every frame and writes its own `[UnitMemory]` (`Active`, the inputs) — a self-write; the HUD draws the device whose memory says active | SD-S1 |
-| R2-6 🟠 | on a cluster the control frame reaches only the node owning the possessed unit's brain | ⭐ **a device's authority follows its operator**: while a station's unit operates it, the device is owned by that unit's brain node (the existing ownership transfer); unoperated ⇒ its host's owner. Not needed in the editor | SD-C |
+| R2-6 🟠 | on a cluster the control frame reaches only the node owning the possessed unit's brain | ⛔ *dissolved by §3q D-43: a device's frame targets the device, and the transport delivers it to the device's owner* ⭐ **a device's authority follows its operator**: while a station's unit operates it, the device is owned by that unit's brain node (the existing ownership transfer); unoperated ⇒ its host's owner. Not needed in the editor | SD-C |
 | R2-7 🟠 | extending `OperatorControlFrameEvent` changes its layout ⇒ old recordings throw | ⭐ **a sibling event on the SAME interaction transport**: `DeviceInputFrameEvent { Station, Seq, ActiveIndex, Axes[4], PressSeq[16] }`, sent only while a device is operated — ⛔ supersedes RV-5's "extend"; still ONE input path (the station → the transport → the brain) | SD-S1 |
 | R2-8 🟠 | the editor has no station filter (two seats on one node draw both HUDs) | ⭐ the `StationScope` filter lives in the gizmo RENDERER — one place, every host (editor, player node, gateway) | SD-S1 (ui) |
 | R2-9 🟠 | the cluster HUD path is not built (no player-node consumer; the ingress keeps one node's batch; `.ToArray()` per frame; a byte node id vs a 16-bit station node) | ⭐ named as SD-C's work: wire the subscriber on player nodes, keep one batch PER producer node, a pooled payload (0 B), a 16-bit producer id. ⛔ the diagrams' "existing" labels corrected | SD-C |
@@ -652,13 +652,50 @@ right away to unify implementations"* · the other §3o leans: no objection rais
 |---|---|---|
 | D-37 | ⭐ **`TicksInPause` is a tag COMPONENT** (unmanaged, one byte — the codebase's tags carry a field, e.g. `IsEmbarkedTag`), added at creation by the device type's TKB translator; `NoScenario \| NoReplay` (derived from the type, rebuilt on load). On a paused frame `BrainTickSystem` (and the behaviour ingress) run ONE extra query, `owned BehaviorState + TicksInPause` — zero work when no device exists | a component query is the cheapest filter the scheduler has; a flag inside `BehaviorState` would mean walking every brain to find the few devices |
 | D-38 | ⭐⭐ **no "active" device: EVERY operated device runs all the time.** What the trainee chooses is which device a **VIEW** shows. A station has one view today (its 3-D map) and may have several side by side later; each view is bound to ONE device (or none = the plain eye) — station-local UI state, never simulation | 🔒 user; several replicas operate at once |
-| D-39 | ⭐ **inputs are addressed to a DEVICE, not chosen by a flag**: the control frame carries up to N device sections (lean N = 4), each `{ Device (network id), Axes[4], PressSeq[16] }`. The primary keyboard / mouse section is addressed to the FOCUSED view's device; each replica's own input channel fills a section addressed to ITS device — no switching. A device reads the section addressed to it | one frame, one ordering, one transport for the whole station |
+| D-39 | ⛔ *the N-sections-in-one-frame shape is superseded by §3q D-43 (one frame per device)* ⭐ **inputs are addressed to a DEVICE, not chosen by a flag**: the control frame carries up to N device sections (lean N = 4), each `{ Device (network id), Axes[4], PressSeq[16] }`. The primary keyboard / mouse section is addressed to the FOCUSED view's device; each replica's own input channel fills a section addressed to ITS device — no switching. A device reads the section addressed to it | one frame, one ordering, one transport for the whole station |
 | D-40 | ⭐ **extend `OperatorControlFrameEvent` itself** (the sections above) — ⛔ R2-7's sibling event withdrawn: old recordings do not matter, and it is the same concept | 🔒 user |
 | D-41 | ⭐ **the HUD is scoped to its DEVICE**: the brain draws the HUD of every OPERATED device (only those), each run opened by a `HudScope { Device }` meta-primitive (⛔ replaces `StationScope`); a VIEW's renderer keeps the run of the device bound to it — in one place for every host (R2-8). Several views ⇒ several devices' HUDs, side by side | the brain need not know the station's views; the view picks |
 | D-42 | ⭐⭐ **the binoculars become a device in SD-S1** (⛔ CE-4707's "later" withdrawn). Measured: the station draws a binocular overlay and narrows the FOV (`PossessionStation.cs:360, :488, :1681` — CE-1219), and the frame carries a `Binoculars` field; the HELD-ITEM pose and its perception effect (`HeldItems.BinocularsUp`, `VisualPerception`) stay: the holder's own brain raises them when one of his views shows the binoculars device. ⇒ SD-S1 builds TWO devices — the **binoculars** (zoom steps, reticle; the station's overlay moves into its HUD projector) and the **rangefinder** — and the station's own binocular branch is removed | 🔒 user; ruling 9 — one optic model |
 
 ⛔ Superseded here: R2-5 (*"the station owns the choice … `ActiveIndex`"*) → D-38/D-39 · R2-7 → D-40 · D-22 / R2-8's `StationScope` → D-41's
 `HudScope` (the renderer-side filter of R2-8 stands) · CE-4707's deferral → D-42.
+
+## 3q. ⭐ Per-device input events, and what `Mountable` changes (user, `2026-11-27`)
+
+🔒 User: *"if inputs are events, why combining multiple devices into one frame event, can't we split by device, each device getting own event
+instance?"* · *"who will read/use the 'Mountable' component? What changes it introduces in existing code?"*
+
+### Inputs — one event instance per device
+
+| claim | code |
+|---|---|
+| the interaction transport sends an event to every node and **only the TARGET's owner applies it** | `InteractionTransport.cs:385` (*"only the target's owner applies it"*); the control frame's target is `e.Unit` (`:141`) |
+| the brain keeps the NEWEST frame by `Seq` (latest-wins), and presses are COUNTERS so none is lost | `Possession.cs:76-104` (`Seq`, `ShotSeq` — *"a counter, not a level"*) |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-43 | ⭐⭐ **one `OperatorControlFrameEvent` instance PER OPERATED ENTITY, targeted at it**: the unit's frame targets the unit (as today); each device's frame targets the DEVICE, carrying its `Seq` and the generic block the type gains: `Axes[4]` and `PressSeq[16]`. The keyboard / mouse fill the frame of the focused view's device; each replica fills its own device's frame. ⛔ supersedes D-39's N sections in one frame | ✅ latest-wins and the press counters work per target unchanged; ⭐ **R2-6 disappears**: the transport delivers a device's frame to the DEVICE's owner, wherever it lives — no ownership rule needed |
+| D-44 | the unit-specific fields of the frame (motion axes, stance, shot) are simply unused in a device's frame | one type for one concept — *"a station's frame of controls for the entity it operates"* |
+
+### `Mountable` — who reads it, and the change
+
+📐 Measured — the mount kinds and the portability live in `WeaponSystemParams` (`WeaponSystemComponents.cs:19-39`, `NoScenario`, written from the
+TKB `WeaponSystemDto`), and **six places** read them:
+
+| reader | what it asks |
+|---|---|
+| `Embarkation.cs:185` | is a static weapon (or a vehicle out of the fight) boardable |
+| `Embarkation.cs:187` | the first free station that accepts these mount kinds |
+| `Embarkation.cs:213` | is this a portable weapon (for carrying) |
+| `Embarkation.cs:299` | does this station accept the item |
+| `CarryStations.cs:78` | may the item move to that carry station |
+| `OperatorUse.cs:299` | a PORTABLE item lying alone is TAKEN (the pick-up verb), a static one is manned |
+
+| # | decision (lean) | why |
+|---|---|---|
+| D-45 | ⭐ **`Mountable { MountKinds, Portable }`** (unmanaged, `NoScenario`, written from the TKB like `WeaponSystemParams`) — the TWO fields MOVE out of `WeaponSystemParams` into it. A weapon type gets it from its `WeaponSystemDto` (the same values ⇒ behaviour unchanged), a device type from its `DeviceDefDto`. The six readers above read `Mountable` instead | ✅ one source of "how this item mounts" for weapons and devices; the change is mechanical (six reads, one writer per type), done with the Roslyn rename/move where it applies |
+| D-46 | ⭐ **a gain for free**: `OperatorUse` (the TAKE verb) and the carry-station moves then work for a portable DEVICE too — the pick-up of SD-S5 needs no new verb | the readers ask about mounting, never about being a weapon |
+| D-47 | ⚠ `NedTkbCatalog.cs` builds weapon types with `MountKinds` / `Portable` on the DTO — the DTO keeps its fields (the authoring shape), only the RUNTIME component moves | the catalogue and its JSON are untouched |
 
 ## 4. Rejected — one line each
 
