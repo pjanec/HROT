@@ -8,7 +8,9 @@ related-designs:
 # STATUS — backend, the LLM commander (L-1 CE-4676 · L-2 CE-4679)
 
 ## 1. Now
-⏸ `2026-11-26 14:00` — **idle — waiting for a handoff** (the six failing vehicle scenarios FIXED, CE-4698…CE-4703 — every one passes: `ua-tank-ammo`, `ua-air-defence`, `ua-technical-scoot`, `sam-site`, `uc-urban-battle`, `ua-hill-attack`; other lanes merged first; NOTE to behaviors updated. Open finding: CE-4704 `uc-convoy-hit-ifv` not repeatable run to run. Pre-existing red: `PersonHandsTests.CE3248` (red at `401210d13`)).
+⏸ `2026-11-27 08:28` — **idle — waiting for a handoff** (self-wake-up: `va-pop-smoke` DE-RACED for unreal-ig — the tank holds under an idle platoon HQ until launched at and faces the threat; 6/6 at fixed step and every event live, `45ba13b57`; answer [NOTE_Backend_To_UiIntegration_VaPopSmoke_No_Race](NOTE_Backend_To_UiIntegration_VaPopSmoke_No_Race.md). No other new HANDOFF/STEER/NOTE for backend; no new DECIDED answers).
+
+⛔ ~~`2026-11-26 14:00` — idle~~ (unreal-ig's va-pop-smoke NOTE taken 2026-11-27 07:28) `2026-11-26 14:00` — **idle — waiting for a handoff** (the six failing vehicle scenarios FIXED, CE-4698…CE-4703 — every one passes: `ua-tank-ammo`, `ua-air-defence`, `ua-technical-scoot`, `sam-site`, `uc-urban-battle`, `ua-hill-attack`; other lanes merged first; NOTE to behaviors updated. Open finding: CE-4704 `uc-convoy-hit-ifv` not repeatable run to run. Pre-existing red: `PersonHandsTests.CE3248` (red at `401210d13`)).
 
 ⛔ ~~`2026-11-26 11:28` — idle~~ (the six fixes taken on the user's go) `2026-11-26 11:28` — **idle — waiting for a handoff** (self-wake-up: coordinator merged `8bffa6c02`; the six failing vehicle scenarios ROOT-CAUSED, CE-4698…CE-4703 `ef96dbef4`, NOTE to behaviors for their four. Waiting on the user: build backend's two — CE-4701 `sam-site` staging, CE-4700 a locking shot ignores a near miss. No new HANDOFF/STEER/NOTE for backend; behaviors' overlap note already answered).
 
