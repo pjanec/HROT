@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: DESIGN (rev 14 consolidated, 2026-11-27; awaiting the user's nod)
-current-answer: ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
+current-answer: ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
@@ -438,6 +438,19 @@ tell the entity who has the weapon to initiate a fire sequence? … command bus 
 | D-77 | ⭐ **state, not an event**: a launch is not one-shot — guidance follows the device's aim every frame, which must be state anyway, so the counter rides in the same component; no routing to the controller's brain node, nothing stale when the operator changes, and the counter survives a cadenced AI brain, a late join and replay. ⭐ An event stays the tool for a discrete message to an entity with no structural link (`DeviceMessageEvent`, D-52) or for CHANGING another entity | ⛔ rejected: a fire event from the device to the controller (routing, staleness, a second mechanism beside the guidance state) |
 | D-78 | ⭐ **no launch in pause**: a launch is a world effect (R-4300) ⇒ while paused the device keeps `Ready = false` and does not move `LaunchSeq` (its HUD may show the press refused) — otherwise the press would fire at resume, when the controller's brain next ticks | R-4300; the pause is observation (R6-4) |
 | D-79 | ⭐ **what would change it**: a weapon with NO human controller that a device fires alone — then the device is that weapon's controller (`ControllerOf` names it) and holds the weapon channel on itself | not in any slice |
+
+### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
+
+🔒 User: *"once we feel that it's right and that it's easy to extend, then it's time to start implementing the whole device stuff"*. The cleanup
+ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses:
+
+| audit row here | built as | so SD-S1 only… |
+|---|---|---|
+| R3-1 / R4-1 / D-45 / D-46 — the item gate, every `IsWeaponSystem` site | C1: `Mountable { MountKinds, Portable, CarrySpeedFactor }` (component id 218) + `Items.IsMountable`, 25 item sites moved; `Possessability` / `EmbarkOrders` refuse a `Mountable` | writes `Mountable` from `DeviceDefDto` (+ `MountKinds.Device`) |
+| R5-5 — "has a brain" read as "a person" | C2: `People.IsPersonBody` (a stance, not an animal); the grenade reflex and stress ask it. ⚠ measured: `HeatSource.IsCrewed` (engine vehicles only) and `ProficiencyFill` (needs a side; a device has none) are NOT proxies | gives a device NO stance and NO `EntityInfo` |
+| D-73 / R6-1 / R6-7 / R7-1 / R7-10 — what possession assumes | C3: `StationBody` (`Driven`, `Own`, `StationOf`, `IsBodyMode`) owns the body; `HeldHere`, `TrySideOf`, `ReleaseOtherFps`, `Possess` (behaviour only for a body mode), `ReleaseKilled`, the briefing and debrief route through it | adds `PossessionMode.Operated` and makes `IsBodyMode` exclude it — the readers already ask the right question |
+| R3-4 / R5-4 / R6-9 — meta shapes skipped by per-reader lists | C4: `PrimitiveKind` in `GizmoMap.Contracts` (the one classifier; anchors protected) | adds `HudScope` as ONE line in `PrimitiveKind.ClassOfShape` (Meta) |
+| the probe | `CapabilityProbeTests` — a brain that is no person, unit, weapon or body: expected list EMPTY | adds the operated-device rows when `Operated` exists |
 
 ## 4. Rejected — one line each
 
