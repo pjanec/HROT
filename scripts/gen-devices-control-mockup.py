@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 """Mockup for docs/designs/devices/DESIGN_Simulated_Devices.md §3.13f - the HUD of the CONTROL UNIT that operates weapons it is not mounted on: the
-remote weapon station (RWS) console and the 9K11 launcher box (SD-S4c, D-147..D-156; R-4138 / R-4143), panels 20-23. Built on scripts/mockup_kit.py, in
+remote weapon station (RWS) console and the 9K11 launcher box (SD-S4c, D-147..D-157; R-4138 / R-4143), panels 20-23. Built on scripts/mockup_kit.py, in
 the house style of the other device sheets (gen-devices-drone-mockup.py, gen-devices-designator-mockup.py).
 
     python3 scripts/gen-devices-control-mockup.py      # -> docs/designs/devices/mockups/devices-hud-control.svg
 
 SCOPE (R-4151, what this picture specifies and what it does not):
   SPECIFIES  what ControlUnitHudGizmo draws in a view bound to the console while the camera rides the selected weapon's sight (DeviceView WeaponSight,
-             D-152): the name and phase chip, the selected weapon's lines (ammo, fire mode, azimuth / elevation of the ACTUAL aim), the reticle, the
-             LAY marker (where the command points, relative to the actual aim - the drives' lag made visible), the READY / FIRING lamp, the zoom step,
-             the message line, the launcher lamps of the box, and the six command chips (POWER SELECT ARM FIRE ZOOM VIEW, D-154) as HudPanel buttons
-             with hotkey badges (D-122 / D-124).
+             D-152): the name and phase chip, the selected weapon's lines (ammo, azimuth / elevation of the ACTUAL aim), the reticle, the LAY marker
+             (where the command points, relative to the actual aim - the drives' lag made visible), the READY / FIRING lamp, the zoom step, the message
+             line, the launcher lamps of the box, the fire MODE switch (SINGLE / BURST / AUTO, D-157) and the six command chips (POWER SELECT ARM FIRE
+             ZOOM VIEW, D-154) as HudPanel buttons with hotkey badges (D-122 / D-124).
   CONTEXT    drawn dashed / greyed and tagged "unchanged": the station's compass strip, the operator's unit lines, the toolbar's run controls (panel 23).
              The picture, the tracers, the impacts and the target are world effects, illustrative.
   PROPOSAL   every layout position is a proposal where the design is silent (the design names WHAT the HUD shows, not WHERE).
@@ -25,7 +25,7 @@ W, H = 1460, 1410
 PW, PH = 640, 360                     # one view frame (16:9)
 GOLD, WHITE = "#FFD700", "#FFFFFF"
 PHASE = {"OFF": "#A0A0AA", "STANDBY": C.BLUE, "ARMED": C.GREEN}      # the console's phases (D-154); the colours of the sight unit's sheet
-KEYS = {"POWER": "P", "SELECT": "S", "ARM": "A", "FIRE": "F", "ZOOM": "Z", "VIEW": "V"}   # PROPOSAL: the type names its hotkeys (D-124)
+KEYS = {"POWER": "P", "SELECT": "S", "ARM": "A", "FIRE": "F", "MODE": "M", "ZOOM": "Z", "VIEW": "V"}   # PROPOSAL: the type names its hotkeys (D-124)
 s = Svg(W, H, "Simulated devices — the CONTROL UNIT: the remote weapon station and the 9K11 launcher box  (SD-S4c, DESIGN_Simulated_Devices §3.13f)",
         "Full colour = SPECIFIED by this mockup · grey dashed + 'unchanged' = CONTEXT, not specified · the picture, the tracers and the target are world effects, illustrative.")
 
@@ -159,7 +159,8 @@ def message(x, y, big, bigc, sub=None):
 
 
 def chips(x, y, states, hover=None):
-    """The six command chips, bottom-right: HudPanel buttons (D-122) with their hotkey badges (D-124). on = set (blue), ready = pressable, off = refused (greyed)."""
+    """The command chips, bottom-right (POWER SELECT ARM FIRE ZOOM VIEW; MODE is the switch of mode_switch): HudPanel buttons (D-122) with their hotkey badges (D-124).
+    on = set (blue), ready = pressable, off = refused (greyed)."""
     xx = x + PW - 14
     for nm, st in reversed(states):
         w = text_width(nm, 11) + 27; xx -= w
@@ -169,6 +170,27 @@ def chips(x, y, states, hover=None):
         kc = "#6A6A74" if st == "off" else "#C8C8D0"
         s.rect(xx + w - 16, y + PH - 44, 11, 13, "none", stroke=kc, rx=2, sw=0.9); s.text(xx + w - 10.5, y + PH - 34, KEYS[nm], kc, 9, "middle", "bold")
         xx -= 3
+
+
+def mode_switch(x, y, pos, refused=False, note=None):
+    """The console's fire MODE (D-157): a latching 3-position switch drawn as its three positions with the set one lit, and its hotkey badge. In the left column
+    under the weapon / launcher block. refused = the launchers offer SINGLE only: the whole switch greyed. note = a tag after it (stepped in pause)."""
+    bx, by = x + 40, y + 150
+    ht(bx, by + 15, "MODE", "#A0A0AA", 10.5)
+    xx = bx + 38
+    for i, nm in enumerate(("SINGLE", "BURST", "AUTO")):
+        w = text_width(nm, 10.5) + 14
+        on = i == pos
+        if refused:
+            s.rect(xx, by, w, 22, "#2A2A32" if on else "#000", rx=3, op=0.7 if on else 0.5, stroke="#4A4A55", sw=1)
+            s.text(xx + w / 2, by + 15, nm, "#808088" if on else "#5A5A64", 10.5, "middle", "bold" if on else "normal")
+        else:
+            s.rect(xx, by, w, 22, "#3369AD" if on else "#000", rx=3, op=0.95 if on else 0.6, stroke=None if on else "#8A8A96", sw=1)
+            s.text(xx + w / 2, by + 15, nm, WHITE if on else "#B8B8C0", 10.5, "middle", "bold" if on else "normal")
+        xx += w + 2
+    kc = "#6A6A74" if refused else "#C8C8D0"
+    s.rect(xx + 2, by + 5, 11, 13, "#000", rx=2, op=0.6, stroke=kc, sw=0.9); s.text(xx + 7.5, by + 15, KEYS["MODE"], kc, 9, "middle", "bold")
+    if note: ht(xx + 20, by + 15, note, GOLD, 9.5, weight="bold")
 
 
 def launchers(x, y, states):
@@ -245,30 +267,32 @@ s.text(30, 136, "Every chip is a HudPanel button (D-122): clickable, with its ho
 
 # ── 20 · RWS armed, ready ──────────────────────────────────────────────────────────────────────────────
 x, y = head(0, "20 · RWS CONSOLE, ARMED — the view through the gun's camera, the lay marker (dv-rws-mg)",
-            "Scope: the weapon-sight view with the reticle, the LAY marker, ammo, the fire mode, the aim readout, ZOOM, the READY lamp, the six chips. The compass and the unit lines are context.")
+            "Scope: the weapon-sight view with the reticle, the LAY marker, ammo, the aim readout, the MODE switch, ZOOM, the READY lamp, the six chips. The compass and the unit lines are context.")
 scene(x, y, 2.4); brackets(x, y); reticle(x, y); lay_marker(x, y, 58, -24); compass_ctx(x, y); unit_lines(x, y)
-status(x, y, "RWS CONSOLE", "ARMED", (("WEAPON", "7.62 MM MG", WHITE), ("AMMO", "187", WHITE), ("FIRE MODE", "BURST", WHITE), ("AIM", "AZ 047°  EL +2.5°", "#C8C8D0")))
+status(x, y, "RWS CONSOLE", "ARMED", (("WEAPON", "7.62 MM MG", WHITE), ("AMMO", "187", WHITE), ("AIM", "AZ 047°  EL +2.5°", "#C8C8D0")))
+mode_switch(x, y, 1)
 lamp(x, y, True); view_label(x, y, "RWS CONSOLE"); zoom_readout(x, y, "4×")
-message(x, y, "READY TO FIRE", GOLD, "hold FIRE to fire · the stick slews the gun")
+message(x, y, "READY TO FIRE", GOLD, "FIRE fires one burst · the stick slews the gun")
 chips(x, y, (("POWER", "on"), ("SELECT", "off"), ("ARM", "on"), ("FIRE", "ready"), ("ZOOM", "ready"), ("VIEW", "off")))
-legend(x, y, "the ARMED chip (green) · the selected weapon's lines: name, AMMO, FIRE MODE, and AZ / EL of the ACTUAL aim (the replicated `TurretPose`) · the reticle at the weapon's aim · the LAY marker: the commanded direction (`FireControl.LayDir`) relative to the actual aim, joined to the reticle by a dashed line — the gun is still turning toward it · "
-             "READY lamp (armed, a round, not paused) · ZOOM 4× · SELECT greyed (one weapon), VIEW greyed (a gun has no flight to watch)",
+legend(x, y, "the ARMED chip (green) · the selected weapon's lines: name, AMMO, and AZ / EL of the ACTUAL aim (the replicated `TurretPose`) · the reticle at the weapon's aim · the LAY marker: the commanded direction (`FireControl.LayDir`) relative to the actual aim, joined to the reticle by a dashed line — the gun is still turning toward it · "
+             "the MODE switch (D-157): its three positions SINGLE · BURST · AUTO with the set one lit, BURST here, and its hotkey badge · READY lamp (armed, a round, not paused) · ZOOM 4× · SELECT greyed (one weapon), VIEW greyed (a gun has no flight to watch)",
        "the compass · the unit lines · the picture and the truck (the weapon's camera, world)",
        ["The camera is on the WEAPON's turret and looks along its actual aim, so the operator sees the real drive lag (D-152): the lay marker converges on the reticle as the turret arrives. The stick commands a slew RATE, never a position (D-151).",
-        "D-156 names SINGLE / BURST on this HUD, but D-154 gives the console no fire-mode channel: FIRE MODE here is a read-out of the weapon's mode (a per-press weapon reads SINGLE, an automatic one BURST). A mode switch would need a channel — open.",
-        "PROPOSAL: the weapon lines, the AZ / EL readout, the marker's look, the corner brackets and the layout are mine; the design names what the HUD shows, not where."])
+        "MODE is a latching switch (D-157): a click or its hotkey steps it, and beside a replica the replica's rotary owns it and this switch is display-only (D-135). SINGLE = one round per FIRE press, BURST = one burst per press at the weapon's own burst length (CE-11033), AUTO = while FIRE is held; the message line follows the mode.",
+        "PROPOSAL: the weapon lines, the AZ / EL readout, the switch's place and look, the marker's look, the corner brackets and the layout are mine; the design names what the HUD shows, not where."])
 
 # ── 21 · RWS firing, held ──────────────────────────────────────────────────────────────────────────────
-x, y = head(1, "21 · RWS CONSOLE, FIRING — FIRE held, the burst and the ammo counting down (dv-rws-mg)",
-            "Scope: the FIRING lamp, FIRE set, the ammo falling, the lay marker converged on the aim, the message. Tracers and impacts are world effects.")
+x, y = head(1, "21 · RWS CONSOLE, FIRING — AUTO, FIRE held, the ammo counting down (dv-rws-mg, dv-rws-modes)",
+            "Scope: the MODE switch on AUTO, the FIRING lamp, FIRE set, the ammo falling, the lay marker converged on the aim, the message. Tracers and impacts are world effects.")
 scene(x, y, 2.4); tracers(x, y); brackets(x, y); reticle(x, y); lay_marker(x, y, 8, -3); compass_ctx(x, y); unit_lines(x, y)
-status(x, y, "RWS CONSOLE", "ARMED", (("WEAPON", "7.62 MM MG", WHITE), ("AMMO", "142", C.AMBER), ("FIRE MODE", "BURST", WHITE), ("AIM", "AZ 047°  EL +2.5°", "#C8C8D0")))
+status(x, y, "RWS CONSOLE", "ARMED", (("WEAPON", "7.62 MM MG", WHITE), ("AMMO", "142", C.AMBER), ("AIM", "AZ 047°  EL +2.5°", "#C8C8D0")))
+mode_switch(x, y, 2)
 lamp(x, y, True, "FIRING", C.RED); view_label(x, y, "RWS CONSOLE"); zoom_readout(x, y, "4×")
-message(x, y, "FIRING", C.RED, "FIRE held — release to stop")
+message(x, y, "FIRING", C.RED, "AUTO — FIRE held, release to stop")
 chips(x, y, (("POWER", "on"), ("SELECT", "off"), ("ARM", "on"), ("FIRE", "on"), ("ZOOM", "ready"), ("VIEW", "off")))
-legend(x, y, "the lamp turned red and relabelled FIRING (`FireControl.Trigger` held) · the FIRE chip set (blue) while the key or the button is down · AMMO falling (amber below a quarter) · the lay marker nearly on the reticle: the gun has arrived · 'FIRING' with the release hint",
+legend(x, y, "the MODE switch on AUTO (the only position that fires while FIRE is held) · the lamp turned red and relabelled FIRING (`FireControl.Trigger` held) · the FIRE chip set (blue) while the key or the button is down · AMMO falling (amber below a quarter) · the lay marker nearly on the reticle: the gun has arrived · 'FIRING' with the release hint",
        "the compass · the unit lines · the tracers and the impacts on the truck (the rounds, world)",
-       ["An automatic weapon fires while the trigger is HELD; a per-press launcher would fire once per press and the chip would flash instead (D-149, `FiresPerPress`). The weapon's OWN brain fires — the console only raises `Trigger` (D-149, D-154).",
+       ["On BURST the same FIRE press would fire ONE burst of the weapon's own burst length and stop by itself, on SINGLE one round, with no FIRING state held (D-157). The weapon's OWN brain fires — the console only raises `Trigger` or moves `LaunchSeq` (D-149, D-154).",
         "PROPOSAL: the amber ammo threshold (a quarter of the belt) and the FIRING relabel are mine; the design names the held trigger, not its look."])
 
 # ── 22 · the 9K11 box ──────────────────────────────────────────────────────────────────────────────────
@@ -277,29 +301,31 @@ x, y = head(2, "22 · THE 9K11 BOX, ARMED — four launcher lamps, SELECT (dv-re
 scene(x, y, 3.4, target="tank"); optic(x, y); reticle(x, y); compass_ctx(x, y); unit_lines(x, y)
 status(x, y, "9S415 · 9K11 CONTROL BOX", "ARMED")
 launchers(x, y, (("spent", False), ("loaded", True), ("loaded", False), ("none", False)))
+mode_switch(x, y, 0, refused=True)
 lamp(x, y, True); view_label(x, y, "9K11 BOX", "through its own sight"); zoom_readout(x, y, "8×")
 message(x, y, "LAUNCHER 2 READY", GOLD, "SELECT steps the launcher · FIRE launches")
 chips(x, y, (("POWER", "on"), ("SELECT", "ready"), ("ARM", "on"), ("FIRE", "ready"), ("ZOOM", "ready"), ("VIEW", "off")))
-legend(x, y, "the box's name and the ARMED chip · the LAUNCHER lamps: 1 spent (greyed, crossed), 2 loaded and SELECTED (gold frame), 3 loaded, 4 not connected (dashed) · the READY lamp for the selected launcher · 'LAUNCHER 2 READY' · SELECT pressable (steps 2 → 3), FIRE pressable, VIEW greyed until a round flies",
+legend(x, y, "the box's name and the ARMED chip · the LAUNCHER lamps: 1 spent (greyed, crossed), 2 loaded and SELECTED (gold frame), 3 loaded, 4 not connected (dashed) · the READY lamp for the selected launcher · 'LAUNCHER 2 READY' · the MODE switch GREYED on SINGLE (a launcher offers SINGLE only, D-157) · SELECT pressable (steps 2 → 3), FIRE pressable, VIEW greyed until a round flies",
        "the compass · the unit lines · the picture and the tank",
-       ["The box commands up to four uncrewed launchers on cables (D-155); each `Selected` index is a launcher of `ControlledEntities` (D-147). ARM needs the SELECTED launcher loaded (D-154, D-112): selecting the spent launcher 1 would show NO MISSILE and ARM refused.",
+       ["The box commands up to four uncrewed launchers on cables (D-155); each `Selected` index is a launcher of `ControlledEntities` (D-147). ARM needs the SELECTED launcher loaded (D-154, D-112): selecting the spent launcher 1 would show NO MISSILE and ARM refused. A press of MODE is refused the same way (D-157): a per-press weapon has one mode.",
         "The view is the box's own sight, not the launcher's camera (`GuideFrom = Self`, D-153): the round flies the line of the sight he looks through, so the reticle is the guide line, as for the TOW sight unit (panel 8).",
         "D-156 lists this panel as 'ARMED, a guided flight'; the flight half is drawn as panel 11 (the same chrome: lamp 1 in flight, SELECT refused, the stick gauge) so the two do not repeat each other.",
         "PROPOSAL: the lamp strip's place and look, the 8× field and the hotkeys are mine."])
 
 # ── 23 · paused ────────────────────────────────────────────────────────────────────────────────────────
 x, y = head(3, "23 · RWS CONSOLE, PAUSED — FIRE and the lay held, the view still answers (dv-rws-paused)",
-            "Scope: the same HUD in pause: FIRE greyed, the lay marker held where it was (the stick is ignored), ZOOM still acting. The toolbar's paused state is context.")
+            "Scope: the same HUD in pause: FIRE greyed, the lay marker held where it was (the stick is ignored), MODE and ZOOM still acting. The toolbar's paused state is context.")
 scene(x, y, 3.6); brackets(x, y); reticle(x, y); lay_marker(x, y, 70, -28, tag="LAY HELD"); compass_ctx(x, y); unit_lines(x, y)
-status(x, y, "RWS CONSOLE", "ARMED", (("WEAPON", "7.62 MM MG", WHITE), ("AMMO", "187", WHITE), ("FIRE MODE", "BURST", WHITE), ("AIM", "AZ 047°  EL +2.5°", "#C8C8D0")))
+status(x, y, "RWS CONSOLE", "ARMED", (("WEAPON", "7.62 MM MG", WHITE), ("AMMO", "187", WHITE), ("AIM", "AZ 047°  EL +2.5°", "#C8C8D0")))
+mode_switch(x, y, 0, note="set in pause")
 lamp(x, y, False); view_label(x, y, "RWS CONSOLE"); zoom_readout(x, y, "8×")
-message(x, y, "FIRE HELD IN PAUSE", C.AMBER, "ZOOM · SELECT · VIEW still act")
+message(x, y, "FIRE HELD IN PAUSE", C.AMBER, "MODE · ZOOM · SELECT · VIEW still act")
 chips(x, y, (("POWER", "on"), ("SELECT", "off"), ("ARM", "on"), ("FIRE", "off"), ("ZOOM", "ready"), ("VIEW", "off")))
 ty = y + PH + 8
 s.rect(x, ty, 300, 24, C.PAGE, stroke="#8A8A96", dash="4 3", rx=3)
 s.glyph(0xf111, x + 8, ty + 5, "#E63838", 13); s.glyph(PLAY, x + 40, ty + 5, "#E63838", 13)
 s.text(x + 64, ty + 16, "toolbar, paused: ▶ shown (context)", C.NOTE, 10.5)
-legend(x, y, "the READY lamp off and FIRE greyed (a world effect is refused in pause, never queued — D-78, D-154) · the LAY marker held, tagged LAY HELD, while the stick is swung — the lay is integrated on live frames only (D-151) · ZOOM 8× changed in pause and the picture magnified (observation) · the message 'FIRE HELD IN PAUSE'",
+legend(x, y, "the READY lamp off and FIRE greyed (a world effect is refused in pause, never queued — D-78, D-154) · the LAY marker held, tagged LAY HELD, while the stick is swung — the lay is integrated on live frames only (D-151) · the MODE switch stepped to SINGLE in pause, tagged 'set in pause' (MODE is device state, nothing fires — D-157) · ZOOM 8× changed in pause and the picture magnified (observation) · the message 'FIRE HELD IN PAUSE'",
        "the toolbar's run controls (paused) · the compass · the unit lines · the picture",
        ["Judged by dv-rws-paused: FIRE held through a pause and the stick swung hard — ⛔ `never` a shot during the pause, the turret pose unchanged. Nothing turns, nothing fires; on resume the lay continues from where it was held.",
         "No in-view PAUSED banner (as panels 5 and 15): the toolbar is the pause cue. PROPOSAL: the LAY HELD tag and the message's words are mine; the design says the lay and the trigger are frozen, not how the HUD shows it."], dy=34)

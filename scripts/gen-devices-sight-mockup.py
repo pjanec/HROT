@@ -98,12 +98,12 @@ def chase(x, y):
     ht(cx, y + 16, "the round and its picture — world, illustrative", "#C8C8D0", 9.5, "middle")
 
 
-def flare(x, y, dx, dy, trail=1):
+def flare(x, y, dx, dy, trail=1, caption=True):
     """CONTEXT - the missile's flare and smoke trail seen from the sight: a WORLD effect (the round entity), not part of the HUD."""
     cx, cy = x + PW / 2 + dx, y + PH / 2 + dy
     s.raw(f"<polyline points='{cx - 46 * trail},{cy + 3 * trail} {cx - 22 * trail},{cy + 1.5 * trail} {cx},{cy}' fill='none' stroke='#E8E8EE' stroke-width='1.6' stroke-opacity='0.55'/>")
     s.raw(f"<circle cx='{cx}' cy='{cy}' r='6' fill='#FF8A1E' fill-opacity='0.35'/><circle cx='{cx}' cy='{cy}' r='2.4' fill='#FFF1B0'/>")
-    s.text(cx + 10, cy + 20, "missile — world effect", "#8A8A96", 9.5, "end")
+    if caption: s.text(cx + 10, cy + 20, "missile — world effect", "#8A8A96", 9.5, "end")
 
 
 def compass(x, y):
@@ -182,7 +182,7 @@ def message(x, y, big, bigc, sub=None, subc="#C8C8D0"):
     if sub: ht(cx, y + PH - 46, sub, subc, 11, "middle")
 
 
-KEYS = {"POWER": "P", "SELECT": "S", "ARM": "A", "FIRE": "F", "ZOOM": "Z", "VIEW": "V"}       # PROPOSAL: the type names its hotkeys (D-124)
+KEYS = {"POWER": "P", "SELECT": "S", "ARM": "A", "FIRE": "F", "MODE": "M", "ZOOM": "Z", "VIEW": "V"}       # PROPOSAL: the type names its hotkeys (D-124)
 
 
 def chips(x, y, states, sz=10.5):
@@ -197,6 +197,20 @@ def chips(x, y, states, sz=10.5):
         kc = "#6A6A74" if st == "off" else "#C8C8D0"
         s.rect(xx + w - 14, y + PH - 33, 10, 12, "none", stroke=kc, rx=2, sw=0.9); s.text(xx + w - 9, y + PH - 23.5, KEYS[nm], kc, 8.5, "middle", "bold")
         xx -= 3
+
+
+def mode_switch_refused(x, y):
+    """The control box's fire MODE (D-157): a latching 3-position switch (SINGLE / BURST / AUTO); a launcher offers SINGLE only, so the whole switch is greyed
+    and a press is refused. Under the launcher lamps (panel 22 draws it live on the RWS console, the greyed one on the box)."""
+    bx, by = x + 24, y + 160
+    ht(bx, by + 13, "MODE", "#A0A0AA", 9.5)
+    xx = bx + 32
+    for i, nm in enumerate(("SINGLE", "BURST", "AUTO")):
+        w = text_width(nm, 9.5) + 12
+        s.rect(xx, by, w, 18, "#2A2A32" if i == 0 else "#000", rx=3, op=0.7 if i == 0 else 0.5, stroke="#4A4A55", sw=1)
+        s.text(xx + w / 2, by + 13, nm, "#808088" if i == 0 else "#5A5A64", 9.5, "middle", "bold" if i == 0 else "normal")
+        xx += w + 2
+    s.rect(xx + 2, by + 3, 10, 12, "#000", rx=2, op=0.6, stroke="#6A6A74", sw=0.9); s.text(xx + 7, by + 12.5, KEYS["MODE"], "#6A6A74", 8.5, "middle", "bold")
 
 
 def launchers(x, y, states):
@@ -375,9 +389,10 @@ legend(x, y, "the VIEW ▸ MISSILE label (rocket glyph) · the AIM ring: where t
 # ── 11 · the MCLOS box ─────────────────────────────────────────────────────────────────────────────────────
 x, y = head(7, "11 · THE 9K11 BOX, MCLOS flight — the stick steers the round",
             "Scope: the 9S415 control box (D-155: a separate cable box commanding up to four launchers; dv-steer-manual, dv-remote-launcher), GUIDING, the launcher lamps, the stick gauge and its numbers, IN FLIGHT. The reticle is the boresight.")
-scene(x, y, 3.8, tank_dx=2); optic(x, y); flare(x, y, -50, 17); reticle(x, y, mil_px=3.4); compass(x, y); unit_lines(x, y)
+scene(x, y, 3.8, tank_dx=2); optic(x, y); flare(x, y, -50, 17, caption=False); reticle(x, y, mil_px=3.4); compass(x, y); unit_lines(x, y)
 status(x, y, "9S415 · 9K11 CONTROL BOX", "GUIDING", lamp_on=False)
 launchers(x, y, (("flight", True), ("loaded", False), ("loaded", False), ("none", False)))
+mode_switch_refused(x, y)
 view_label(x, y, FA.TARGET, C.ORANGE, "9S415")
 gx, gy, gs = x + PW - 96, y + PH - 128, 80                                                        # the stick gauge: the deflection the device reads (axes 0 / 1)
 s.rect(gx, gy, gs, gs, "#000", rx=3, op=0.6, stroke="#8A8A96", sw=1)
@@ -389,7 +404,7 @@ s.raw(f"<circle cx='{sx_}' cy='{sy_}' r='5' fill='{GOLD}' stroke='#000' stroke-w
 ht(gx + gs / 2, gy - 5, "STICK", "#C8C8D0", 10.5, "middle", "bold")
 message(x, y, "IN FLIGHT  T+ 9.8 s", C.RED, "LAUNCHER 1 · turn  X +0.35 · Y +0.20")
 chips(x, y, (("POWER", "on"), ("SELECT", "off"), ("ARM", "on"), ("FIRE", "off"), ("ZOOM", "ready"), ("VIEW", "ready")), sz=9.5)
-legend(x, y, "the box's name · GUIDING (red) · the LAUNCHER lamps (1 in flight and selected, 2 and 3 loaded, 4 not connected) · the STICK gauge: the deflection the device reads (axes 0 / 1) and the same two numbers on the message line · IN FLIGHT with the time of flight · the six chips of D-154 as HudPanel buttons: SELECT refused while a round flies",
+legend(x, y, "the box's name · GUIDING (red) · the LAUNCHER lamps (1 in flight and selected, 2 and 3 loaded, 4 not connected) · the STICK gauge: the deflection the device reads (axes 0 / 1) and the same two numbers on the message line · IN FLIGHT with the time of flight · the MODE switch GREYED on SINGLE (a launcher offers SINGLE only, D-157) · the six chips of D-154 as HudPanel buttons: SELECT refused while a round flies",
        "compass · unit lines · the scene · the flare and its trail",
        ["D-155 refines D-97: the 9S415 is a CONTROL UNIT (panel 22 shows it ARMED, selecting a launcher), not a sight mounted on the launcher; the Malyutka launchers are uncrewed and fire from its console. The box has no TEST phase: POWER goes straight to STANDBY (D-154).",
         "MCLOS (D-97): the round turns at stick × its turn rate and never looks at the target; the trainee watches the flare against the target and corrects. Here the flare is low-left of the target and the stick is pushed up-right. In pause the gauge still shows the stick (observation) but the command the round reads stays frozen (D-83).",
