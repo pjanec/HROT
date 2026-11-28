@@ -118,6 +118,7 @@ public sealed class LaserBeamFrameRail
     {
         sc.Mode(mode);
         sc.Set(band, on: false);
+        sc.Screen();   // settle: a view just switched (or a scene just built) still moves on its first frames — measured: thermal 11.9 of "added" light with nothing drawn
         var off = sc.Screen();
         sc.Set(band, on: true, preview: preview);
         var on = sc.Screen();
