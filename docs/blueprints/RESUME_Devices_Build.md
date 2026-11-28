@@ -60,3 +60,4 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⭐ S1e: a check's action name must not contain `-` or `+` (`AtExpr` reads `menu-1` as "menu" − 1 s) — use spaces.
 - ⭐ S1e: on a world-less terrain (`berlin`) the collider grid stays [−750, 750)² — a body beyond it is met by no round and no laser (CE-2193 warns); place markers inside it.
 - ⭐ S1e: both operated devices' HUD runs are ALWAYS published (each scoped); a re-bind changes what the VIEW keeps — judge it with `"source": "station:1"`.
+- Known reds that predate the devices work (proved at `af786e236` in a clean worktree, `2026-11-28`): `NedTkbBuilderCombatTests.CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard` and `CE4621_TheMotorcycle…` (expects 2 seats, the bike has 3) — not chased.
