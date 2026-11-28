@@ -47,6 +47,15 @@ public sealed partial class PossessionStationTests
         public bool IsMouseCaptured => false;
         public bool IsKeyboardCaptured => false;
         public void SetCursorLocked(bool locked) => Locked = locked;
+        // ⭐ SD-S2a — a pad (pad 0)
+        public bool PadConnected { get; set; }
+        public float[] PadAxes { get; } = new float[6];
+        public HashSet<MapGamepadButton> PadDown { get; } = new();
+        public HashSet<MapGamepadButton> PadPressed { get; } = new();
+        public bool GamepadAvailable => PadConnected;
+        public float GamepadAxis(MapGamepadAxis axis) => PadAxes[(int)axis];
+        public bool GamepadButtonDown(MapGamepadButton button) => PadDown.Contains(button) || PadPressed.Contains(button);
+        public bool GamepadButtonPressed(MapGamepadButton button) => PadPressed.Contains(button);
     }
 
     private sealed class CountingDriver : ICameraDriver

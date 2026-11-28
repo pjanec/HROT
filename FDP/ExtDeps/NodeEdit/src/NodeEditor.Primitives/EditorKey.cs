@@ -42,4 +42,47 @@ public enum EditorKey
     MouseDeltaX,
     /// <summary>Mouse movement along Y (px this frame) — an AXIS source.</summary>
     MouseDeltaY,
+
+    // ⭐ SD-S2a (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-102) — the GAMEPAD (pad 0) as keymap sources, appended. Sticks and triggers are
+    // AXIS (value) sources — the keymap reader applies one deadzone to them; a trigger also reads as held past half way (Hold / Press). The buttons are keys.
+    /// <summary>The pad's left stick, −1 left … +1 right — an AXIS source.</summary>
+    PadLeftX,
+    /// <summary>The pad's left stick, −1 up … +1 down — an AXIS source.</summary>
+    PadLeftY,
+    /// <summary>The pad's right stick, −1 left … +1 right — an AXIS source.</summary>
+    PadRightX,
+    /// <summary>The pad's right stick, −1 up … +1 down — an AXIS source.</summary>
+    PadRightY,
+    /// <summary>The pad's left trigger, 0 … 1 — an AXIS source; held as a button (Hold / Press).</summary>
+    PadTriggerL,
+    /// <summary>The pad's right trigger, 0 … 1 — an AXIS source; held as a button (Hold / Press).</summary>
+    PadTriggerR,
+    /// <summary>The pad's bottom face button (A on an Xbox pad).</summary>
+    PadA,
+    /// <summary>The pad's right face button (B).</summary>
+    PadB,
+    /// <summary>The pad's left face button (X).</summary>
+    PadX,
+    /// <summary>The pad's top face button (Y).</summary>
+    PadY,
+    /// <summary>The pad's left bumper.</summary>
+    PadLB,
+    /// <summary>The pad's right bumper.</summary>
+    PadRB,
+    /// <summary>The pad's Back / View button.</summary>
+    PadBack,
+    /// <summary>The pad's Start / Menu button.</summary>
+    PadStart,
+    /// <summary>The pad's left stick pressed.</summary>
+    PadLeftStick,
+    /// <summary>The pad's right stick pressed.</summary>
+    PadRightStick,
+    /// <summary>The pad's d-pad up.</summary>
+    PadDpadUp,
+    /// <summary>The pad's d-pad down.</summary>
+    PadDpadDown,
+    /// <summary>The pad's d-pad left.</summary>
+    PadDpadLeft,
+    /// <summary>The pad's d-pad right.</summary>
+    PadDpadRight,
 }

@@ -87,6 +87,16 @@ public sealed class ShortcutRows
             NodeEditor.Primitives.EditorKey.MouseDeltaY => "Mouse Y",
             NodeEditor.Primitives.EditorKey.KpAdd => "Keypad +",
             NodeEditor.Primitives.EditorKey.KpSubtract => "Keypad -",
+            // ⭐ SD-S2a (devices §3.13c D-102) — the pad's rows say "Pad …" like the mouse's say "Mouse …"
+            NodeEditor.Primitives.EditorKey.PadLeftX => "Pad left stick X",
+            NodeEditor.Primitives.EditorKey.PadLeftY => "Pad left stick Y",
+            NodeEditor.Primitives.EditorKey.PadRightX => "Pad right stick X",
+            NodeEditor.Primitives.EditorKey.PadRightY => "Pad right stick Y",
+            NodeEditor.Primitives.EditorKey.PadTriggerL => "Pad LT",
+            NodeEditor.Primitives.EditorKey.PadTriggerR => "Pad RT",
+            NodeEditor.Primitives.EditorKey.PadLeftStick => "Pad left stick press",
+            NodeEditor.Primitives.EditorKey.PadRightStick => "Pad right stick press",
+            >= NodeEditor.Primitives.EditorKey.PadA and <= NodeEditor.Primitives.EditorKey.PadDpadRight => "Pad " + chord.Key.ToString().Substring(3),
             _ => chord.Key.ToString(),
         };
         string mods = ModifierWords(chord.Modifiers);   // Ctrl+Shift+ — the order KeyBinding.ToString uses

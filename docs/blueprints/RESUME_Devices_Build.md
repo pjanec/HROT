@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
+updated: 2026-11-28 (SD-S2a built — the gamepad) · 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
 current-answer: §1 (state) · §2 (the queue) — read §1 first after a compaction
 stale-below: nothing
 related-designs:
@@ -33,6 +33,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **S1e-3** the six SD-S1 scenarios (`scenarios/demos/devices/`, `scripts/gen-devices-scenarios.py`) | ✅ | the S1e-3 commit — **6 / 6 pass**, goldens captured, `dv-replay-hud` H5 review SAME; 3 defects fixed (frame-counting device state, the headless gizmo gate, the eye's hud) — design §5a S1e AS BUILT; ⏳ CE-4713 (the HUD text in the review) |
 | **queued (user `2026-11-27`)** SD-S4b steer the round in flight (both modes, crosshair first) + the missile's-view toggle — design §3.13a (D-80–D-91), §5 row, §5a `dv-steer-*` (5), Q-15 answered (R-4301: the device goes straight into `GuidedRound`) | ⏳ | after SD-S4 `FireControl`; real joystick = SD-S2 |
 | **designed `2026-11-28`** SD-S4 + SD-S4b (§3.13b) and SD-S2 (§3.13c) READY-TO-BUILD | ⏳ | ⚠ mockups pending: panels 7–11 (the sight unit — an agent drawing them was stopped by usage-policy safeguards) ✅ 12–15 drawn (`devices-hud-drone.svg`); the build order the user picks |
+| **SD-S2a** the gamepad as keymap value sources (D-102 / D-103): `EditorKey` pad sources, `IInputProvider` pad members (default no pad), `KeymapReader.PadDeadzone` 0.15 + `Inner` (an inner place shadows the outer), the FPS pad rows + the device place `EmbodiedKeys.DeviceHat` (sticks → axes 0–3, A … RB → channels 0–5) | ✅ | the S2a commit — `KeymapReaderTests.SDS2a_*` (5), `PossessionStationTests.SDS2a_…` (red-proved); ⚠ deviation: the device rows in their own place (a conflict otherwise) — design §3.13c S2a AS BUILT, input design §6g |
 
 ## 2. Rules learned this run (do not re-learn)
 
@@ -61,4 +62,5 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⭐ S1e: a check's action name must not contain `-` or `+` (`AtExpr` reads `menu-1` as "menu" − 1 s) — use spaces.
 - ⭐ S1e: on a world-less terrain (`berlin`) the collider grid stays [−750, 750)² — a body beyond it is met by no round and no laser (CE-2193 warns); place markers inside it.
 - ⭐ S1e: both operated devices' HUD runs are ALWAYS published (each scoped); a re-bind changes what the VIEW keeps — judge it with `"source": "station:1"`.
+- ⭐ S2a: a pad stick that is BOTH a body row and a device row in one place is a keymap conflict — the device's rows live in their own place (`EmbodiedKeys.DeviceHat`) and the station sets `KeymapReader.Inner` while a view shows a device (the inner place shadows the outer).
 - Known reds that predate the devices work (proved at `af786e236` in a clean worktree, `2026-11-28`): `NedTkbBuilderCombatTests.CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard` and `CE4621_TheMotorcycle…` (expects 2 seats, the bike has 3) — not chased.

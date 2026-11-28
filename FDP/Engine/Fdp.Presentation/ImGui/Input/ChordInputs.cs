@@ -69,6 +69,7 @@ public sealed class ProviderChordInput : IChordInput
         EditorKey.MouseLeft => _input.IsMouseButtonDown(MapMouseButton.Left),
         EditorKey.MouseRight => _input.IsMouseButtonDown(MapMouseButton.Right),
         EditorKey.MouseMiddle => _input.IsMouseButtonDown(MapMouseButton.Middle),
+        >= EditorKey.PadLeftX and <= EditorKey.PadDpadRight => PadButtonOf(source) is var b && b != MapGamepadButton.Unknown && _input.GamepadAvailable && _input.GamepadButtonDown(b),
         _ => RaylibKeyCodes.Of(source) is var code && code != 0 && _input.IsKeyDown((MapKeyboardKey)code),
     };
 
@@ -78,6 +79,7 @@ public sealed class ProviderChordInput : IChordInput
         EditorKey.MouseLeft => _input.IsMouseButtonPressed(MapMouseButton.Left),
         EditorKey.MouseRight => _input.IsMouseButtonPressed(MapMouseButton.Right),
         EditorKey.MouseMiddle => _input.IsMouseButtonPressed(MapMouseButton.Middle),
+        >= EditorKey.PadLeftX and <= EditorKey.PadDpadRight => PadButtonOf(source) is var b && b != MapGamepadButton.Unknown && _input.GamepadAvailable && _input.GamepadButtonPressed(b),
         _ => RaylibKeyCodes.Of(source) is var code && code != 0 && _input.IsKeyPressed((MapKeyboardKey)code),
     };
 
@@ -87,7 +89,47 @@ public sealed class ProviderChordInput : IChordInput
         EditorKey.MouseWheel => _input.MouseWheelMove,
         EditorKey.MouseDeltaX => _input.MouseDelta.X,
         EditorKey.MouseDeltaY => _input.MouseDelta.Y,
+        >= EditorKey.PadLeftX and <= EditorKey.PadTriggerR => PadValue(source),
         _ => 0f,
+    };
+
+    /// <summary>⭐ SD-S2a (devices §3.13c D-102) — a pad stick raw (−1 … +1), a trigger as 0 … 1; 0 with no pad (an unplugged pad's trigger would read ½).
+    /// ⛔ No deadzone here: the keymap reader applies the one.</summary>
+    private float PadValue(EditorKey source)
+    {
+        if (!_input.GamepadAvailable) return 0f;
+        return source switch
+        {
+            EditorKey.PadLeftX => _input.GamepadAxis(MapGamepadAxis.LeftX),
+            EditorKey.PadLeftY => _input.GamepadAxis(MapGamepadAxis.LeftY),
+            EditorKey.PadRightX => _input.GamepadAxis(MapGamepadAxis.RightX),
+            EditorKey.PadRightY => _input.GamepadAxis(MapGamepadAxis.RightY),
+            EditorKey.PadTriggerL => Math.Clamp((_input.GamepadAxis(MapGamepadAxis.LeftTrigger) + 1f) * 0.5f, 0f, 1f),
+            EditorKey.PadTriggerR => Math.Clamp((_input.GamepadAxis(MapGamepadAxis.RightTrigger) + 1f) * 0.5f, 0f, 1f),
+            _ => 0f,
+        };
+    }
+
+    /// <summary>⭐ SD-S2a — the pad button an <see cref="EditorKey"/> names (a trigger is its button); <see cref="MapGamepadButton.Unknown"/> for a stick axis.</summary>
+    public static MapGamepadButton PadButtonOf(EditorKey key) => key switch
+    {
+        EditorKey.PadTriggerL => MapGamepadButton.LeftTrigger2,
+        EditorKey.PadTriggerR => MapGamepadButton.RightTrigger2,
+        EditorKey.PadA => MapGamepadButton.RightFaceDown,
+        EditorKey.PadB => MapGamepadButton.RightFaceRight,
+        EditorKey.PadX => MapGamepadButton.RightFaceLeft,
+        EditorKey.PadY => MapGamepadButton.RightFaceUp,
+        EditorKey.PadLB => MapGamepadButton.LeftTrigger1,
+        EditorKey.PadRB => MapGamepadButton.RightTrigger1,
+        EditorKey.PadBack => MapGamepadButton.MiddleLeft,
+        EditorKey.PadStart => MapGamepadButton.MiddleRight,
+        EditorKey.PadLeftStick => MapGamepadButton.LeftThumb,
+        EditorKey.PadRightStick => MapGamepadButton.RightThumb,
+        EditorKey.PadDpadUp => MapGamepadButton.LeftFaceUp,
+        EditorKey.PadDpadDown => MapGamepadButton.LeftFaceDown,
+        EditorKey.PadDpadLeft => MapGamepadButton.LeftFaceLeft,
+        EditorKey.PadDpadRight => MapGamepadButton.LeftFaceRight,
+        _ => MapGamepadButton.Unknown,
     };
 }
 

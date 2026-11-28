@@ -73,6 +73,26 @@ namespace Hrot.UI.Common.Map3D
         public static ActionRef DeviceButton(int index) => index == 0 ? Fire : DeviceButton2;
         private static readonly ActionRef DeviceButton2 = Id("fps.device.button.2");
 
+        // ⭐⭐ SD-S2a (devices §3.13c D-102 / D-103) — the DEVICE place of the Embodied hat (D-38's device scope): rows read only while a view shows a device,
+        //   and while one does they SHADOW the body's rows on the same pad input (KeymapReader.Inner) — the stick flies the device, it does not also walk him.
+        /// <summary>The device place's qualifier — rows of the focused view's device (<c>Embodied device</c>).</summary>
+        public static readonly string DeviceHat = Hat + " device";
+        /// <summary>The focused view's device's channel <c>n</c> (0–5 from the pad: A B X Y LB RB; the TKB names what each channel does).</summary>
+        public static ActionRef DeviceChannel(int index) => DeviceChannelIds[index];
+        private static readonly ActionRef[] DeviceChannelIds =
+        {
+            Id("fps.device.channel.0"), Id("fps.device.channel.1"), Id("fps.device.channel.2"),
+            Id("fps.device.channel.3"), Id("fps.device.channel.4"), Id("fps.device.channel.5"),
+        };
+        /// <summary>The pad channels <see cref="DeviceChannel"/> covers.</summary>
+        public const int PadDeviceChannels = 6;
+        /// <summary>The focused view's device's axis <c>n</c> (<c>DeviceControl.Axes</c>): 0 / 1 the left stick X / up, 2 / 3 the right stick X / up.</summary>
+        public static ActionRef DeviceAxis(int index) => DeviceAxisIds[index];
+        private static readonly ActionRef[] DeviceAxisIds = { Id("fps.device.axis.0"), Id("fps.device.axis.1"), Id("fps.device.axis.2"), Id("fps.device.axis.3") };
+
+        /// <summary>⭐ SD-S2a (D-103) — a full right-stick deflection turns the look as far as this many pixels of mouse movement per frame.</summary>
+        public const float PadLookPixelsPerFrame = 12f;
+
         // ── Hold ─────────────────────────────────────────────────────────────────────────────────
         /// <summary>Run (the gait).</summary>
         public static readonly ActionRef Sprint = Id("fps.sprint");
@@ -161,6 +181,37 @@ namespace Hrot.UI.Common.Map3D
             Axis(EditorKey.MouseDeltaX, LookX, "Look left / right (mouse)", 1f);
             Axis(EditorKey.MouseDeltaY, LookY, "Look up / down (mouse)", 1f);
             Axis(EditorKey.MouseWheel, CameraDistance, "Camera distance (wheel)", 1f);
+
+            // ⭐⭐ SD-S2a (devices §3.13c D-102 / D-103) — the GAMEPAD, as rows like every key (rebindable, listed in the Keyboard shortcuts window). Declared
+            //   AFTER the keys so a HUD hint (ChordOf: the first row) still names the key. Sticks Y are −1 up, so forward / up take a scale of −1.
+            Axis(EditorKey.PadLeftY, MoveForward, "Move forward / back", -1f);
+            Axis(EditorKey.PadLeftX, MoveSide, "Move left / right", -1f);
+            Axis(EditorKey.PadRightX, LookX, "Look left / right", PadLookPixelsPerFrame);
+            Axis(EditorKey.PadRightY, LookY, "Look up / down", PadLookPixelsPerFrame);
+            Axis(EditorKey.PadA, Climb, "Climb / descend", +1f);   // A: jump / climb (a flyer's up)
+            Axis(EditorKey.PadB, Climb, "Climb / descend", -1f);
+            Hold(EditorKey.PadTriggerL, Zoom, "Zoom");             // LT: aim
+            Hold(EditorKey.PadTriggerR, Trigger, "Fire");          // RT: the trigger …
+            Press(EditorKey.PadTriggerR, Fire, "Fire: lock the shot (through a device: its button 1)");   // … and its press (through a device: channel 0, as LMB)
+            Press(EditorKey.PadA, Use, "Use");                     // A: use (tap) / the verb list (held)
+            Hold(EditorKey.PadA, UseHeld, "Use (verb list)");
+            Hold(EditorKey.PadLeftStick, Sprint, "Run");
+            Press(EditorKey.PadRightStick, Crouch, "Crouch (toggle)");
+            Press(EditorKey.PadY, NextRound, "Next round");
+            Press(EditorKey.PadBack, ViewNext, "View: next source (eye, each device)");
+            Press(EditorKey.PadStart, Map, "2-D map");
+            Press(EditorKey.PadDpadRight, TeamNext, "Next man of the squad");
+            Press(EditorKey.PadDpadLeft, TeamPrevious, "Previous man of the squad");
+            Press(EditorKey.PadDpadUp, SeatNext, "Next seat");
+
+            // the device place: the focused view's device (D-103) — the sticks are its axes, the face buttons and bumpers its channels 0–5
+            var device = new RowDeclarer(keymap, InputScope.Hat, DeviceHat);
+            device.Axis(EditorKey.PadLeftX, DeviceAxis(0), "Device axis 1 (left stick X)", 1f);
+            device.Axis(EditorKey.PadLeftY, DeviceAxis(1), "Device axis 2 (left stick up)", -1f);
+            device.Axis(EditorKey.PadRightX, DeviceAxis(2), "Device axis 3 (right stick X)", 1f);
+            device.Axis(EditorKey.PadRightY, DeviceAxis(3), "Device axis 4 (right stick up)", -1f);
+            EditorKey[] buttons = { EditorKey.PadA, EditorKey.PadB, EditorKey.PadX, EditorKey.PadY, EditorKey.PadLB, EditorKey.PadRB };
+            for (int i = 0; i < buttons.Length; i++) device.Press(buttons[i], DeviceChannel(i), "Device button " + (i + 1));
         }
     }
 }

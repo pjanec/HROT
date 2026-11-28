@@ -1311,7 +1311,16 @@ namespace Hrot.UI.Common.Map3D
         {
             if (!ReferenceEquals(_chordsFor, input)) { _chords = new Fdp.Presentation.Input.ProviderChordInput(input); _chordsFor = input; }
             _keys.Input = _chords;
+            _deviceKeys.Input = _chords;
+            // ⭐ SD-S2a (devices §3.13c D-102) — while a view shows a device, its place (the pad's sticks and buttons) shadows the body's rows on the same input
+            _keys.Inner = _station.BoundDevice.IsNull ? null : _deviceKeys;
         }
+
+        // ⭐⭐ SD-S2a (§3.13c D-103) — the device place of the Embodied hat (EmbodiedKeys.DeviceHat): the pad's sticks → the bound device's axes 0–3, its face
+        //   buttons and bumpers → channels 0–5. Read only while a view shows a device.
+        private readonly Fdp.Toolkit.Input.KeymapReader _deviceKeys;
+        /// <summary>⭐ SD-S2a — the driver's reader of the device place (rails).</summary>
+        internal Fdp.Toolkit.Input.KeymapReader DeviceKeys => _deviceKeys;
         private float _yaw, _pitch, _roll;
         private float _hullLook, _hullYaw;   // ⭐ CE-1351 — the look off the hull while the view is hull-locked (V); the hull's heading
         private float? _heldHeading;         // ⭐ CE-1354 — the heading a flyer holds since A/D was let go (taken once, never re-read)
@@ -1353,6 +1362,7 @@ namespace Hrot.UI.Common.Map3D
             _netId = netId;
             EmbodiedKeys.Declare(station.Keymap);
             _keys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.Hat);
+            _deviceKeys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.DeviceHat);
         }
 
         public Entity Unit { get; }
@@ -2063,7 +2073,8 @@ namespace Hrot.UI.Common.Map3D
         //   ⭐ S1e-2 — written by THE ONE sender every adapter uses (DeviceFrameSender: this station, a scenario's scripted station, later a gamepad)
 
         private readonly Fdp.Toolkit.Behavior.Devices.DeviceFrameSender _deviceFrames = new(PossessionStation.MaxViewSources);
-        private readonly byte[] _devicePresses = new byte[4];
+        private readonly byte[] _devicePresses = new byte[EmbodiedKeys.PadDeviceChannels];   // ⭐ SD-S2a — 0–3 the mouse (LMB, RMB, wheel up / down), 0–5 the pad
+        private readonly float[] _deviceAxes = new float[Fdp.Toolkit.Behavior.Devices.DeviceAxes.Count];   // ⭐ SD-S2a — the pad's sticks
 
         /// <summary>The device frames this driver sent (rails).</summary>
         public long DeviceFramesSent => _deviceFrames.Sent;
@@ -2078,14 +2089,18 @@ namespace Hrot.UI.Common.Map3D
         {
             if (_world() is not { } w || HttpControlledUnits.IsMarked(_netId) || _station.BodyStation(w) is not { } station) return;
             System.Array.Clear(_devicePresses);
+            System.Array.Clear(_deviceAxes);
             if (viewing && _locked != null)
             {
                 for (int b = 0; b < 2; b++) if (_keys.Pressed(EmbodiedKeys.DeviceButton(b))) _devicePresses[b] = 1;
                 if (wheel > 0f) _devicePresses[2] = 1;
                 else if (wheel < 0f) _devicePresses[3] = 1;
+                // ⭐ SD-S2a (§3.13c D-103) — the pad, through the device place's rows: A B X Y LB RB = channels 0–5, the sticks = axes 0–3
+                for (int b = 0; b < EmbodiedKeys.PadDeviceChannels; b++) if (_deviceKeys.Pressed(EmbodiedKeys.DeviceChannel(b))) _devicePresses[b] = 1;
+                for (int a = 0; a < _deviceAxes.Length; a++) _deviceAxes[a] = _deviceKeys.Axis(EmbodiedKeys.DeviceAxis(a));
             }
             _deviceFrames.Send(w, station, _station.ViewSources, _station.BoundDevice, viewing,
-                Fdp.Toolkit.Behavior.Devices.DeviceFrameSender.Look(_yaw, _pitch), _devicePresses, default);
+                Fdp.Toolkit.Behavior.Devices.DeviceFrameSender.Look(_yaw, _pitch), _devicePresses, _deviceAxes);
         }
 
         /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold

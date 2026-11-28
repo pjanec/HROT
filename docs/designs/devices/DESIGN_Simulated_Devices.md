@@ -984,6 +984,23 @@ illustrative. Every glyph is in the app's FontAwesome set (`fa-solid-900.ttf`).
 (D-108) — alone, so the golden movement has one cause. **SD-S2c** `RemoteControl`, `RemoteControls`, `DroneLink`, `RemotePilot`, the
 `DroneStation` device, `DeviceView` (D-104–D-107, D-109, D-110). **SD-S2d** the OSD to mockup panels 12–15 (D-111) — ✅ mockups drawn `2026-11-28` (above).
 
+⭐ **S2a AS BUILT (`2026-11-28`)** — the gamepad as keymap value sources (D-102 / D-103), no simulation change. `EditorKey` + the pad's sticks, triggers and
+buttons (appended); `IInputProvider` + `GamepadAvailable / GamepadAxis / GamepadButtonDown / GamepadButtonPressed` (default bodies: no pad) over the new
+`MapGamepadAxis` / `MapGamepadButton` (Raylib's codes, a direct cast); `RaylibInputProvider` pad 0; `ProviderChordInput` the map (a trigger 0 … 1, nothing with no
+pad); **`KeymapReader.PadDeadzone` = 0.15 — the ONE deadzone, applied by the reader to every pad axis** (rescaled: the edge reads 0, full deflection 1).
+Rows (`EmbodiedKeys`): the FPS rows gain the pad (left stick move · right stick look × `PadLookPixelsPerFrame` 12 · LT zoom · RT trigger + fire · A use (tap / held)
++ climb · B descend · Back = view next · Start = map · d-pad team / seat · stick clicks run / crouch · Y next round), declared AFTER the keys so a HUD hint still
+names the key. ⚠ **Deviation from D-103, argued:** the device rows live in their OWN place of the Embodied hat — **`EmbodiedKeys.DeviceHat`** (*Embodied device
+hat*: sticks → `DeviceControl.Axes` 0–3, Y up = +; A B X Y LB RB → channels 0–5) — because the same stick in ONE place would be a keymap conflict (`Keymap.Validate`:
+the left stick is both the body's move and the device's axis) and would walk him while he flies. The station sets **`KeymapReader.Inner`** to the device place
+while a view shows a device: an inner place shadows the outer one's rows on the same input, any trigger (the scope chain's own rule, one reader). The mouse's
+device buttons (LMB = the `Fire` row, RMB, the wheel — S1d-3) are unchanged; `FpsCameraDriver.SendDeviceFrames` ORs the pad's channels into them and passes the
+four axes to `DeviceFrameSender` (zeros at rest; S1d-3 passed none). Rails: `KeymapReaderTests.SDS2a_*` (value + deadzone, buttons press / hold through the
+adapter, the adapter's map, the inner place, 0 B steady), `PossessionStationTests.K4_TheEmbodiedHatDeclaresEveryFpsKey…` (pad + device rows, no conflict, listed
+in the shortcuts window) and **`SDS2a_ThePad_WalksHim_AndThroughABoundDeviceIsItsAxesAndChannels`** (red-proved: `Inner` never set ⇒ he walks while flying ⇒
+red). Folded into `DESIGN_Input_And_Commands.md` §6g (as built). ⚠ The look's pad scale is per FRAME (as the mouse's pixels are) — a rate per second would
+need the frame's dt in the reader; not needed by any scenario (`do: control axis` never uses a pad).
+
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
 🔒 User: *"once we feel that it's right and that it's easy to extend, then it's time to start implementing the whole device stuff"*. The cleanup
