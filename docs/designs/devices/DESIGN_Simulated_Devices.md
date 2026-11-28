@@ -1190,7 +1190,16 @@ classDiagram
   class RangefinderHudGizmo { <<existing, changes>> MODE · POWER · MENU · SELECT · EXIT chips through HudPanel }
   class DesignatorHudGizmo { <<NEW S5c>> POWER · LASE · CODE · RANGE through HudPanel }
   class DroneStationHudGizmo { <<NEW S2d>> TAKEOFF · LAND · RTH · CAM through HudPanel }
-  class DevicePanelAdapter { <<NEW, station, Hrot.Presentation>> POINT: the cursor free, hover, LMB on a button = its channel · LOOK: RMB held = the look · hotkeys · arrows = fine look }
+  class IDevicePanelIo { <<NEW interface — THE panel IO seam, one per device at a station>> inputs: channel presses · axes · look/tracker · outputs: DevicePanel (lamps, values, text) }
+  class VirtualPanelAdapter { <<NEW, station, Hrot.Presentation — implements IDevicePanelIo>> the HUD's PanelButtons + mouse (POINT / RMB LOOK) + keys (hotkeys, arrows) + gamepad }
+  class ReplicaPanelAdapter { <<SD-S5, a node extension — implements IDevicePanelIo>> the physical replica's buttons, axes, tracker · its lamps from DevicePanel }
+  class ScriptedPanelAdapter { <<S1e-2 ScriptedStation, re-homed — implements IDevicePanelIo>> do: press / click / axis / aim }
+  class DevicePanelIoBinding { <<NEW, station>> exactly ONE IDevicePanelIo per operated device: the replica if one is attached, else the virtual one }
+  VirtualPanelAdapter ..|> IDevicePanelIo
+  ReplicaPanelAdapter ..|> IDevicePanelIo
+  ScriptedPanelAdapter ..|> IDevicePanelIo
+  DevicePanelIoBinding --> IDevicePanelIo : one per device
+  IDevicePanelIo --> DeviceFrameSender : the ONLY way in
   class DeviceDefDto { <<existing, grows>> Channels gain a Hotkey and an optional Wheel role }
   class DeviceFrameSender { <<existing>> the ONE sender: presses · look · axes }
   class HudScopes { <<existing>> Keep — the bound run }
@@ -1200,12 +1209,11 @@ classDiagram
   RangefinderHudGizmo ..> HudPanel
   DesignatorHudGizmo ..> HudPanel
   DroneStationHudGizmo ..> HudPanel
-  DevicePanelAdapter ..> HudScopes : the kept run
-  DevicePanelAdapter ..> PanelButton : hit test, canvas coordinates
-  DevicePanelAdapter ..> DeviceDefDto : hotkeys, wheel roles
-  DevicePanelAdapter ..> Keymap : rows
-  DevicePanelAdapter --> DeviceFrameSender : the channel pressed · the look
-  PossessionStation --> DevicePanelAdapter : while a device is bound
+  VirtualPanelAdapter ..> HudScopes : the kept run
+  VirtualPanelAdapter ..> PanelButton : hit test, canvas coordinates
+  VirtualPanelAdapter ..> DeviceDefDto : hotkeys, wheel roles
+  VirtualPanelAdapter ..> Keymap : rows
+  PossessionStation --> DevicePanelIoBinding : the devices it operates
 ```
 
 *What the picture shows that prose hid: the button's rectangle and its channel are emitted by the SAME call that draws it, on the brain — so what the trainee
@@ -1217,7 +1225,7 @@ the one frame every other adapter writes.*
 ```mermaid
 sequenceDiagram
   participant U as mouse / keys
-  participant A as DevicePanelAdapter (station)
+  participant A as VirtualPanelAdapter (station, the device's IDevicePanelIo)
   participant V as the bound view's kept HUD run
   participant F as DeviceFrameSender
   participant D as the device (brain)
@@ -1243,13 +1251,16 @@ same channel — the device's logic cannot tell them apart, which is what makes 
 | # | decision | why |
 |---|---|---|
 | D-122 | ⭐⭐ **a HUD button is emitted by the drawing call**: `HudPanel.Button(draw, channel, rect, label, state, hotkey)` draws the chip and appends a `PanelButton` meta primitive (channel, canvas rect, state, hotkey) inside the open `HudScope`; ⛔ a projector never emits a hit zone separately | the visual and the hit zone cannot drift (by construction); the station still runs no device code (D-21) |
-| D-123 | ⭐⭐ **one generic station adapter, `DevicePanelAdapter`**, owns the mouse while a view is bound to a device: **POINT** is the default — the cursor is FREE (⛔ no lock), hovering a `PanelButton` frames it (station-local), LMB on it presses its channel; **LOOK** while RMB is held — the cursor is hidden and captured, the drag turns the look, release returns to POINT with the cursor where it was (the free camera's convention, M8). LMB on no button does nothing | 🔒 user; the clickable-cockpit pattern; the house's right-drag-to-look |
+| D-123 | ⭐⭐ **one generic station adapter, `VirtualPanelAdapter`** (an `IDevicePanelIo`, D-131), owns the mouse while a view is bound to a device: **POINT** is the default — the cursor is FREE (⛔ no lock), hovering a `PanelButton` frames it (station-local), LMB on it presses its channel; **LOOK** while RMB is held — the cursor is hidden and captured, the drag turns the look, release returns to POINT with the cursor where it was (the free camera's convention, M8). LMB on no button does nothing | 🔒 user; the clickable-cockpit pattern; the house's right-drag-to-look |
 | D-124 | ⭐ **hotkeys**: each channel of a device type may name a key (`DeviceDefDto.Channels` entries gain `Hotkey`, e.g. designator P · L · C · R); the adapter declares them as device-scope keymap rows while that type is bound (shown and rebindable with the rest); the HUD chip shows the key. ⭐ The arrow keys turn the look in fine steps (no mouse needed); the wheel drives the channel a type names for it (`Wheel = ZOOM`), else nothing | keyboard-only operation; one id per control |
 | D-125 | ⭐⭐ **one press, every source**: click, hotkey, pad button (D-103), a scenario's `press` (S1e-2) and a replica button (SD-S5) all bump the SAME channel counter through `DeviceFrameSender`. ⛔ RETIRES S1d-3's by-index mapping (LMB = 0, RMB = 1, wheel = 2 / 3) — the binoculars name the wheel for ZOOM IN / OUT instead | D-38, D-29: the logic never knows which |
 | D-126 | ⭐ **what takes over the look**: a physical TRACKER bound to the device (D-50) owns its orientation — RMB-look and the arrows then do nothing for that device; a stacked device turns its ROOT (D-120). With neither, the mouse is the default (D-123) | 🔒 user: the mouse is the fallback when there is no tracker and no replica |
 | D-127 | ⭐ **no adapter for a source that is not a device** — the weapon sight and the cockpit (SD-S7, D-66 / D-68) are moved by the possession controller as today; their HUDs carry no `PanelButton`s | 🔒 user |
 | D-128 | ⭐ **every existing device HUD adopts it**: the rangefinder's MODE / POWER / EXIT chips (and MENU / SELECT), the drone station's TAKEOFF / LAND / RTH / CAM chips, the sight unit's POWER / ARM / FIRE / VIEW (panels 7–11) — redrawn through `HudPanel`; the binoculars have no chips (the wheel zooms) | one pattern for every device (ruling 9) |
 | D-129 | ⭐ **pause**: POINT, hover, clicks and LOOK all work in pause (observation and device-local state — R-4300); what a press DOES in pause is the device's rule (queued, refused) | the device decides, not the adapter |
+| D-130 | ⭐⭐⭐ **the HUD is never a path into the device — every input goes through the PANEL IO** *(🔒 user, `2026-11-28`: "the HUD interaction needs to be routed via adapter to usual panel IO in case of fully virtualized device … no shortcuts desired (HUD->device logic), so the adapter can be replaced in case we have physical replica of the device")*. A click on a `PanelButton` is an INPUT EVENT of the virtual adapter, exactly as a pressed key on a replica is an input event of the replica adapter; the adapter turns it into the channel press of the device's control frame (`DeviceFrameSender`, `DeviceFrameEvent` → `DeviceInput`), and the device's logic reads only that. ⛔ No device logic, no device state and no HUD code is called from a click; ⛔ no second path (a HUD-to-device event, a direct component write) | a fully virtual device and a physical replica must be indistinguishable to the device — the replica then replaces the virtual adapter and nothing else changes |
+| D-131 | ⭐⭐ **`IDevicePanelIo` — ONE adapter seam, ONE bound adapter per device at a station**: inputs (channel presses by TKB channel, axes, the look or a tracker's orientation / position) out through `DeviceFrameSender`; outputs (`DevicePanel`: lamps, values, text) in. Implementations: `VirtualPanelAdapter` (the HUD's buttons + mouse POINT / RMB LOOK + keys + gamepad — D-122–D-126), `ReplicaPanelAdapter` (SD-S5, a node extension), `ScriptedPanelAdapter` (S1e-2's scripted station re-homed onto the seam). `DevicePanelIoBinding` picks: a replica attached for that device ⇒ the replica, else the virtual adapter — ⭐ swapping one for the other is a binding change only | D-29 / D-38 made one: the replica and the keyboard were already meant to be interchangeable adapters; S1d-3 / S2a put the mapping INLINE in `PossessionStation` — this extracts it |
+| D-132 | ⭐ **with a replica bound, the HUD is display only**: its `PanelButton`s are drawn (the replica's buttons are the same channels) but nothing reads them — the virtual adapter is not bound for that device; the mouse looks only if no tracker owns the orientation (D-126). ⭐ The virtual adapter's OUTPUT side is the HUD itself (drawn on the brain from the device's state); the replica's is `DevicePanel` — two pictures of one state (D-30), never two logics | one input owner per device; no double presses |
 
 ##### Rails and scenario rows
 
@@ -1261,8 +1272,7 @@ clicks the named button's rect through the adapter (the HUD is the path under te
 
 ##### Slice
 
-**SD-S5v** — `PanelButton`, `HudPanel`, `DevicePanelAdapter`, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips
-redrawn (D-122–D-129). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
+**SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rail: a test adapter swapped in for the virtual one drives the device identically (the replaceability, D-131). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
 
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
@@ -1333,7 +1343,7 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S4** the launcher sight unit (READY-TO-BUILD — §3.13b; mockups 7–11 drawn) | `FireControl` + `FireControls.Of` + `GuidedFlight` / `GuidedFlightSystem`; the `AtgmSight` device (procedure D-93, HUD panels 7–9) in a station of a NEW `TOW (tripod, sight unit)` type; the controller fires from the device (D-94); the launch is the device's by seq echo (D-95); the Command branch flies the device's guide line (D-96) | editor |
 | **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
 | **SD-S5b** linked devices + stacking (READY-TO-BUILD — §3.13d) | `DeviceLinks`, `DeviceMessageEvent` (binary), `TargetLocation`, the rangefinder's SEND, the pose-chain fix and stacking (D-119, D-120); trackers stay here, unscheduled | editor |
-| **SD-S5v** the virtual panel (READY-TO-BUILD — §3.13e) | `PanelButton` + `HudPanel` (the chip and its hit zone in one call), `DevicePanelAdapter` (POINT / RMB LOOK / hotkeys / wheel roles), every device HUD's chips through it, the by-index mouse mapping retired (D-122–D-129) | editor |
+| **SD-S5v** the virtual panel (READY-TO-BUILD — §3.13e) | `PanelButton` + `HudPanel` (the chip and its hit zone in one call), the `IDevicePanelIo` seam + `VirtualPanelAdapter` (POINT / RMB LOOK / hotkeys / wheel roles) — replaced by the replica's adapter when one is attached, every device HUD's chips through it, the by-index mouse mapping retired (D-122–D-129) | editor |
 | **SD-S5c** the laser target designator (READY-TO-BUILD — §3.13d; mockups 16–19 drawn) | `LaserPointing.Code`, the `Designator` device, its procedure and HUD (D-113–D-115, D-121) | editor |
 | **SD-S6b** the laser-guided bomb (READY-TO-BUILD — §3.13d) | `Designations`, `GuidanceKind.Laser`, GBU-12, the A-10 (GBU-12) (D-116–D-118) | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (the existing Take / Drop verbs) · a device drawn where it lies (D-64) · per-station node features | editor |

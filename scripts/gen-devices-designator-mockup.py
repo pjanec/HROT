@@ -7,7 +7,7 @@ scripts/mockup_kit.py, in the house style of the other device sheets.
 
 SCOPE (R-4151):
   SPECIFIES  what DesignatorHudGizmo draws in a view bound to the designator (the window, reticle, status, code, lase timer, range, the received-target cue,
-             the chips through HudPanel) and what the station's DevicePanelAdapter draws over it (the hover frame, the cursor state, the LOOK hint).
+             the chips through HudPanel) and what the station's VirtualPanelAdapter (the device's panel IO) draws over it (the hover frame, the cursor state, the LOOK hint).
   CONTEXT    dashed / grey, tagged "unchanged": the compass strip, the operator's unit lines, the toolbar's run controls (panel 19). The scene is illustrative.
   PROPOSAL   every position is a proposal where the design is silent.
 Panel numbers continue the device sheets (1–6, 7–11, 12–15).
