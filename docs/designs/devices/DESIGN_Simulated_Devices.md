@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
+updated: 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
-current-answer: ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
+current-answer: ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
 related-designs:
+  - ../vehicle-tactics/DESIGN_Missiles_And_Ammo.md — OWNS the guided round and its guidance laws (M4 §3); §3.13b adds `GuidedRound.Device`, the device's guide line for `Command` and `GuidanceKind.Manual`
   - ../../DESIGN_Scenario_Regression.md — OWNS the checks grammar and the verifier (§3); S1e-2 added the scripted trainee (possess / view / control / pause, atPausedFrame), the field cue's memory and the hud cue there
   - ../../DESIGN_Capability_Components.md — BUILT FIRST (user, `2026-11-27`): one component per capability; this design's audit rows (R3-1, R4-1, R5-5, D-73, R6-7, R7-5, R3-4, R5-4) are its inventory and shrink to nothing when it is done
   - ../../DESIGN_Unit_Camera.md — OWNS the station camera (over the shoulder to move, from the eyes to aim — UC-3); §3.6 (D-68) extends the aim rule to switch the view's source to the weapon's sight
@@ -672,7 +673,7 @@ projectile in flight"*.
 
 | # | decision | why |
 |---|---|---|
-| D-80 | ⭐⭐ **the round flies the DEVICE's line, not the target's.** A round launched through a device's `FireControl` carries that device in `GuidedRound` (beside `Gunner`); a `Command` round with a device flies the line **eye → `FireControl.AimPoint`** — the crosshair the trainee holds with the stick (SACLOS by hand) — instead of eye → the target's middle. Off the target ⇒ it misses; the hit is the unchanged chain | ONE guidance path (ruling 9): only the line's far point changes; an AI gunner keeps today's line |
+| D-80 | *(refined by D-96, §3.13b)* ⭐⭐ **the round flies the DEVICE's line, not the target's.** A round launched through a device's `FireControl` carries that device in `GuidedRound` (beside `Gunner`); a `Command` round with a device flies the line **eye → `FireControl.AimPoint`** — the crosshair the trainee holds with the stick (SACLOS by hand) — instead of eye → the target's middle. Off the target ⇒ it misses; the hit is the unchanged chain | ONE guidance path (ruling 9): only the line's far point changes; an AI gunner keeps today's line |
 | D-81 | ⭐ **MCLOS — the stick steers the ROUND itself** — a second kind, `GuidanceKind.Manual`: the device writes a steer command (two axes, −1…1) into `FireControl`; the round turns by command × its turn rate in the device's frame; it never looks at the target. Same field, same reader, one more branch in `GuidedRoundSystem` | the literal reading of the request (the Malyutka class); cheap once D-80's reader exists |
 | D-82 | ⭐ **the device writes only itself** (`FireControl.AimPoint` / the steer command); the MUSCLE reads it — replicated, last tick's — exactly as it reads the gunner's eye today. ⛔ the device never writes the round | the parallel rule (R-4212); one writer per component |
 | D-83 | ⭐ **no steering in pause**: the round is frozen (`WhenTimeAdvances`); while paused the device keeps its guidance outputs where they were — the crosshair may move on the HUD (observation), the command it publishes does not, until time advances | R-4300 / D-78: a pause must not hand the trainee a free correction |
@@ -691,12 +692,146 @@ the missile in flight) and back from the shooter"* ⇒ Q-14 answered (D-80 then 
 | # | decision | why |
 |---|---|---|
 | D-85 | ⭐⭐ **ONE resolver finds a weapon's fire control** — `FireControls.Of(weapon)` (the device in a `Station` of the weapon, or the one its controller operates): the controller reads it to fire (D-76) and the MUSCLE reads it at launch to know which device guides the round | two readers, one walk (ruling 9) |
-| D-86 | ⭐ **the round carries its device**: at launch `FireProcessingSystem` stores the resolved device on the round, in `GuidedRound` (a new field — no recording compatibility is kept, R-4301); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), the `Manual` branch turns by `FireControl.Steer` (D-81) | the muscle owns the round; the device writes only itself (D-82) |
+| D-86 | *(refined by D-95, §3.13b)* ⭐ **the round carries its device**: at launch `FireProcessingSystem` stores the resolved device on the round, in `GuidedRound` (a new field — no recording compatibility is kept, R-4301); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), the `Manual` branch turns by `FireControl.Steer` (D-81) | the muscle owns the round; the device writes only itself (D-82) |
 | D-87 | ⭐⭐ **`FireControl` grows the two guidance outputs and the view request** — `AimPoint` (D-80), `Steer` (2 axes, D-81), **`ViewFromRound`** (a byte, toggled by the device's VIEW press) — all written by the device on ITSELF, replicated | one component for what the device asks of its weapon; the toggle is device state, so it works in pause and replays |
 | D-88 | ⭐⭐ **the muscle writes `GuidedFlight { Round (network id), LaunchSeq, Live }` ON THE DEVICE** at launch and clears `Live` when the round ends — the same shape as `LaserSpot` (muscle-written on the device, LS-14) | the only node that knows the round tells the device's watchers which entity to follow; replicated, so every station resolves it by network id |
 | D-89 | ⭐⭐ **the station's view follows the round**: a view bound to a device whose `FireControl.ViewFromRound` is set and whose `GuidedFlight.Live` round resolves on this node puts the 3-D camera on the round — the existing `FollowCameraDriver` on the round entity, at the chase pose behind it looking along its flight (`CameraSuggestion` `Follow` / `Chase`); toggled off, or the round's end (`Lost`), gives the camera back to the shooter's view. ⛔ No new camera rig | one follow camera (ruling 9); the view stays bound to the DEVICE, so its HUD stays drawn over the missile's picture |
 | D-90 | ⭐ **what the stick steers in the missile's view**: crosshair mode (D-80) — the stick still moves the SHOOTER's crosshair (the missile's view is a watch; the HUD shows the crosshair's offset); manual mode (D-81) — the stick turns the missile, the natural TV-guided picture. Both from one press handling in the device | the guidance law decides, not the camera |
 | D-91 | ⭐ **pause**: the toggle works in pause (observation, R6-4) — the camera can jump to the frozen round and back; steering stays frozen (D-83) | R-4300 |
+
+#### 3.13b SD-S4 + SD-S4b — READY-TO-BUILD: the launcher sight unit, its procedure, and the guided flight *(user, `2026-11-28`: "Lets design the missing parts first")*
+
+⭐ What was missing: SD-S4 named *"the operator panel of a manned weapon system … the procedure"* and nothing said WHICH device, WHAT procedure,
+HOW the controller fires from it, or how the muscle tells a trainee's launch from an AI's. This section closes those; it REFINES D-76, D-80 and
+D-86 (marked below) and supersedes nothing else.
+
+**INVENTORY** (`2026-11-28`): `scripts/cbm.sh search_graph name_pattern=.*(Guidance|Guided|Seeker|Mclos|Saclos|Steer|Sight|FireControl).*`
+`label=Class` (12 — `GuidedRound`, `GuidedRoundSystem`, `GuidedWeaponProfile`, air-combat steer classes; no sight unit, no fire control) ·
+grep `Malyutka|9M14|Sagger` (0) · grep `GuidanceKind\.` in the catalogues (TOW and Kornet `Command`, Javelin / NLAW `FireAndForget`, MANPADS /
+SAM IR / radar) · the launcher types (`NedTkbCatalog.cs:519-541`: Javelin shoulder, Kornet and TOW tripods with one Gunner seat, `:355-356`).
+Coverage could not be checked (no `check_index_coverage` in the CLI).
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the round's shooter at launch is the WEAPON entity for a weapon system; the round keeps it as `Gunner` | ✅ `FireProcessingSystem.cs:69, :430-440` | `DESIGN_Weapon_Systems.md` §2 (*"the Muscle aims and fires a weapon system exactly as it fires a tank's turret"*) |
+| a possessed gunner fires through `OperatorControlBehavior`: a press makes a pending shot at the crosshair's unit / point | ✅ `OperatorControlBehavior.cs:280-320` (`ws.Pending`, `AimAndFireParams`) | `DESIGN_Entity_Control.md` §8g (SIGHT / LOCK) |
+| an AI command round flies the launcher's sight line onto the target's middle | ✅ `GuidedRoundSystem.cs:258-272` | `DESIGN_Missiles_And_Ammo.md` §3 (M4) row `Command` |
+| a fire-and-forget lock IS the mount's aim time | ✅ D-D | `DESIGN_Missiles_And_Ammo.md:295` |
+| the device walk already finds an operator for a device in a WEAPON's station (host station OperatedBy a seat) | ✅ `DeviceOperators` ③ (S1b-1); the tripods have one Gunner seat and no device station today | D-67, R5-12 |
+| a request seq echoed by the muscle tells THIS request's answer from a stale one | ✅ `LaserPointing.Seq` → `LaserSpot.PointingSeq` (S1c) | §2 rules learned |
+| the proven solution for a manned guided launcher's fire control | — | a sight / control unit with a power-up self-test, an arm switch, a fire switch, then the operator guides for the whole flight (TOW TAS, 9S415 for the MCLOS Malyutka); fire-and-forget adds a seeker lock (Javelin CLU). ⭐ adopted: the state machine and the guidance laws; ⛔ rejected: per-switch hardware fidelity (no training need named) |
+
+##### The classes
+
+```mermaid
+classDiagram
+  class FireControl { <<NEW, unmanaged, replicated, on the device, device-written>> Ready · Target EntityRef · LaunchSeq · GuideOrigin · GuideDir · Steer2 · ViewFromRound }
+  class GuidedFlight { <<NEW, unmanaged, replicated, on the device, MUSCLE-written>> LaunchSeq echoed · Round network id · Live }
+  class FireControls { <<NEW static, Fdp.Toolkits Combat>> Of(world, weapon) the device in a Station of it, else none }
+  class AtgmSightBehavior { <<NEW, Hrot.AI.Behaviors/Devices/AtgmSight>> procedure OFF→TEST→STANDBY→ARMED→GUIDING · one StatefulAction }
+  class AtgmSightState { <<NEW UnitMemory, brain only>> Phase · TestLeft · press tracker · LastSeenFlightSeq }
+  class AtgmSightHudGizmo { <<NEW, HUD family>> mockup panels 7–11 }
+  class OperatorControlBehavior { <<existing, grows>> a mount with a fire-control device: the device's LaunchSeq fires it, the man's trigger does not }
+  class AimAndFireParams { <<existing>> Target · Point }
+  class FireProcessingSystem { <<existing, grows>> at launch: FireControls.Of(weapon) and LaunchSeq moved past GuidedFlight.LaunchSeq ⇒ the round is the device's }
+  class GuidedRound { <<existing, grows R-4301>> + Device Entity }
+  class GuidedRoundSystem { <<existing, grows>> Command with a device: the device's guide line · Manual: turn by Steer }
+  class GuidedFlightSystem { <<NEW, muscle, EveryFrame>> Live = 0 when the round is gone }
+  class GuidanceKind { <<existing enum, grows>> + Manual }
+  class DeviceOperators { <<existing>> ③ host station operated by a seat }
+  class PossessionStation { <<existing, grows>> the view follows GuidedFlight.Round while ViewFromRound }
+  class FollowCameraDriver { <<existing>> chase pose, Lost }
+  AtgmSightBehavior --> AtgmSightState : self
+  AtgmSightBehavior --> FireControl : self only
+  AtgmSightBehavior ..> GuidedFlight : reads (its own entity)
+  AtgmSightBehavior ..> DeviceOperators : operated by the gunner seat
+  OperatorControlBehavior ..> FireControls : finds the device
+  OperatorControlBehavior ..> FireControl : reads, tick-start view
+  OperatorControlBehavior --> AimAndFireParams : writes its own
+  FireProcessingSystem ..> FireControls
+  FireProcessingSystem --> GuidedRound : Device
+  FireProcessingSystem --> GuidedFlight : LaunchSeq · Round · Live=1
+  GuidedRoundSystem ..> FireControl : GuideOrigin/Dir · Steer (replicated, last tick)
+  GuidedRoundSystem ..> GuidanceKind
+  GuidedFlightSystem --> GuidedFlight : Live=0
+  PossessionStation ..> GuidedFlight : the round to follow
+  PossessionStation ..> FireControl : ViewFromRound
+  PossessionStation --> FollowCameraDriver : on the round
+  AtgmSightHudGizmo ..> AtgmSightState
+  AtgmSightHudGizmo ..> GuidedFlight
+```
+
+*What the picture shows that prose hid: the device writes ONE component (`FireControl`) and the muscle ONE (`GuidedFlight`), both on the device —
+every other arrow is a READ. The man's brain fires, the muscle flies, the station films; nobody writes another entity. The seq echo
+(`LaunchSeq` → `GuidedFlight.LaunchSeq`) is what makes a launch "the device's" — an AI shot from the same weapon moves no seq and flies today's
+line.*
+
+##### The sequence — POWER, ARM, FIRE, steer, VIEW
+
+```mermaid
+sequenceDiagram
+  participant K as keys / stick (station)
+  participant T as DeviceTickSystem → AtgmSightBehavior (device)
+  participant B as OperatorControlBehavior (the possessed gunner's brain)
+  participant M as FireProcessingSystem + GuidedRoundSystem (muscle)
+  participant C as PossessionStation view (station)
+  K->>T: POWER (frames carry the press)
+  T->>T: OFF → TEST (TestSeconds of SIM time, frozen in pause) → STANDBY
+  K->>T: ARM
+  T->>T: STANDBY → ARMED · FireControl.Ready = loaded and deployed and not paused
+  K->>T: FIRE (refused in pause, D-78)
+  T->>T: FireControl.LaunchSeq + 1 · phase GUIDING
+  B->>B: reads FireControl (tick-start view): LaunchSeq moved past his last and Ready ⇒ a pending shot along GuideDir (Target if set)
+  B->>M: AimAndFireParams → weapon task (existing path)
+  M->>M: launch: FireControls.Of(weapon) = the sight · its LaunchSeq > GuidedFlight.LaunchSeq ⇒ GuidedRound.Device = sight · GuidedFlight {seq, round, Live=1}
+  loop every advancing tick
+    T->>T: GuideOrigin/Dir from its world pose (the look + stick) · Steer from the stick (live frames only, D-83)
+    M->>M: Command: fly eye→ the guide line · Manual: turn by Steer × turn rate
+  end
+  K->>T: VIEW
+  T->>T: ViewFromRound = 1 (works in pause, D-91)
+  C->>C: FireControl.ViewFromRound and GuidedFlight.Live ⇒ FollowCameraDriver on the round (chase)
+  M->>M: the round hits or ends ⇒ GuidedFlightSystem Live = 0
+  C->>C: Lost ⇒ the camera back on the shooter
+  T->>T: Live = 0 ⇒ ARMED (a missile left) or STANDBY "NO MISSILE"
+```
+
+*What the picture shows that prose hid: the press reaches the weapon only through STATE the brain reads at its own tick (D-77) — a one-tick hop,
+no event; and the station never asks anyone for the round — the muscle's `GuidedFlight` already names it.*
+
+##### Decisions
+
+| # | decision | why |
+|---|---|---|
+| D-92 | ⭐⭐ **SD-S4's device is a LAUNCHER SIGHT UNIT — `AtgmSight`, one behaviour for every command-guided launcher**, mounted in a device `Station` of the weapon operated by its Gunner seat (D-67; the walk's ③). Its type data (`DeviceDefDto`): channels `POWER · ARM · FIRE · VIEW`, `TestSeconds`, its magnification | one procedure covers the TOW, the Kornet and the MCLOS launcher; the guidance law is the MISSILE's (`GuidanceKind`), not a sight setting |
+| D-93 | ⭐⭐ **the procedure** — `OFF →(POWER) TEST (TestSeconds of sim time) → STANDBY →(ARM) ARMED →(FIRE) GUIDING → (the flight ends) ARMED, or STANDBY "NO MISSILE"`; POWER from any phase → OFF (a missile in flight flies on unguided — `Phase = Lost`). `Ready = ARMED ∧ a round in the weapon ∧ the weapon deployed ∧ not paused`. In pause POWER / ARM / VIEW act, FIRE is refused (D-78) and the test timer stands still | the proven sight-unit cycle (TAS / 9S415), reduced to what a trainee practises |
+| D-94 | ⭐⭐ **the controller fires from the device** — in `OperatorControlBehavior`, a mount whose weapon has a fire-control device (`FireControls.Of`) fires ONLY when the device's `LaunchSeq` passes the last he saw and `Ready` holds; the man's own trigger does nothing on that mount. The shot is the existing pending shot: `Target` = `FireControl.Target` if set, else a point along `GuideDir`. ⛔ An AI controller ignores the device (D-79) | one firing path (`AimAndFireParams`), one reader; refines D-76 |
+| D-95 | ⭐⭐ **the launch is the device's by SEQ ECHO** — at launch the muscle resolves `FireControls.Of(weapon)`; when its `FireControl.LaunchSeq` is past its own `GuidedFlight.LaunchSeq`, the round is the device's: `GuidedRound.Device = it`, and `GuidedFlight { LaunchSeq = it, Round, Live = 1 }`. Otherwise (an AI shot) the round has no device and flies today's line | refines D-86: no wire change to the weapon task, the `LaserPointing.Seq` pattern |
+| D-96 | ⭐⭐ **the guide line is the device's own, written on live frames only** — `FireControl.GuideOrigin / GuideDir` = the device's world pose (`DevicePoses.TryWorld`, the look the station sends + the stick's rate), `Steer` = the stick (axes 0, 1); written only when time advances, so a pause freezes the command (D-83) while the HUD's crosshair still follows the look | refines D-80 (the line, not an `AimPoint`); the muscle reads replicated device state (D-82) |
+| D-97 | ⭐ **`GuidanceKind.Manual` (MCLOS)** — the round turns at `Steer × its turn rate` in the line-of-sight frame from the launcher; it never looks at the target. A new munition **9M14 Malyutka** (`Manual`, ~115 m/s, ~26 s) and launcher **Malyutka (suitcase)** with an `AtgmSight` station whose type is the 9S415 control box (`TestSeconds` 0 — a box with a joystick) | the literal stick-steered round (D-81) needs a missile that has one |
+| D-98 | ⭐ **trainee variants, not changed AI types** — `TOW (tripod, sight unit)` and `Malyutka (suitcase)` are NEW types with the device station (`StartWith` the sight); the existing TOW / Kornet tripods are untouched | the observer-HMMWV precedent (S1e-1): no other scenario's golden moves |
+| D-99 | ⭐ **`GuidedFlightSystem`** (muscle, `EveryFrame`, off under `ReplayState`) clears `Live` when the round is gone; the sight reads `Live` to leave GUIDING | one writer of `GuidedFlight` (the muscle) |
+| D-100 | ⭐ **mockups before the build** (R-4143): panels 7 OFF / TEST · 8 ARMED on a tank · 9 GUIDING (crosshair, "IN FLIGHT", time of flight, missiles left) · 10 the missile's view (the same HUD over the chase picture, `VIEW ▸ MISSILE`) · 11 the MCLOS box (the stick's deflection shown) | R-4138 fidelity |
+| D-101 | ⭐ **not now**: the Javelin CLU (a seeker lock device — `FireControl.Target` from its lock) — the same `FireControl`, a second behaviour; a line in SD-S7 | no training need named yet |
+
+##### Scenarios (R-4277) — replace §5a's S4 / S4b rows
+
+| scenario | What | expect rows |
+|---|---|---|
+| `dv-sight-procedure` (S4) | a trainee at the TOW (sight unit) presses FIRE before POWER, then POWER, ARM before the test ends, ARM, FIRE; a second FIRE in pause | `memory` Phase follows OFF → TEST → STANDBY → ARMED → GUIDING · ⛔ `never` a launch before ARMED · ⛔ `never` a launch during the pause · `shot` by the launcher once · `hud` shows TEST, ARMED, IN FLIGHT in turn |
+| `dv-steer-in-flight` (S4b) | as §5a, the TOW (sight unit), a crossing tank, the scripted look tracks it | `hit` on the tank · ⛔ `never` a hit on the decoy truck on the launch-time line |
+| `dv-steer-unsteered` (S4b) | the same, the look held still | ⛔ `never` a hit on the tank |
+| `dv-steer-manual` (S4b) | the Malyutka, scripted stick deflections | `hit` on the tank; the unsteered twin misses |
+| `dv-steer-paused` (S4b) | pause 60 frames mid-flight, stick swung hard | the round's position unchanged through the pause · after resume no step to the swung line (its turn is the missile's limit from the pre-pause command) |
+| `dv-steer-view-toggle` (S4b) | VIEW in flight, steer from the missile's view, VIEW back; a second flight ends while viewing | the station camera suggestion `Follow` bound to the round, then the shooter · after the round's end, the shooter · the round still hits |
+| `dv-ai-tow-unchanged` (S4) | an AI TOW tripod (no sight unit) engages the tank | `hit` as today — the AI line is untouched (D-95) |
+
+##### Slices
+
+**SD-S4** = `FireControl`, `FireControls.Of`, `GuidedFlight` + `GuidedFlightSystem`, `AtgmSight` (behaviour, state, HUD to panels 7–9), D-94 in
+`OperatorControlBehavior`, D-95 at launch, the `TOW (tripod, sight unit)` type; `dv-sight-procedure`, `dv-ai-tow-unchanged`, and
+`dv-steer-in-flight` (the Command branch with the device's line, D-80/D-96). **SD-S4b** = `GuidanceKind.Manual` + the Malyutka missile and
+launcher (D-97), the missile's view (D-87–D-91, panel 10, the MCLOS HUD panel 11), the other four `dv-steer-*`.
 
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
@@ -764,7 +899,7 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S1** the framework + the BINOCULARS and the RANGEFINDER (CE-1219's station binoculars dropped, `ViewedDevice` replaces `Binoculars`, D-75) | **backend**: `Mountable` (moved out of `WeaponSystemParams`) on every weapon type + `MountKinds.Device` + the kit stations `Kit1…4`; `IsMountable` as the item gate at every site of both `IsWeaponSystem` predicates and every item-meaning direct check; `Possessability` / `EmbarkOrders` refuse a `Mountable` (§3.2) · `Stations.OperatedBy` with the device operator rule; a carried binoculars device satisfies `HeldItems` (§3.3, R4-3) · the frame-apply routine extracted; `PossessionSystem` skips device targets and `Operated` rows · `DeviceInfo` + the unit-query classification (`Without<DeviceInfo>`) and its rail · the device TKB shape (R7-4) · **`DeviceTickSystem`** (walk, start / restart via the passed ingress, ingest, tick; `Simulation` after `BrainTickSystem`; off under `ReplayState`; `gateOnAuthority`) with `BrainTickSystem` excluding devices and ONE extracted **`BrainPhaseRunner`** (restart callback, no `Prepare`) (§3.5) · `PossessedBy Mode = Operated` by the walk; the readers classified — `PossessionSystem`, `EntityOrders`, `DriveHandOver`, `StationClaims` first; the body's side; the `Epoch` re-base (§3.3) · the control frame per operated entity (`Target`, `Axes4`, `PressSeq16`, `Orientation`, `Position`, `BodyOffset`, `ViewedDevice` replacing `Binoculars`, D-75) · `DevicePose` + `DevicePoses.World` · `LaserPointing` (with `Power`) / `LaserSpot` (`Entity`, `Preview`) + `LaserSpotSystem` (the spot only) · `DevicePanel` · the two device folders · the binoculars device pre-placed in the scenario's trainee kit; CE-1219's rails in the gates · the checks grammar (§5a). **ui**: the HUD mockup FIRST (R-4143) · **R7-13's measurement** (concurrent `PostSimulation` producers) before the scope code · `Screen` primitives in the 3-D card pass · views bound to sources · `HudScope` + `BeginScope` / `EndScope` on the `Fdp.Diagnostics.Contracts` buffer (protected, empty dropped, never refused at emit) · the bound-view-only helper + `FrameFor` filter + every meta skip list · the HUD family's exemptions · the projector keying (rule + visibility policy) · the renderer-filter rail (two views, one buffer) · the keymap device scope + the keyboard / mouse adapter · the station's binocular branch removed (its overlay → the binoculars' HUD projector) | the EDITOR configuration (D-9′) |
 | **SD-S2** the gamepad + the drone operator station | the gamepad adapter (`Raylib-cs`); the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
-| **SD-S4** the operator panel of a manned weapon system | **`FireControl` (D-76–D-78)** — the weapon's one controller fires at the device's solution · a device mounted in a weapon's `Station` (the walk's one-level recursion, R5-12): optics, zoom, sensor modes, the procedure; what the weapon does stays the weapons design's | editor |
+| **SD-S4** the launcher sight unit (READY-TO-BUILD — §3.13b) | `FireControl` + `FireControls.Of` + `GuidedFlight` / `GuidedFlightSystem`; the `AtgmSight` device (procedure D-93, HUD panels 7–9) in a station of a NEW `TOW (tripod, sight unit)` type; the controller fires from the device (D-94); the launch is the device's by seq echo (D-95); the Command branch flies the device's guide line (D-96) | editor |
 | **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
 | **SD-S5b** linked devices + trackers | stacking by mounting (D-61), a stationary device manned with USE (D-60), trackers filling the frame's `Orientation` / `Position` / `BodyOffset`, `DeviceMessageEvent` (with `Seq`) + `DeviceLinks` | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (the existing Take / Drop verbs) · a device drawn where it lies (D-64) · per-station node features | editor |
@@ -801,8 +936,8 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 | `dv-replay-hud` (S1) | the paused run above, recorded FULL, then replayed (the H5 review check), judged on the WALL-CLOCK axis | the `hud` row at a paused frame gives the same text in replay as live — ⚠ as built (S1e): the H5 review shows the live world (the recorded state the HUD is drawn from — `DevicePanel` with its range text, `LaserSpot` with `Preview`, `DevicePose`, the device's memory) ✅; the HUD TEXT read in the review at a paused wall-clock frame ⏳ **CE-4713** |
 | `dv-drone-operator` (S2) | the trainee flies the drone out and back with the gamepad | `device battery` / `signal` equal the drone's simulation · the link lost ⇒ the lamp |
 | `dv-target-message` (S3) | trainee A sends a target message; the pilot station shows it | the pilot device's `hud` contains the message · its map point is A's spot |
-| `dv-operator-panel` (S4) | the trainee runs the panel's procedure | the weapon system reaches its ready state (its own component) |
-| `dv-steer-in-flight` (S4b) | a scripted trainee at a guided launcher's sight device fires at a tank CROSSING at a set speed; the crosshair starts on the tank's launch-time position and the `do: control axis` rows track the tank for the flight | `hit` on the tank by the trainee's launcher · its `Health` drops · ⛔ `never` a hit on the decoy truck parked on the launch-time line |
+| `dv-operator-panel` (S4) | ⛔ superseded by §3.13b's `dv-sight-procedure` and `dv-ai-tow-unchanged` | — |
+| `dv-steer-in-flight` (S4b — ⭐ §3.13b moves it to S4; its rows there win) | a scripted trainee at a guided launcher's sight device fires at a tank CROSSING at a set speed; the crosshair starts on the tank's launch-time position and the `do: control axis` rows track the tank for the flight | `hit` on the tank by the trainee's launcher · its `Health` drops · ⛔ `never` a hit on the decoy truck parked on the launch-time line |
 | `dv-steer-unsteered` (S4b, the control) | the same, the axes held at 0 | ⛔ `never` a hit on the tank — proves the stick, not the AI line, decided the first |
 | `dv-steer-manual` (S4b, MCLOS) | the same crossing tank, a `Manual` missile; the axes are scripted turn commands | `hit` on the tank · the unsteered twin misses (as above) |
 | `dv-steer-paused` (S4b) | `do: pause` 60 frames mid-flight with the axes swung hard | `atPausedFrame` rows: the round's position unchanged · after resume it continues from its pre-pause line (no step to the swung aim) |
