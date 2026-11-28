@@ -38,6 +38,8 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterManagedComponent<InitialVehicleIntent>();
             _repo.RegisterManagedComponent<InitialHierarchyIntent>();
             _repo.RegisterManagedComponent<InitialRouteIntent>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();
+            _repo.RegisterManagedComponent<InitialDeviceLinksIntent>();
             _repo.RegisterManagedComponent<InitialTargetsIntent>();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
@@ -216,6 +218,41 @@ namespace Hrot.SimHost.Tests
             Assert.False(_repo.HasManagedComponent<InitialRouteIntent>(vehicle));
             Assert.True(_repo.HasComponent<PersonalRouteRef>(vehicle));
             Assert.Equal(route, _repo.GetComponent<PersonalRouteRef>(vehicle).RouteEntity);
+        }
+
+        // ── ⭐ SD-S5b (§3.13d D-119) — a device's authored link, resolved once EVERY named peer is alive ──────────────────────────────────
+
+        [Fact]
+        public void SDS5b_DeviceLinks_MaterializeOnceEveryNamedPeerIsAlive_AndNotBefore()
+        {
+            var device = _repo.CreateEntity();
+            _repo.SetManagedComponent(device, new InitialDeviceLinksIntent { Peer0 = new EntityRef(71), Peer1 = new EntityRef(72) });
+            var sys = CreateAndStartSystem();
+
+            var a = CreateNetworkedEntity(71);                                    // only the first peer exists
+            sys.Execute(_repo, 0.016f);
+            Assert.True(_repo.HasManagedComponent<InitialDeviceLinksIntent>(device));   // waits for the second
+            Assert.False(_repo.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>(device));
+
+            var b = CreateNetworkedEntity(72);                                    // now both
+            sys.Execute(_repo, 0.016f);
+            Assert.False(_repo.HasManagedComponent<InitialDeviceLinksIntent>(device));
+            var links = _repo.GetComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>(device);
+            Assert.Equal(a, links.Peer0);
+            Assert.Equal(b, links.Peer1);
+        }
+
+        [Fact]
+        public void SDS5b_DeviceLinks_ASinglePeer_MaterializesWithTheOtherNull()
+        {
+            var peer = CreateNetworkedEntity(81);
+            var device = _repo.CreateEntity();
+            _repo.SetManagedComponent(device, new InitialDeviceLinksIntent { Peer0 = new EntityRef(81) });
+            CreateAndStartSystem().Execute(_repo, 0.016f);
+            Assert.False(_repo.HasManagedComponent<InitialDeviceLinksIntent>(device));
+            var links = _repo.GetComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>(device);
+            Assert.Equal(peer, links.Peer0);
+            Assert.True(links.Peer1.IsNull);
         }
 
         // â”€â”€ Test 6: TargetMemory partial materialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

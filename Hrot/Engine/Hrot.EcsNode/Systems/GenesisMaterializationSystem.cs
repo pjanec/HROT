@@ -52,6 +52,7 @@ namespace Hrot.SimHost.Systems
                 MaterializeVehicle(view, cmd, repo);
                 MaterializeHierarchy(view, cmd, repo);
                 MaterializeRoute(view, cmd, repo);
+                MaterializeDeviceLinks(view, cmd, repo);
                 MaterializeTargets(view, cmd, repo);
                 MaterializeUnitSubordinate(view, cmd, repo);
                 cmd.Playback(repo);
@@ -169,6 +170,23 @@ namespace Hrot.SimHost.Systems
                     continue;
                 repo.SetComponent(entity, new PersonalRouteRef { RouteEntity = route });
                 cmd.RemoveManagedComponent<InitialRouteIntent>(entity);
+            }
+        }
+
+        /// <summary>⭐ Simulated devices SD-S5b (§3.13d D-119) — a device's authored link: its peers' network ids become live handles once EVERY named peer is alive
+        /// (a device is created through its TKB type after the file's own entities, so the load pass's GUID → entity map names a placeholder, not the device).</summary>
+        private void MaterializeDeviceLinks(ISimulationView view, EntityCommandBuffer cmd, EntityRepository repo)
+        {
+            foreach (var entity in view.Query().WithManaged<InitialDeviceLinksIntent>().Build())
+            {
+                var intent = view.GetManagedComponentRO<InitialDeviceLinksIntent>(entity);
+                Entity peer0 = Entity.Null, peer1 = Entity.Null;
+                if (!intent.Peer0.IsNone && (!_entityMap.TryGetEntity(intent.Peer0.Ref.NetworkId, out peer0) || !view.IsAlive(peer0))) continue;
+                if (!intent.Peer1.IsNone && (!_entityMap.TryGetEntity(intent.Peer1.Ref.NetworkId, out peer1) || !view.IsAlive(peer1))) continue;
+                var links = new Fdp.Toolkit.Behavior.Devices.DeviceLinks { Peer0 = peer0, Peer1 = peer1 };
+                if (repo.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>(entity)) repo.SetComponent(entity, links);
+                else repo.AddComponent(entity, links);
+                cmd.RemoveManagedComponent<InitialDeviceLinksIntent>(entity);
             }
         }
 

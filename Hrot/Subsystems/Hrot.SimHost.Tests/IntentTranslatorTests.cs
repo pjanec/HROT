@@ -35,6 +35,8 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterManagedComponent<InitialHierarchyIntent>();
             _repo.RegisterManagedComponent<InitialVehicleIntent>();
             _repo.RegisterManagedComponent<InitialRouteIntent>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();
+            _repo.RegisterManagedComponent<InitialDeviceLinksIntent>();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -224,6 +226,61 @@ namespace Hrot.SimHost.Tests
         {
             var entity = _repo.CreateEntity();
             Assert.False(new PersonalRouteRefTranslator().CanTranslate(_repo, entity));
+        }
+
+        // ── ⭐ SD-S5b (§3.13d D-119) — DeviceLinksTranslator: a device's authored link ───────────────────────────────────────────────
+        //   🔴 Red-proof: without the translator the generic serializer reads Peer0's GUID as the load pass's PLACEHOLDER entity — measured, dv-linked-target's
+        //   first run sent to an entity that was no device — and the link never reaches its peer.
+
+        private const string GuidA = "378acf61-8f50-5aae-8e7d-d9abc821ae0a", GuidB = "0a64f3c2-1b2d-5c3e-9f40-5a6b7c8d9e0f";
+
+        [Fact]
+        public void SDS5b_DeviceLinksTranslator_Extract_WritesBothPeersGuids_AndNullForNoPeer()
+        {
+            var a = _repo.CreateEntity();
+            var b = _repo.CreateEntity();
+            var device = _repo.CreateEntity();
+            _repo.SetComponent(device, new Fdp.Toolkit.Behavior.Devices.DeviceLinks { Peer0 = a, Peer1 = b });
+            var resolver = MakeResolver(_repo, a, b, device);
+            var obj = (JsonObject)new DeviceLinksTranslator().Extract(_repo, device, resolver)["DeviceLinks"];
+            Assert.Equal(new System.Guid(1, 0, 0, new byte[8]).ToString(), obj["Peer0"]?.GetValue<string?>());
+            Assert.Equal(new System.Guid(2, 0, 0, new byte[8]).ToString(), obj["Peer1"]?.GetValue<string?>());
+
+            _repo.SetComponent(device, new Fdp.Toolkit.Behavior.Devices.DeviceLinks { Peer0 = a });
+            obj = (JsonObject)new DeviceLinksTranslator().Extract(_repo, device, resolver)["DeviceLinks"];
+            Assert.NotNull(obj["Peer0"]);
+            Assert.Null(obj["Peer1"]);
+        }
+
+        [Fact]
+        public void SDS5b_DeviceLinksTranslator_Inject_WritesTheIntent_ForOnePeerOrTwo_AndNothingWhenNoneAuthored()
+        {
+            var resolver = new StubResolver();
+            var two = _repo.CreateEntity();
+            new DeviceLinksTranslator().Inject(_repo, two, new Dictionary<string, object> { ["DeviceLinks"] = new JsonObject { ["Peer0"] = GuidA, ["Peer1"] = GuidB } }, resolver);
+            var intent = ((ISimulationView)_repo).GetManagedComponentRO<InitialDeviceLinksIntent>(two);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse(GuidA)), intent!.Peer0.Spec);
+            Assert.Equal(Fdp.Core.RefSpec.ByExact(System.Guid.Parse(GuidB)), intent.Peer1.Spec);
+
+            var one = _repo.CreateEntity();
+            new DeviceLinksTranslator().Inject(_repo, one, new Dictionary<string, object> { ["DeviceLinks"] = new JsonObject { ["Peer0"] = GuidA, ["Peer1"] = null } }, resolver);
+            var intent1 = ((ISimulationView)_repo).GetManagedComponentRO<InitialDeviceLinksIntent>(one);
+            Assert.False(intent1!.Peer0.IsNone);
+            Assert.True(intent1.Peer1.IsNone);
+
+            var none = _repo.CreateEntity();
+            new DeviceLinksTranslator().Inject(_repo, none, new Dictionary<string, object> { ["DeviceLinks"] = new JsonObject { ["Peer0"] = null, ["Peer1"] = null } }, resolver);
+            Assert.False(_repo.HasManagedComponent<InitialDeviceLinksIntent>(none));
+        }
+
+        [Fact]
+        public void SDS5b_DeviceLinksTranslator_CanTranslate_OnlyADeviceWithALink_AndItConsumesTheComponent()
+        {
+            var entity = _repo.CreateEntity();
+            Assert.False(new DeviceLinksTranslator().CanTranslate(_repo, entity));
+            _repo.SetComponent(entity, new Fdp.Toolkit.Behavior.Devices.DeviceLinks());
+            Assert.True(new DeviceLinksTranslator().CanTranslate(_repo, entity));
+            Assert.True(new DeviceLinksTranslator().GetConsumedComponentsMask().IsSet(ComponentTypeRegistry.GetId(typeof(Fdp.Toolkit.Behavior.Devices.DeviceLinks))));   // the generic serializer leaves it alone
         }
     }
 }

@@ -1590,6 +1590,9 @@ namespace Fdp.Core
         public const int GlobalDebugSettings = 185;
         public const int CanvasContextMenuState = 186;
         public const int InitialBlueprintsIntent = 187;
+        /// <summary><c>InitialDeviceLinksIntent</c> — ⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119): the two peer
+        /// network ids of a device's authored <c>DeviceLinks</c> at scenario load, resolved to live handles by <c>GenesisMaterializationSystem</c>. ⚠ 241, free (2026-11-28).</summary>
+        public const int InitialDeviceLinksIntent = 241;
         // from NavigationContractsComponentIds
         public const int NavigationIntent = 67;
         public const int NavigationStatus = 68;
