@@ -268,6 +268,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.LaserPointing>();   // ⭐ S1c — a device's laser as its logic points it
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.LaserSpot>();       // ⭐ S1c — where it lands (the muscle's LaserSpotSystem writes it)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePanel>();     // ⭐ S1c — a device's generic panel outputs, on change
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();     // ⭐ SD-S5b — the devices a device sends to (scenario-authored)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInbox>();     // ⭐ SD-S5b — the newest two messages addressed to a device
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
         //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in

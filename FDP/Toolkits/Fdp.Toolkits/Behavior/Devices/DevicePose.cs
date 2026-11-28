@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
 
 namespace Fdp.Toolkit.Behavior.Devices
 {
@@ -54,7 +55,8 @@ namespace Fdp.Toolkit.Behavior.Devices
         {
             if (!w.IsComponentTypeRegistered<DevicePose>()) return;
             var orientation = Quaternion.Identity;
-            if (w.IsComponentTypeRegistered<DeviceInput>() && w.HasComponent<DeviceInput>(self))
+            // ⭐ SD-S5b (D-56 / D-120) — a STACKED device ignores its own look and tracker: it points as the device it is mounted on (the chain's root turns)
+            if (!DeviceStacks.IsStacked(w, self) && w.IsComponentTypeRegistered<DeviceInput>() && w.HasComponent<DeviceInput>(self))
             {
                 ref readonly var c = ref w.GetComponentRO<DeviceInput>(self).Control;
                 if ((c.Trackers & DeviceControl.OrientationPresent) != 0 && c.Orientation != default) orientation = Quaternion.Normalize(c.Orientation);
@@ -72,26 +74,82 @@ namespace Fdp.Toolkit.Behavior.Devices
     }
 
     /// <summary>
-    /// ⭐ The ONE resolver of a device's world pose (D-48). ⭐ AS BUILT: no mount-chain walk is needed — the engine already places every embarked
-    /// item at its host station's place each frame (<c>EmbarkedStateSystem</c>, WS-2), and that chains through a device mounted on a device; so the
-    /// world pose is the device's own <see cref="SimTransform"/> composed with its <see cref="DevicePose"/>.
+    /// ⭐⭐⭐ The ONE resolver of a device's world pose (D-48) — ⭐⭐ SD-S5b (D-120, D-49 "resolved through A at the moment it is read") WALKS THE STACK: a device
+    /// mounted in another device's station is at its HOST's world pose (recursively — the host's own <see cref="DevicePose"/> included, so it swings with the
+    /// root's look) ∘ the host's station place (the <see cref="StationSeat"/> of its <c>Gen.Carrier</c> seat — the kit stations' one mechanism) ∘ its own pose;
+    /// any other device is at its own placed <see cref="SimTransform"/> (the engine places every embarked item at its host station's place, WS-2) ∘ its own pose.
+    /// ⛔ SUPERSEDES the S1b-3 "no chain walk is needed": <c>EmbarkedStateSystem</c> places from the host's <see cref="SimTransform"/>, never the host DEVICE's
+    /// pose, so a stacked device did not follow its master's look (measured, §3.13d). ⭐ Every reader goes through here (the muscle's laser, the 3-D laser
+    /// layer, the scripted station's look, the HUD's cue). 0 B.
     /// </summary>
     public static class DevicePoses
     {
         public static bool TryWorld(EntityRepository w, Entity device, out Vector3 position, out Quaternion rotation)
+            => TryWorld(w, device, 0, out position, out rotation);
+
+        private static bool TryWorld(EntityRepository w, Entity device, int depth, out Vector3 position, out Quaternion rotation)
         {
             position = default; rotation = Quaternion.Identity;
-            if (device.IsNull || !w.IsAlive(device) || !w.HasComponent<SimTransform>(device)) return false;
-            ref readonly var at = ref w.GetComponentRO<SimTransform>(device);
-            position = at.Position; rotation = at.Rotation;
+            if (device.IsNull || !w.IsAlive(device)) return false;
+            var host = depth < DeviceStacks.MaxDepth ? DeviceStacks.HostOf(w, device) : Entity.Null;
+            if (!host.IsNull && TryWorld(w, host, depth + 1, out var hostAt, out var hostRot))
+            {
+                int seat = w.GetComponentRO<IsEmbarkedTag>(device).Seat;
+                if (w.IsComponentTypeRegistered<CarrierStations>() && w.HasComponent<CarrierStations>(host) && w.GetComponentRO<CarrierStations>(host).IsStation(seat))
+                    w.GetComponentRO<CarrierStations>(host).Seats[seat].Place(hostAt, hostRot, out position, out rotation);
+                else { position = hostAt; rotation = hostRot; }
+            }
+            else
+            {
+                if (!w.HasComponent<SimTransform>(device)) return false;
+                ref readonly var at = ref w.GetComponentRO<SimTransform>(device);
+                position = at.Position; rotation = at.Rotation;
+            }
             if (w.IsComponentTypeRegistered<DevicePose>() && w.HasComponent<DevicePose>(device))
             {
                 ref readonly var pose = ref w.GetComponentRO<DevicePose>(device);
                 var o = pose.Orientation == default ? Quaternion.Identity : pose.Orientation;
-                position += Vector3.Transform(pose.Offset, at.Rotation);
-                rotation = at.Rotation * o;
+                position += Vector3.Transform(pose.Offset, rotation);
+                rotation = rotation * o;
             }
             return true;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ SD-S5b (D-120, D-61, D-56) — STACKING: a device mounted in another DEVICE's station (its <see cref="IsEmbarkedTag"/> names a host that is a device — the
+    /// host type's <c>Gen.Carrier</c> stacking station, accepting <c>MountKinds.Device</c>). <see cref="Root"/> is the chain's bottom device: ITS pose is what the
+    /// station's look turns, whichever device the view is bound to (a stacked device ignores its own look and tracker while stacked — <see cref="DeviceLooks"/> —
+    /// and uses them again when unstacked); its operator operates the whole stack (<see cref="DeviceOperators"/>). Reads only the device's own tag and the host's
+    /// <see cref="DeviceInfo"/> (written once at creation — a declared stable read). 0 B.
+    /// </summary>
+    public static class DeviceStacks
+    {
+        /// <summary>The deepest stack walked (a cycle cannot loop).</summary>
+        public const int MaxDepth = 4;
+
+        /// <summary>The device <paramref name="device"/> is mounted in, or null (not stacked).</summary>
+        public static Entity HostOf(EntityRepository w, Entity device)
+        {
+            if (device.IsNull || !w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.IsAlive(device) || !w.HasComponent<IsEmbarkedTag>(device)) return Entity.Null;
+            var host = w.GetComponentRO<IsEmbarkedTag>(device).VehicleEntity;
+            return DeviceMarker.IsDevice(w, host) ? host : Entity.Null;
+        }
+
+        /// <summary>Is <paramref name="device"/> mounted in another device?</summary>
+        public static bool IsStacked(EntityRepository w, Entity device) => !HostOf(w, device).IsNull;
+
+        /// <summary>The stack's root: the device at the bottom of <paramref name="device"/>'s chain (itself when not stacked).</summary>
+        public static Entity Root(EntityRepository w, Entity device)
+        {
+            var e = device;
+            for (int i = 0; i < MaxDepth; i++)
+            {
+                var host = HostOf(w, e);
+                if (host.IsNull) break;
+                e = host;
+            }
+            return e;
         }
     }
 }

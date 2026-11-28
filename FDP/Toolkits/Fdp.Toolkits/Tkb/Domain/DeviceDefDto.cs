@@ -37,12 +37,9 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>The step a fresh device starts at (index into <see cref="Magnifications"/>).</summary>
         public int DefaultStep { get; init; }
 
-        /// <summary>D-61 — where a device STACKED on this one (mounted in its station) sits, metres in this device's frame (x forward, y left, z up).</summary>
-        public float StackOffsetX { get; init; }
-        /// <inheritdoc cref="StackOffsetX"/>
-        public float StackOffsetY { get; init; }
-        /// <inheritdoc cref="StackOffsetX"/>
-        public float StackOffsetZ { get; init; }
+        // ⭐ SD-S5b (D-120 / D-61) — ⛔ StackOffsetX/Y/Z RETIRED (R-4301; no reader): where a device STACKED on this one sits is the place of the type's STACKING
+        //   STATION — a Gen.Carrier seat (Role Station, Accepts Device, X/Y/Z), the kit stations' one mechanism (boarding, the carry, the operator walk), read by
+        //   DevicePoses through StationSeat.Place. Two fields for one place would drift (ruling 9).
 
         /// <summary>Where it can be mounted — a kit station by default (<see cref="MountKinds.Device"/>).</summary>
         public MountKinds MountKinds { get; init; } = MountKinds.Device;

@@ -8,6 +8,7 @@ SCOPE (R-4151, what this picture specifies and what it does not):
   SPECIFIES  the device HUD drawn in the 3-D view BOUND to a device: the view frame, the reticle, the zoom step, the device name, the mode, the
              menu, the lamp, the last range, the view-source label and the cycle strip — i.e. what the type's HUD projector emits (Screen
              primitives scoped by HudScope, §3.6).
+  ⭐ SD-S5b (§3.13d D-119): the SEND chip left of RANGE (greyed with nothing measured or no link) — its SENT state is panel 24 (devices-hud-link.svg).
   ⭐ SD-S5v (§3.13e D-122 – D-128): the rangefinder's BUTTON chips (HudPanel.Button — label + hotkey key box, lit / greyed) and the station adapter's
              hover frame + POINT cursor on one chip; the binoculars have no chips (the wheel zooms, D-124). The menu line (MODE / POWER / EXIT) is the
              menu's DISPLAY, not buttons — POWER and EXIT are menu items, not elements of the type (D-142).
@@ -150,23 +151,34 @@ def rf_menu_strip(x, y, cur=0, opened=False):
         xx -= 5
 
 
-RF_CHIPS = (("RANGE", "R"), ("MODE", "O"), ("MENU", "P"), ("SELECT", "ENT"))   # ⭐ SD-S5v — the rangefinder's four elements and their hotkeys (TKB 640)
+RF_CHIPS = (("RANGE", "R"), ("MODE", "O"), ("MENU", "P"), ("SELECT", "ENT"))   # ⭐ SD-S5v — the rangefinder's column elements and their hotkeys (TKB 640)
 
 
-def rf_chips(x, y, lit=(), disabled=("SELECT",), hover=None, cursor=False):
+def chip(xx, yy, nm, key, on, dis, cw=78, ch=20):
+    s.rect(xx, yy, cw, ch, "#3369AD" if on else "#000", rx=3, op=0.85 if on else 0.62, stroke=None if on else "#8A8A96", sw=1)
+    ht(xx + 7, yy + 14, nm, "#6A6A74" if dis else WHITE, 10.5, weight="bold" if on else "normal")
+    bw = max(13, text_width(key, 8.5) + 5)
+    s.rect(xx + cw - 5 - bw, yy + 3.5, bw, 13, "none", stroke="#6A6A74" if dis else "#C8C8D0", rx=2, sw=1)
+    ht(xx + cw - 5 - bw / 2, yy + 13.5, key, "#6A6A74" if dis else "#C8C8D0", 8.5, "middle", "bold")
+
+
+def rf_chips(x, y, lit=(), disabled=("SELECT",), hover=None, cursor=False, send="off"):
     """⭐ SD-S5v (D-122 / D-124) — the rangefinder's BUTTONS through HudPanel.Button: one chip per element (its label + its hotkey in a key box), a
     right-hand column under the VIEW label; lit = the element is active (RANGE while ranging, MENU while the menu is open), greyed = it would do nothing
     (SELECT with the menu closed). hover = the station adapter's gold frame (D-123, station-local) — with the hand cursor in POINT."""
     cw, ch = 78, 20
     xx = x + PW - 14 - cw
+    # ⭐ SD-S5b (D-119, devices-hud-link.svg panel 24) — SEND left of RANGE (the column's fifth row would meet the menu line): greyed with nothing measured or
+    #   no link ("off"), live ("on"), lit with the green SENT tag under it for 2 s of sim time after a send ("sent")
+    sx = xx - 6 - cw
+    chip(sx, y + 124, "SEND", "Y", send == "sent", send == "off")
+    if send == "sent":
+        tw = text_width("SENT", 10) + 12
+        s.rect(sx, y + 148, tw, 15, "#000", rx=2, op=0.7, stroke=C.GREEN, sw=1); ht(sx + tw / 2, y + 159, "SENT", C.GREEN, 10, "middle", "bold")
     for i, (nm, key) in enumerate(RF_CHIPS):
         yy = y + 124 + i * 24
         on, dis = nm in lit, nm in disabled
-        s.rect(xx, yy, cw, ch, "#3369AD" if on else "#000", rx=3, op=0.85 if on else 0.62, stroke=None if on else "#8A8A96", sw=1)
-        ht(xx + 7, yy + 14, nm, "#6A6A74" if dis else WHITE, 10.5, weight="bold" if on else "normal")
-        bw = max(13, text_width(key, 8.5) + 5)
-        s.rect(xx + cw - 5 - bw, yy + 3.5, bw, 13, "none", stroke="#6A6A74" if dis else "#C8C8D0", rx=2, sw=1)
-        ht(xx + cw - 5 - bw / 2, yy + 13.5, key, "#6A6A74" if dis else "#C8C8D0", 8.5, "middle", "bold")
+        chip(xx, yy, nm, key, on, dis)
         if nm == hover:
             s.rect(xx - 3, yy - 3, cw + 6, ch + 6, "none", stroke=GOLD, rx=4, sw=2)
             if cursor: s.glyph(HAND, xx + 38, yy + 9, WHITE, 15)
@@ -268,7 +280,7 @@ x, y = head(1, "2 · RANGEFINDER, idle — laser OFF, nothing measured yet",
 frame(x, y, 2.2); rf_view(x, y); rf_reticle(x, y); rf_status(x, y, lamp_on=False); rf_range(x, y, "— m"); rf_menu_strip(x, y, cur=0)
 rf_chips(x, y, hover="RANGE", cursor=True)
 compass(x, y); unit_lines(x, y)
-legend(x, y, "window + corner brackets · reticle · name · MODE · POWER · LASER lamp (off) · LAST RANGE '— m' · menu line, cursor on MODE · the button chips RANGE R · MODE O · MENU P · SELECT ENT (SELECT greyed: the menu is closed) · the gold hover frame + hand cursor on RANGE (POINT, SD-S5v)", "compass · unit lines · scene",
+legend(x, y, "window + corner brackets · reticle · name · MODE · POWER · LASER lamp (off) · LAST RANGE '— m' · menu line, cursor on MODE · the button chips RANGE R · MODE O · MENU P · SELECT ENT (SELECT greyed: the menu is closed) · SEND Y left of RANGE (greyed: nothing measured, SD-S5b) · the gold hover frame + hand cursor on RANGE (POINT, SD-S5v)", "compass · unit lines · scene",
        ["PROPOSAL: mode names SINGLE / CONTINUOUS and power LOW / HIGH are placeholders (the type's data); status top-left, lamp",
         "top-right, readout bottom-centre, menu line bottom-right (clear of the unit lines, which stay bottom-left)."])
 
@@ -276,7 +288,7 @@ legend(x, y, "window + corner brackets · reticle · name · MODE · POWER · LA
 x, y = head(2, "3 · RANGEFINDER, after RANGE on a target — laser ON, 452 m",
             ["Scope: the lamp on, the range written, the same layout as panel 2.", "The spot on the target is a world effect (context)."])
 frame(x, y, 2.2); rf_view(x, y); spot(x, y); rf_reticle(x, y); rf_status(x, y, lamp_on=True); rf_range(x, y, "452 m"); rf_menu_strip(x, y, cur=0)
-rf_chips(x, y, lit=("RANGE",))
+rf_chips(x, y, lit=("RANGE",), send="on")
 compass(x, y); unit_lines(x, y)
 legend(x, y, "LASER lamp ON (blinks by frame count) · LAST RANGE '452 m' (gold, the station's readout colour) · RANGE chip lit while ranging · no cursor (RMB held: LOOK)", "the red spot (LaserLayer3D, SD-S6) · compass · unit lines",
        ["The HUD does NOT draw the spot: it is the 3-D map's laser layer (D-32..D-35, slice SD-S6) — SD-S1 shows the lamp and the range only.",
@@ -306,7 +318,7 @@ x, y = head(4, "5 · RANGEFINDER while the simulation is PAUSED (dv-paused-opera
             ["Scope: the same HUD still answering in pause: a range measured in pause is shown marked PREVIEW (R5-10, LS-13).", "The toolbar's paused state is context."])
 frame(x, y, 2.2); rf_view(x, y); spot(x, y, preview=True); rf_reticle(x, y); rf_status(x, y, mode="CONTINUOUS", lamp_on=True); rf_range(x, y, "452 m", preview=True)
 rf_menu_strip(x, y, cur=0)
-rf_chips(x, y, lit=("RANGE",))
+rf_chips(x, y, lit=("RANGE",), send="on")
 compass(x, y); unit_lines(x, y)
 ty = y + PH + 8                                                                               # CONTEXT: the toolbar's run controls, paused
 s.rect(x, ty, 285, 24, C.PAGE, stroke="#8A8A96", dash="4 3", rx=3)

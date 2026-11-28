@@ -236,24 +236,26 @@ namespace Hrot.Player.Tests.Gizmos
             State(new RangefinderState());
             var run = Frame();
             var buttons = run.Where(p => PanelButtons.Is(p)).ToArray();
-            Assert.Equal(4, buttons.Length);
+            Assert.Equal(RangefinderChannels.Count, buttons.Length);   // ⭐ SD-S5b — five: SEND joined, left of RANGE
             float k = RangefinderHudGizmo.K;
-            for (int i = 0; i < 4; i++)
+            for (int i = 0; i < RangefinderChannels.Count; i++)
             {
                 var b = buttons[i];
                 Assert.Equal(((byte)Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, (byte)i), (b.PanelKind, b.PanelElement));
-                Assert.Equal(RangefinderHudGizmo.ChipX * k, b.PanelX, 2);
-                Assert.Equal((RangefinderHudGizmo.ChipY + i * RangefinderHudGizmo.ChipStep) * k, b.PanelY, 2);
+                bool send = i == RangefinderChannels.Send;
+                Assert.Equal((send ? RangefinderHudGizmo.SendX : RangefinderHudGizmo.ChipX) * k, b.PanelX, 2);
+                Assert.Equal((send ? RangefinderHudGizmo.SendY : RangefinderHudGizmo.ChipY + i * RangefinderHudGizmo.ChipStep) * k, b.PanelY, 2);
                 Assert.Equal((RangefinderHudGizmo.ChipW * k, RangefinderHudGizmo.ChipH * k), (b.PanelW, b.PanelH));
                 // the drawn chip is exactly that rectangle (its fill box)
                 Assert.Contains(run, p => p.Shape == DebugPrimitiveShape.Box2D && Math.Abs(p.BoxCenterX - (b.PanelX + b.PanelW / 2)) < 0.01f
                                           && Math.Abs(p.BoxCenterY - (b.PanelY + b.PanelH / 2)) < 0.01f && Math.Abs(p.BoxExtentX - b.PanelW / 2) < 0.01f);
             }
-            Assert.Equal(new[] { PanelButtonState.Normal, PanelButtonState.Normal, PanelButtonState.Normal, PanelButtonState.Disabled }, buttons.Select(b => b.PanelState).ToArray());
-            foreach (var t in new[] { "RANGE", "MODE", "MENU", "SELECT" }) Assert.Contains(t, Texts(run));
+            Assert.Equal(new[] { PanelButtonState.Normal, PanelButtonState.Normal, PanelButtonState.Normal, PanelButtonState.Disabled, PanelButtonState.Disabled },
+                         buttons.Select(b => b.PanelState).ToArray());   // SEND greyed: nothing measured, no link
+            foreach (var t in new[] { "RANGE", "MODE", "MENU", "SELECT", "SEND" }) Assert.Contains(t, Texts(run));
 
             State(new RangefinderState { Ranging = 1, MenuOpen = 1 });
-            Assert.Equal(new[] { PanelButtonState.Lit, PanelButtonState.Normal, PanelButtonState.Lit, PanelButtonState.Normal },
+            Assert.Equal(new[] { PanelButtonState.Lit, PanelButtonState.Normal, PanelButtonState.Lit, PanelButtonState.Normal, PanelButtonState.Disabled },
                          Frame().Where(p => PanelButtons.Is(p)).Select(b => b.PanelState).ToArray());
         }
 
@@ -270,15 +272,42 @@ namespace Hrot.Player.Tests.Gizmos
                 {
                     Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE", "O"),
                     Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MENU", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SELECT", "Enter"),
+                    Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SEND", "Y"),
                 },
             });
             db.Register(type);
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             State(new RangefinderState());
             var run = Frame();
-            foreach (var t in new[] { "R", "O", "P", "ENT" }) Assert.Contains(t, Texts(run));
+            foreach (var t in new[] { "R", "O", "P", "ENT", "Y" }) Assert.Contains(t, Texts(run));
             Assert.Equal((ushort)NodeEditor.Primitives.EditorKey.R, run.First(p => PanelButtons.Is(p)).PanelHotkey);
-            Assert.Equal((ushort)NodeEditor.Primitives.EditorKey.Enter, run.Last(p => PanelButtons.Is(p)).PanelHotkey);
+            Assert.Equal((ushort)NodeEditor.Primitives.EditorKey.Y, run.Last(p => PanelButtons.Is(p)).PanelHotkey);
+        }
+
+        /// <summary>
+        /// ⭐⭐ SD-S5b (§3.13d D-119, mockup devices-hud-link.svg panel 24) — the SEND chip: greyed with nothing measured or no link; live with a range and a
+        /// link; LIT with the green SENT tag for <see cref="RangefinderPanel.SentSeconds"/> of SIM time after a send (it stays while time stands — paused), then
+        /// gone. 🔴 Red-proof (compiles): <c>RecentlySent</c> returning false ⇒ no SENT ⇒ red.
+        /// </summary>
+        [Fact]
+        public void SDS5b_TheSendChip_IsGreyedWithoutARangeOrALink_AndShowsSentForTwoSecondsAfterASend()
+        {
+            _w.RegisterComponent<DeviceLinks>();
+            var peer = _w.CreateEntity();
+            State(new RangefinderState { HasRange = 1, LastRange = 450f });
+            PanelButtonState SendState(DebugPrimitive[] run) => run.Where(p => PanelButtons.Is(p)).First(b => b.PanelElement == RangefinderChannels.Send).PanelState;
+            Assert.Equal(PanelButtonState.Disabled, SendState(Frame()));                  // a range, no link
+            _w.AddComponent(_d, new DeviceLinks { Peer0 = peer });
+            var idle = Frame();
+            Assert.Equal(PanelButtonState.Normal, SendState(idle));                       // a range and a link
+            Assert.DoesNotContain("SENT", Texts(idle));
+            _w.SetSingleton(new GlobalTime { TotalTime = 10.0 });
+            State(new RangefinderState { HasRange = 1, LastRange = 450f, Sent = 1, SentAt = 9.5 });
+            var sent = Frame();
+            Assert.Equal(PanelButtonState.Lit, SendState(sent));
+            Assert.Contains("SENT", Texts(sent));
+            _w.SetSingleton(new GlobalTime { TotalTime = 11.6 });
+            Assert.DoesNotContain("SENT", Texts(Frame()));                                 // 2.1 s later: gone
         }
 
         [Fact]

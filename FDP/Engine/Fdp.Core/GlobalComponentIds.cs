@@ -965,6 +965,14 @@ namespace Fdp.Core
         /// fraction left), drained airborne by <c>DroneBatterySystem</c> (brain group), frozen in pause. ⚠ 234, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
         public const int DroneBattery = 234;
 
+        /// <summary><c>DeviceLinks</c> — ⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119): the devices a device SENDS to
+        /// (its peers — an address, scenario-authored). ⚠ 235, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceLinks = 235;
+
+        /// <summary><c>DeviceInbox</c> — ⭐ SD-S5b (D-119): the newest two <c>DeviceMessageEvent</c>s addressed to a device, filed by the device tick's serial ingest.
+        /// ⚠ 236, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceInbox = 236;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;

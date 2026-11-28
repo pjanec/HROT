@@ -1,0 +1,197 @@
+using System;
+using System.Numerics;
+using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Devices;
+using Fdp.Toolkit.Behavior.Possession;
+using Xunit;
+
+namespace Fdp.Toolkit.Behavior.Tests
+{
+    /// <summary>
+    /// ⭐⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119 / D-120, §3r D-56) — THE LINK and STACKING, at the toolkit:
+    /// ① a message SENT is filed into its TARGET's inbox one frame later (the bus), by the device tick's ingest, and only there; the inbox keeps the NEWEST two;
+    /// the receiver takes each once (a repeat seq is dropped — R3-10); 0 B on the steady path. ② the POSE CHAIN: a device mounted in another device's station
+    /// points as its host does (host world pose ∘ station place ∘ own pose) and follows the host's look; a stacked device ignores its own look (D-56) and uses
+    /// it again unstacked; the stack's root and operator.
+    /// </summary>
+    public class DeviceLinkStackTests
+    {
+        private struct Dto { public Vector3 Point; public float Range; }
+        private const ushort Kind = 7;
+
+        private static EntityRepository World()
+        {
+            var w = TestWorldFactory.Create();
+            w.RegisterComponent<DeviceInfo>();
+            w.RegisterComponent<PossessedBy>();
+            w.RegisterComponent<DeviceInput>();
+            w.RegisterComponent<DevicePose>();
+            w.RegisterComponent<DeviceLinks>();
+            w.RegisterComponent<DeviceInbox>();
+            w.RegisterComponent<PersonCarrier>();
+            w.RegisterComponent<CarrierSeats>();
+            w.RegisterComponent<CarrierStations>();
+            if (!w.IsComponentTypeRegistered<SimTransform>()) w.RegisterComponent<SimTransform>();
+            w.Bus.Register<DeviceMessageEvent>();
+            return w;
+        }
+
+        private static Entity Device(EntityRepository w, Vector3 at = default)
+        {
+            var d = w.CreateEntity();
+            w.AddComponent(d, new BehaviorState());
+            w.SetAuthority<BehaviorState>(d, true);   // this node runs its logic (the ingest files only there)
+            w.AddComponent(d, new DeviceInfo { DeviceType = 77 });
+            w.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            return d;
+        }
+
+        /// <summary>The frame boundary: last frame's events become readable, then the device tick's ingest files them.</summary>
+        private static void Frame(EntityRepository w) { w.Bus.SwapBuffers(); DeviceMessages.Ingest(w); }
+
+        private static int Received(EntityRepository w, Entity self, ref DeviceMessageTracker seen, out Dto last)
+        {
+            int n = 0; last = default;
+            while (DeviceMessages.TryTake(w, self, Kind, ref seen, out Dto d, out _)) { last = d; n++; }
+            return n;
+        }
+
+        [Fact]
+        public void SDS5b_AMessage_IsFiledInItsTargetsInbox_OneFrameLate_AndTakenOnce_AndOnlyThere()
+        {
+            using var w = World();
+            Entity a = Device(w), b = Device(w), c = Device(w);
+            w.AddComponent(a, new DeviceLinks { Peer0 = b });
+            uint seq = 0;
+            Assert.True(DeviceMessages.SendToPeer(w, a, 0, Kind, new Dto { Point = new Vector3(1, 2, 3), Range = 450f }, ref seq));
+            Assert.Equal(1u, seq);
+            DeviceMessages.Ingest(w);                                   // the same frame: nothing readable yet
+            Assert.False(w.HasComponent<DeviceInbox>(b));
+            Frame(w);                                                   // next frame
+            Assert.True(w.HasComponent<DeviceInbox>(b));
+            Assert.False(w.HasComponent<DeviceInbox>(c));               // ⭐ an unlinked device receives nothing
+            Assert.False(w.HasComponent<DeviceInbox>(a));               // nor the sender
+            var seenB = default(DeviceMessageTracker);
+            Assert.Equal(1, Received(w, b, ref seenB, out var got));
+            Assert.Equal(new Vector3(1, 2, 3), got.Point);
+            Assert.Equal(450f, got.Range);
+            Assert.Equal(0, Received(w, b, ref seenB, out _));          // taken once: a re-read inbox applies nothing
+            Frame(w);
+            Assert.Equal(0, Received(w, b, ref seenB, out _));          // nor the next frame
+            Assert.False(DeviceMessages.SendToPeer(w, a, 1, Kind, new Dto(), ref seq));   // no second peer: nothing sent
+        }
+
+        [Fact]
+        public void SDS5b_TheInbox_KeepsTheNewestTwo_AndARepeatSeq_IsDropped()
+        {
+            using var w = World();
+            Entity a = Device(w), b = Device(w);
+            uint seq = 0;
+            for (int i = 1; i <= 3; i++) DeviceMessages.Send(w, a, b, Kind, new Dto { Range = i }, ref seq);
+            Frame(w);
+            var inbox = w.GetComponentRO<DeviceInbox>(b);
+            Assert.Equal(2, inbox.Count);
+            Assert.Equal(3u, inbox.Filed);
+            Assert.Equal(3u, inbox.Messages[0].Seq);                    // newest first
+            Assert.Equal(2u, inbox.Messages[1].Seq);
+            var seen = default(DeviceMessageTracker);
+            Assert.Equal(2, Received(w, b, ref seen, out var last));    // oldest first, the newest last
+            Assert.Equal(3f, last.Range);
+            // a duplicate of seq 3 (a paused frame's event read again at resume, R3-10) is not applied
+            var dup = new DeviceMessageEvent { Target = b, From = a, Seq = 3, Kind = Kind, Size = (ushort)System.Runtime.CompilerServices.Unsafe.SizeOf<Dto>() };
+            w.Bus.Publish(dup);
+            Frame(w);
+            Assert.Equal(0, Received(w, b, ref seen, out _));
+        }
+
+        [Fact]
+        public void SDS5b_TheSteadyPath_SendIngestTake_AllocatesNothing()
+        {
+            using var w = World();
+            Entity a = Device(w), b = Device(w);
+            w.AddComponent(a, new DeviceLinks { Peer0 = b });
+            uint seq = 0;
+            var seen = default(DeviceMessageTracker);
+            void Step() { DeviceMessages.SendToPeer(w, a, 0, Kind, new Dto { Range = 1f }, ref seq); Frame(w); Received(w, b, ref seen, out _); }
+            for (int i = 0; i < 40; i++) Step();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++) Step();
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+
+        // ── stacking ────────────────────────────────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>A host device with one stacking station (seat 0) at <paramref name="z"/> above it, the stacked device in it.</summary>
+        private static void Stack(EntityRepository w, Entity host, Entity top, float z)
+        {
+            var stations = new CarrierStations { StationMask = 1 };
+            stations.Seats[0] = new StationSeat { Accepts = 32, OperatedBy = -1, Z = z };
+            w.AddComponent(host, stations);
+            var buffer = new PassengerBuffer();
+            buffer.Passengers[0] = top;
+            w.AddComponent(host, buffer);
+            w.AddComponent(top, new IsEmbarkedTag { VehicleEntity = host, Seat = 0 });
+        }
+
+        private static void Look(EntityRepository w, Entity d, float yaw)
+        {
+            var c = new DeviceControl { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw), Trackers = DeviceControl.OrientationPresent };
+            var input = new DeviceInput { Control = c };
+            if (w.HasComponent<DeviceInput>(d)) w.SetComponent(d, input); else w.AddComponent(d, input);
+        }
+
+        private static Vector3 Forward(EntityRepository w, Entity d)
+        {
+            Assert.True(DevicePoses.TryWorld(w, d, out _, out var rot));
+            return Vector3.Transform(Vector3.UnitX, rot);
+        }
+
+        [Fact]
+        public void SDS5b_AStackedDevice_PointsAsItsRootLooks_IgnoresItsOwnLook_AndUsesItAgainUnstacked()
+        {
+            using var w = World();
+            Entity root = Device(w, new Vector3(10f, 0f, 1.5f)), top = Device(w, new Vector3(10f, 0f, 1.5f));
+            Stack(w, root, top, 0.08f);
+            Assert.True(DeviceStacks.IsStacked(w, top));
+            Assert.False(DeviceStacks.IsStacked(w, root));
+            Assert.Equal(root, DeviceStacks.Root(w, top));
+            Assert.Equal(root, DeviceStacks.Root(w, root));
+
+            Look(w, root, MathF.PI / 2f);                 // the station's look turns north …
+            Look(w, top, -MathF.PI / 2f);                 // … and the top device's own frame says south (a tracker on it, or the look relative to a stale mount)
+            DeviceLooks.Follow(w, root, 0f);
+            DeviceLooks.Follow(w, top, 0f);
+            Assert.Equal(Quaternion.Identity, w.GetComponentRO<DevicePose>(top).Orientation);   // D-56: its own look ignored while stacked
+            var fr = Forward(w, root);
+            var ft = Forward(w, top);
+            Assert.True(fr.Y > 0.999f, $"the root points north ({fr})");
+            Assert.True(Vector3.Dot(fr, ft) > MathF.Cos(0.1f * MathF.PI / 180f), $"the stacked device points as its root ({ft} vs {fr})");
+            Assert.True(DevicePoses.TryWorld(w, top, out var at, out _));
+            Assert.Equal(1.58f, at.Z, 3);                 // the station place, in the root's frame
+
+            // unstacked: its own look again
+            w.RemoveComponent<IsEmbarkedTag>(top);
+            DeviceLooks.Follow(w, top, 0f);
+            Assert.True(Forward(w, top).Y < -0.999f, "unstacked, it points where its own look says");
+        }
+
+        [Fact]
+        public void SDS5b_AStackedDevice_IsOperatedByItsRootsOperator()
+        {
+            using var w = World();
+            var man = w.CreateEntity();
+            w.AddComponent(man, new PersonCarrier());
+            w.AddComponent(man, new PassengerBuffer());
+            w.AddComponent(man, new PossessedBy { StationNodeId = (StationId)5, Mode = PossessionMode.Fps, Epoch = 1 });
+            Entity root = Device(w), top = Device(w);
+            w.GetComponentRW<PassengerBuffer>(man).Passengers[4] = root;
+            w.AddComponent(root, new IsEmbarkedTag { VehicleEntity = man, Seat = 4 });
+            Stack(w, root, top, 0.08f);
+            Assert.Equal(man, DeviceOperators.OperatorOf(w, top));
+            DeviceOperators.Sync(w, top);
+            Assert.Equal(PossessionMode.Operated, w.GetComponentRO<PossessedBy>(top).Mode);
+            Assert.Equal((StationId)5, w.GetComponentRO<PossessedBy>(top).StationNodeId);
+        }
+    }
+}

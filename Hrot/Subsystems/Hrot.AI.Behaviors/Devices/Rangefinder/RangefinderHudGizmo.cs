@@ -134,7 +134,7 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
             public readonly ushort[] Keys = new ushort[RangefinderChannels.Count];
         }
 
-        private static readonly string[] DefaultNames = { "RANGE", "MODE", "MENU", "SELECT" };   // with no TKB type (a bare rail): the channel's own name
+        private static readonly string[] DefaultNames = { "RANGE", "MODE", "MENU", "SELECT", "SEND" };   // with no TKB type (a bare rail): the channel's own name
         private Chips _chips = new();
 
         /// <summary>The chips' labels and hotkeys from the device's TKB type (D-142 / D-124) — built once per type (allocates then, never per frame).</summary>
@@ -159,17 +159,42 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
             return c;
         }
 
+        /// <summary>⭐ SD-S5b (D-119, mockup devices-hud-link.svg panel 24) — the SEND chip: left of RANGE in the column's first row (the column's fifth row would
+        /// meet the menu line), and the green SENT tag under it for <see cref="RangefinderPanel.SentSeconds"/> after a send.</summary>
+        public const float SendX = ChipX - ChipW - 6f, SendY = ChipY;
+
+        private static readonly HudText SentTag = new("SENT");
+        public static readonly Rgba32 Sent = new(91, 208, 106);
+
+        /// <summary>Did the device send within <see cref="RangefinderPanel.SentSeconds"/> (sim time — it stays shown while paused)?</summary>
+        public static bool RecentlySent(ISimulationView view, in RangefinderState st)
+        {
+            if (st.Sent == 0 || view is not EntityRepository w) return false;
+            double age = Fdp.Toolkit.Combat.HitModel.Now(w) - st.SentAt;
+            return age >= 0d && age < RangefinderPanel.SentSeconds;
+        }
+
         private void DrawButtons(IDebugDrawBuilder draw, ISimulationView view, Entity entity, in RangefinderState st)
         {
             var c = ChipsOf(view, entity);
+            bool sent = RecentlySent(view, in st);
+            bool linked = view is EntityRepository lw && !DeviceMessages.Peer(lw, entity, 0).IsNull;
             for (int i = 0; i < RangefinderChannels.Count; i++)
             {
                 var state = i == RangefinderChannels.Range && st.Ranging != 0 ? PanelButtonState.Lit
                           : i == RangefinderChannels.Menu && st.MenuOpen != 0 ? PanelButtonState.Lit
                           : i == RangefinderChannels.Select && st.MenuOpen == 0 ? PanelButtonState.Disabled
+                          : i == RangefinderChannels.Send && sent ? PanelButtonState.Lit
+                          : i == RangefinderChannels.Send && (st.HasRange == 0 || !linked) ? PanelButtonState.Disabled   // nothing to send, or nobody to send to
                           : PanelButtonState.Normal;
-                HudPanel.Button(draw, Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, i, P(ChipX, ChipY + i * ChipStep), new Vector2(ChipW, ChipH) * K,
-                                c.Labels[i], c.Badges[i], state, c.Keys[i], L);
+                var at = i == RangefinderChannels.Send ? P(SendX, SendY) : P(ChipX, ChipY + i * ChipStep);
+                HudPanel.Button(draw, Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, i, at, new Vector2(ChipW, ChipH) * K, c.Labels[i], c.Badges[i], state, c.Keys[i], L);
+            }
+            if (sent)
+            {
+                float tw = TextWidth("SENT", 10f) + 12f;
+                draw.EmitRaw(ViewCanvas.Rect(P(SendX, SendY + ChipH + 4f), new Vector2(tw, 15f) * K, new Rgba32(0, 0, 0, 178), Sent, 1f * K, L));
+                draw.EmitRaw(ViewCanvas.Text((SendX + tw / 2f) * K, (SendY + ChipH + 15f) * K, SentTag, Sent, 10f * K, L, ViewCanvasAlign.Centre, GizmoTextStyle.HaloBold));
             }
         }
 

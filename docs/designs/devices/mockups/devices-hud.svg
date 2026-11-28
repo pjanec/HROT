@@ -328,6 +328,10 @@
 <text x='892.7' y='417.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='819.4' y='405' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='840.9538461538461' y='417.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='804' y='306' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='811' y='320' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SEND</text>
+<rect x='864' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='870.5' y='319.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>Y</text>
 <rect x='888' y='306' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
 <text x='895' y='320' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
 <rect x='948' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
@@ -377,13 +381,14 @@
 <text x='586' y='457' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>window + corner brackets · reticle · name · MODE · POWER · LASER lamp</text>
 <text x='586' y='470.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(off) · LAST RANGE '— m' · menu line, cursor on MODE · the button chips</text>
 <text x='586' y='484.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>RANGE R · MODE O · MENU P · SELECT ENT (SELECT greyed: the menu is</text>
-<text x='586' y='497.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>closed) · the gold hover frame + hand cursor on RANGE (POINT, SD-S5v)</text>
-<text x='520' y='513.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
-<text x='586' y='513.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>compass · unit lines · scene</text>
-<text x='520' y='530.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: mode names SINGLE / CONTINUOUS and power LOW / HIGH are placeholders</text>
-<text x='520' y='543.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(the type's data); status top-left, lamp</text>
-<text x='520' y='558.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>top-right, readout bottom-centre, menu line bottom-right (clear of the unit lines, which</text>
-<text x='520' y='571.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stay bottom-left).</text>
+<text x='586' y='497.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>closed) · SEND Y left of RANGE (greyed: nothing measured, SD-S5b) · the</text>
+<text x='586' y='511.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>gold hover frame + hand cursor on RANGE (POINT, SD-S5v)</text>
+<text x='520' y='526.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='586' y='526.5' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>compass · unit lines · scene</text>
+<text x='520' y='544.0' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: mode names SINGLE / CONTINUOUS and power LOW / HIGH are placeholders</text>
+<text x='520' y='557.0' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(the type's data); status top-left, lamp</text>
+<text x='520' y='572.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>top-right, readout bottom-centre, menu line bottom-right (clear of the unit lines, which</text>
+<text x='520' y='585.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stay bottom-left).</text>
 <text x='1010' y='124' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3 · RANGEFINDER, after RANGE on a target — laser ON, 452 m</text>
 <text x='1010' y='140' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the lamp on, the range written, the same layout as panel 2. The spot on the</text>
 <text x='1010' y='153' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>target is a world effect (context).</text>
@@ -522,6 +527,10 @@
 <text x='1382.6999999999998' y='417.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='1309.3999999999999' y='405' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='1330.953846153846' y='417.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='1294' y='306' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1301' y='320' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SEND</text>
+<rect x='1354' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1360.5' y='319.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>Y</text>
 <rect x='1378' y='306' width='78' height='20' fill='#3369AD' rx='3' opacity='0.85'/>
 <text x='1385' y='320' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
 <rect x='1438' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
@@ -708,6 +717,10 @@
 <text x='402.7' y='915.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='329.4' y='903' width='43.107692307692304' height='18' fill='#3369AD' rx='3' stroke='#FFD700' stroke-width='1.2' opacity='0.95'/>
 <text x='350.95384615384614' y='915.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='314' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='321' y='818' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SEND</text>
+<rect x='374' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='380.5' y='817.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>Y</text>
 <rect x='398' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
 <text x='405' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
 <rect x='458' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
@@ -912,6 +925,10 @@
 <text x='892.7' y='915.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='819.4' y='903' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='840.9538461538461' y='915.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='804' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='811' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SEND</text>
+<rect x='864' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='870.5' y='817.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>Y</text>
 <rect x='888' y='804' width='78' height='20' fill='#3369AD' rx='3' opacity='0.85'/>
 <text x='895' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
 <rect x='948' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
@@ -1106,6 +1123,10 @@
 <text x='1382.6999999999998' y='915.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='1309.3999999999999' y='903' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='1330.953846153846' y='915.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='1294' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1301' y='818' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SEND</text>
+<rect x='1354' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='1360.5' y='817.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>Y</text>
 <rect x='1378' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
 <text x='1385' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
 <rect x='1438' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
