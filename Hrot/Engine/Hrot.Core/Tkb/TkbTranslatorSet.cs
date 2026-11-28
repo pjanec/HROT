@@ -103,6 +103,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator(),
             // ⭐ Weapon systems WS-1 (R-2016) — a weapon-system entity's handling (Gen.WeaponSystem) and its deploy state.
             new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator(),   // ⭐ CE-2155 (R-2011) — a type's injury band; without Gen.Injury, ok until dead
+            // ⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.1 R7-4) — a device type's item facts (Mountable, kind Device) and its marker (DeviceInfo).
+            new Fdp.Toolkit.Behavior.Devices.DeviceTkbTranslator(),
             // ⭐ WL-1 — a turret part child per TKB turret, on every node (docs/DESIGN_Weapon_Layers.md W-9).
             new Fdp.Toolkit.Combat.Translators.TurretTkbTranslator(),
             new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),

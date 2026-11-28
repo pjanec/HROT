@@ -254,6 +254,55 @@ namespace Hrot.Map.Definitions.Tkb
             return dto;
         }
 
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.2 D-1″, §3.3 R4-2) — the observer variant's seats: the HMMWV's (0–5, their indices
+        /// kept), then a COMMANDER seat (6, front right, seated) and the DEVICE STATION (7) he operates (<c>OperatedBy = 6</c>, accepts only a device), at
+        /// his eye through the windscreen, starting with a laser rangefinder. ⭐ A station, not a crew seat: the device is a full entity mounted there
+        /// (the HMMWV roof-M2 shape), its operator is whoever sits in seat 6 (<c>DeviceOperators</c> ③).
+        /// </summary>
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto ObserverSeats(Fdp.Toolkit.Tkb.Domain.CarrierDefDto dto)
+        {
+            dto.Seats.Add(new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Commander,
+                X = 0.35f, Y = -0.45f, Z = 0.55f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit,
+            });
+            dto.Seats.Add(new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Device, OperatedBy = 6,
+                X = 0.6f, Y = -0.45f, Z = 1.45f, StartWith = TkbEntityTypes.Device_LaserRangefinder,
+            });
+            return dto;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4 / D-26) — the DEVICE types: a hand-held laser
+        /// rangefinder and binoculars (<c>Gen.Device</c>). Each names the behaviour the device tick runs and its channels by NAME (the wire is the
+        /// index — <c>RangefinderChannels</c> / <c>BinocularsChannels</c>, pinned to these names by <c>DeviceTkbTypesTests</c>) and its optic.
+        /// Hidden from the Add Entity picker (placed by a scenario or a station preset; issued at run time from SD-S5); no map symbol (drawn where it
+        /// lies from SD-S5, D-64).
+        /// </summary>
+        private static void RegisterDevices(NedTkbBuilder builder)
+        {
+            builder.DefineVehicle(TkbEntityTypes.Device_LaserRangefinder, "Laser rangefinder")
+                .WithDevice(TkbEntityTypes.Device_LaserRangefinder, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder,
+                    Channels = { "RANGE", "MODE", "MENU", "SELECT" },
+                    Magnifications = { 7f },
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_LaserRangefinder);
+            builder.DefineVehicle(TkbEntityTypes.Device_Binoculars, "Binoculars")
+                .WithDevice(TkbEntityTypes.Device_Binoculars, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars,
+                    Channels = { "ZOOM IN", "ZOOM OUT" },
+                    Magnifications = { 5f, 7f, 10f },
+                    DefaultStep = 1,
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_Binoculars);
+        }
+
         /// <summary>⭐ ui handoff P1 — the HMMWV roof ring's weapon pivot height (m): the roof at 1.83 m + the ring.</summary>
         private const float HmmwvRingPivotZ = 2.3f;
 
@@ -723,7 +772,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ <c>CE-4617</c> (RV-17) — the radar SAM's mast: its radar's (and so its sight's) height above the ground, m.</summary>
         public const float RadarSamMastM = 6f;
 
-        private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed)
+        private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed, bool observer = false)
         {
             builder
                 .DefineVehicle(type, name)
@@ -758,7 +807,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.SensorRange = 2000;
                 })
                 .WithFaction(type, 1)
-                .WithCarrier(type, HmmwvSeats(crewed))   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
+                .WithCarrier(type, observer ? ObserverSeats(HmmwvSeats(crewed)) : HmmwvSeats(crewed))   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
                 .WithBehavior(type, crewed ? Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop : null)   // ⭐ CE-8318 — the crewed HMMWV (its roof M2 manned) fights by default
                 .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
@@ -1151,6 +1200,8 @@ namespace Hrot.Map.Definitions.Tkb
             // HMMWV — ⭐ 2026-10-31 two variants of ONE definition (Hmmwv): 102 crewed (as before), 111 with no crew
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV, "HMMWV (M2, crewed)", crewed: true);
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_NoCrew, "HMMWV (M2, no crew)", crewed: false);
+            // ⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.2 D-1″) — the OBSERVER HMMWV: the no-crew HMMWV + a commander seat and the device station he operates
+            Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_Observer, "HMMWV (observer, rangefinder)", crewed: false, observer: true);
             // ⭐ CE-7014 (City Battle R-2) — the HMMWV with a DRONE JAMMER: the crewed HMMWV plus the jammer's bubble; DIS subcategory 9 (HROT-local) tells it apart
             Hmmwv(builder, TkbEntityTypes.Ew_DroneJammer, "HMMWV (drone jammer)", crewed: true);
             builder.WithDisType(TkbEntityTypes.Ew_DroneJammer, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6, Subcategory = 9 });
@@ -1220,6 +1271,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   presets of it — 104 = + an M2 in the bed station + a rifleman in the gunner seat, 105 = + a Kornet (the old ±120° / −10…+20° arc,
             //   now the station's) + a rifleman. Orders go to the pickup; its weapon brain fires the station weapon (WS-3).
             RegisterWeaponSystems(builder);
+            RegisterDevices(builder);   // ⭐ Simulated devices S1e-1 — before the observer HMMWV, whose station starts with one
             Pickup(builder, TkbEntityTypes.Pickup_Toyota, "Pickup (Toyota)", "hmmwv");
             Pickup(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "hmmwv",
                 weapon: TkbEntityTypes.WeaponSystem_M2Hmg, gunner: TkbEntityTypes.Infantry_Rifleman);

@@ -2,6 +2,7 @@ using System;
 using Fbt;
 using Fbt.Runtime;
 using Fdp.Core;
+using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Devices;
 using Fdp.Toolkit.Behavior.Systems;
@@ -142,6 +143,78 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(BehaviorIds.None, r.W.GetComponentRO<BehaviorState>(d).ActiveBehaviorHash);
             Assert.Equal(0, r.DeviceTicks);
             Assert.Equal(0, r.Devices.Starts);
+        }
+
+        // ── ⭐⭐ S1e-1 (§3.1 R7-4, §3.5 R7-4) — a device TYPE's creation path, and the ingress that leaves a device's run alone ──────────────────
+
+        /// <summary>A device TYPE as the catalogue defines it: <c>Gen.Device</c> + a brain profile that (wrongly, on purpose) names a default.</summary>
+        private static TkbTemplate DeviceType(string behavior)
+        {
+            var t = new TkbTemplate("Test device", 640);
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = behavior, Channels = { "RANGE", "MODE" } });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto
+            {
+                SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true,
+                DefaultBehavior = "UnitRun", DefaultSop = "UnitRun",
+            });
+            return t;
+        }
+
+        private static Entity Create(Rig r, TkbTemplate type)
+        {
+            r.W.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+            r.W.RegisterComponent<EntityInfo>();
+            r.W.RegisterComponent<Roe>();
+            r.W.RegisterComponent<MissionPlanQueue>();
+            if (!r.W.Bus.IsRegisteredManaged<Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent>()) r.W.Bus.RegisterManaged<Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent>();
+            if (!r.W.Bus.IsRegistered<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>()) r.W.Bus.Register<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>();
+            if (!r.W.Bus.IsRegistered<Fdp.Toolkit.Behavior.Events.AssignBehaviorHashEvent>()) r.W.Bus.Register<Fdp.Toolkit.Behavior.Events.AssignBehaviorHashEvent>();
+            var e = r.W.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator().Inject(r.W, e, type);
+            new DeviceTkbTranslator().Inject(r.W, e, type);
+            return e;
+        }
+
+        [Fact]
+        public void S1e1_ADeviceType_IsCreatedAsAnItemAndADevice_WithABrain_ButNoUnitBlock_AndTheDeviceTickRunsItsLogic()
+        {
+            using var r = new Rig();
+            var d = Create(r, DeviceType("DeviceRun"));
+            var m = r.W.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(d);
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.MountKinds.Device, m.MountKinds);   // boards a kit / device station, nothing else
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.OneMan, m.Portable);
+            var info = r.W.GetComponentRO<DeviceInfo>(d);
+            Assert.Equal(640, info.DeviceType);
+            Assert.Equal("DeviceRun", info.Behavior.ToString());
+            Assert.Equal(BehaviorConstants.BrainTierBTree, r.W.GetComponentRO<BehaviorState>(d).BrainTier);
+            // ⛔ R7-4 — not a unit: no force, no capabilities, no ROE, no channels, no mission queue — and no default start queued
+            Assert.False(r.W.HasComponent<EntityInfo>(d));
+            Assert.False(r.W.HasComponent<ActorCapabilityState>(d));
+            Assert.False(r.W.HasComponent<Roe>(d));
+            Assert.False(r.W.HasComponent<WeaponChannel>(d));
+            Assert.False(r.W.HasComponent<MissionPlanQueue>(d));
+            r.W.Bus.SwapBuffers();
+            Assert.Empty(((Fdp.ModuleHost.Abstractions.ISimulationView)r.W).ReadManagedEvents<Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent>());
+            for (int i = 0; i < 3; i++) r.Frame(0f);   // the device tick starts the TYPE's behaviour, in pause
+            Assert.Equal(DeviceRunId, r.W.GetComponentRO<BehaviorState>(d).ActiveBehaviorHash);
+        }
+
+        [Fact]
+        public void S1e1_AnAssignOrAClearAimedAtADevice_IsRefused_FromAnyoneButTheDeviceTick()
+        {
+            using var r = new Rig();
+            var d = Create(r, DeviceType("DeviceRun"));
+            r.Frame(0f);
+            Assert.Equal(DeviceRunId, r.W.GetComponentRO<BehaviorState>(d).ActiveBehaviorHash);
+            int refused = r.Ingress.RefusedCount;
+            r.W.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent { Entity = d, BehaviorName = "UnitRun", Origin = BehaviorOrigin.Operator });
+            r.W.Bus.Publish(new Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent { Entity = d, Origin = BehaviorOrigin.Operator });
+            r.Frame(0.016f);   // the ingress reads both (a time-advancing frame)
+            Assert.Equal(DeviceRunId, r.W.GetComponentRO<BehaviorState>(d).ActiveBehaviorHash);   // its own logic still runs
+            Assert.Equal(refused + 2, r.Ingress.RefusedCount);
+            Assert.False(r.Ingress.AssignNow(r.W, d, "UnitRun", "{}", BehaviorOrigin.Operator));   // the editor's paused edit too
+            Assert.False(r.Ingress.ClearNow(r.W, d, BehaviorOrigin.Superior));
+            Assert.Equal(DeviceRunId, r.W.GetComponentRO<BehaviorState>(d).ActiveBehaviorHash);
         }
 
         [Fact]

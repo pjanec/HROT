@@ -466,6 +466,23 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.1 R7-4) — a DEVICE type: its <c>Gen.Device</c> descriptor (the behaviour, the channel
+        /// names, the optic) and a brain WITHOUT a default behaviour (<c>BrainTier</c> BTree — the device tick starts <see cref="DeviceDefDto.Behavior"/>);
+        /// <c>DeviceTkbTranslator</c> writes its <c>Mountable</c> (kind Device) and <c>DeviceInfo</c>, and <c>BehaviorTkbTranslator</c> stamps no tactical block.</summary>
+        public NedTkbBuilder WithDevice(long tkbId, DeviceDefDto device)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(device ?? throw new ArgumentNullException(nameof(device)));
+            template.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier = BehaviorConstants.SimTierTactical,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+            return this;
+        }
+
         /// <summary>⭐ M9 — what the type gives off to sensors (<c>CE-2106</c>: the sound it makes moving and firing).</summary>
         public NedTkbBuilder WithSignatures(long tkbId, SignaturesDto signatures)
         {

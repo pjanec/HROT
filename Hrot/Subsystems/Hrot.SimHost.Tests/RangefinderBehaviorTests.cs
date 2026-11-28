@@ -85,6 +85,40 @@ namespace Hrot.SimHost.Tests
             public void Dispose() => W.Dispose();
         }
 
+        /// <summary>
+        /// ⭐⭐ S1e-1 (§3.1 R7-4 / D-26) — the two DEVICE TYPES the catalogue defines name the behaviour each runs and its channels by NAME in the order
+        /// the behaviour reads them (the wire is the index), and their optic: ONE fact, pinned here, so a renamed / reordered channel or a moved zoom step
+        /// cannot leave the TKB (what an adapter or a scenario presses by name) and the logic disagreeing.
+        /// </summary>
+        [Fact]
+        public void S1e1_TheDeviceTypes_NameTheirBehaviour_TheirChannelsInWireOrder_AndTheirOptic()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var rf = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder).GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>()!;
+            Assert.Equal(BehaviorNames.DeviceRangefinder, rf.Behavior);
+            Assert.Equal(RangefinderChannels.Count, rf.Channels.Count);
+            Assert.Equal(RangefinderChannels.Range, rf.ChannelOf("RANGE"));
+            Assert.Equal(RangefinderChannels.Mode, rf.ChannelOf("MODE"));
+            Assert.Equal(RangefinderChannels.Menu, rf.ChannelOf("MENU"));
+            Assert.Equal(RangefinderChannels.Select, rf.ChannelOf("select"));   // by name, any case
+            Assert.Equal(new[] { RangefinderBehavior.Magnification }, rf.Magnifications);
+
+            var bn = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_Binoculars).GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>()!;
+            Assert.Equal(BehaviorNames.DeviceBinoculars, bn.Behavior);
+            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomIn, bn.ChannelOf("ZOOM IN"));
+            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomOut, bn.ChannelOf("ZOOM OUT"));
+            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsZoom.Steps.ToArray(), bn.Magnifications);
+            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsZoom.DefaultStep, bn.DefaultStep);
+
+            // the observer HMMWV's device station: operated by its commander seat, accepting only a device, starting with the rangefinder
+            var seats = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV_Observer).GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!.Seats;
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Commander, seats[6].Role);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Station, seats[7].Role);
+            Assert.Equal(6, seats[7].OperatedBy);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.MountKinds.Device, seats[7].Accepts);
+            Assert.Equal(Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder, seats[7].StartWith);
+        }
+
         [Fact]
         public void S1c_ARangePress_TurnsTheLaserOn_TheAnsweringSpotWritesTheRangeAndThePanel_AndTheLaserGoesOff()
         {

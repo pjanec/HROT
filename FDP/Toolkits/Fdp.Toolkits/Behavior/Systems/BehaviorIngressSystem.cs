@@ -330,6 +330,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                            int behaviorId = 0)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            // ⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.5 R7-4) — a DEVICE runs its own logic only: an assign or a clear aimed at a device is
+            //   refused from anyone but the device tick (origin Self, its AssignNow) — an order, a mission, a reaction, the editor's paused edit would
+            //   otherwise replace it (the device tick would restart it, but the device would lose its run in between).
+            if (origin != BehaviorOrigin.Self && Fdp.Toolkit.Behavior.Devices.DeviceMarker.IsDevice(repo, entity))
+            {
+                pause = false;
+                RefusedCount++;
+                _lastRefusal = BrainRefusal.ADevice;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    urgency: (byte)urgency, cause: (byte)BrainRefusal.ADevice);
+                return false;
+            }
             // ⭐⭐ CE-4668 — a DEAD unit (Health 0) runs nothing (OVERVIEW §8a): every assign is refused, whoever sends it
             if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, entity))
             {

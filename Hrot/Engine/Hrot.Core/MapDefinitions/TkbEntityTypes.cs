@@ -24,6 +24,9 @@ namespace Hrot.Map.Common
         public const long Technical_Zu23 = 110;
         /// <summary>⭐ 2026-10-31 — the HMMWV (102) with NO crew: the M2 in its roof ring, the gunner and driver seats empty (a player takes them).</summary>
         public const long Truck_HMMWV_NoCrew = 111;
+        /// <summary>⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.2 D-1″) — the OBSERVER HMMWV: the no-crew HMMWV plus a COMMANDER seat (6) and the device
+        /// STATION (7) it operates, which starts with a laser rangefinder (<see cref="Device_LaserRangefinder"/>). 120 measured free on every lane 2026-11-28.</summary>
+        public const long Truck_HMMWV_Observer = 120;
         /// <summary>⭐ <c>CE-6006</c> (showcase world, DESIGN_City_Battle_Showcase §6 / D-6) — the BULLDOZER: a D9-class armoured engineering dozer, tracked, no weapon. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long Engineer_Bulldozer = 112;
         /// <summary>⭐ <c>CE-7014</c> (City Battle §11 R-2) — the HMMWV (102) carrying a DRONE JAMMER (a 400 m bubble, <c>JammerDto</c>): an enemy drone inside
@@ -102,6 +105,13 @@ namespace Hrot.Map.Common
         /// <summary>⭐ CE-3233 (B-11b, AW-12; §7.13 ST-8) — an EXPLOSIVE CHARGE: worn in a hidden station, placed, or in a car's cargo
         /// station; never fired, only set off where it stands.</summary>
         public const long WeaponSystem_ExplosiveCharge = 618;
+
+        // ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4) — DEVICES (640–659, measured free on every lane
+        //   2026-11-28): items a trainee operates whose logic is a behaviour on their own brain (Gen.Device). ⛔ PERMANENT WIRE VALUES.
+        /// <summary>⭐ S1e-1 — a hand-held LASER RANGEFINDER (7×, RANGE / MODE / MENU / SELECT): carried in a kit station or mounted in a device station.</summary>
+        public const long Device_LaserRangefinder = 640;
+        /// <summary>⭐ S1e-1 — BINOCULARS as a device (5× / 7× / 10×, ZOOM IN / ZOOM OUT) — the trainee's optic (D-75 replaced CE-1219's station binoculars).</summary>
+        public const long Device_Binoculars = 641;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

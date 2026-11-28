@@ -274,6 +274,8 @@ namespace Hrot.Map.Common.Tests
                 {
                     var seat = c.Seats[i];
                     if (seat.Role != Fdp.Toolkit.Behavior.Components.SeatRole.Station || seat.Stowed || seat.Concealed) continue;
+                    // ⭐ Simulated devices S1e-1 — a DEVICE station (Accepts Device only) holds no weapon: the observer HMMWV's rangefinder rides in the cab
+                    if (seat.Accepts == MountKinds.Device) continue;
                     bool exposed = seat.Exposed ?? c.Exposure == Fdp.Toolkit.Behavior.Components.PassengerExposure.Open;
                     if (!exposed) bad.Add($"{t.Name} ({t.TkbType}) seat {i}");
                 }
