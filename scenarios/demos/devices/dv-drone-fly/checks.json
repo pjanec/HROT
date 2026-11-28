@@ -195,6 +195,39 @@
         "op": "!=",
         "value": "None"
       }
+    },
+    {
+      "name": "the OSD shows the mode while the sticks fly it: MANUAL",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "MANUAL"
+      ],
+      "after": "fly+1",
+      "before": "land"
+    },
+    {
+      "name": "the OSD shows the battery %",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "contains",
+        " %"
+      ],
+      "after": "fly+1",
+      "before": "land"
+    },
+    {
+      "name": "the OSD shows ARMED",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "ARMED"
+      ],
+      "after": "armed+0.3",
+      "before": "land"
     }
   ]
 }

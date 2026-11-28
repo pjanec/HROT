@@ -102,6 +102,26 @@
       ],
       "m": 150,
       "atEnd": true
+    },
+    {
+      "name": "the OSD warns the battery is low",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "BATTERY LOW — RETURN HOME"
+      ],
+      "after": "takeoff"
+    },
+    {
+      "name": "… and then that it is empty",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "BATTERY EMPTY"
+      ],
+      "after": "fly"
     }
   ]
 }

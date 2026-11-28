@@ -7,7 +7,7 @@
     "subsystemType": "Hrot.Scenario",
     "schemaVersion": "1.0",
     "terrainName": "berlin",
-    "description": "What: Simulated devices SD-S2c (§3.13c D-107 / D-108). The dv-drone-fly start with a BOMBER quadcopter (TKB 408, a 1200 s battery) authored at 3 % (36 s of flight); the right stick at 0.4 for 20 s flies it ~240 m north, then it hovers until its battery runs out. Judge: (1) the battery empties (DroneBattery 0) and the pilot goes BatteryDown (DroneLink.Phase); (2) it comes down WHERE IT IS - never home: at the end it is down (FlightState.Airborne 0) more than 150 m from its launch point; (3) the station shows it LANDING. Not judged yet: the OSD's battery warning (SD-S2d). Fail: it flies on empty, or returns home. Check: scripts/scenario-regression.sh dv-drone-battery-out"
+    "description": "What: Simulated devices SD-S2c (§3.13c D-107 / D-108). The dv-drone-fly start with a BOMBER quadcopter (TKB 408, a 1200 s battery) authored at 3 % (36 s of flight); the right stick at 0.4 for 20 s flies it ~240 m north, then it hovers until its battery runs out. Judge: (1) the battery empties (DroneBattery 0) and the pilot goes BatteryDown (DroneLink.Phase); (2) it comes down WHERE IT IS - never home: at the end it is down (FlightState.Airborne 0) more than 150 m from its launch point; (3) the station shows it LANDING; (4) the OSD warns BATTERY LOW - RETURN HOME, then BATTERY EMPTY (SD-S2d). Fail: it flies on empty, or returns home. Check: scripts/scenario-regression.sh dv-drone-battery-out"
   },
   "entities": {
     "d5e10017-0000-4000-8000-000000000010": {

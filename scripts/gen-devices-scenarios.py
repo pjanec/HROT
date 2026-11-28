@@ -299,7 +299,9 @@ write("dv-replay-hud", scenario(
 # ── ⭐ SD-S2c — the drone GROUND STATION (DESIGN_Simulated_Devices §3.13c D-104 – D-110): dv-drone-fly / -paused / -jammed / -battery-out / -camera ────
 # A scripted trainee possesses the Operator, who carries a drone ground station (TKB 642) in kit seat 4; the station's ControlledEntities slot 0 names the
 # drone (D-147), a recon / bomber quadcopter standing on its feet beside him, whose brain is RemotePilot (flown THROUGH the station, never possessed).
-# ⚠ The rows that read the OSD (hud: LINK LOST, the battery warning) wait for SD-S2d (the OSD) — the STATE is judged instead (DroneLink, the station's mode).
+# ⭐ SD-S2d (D-111) — the OSD's rows (hud on station:1: the mode and battery %, LINK LOST + JAMMED, the battery warning, a press queued in pause) beside the STATE rows.
+def osd(name, op, text, **kw):
+    return {"name": name, "on": "hud", "source": "station:1", "text": [op, text], **kw}
 STATION, RECON, BOMBER, JAMMER = 642, 407, 408, 113
 GX, GY = -300, -400                      # inside berlin's collider grid [-750, 750)² (S1e)
 NORTH = [0, 0, 0.707107, 0.707107]       # facing +y
@@ -375,6 +377,9 @@ write("dv-drone-fly", scenario(
         drone_field("its battery drained in flight", "DroneBattery.Remaining01", "<", 1, atEnd=True),
         {"name": "the link holds while it is flown", "never": {"on": "field", "who": "Drone", "path": "DroneLink.Lost", "op": "==", "value": 1}, "after": "armed", "before": "land"},
         {"name": "the station never becomes the drone's possessor", "never": {"on": "field", "who": "Drone", "path": "PossessedBy.Mode", "op": "!=", "value": "None"}},
+        osd("the OSD shows the mode while the sticks fly it: MANUAL", "==", "MANUAL", after="fly+1", before="land"),
+        osd("the OSD shows the battery %", "contains", " %", after="fly+1", before="land"),
+        osd("the OSD shows ARMED", "==", "ARMED", after="armed+0.3", before="land"),
     ],
 })
 
@@ -405,6 +410,7 @@ write("dv-drone-paused", scenario(
         gs("the queued LAND is the command after the pause", "Command", "==", "Land", after=9.5),
         drone_field("it lands where it hovered", "FlightState.Airborne", "==", 0, atEnd=True),
         {"name": "… on its launch point", "on": "close", "who": "Drone", "point": LAUNCH, "m": 2, "atEnd": True},
+        osd("the OSD shows LAND queued in the pause (paused frame 60)", "==", "queued", atPausedFrame=60),
     ],
 })
 
@@ -417,7 +423,7 @@ write("dv-drone-jammed", scenario(
     "force (Neutral - so the run is a link test, not a fight).",
     "(1) the drone's link reads Jammed and lost (DroneLink); (2) the FAILSAFE: the sticks are ignored, it hovers (FailsafeHover) at the bubble's edge - it "
     "never flies deeper - then returns home (FailsafeReturn) although the stick is still forward, and lands; (3) the station shows FAILSAFE; (4) at the "
-    "end it is down within 30 m of its launch point. Not judged yet: the OSD's LINK LOST (SD-S2d). Fail: the stick still flies it once jammed, or it does "
+    "end it is down within 30 m of its launch point; (5) the OSD shows LINK LOST and the reason JAMMED (SD-S2d). Fail: the stick still flies it once jammed, or it does "
     "not come home.",
     drone_station_world(22, extra={jam: {
         "SimTransform": {"Position": [GX, GY + 700, 0], "Rotation": [0, 0, 0, 1]},
@@ -434,6 +440,8 @@ write("dv-drone-jammed", scenario(
         {"name": "it never flies deeper into the bubble (the stick ignored)", "never": {"on": "field", "who": "Drone", "path": "SimTransform.Position.1", "op": ">", "value": GY + 345}},
         drone_field("it is down at the end", "FlightState.Airborne", "==", 0, atEnd=True),
         {"name": "within 30 m of its launch point", "on": "close", "who": "Drone", "point": LAUNCH, "m": 30, "atEnd": True},
+        osd("the OSD shows LINK LOST", "==", "LINK LOST", after="fly"),
+        osd("… and the reason: JAMMED", "==", "JAMMED", after="fly"),
     ],
 })
 
@@ -443,8 +451,8 @@ write("dv-drone-battery-out", scenario(
     "Simulated devices SD-S2c (§3.13c D-107 / D-108). The dv-drone-fly start with a BOMBER quadcopter (TKB 408, a 1200 s battery) authored at 3 % (36 s of "
     "flight); the right stick at 0.4 for 20 s flies it ~240 m north, then it hovers until its battery runs out.",
     "(1) the battery empties (DroneBattery 0) and the pilot goes BatteryDown (DroneLink.Phase); (2) it comes down WHERE IT IS - never home: at the end it is "
-    "down (FlightState.Airborne 0) more than 150 m from its launch point; (3) the station shows it LANDING. Not judged yet: the OSD's battery warning "
-    "(SD-S2d). Fail: it flies on empty, or returns home.",
+    "down (FlightState.Airborne 0) more than 150 m from its launch point; (3) the station shows it LANDING; (4) the OSD warns BATTERY LOW - RETURN HOME, "
+    "then BATTERY EMPTY (SD-S2d). Fail: it flies on empty, or returns home.",
     drone_station_world(23, drone_type=BOMBER, battery=0.03)), {
     "runFor": 60, "golden": {"every": 15},
     "do": START + [{"name": "fly", "at": 7.0, "control": {"axis": {"3": 0.4}, "for": 20}}],
@@ -454,6 +462,8 @@ write("dv-drone-battery-out", scenario(
         gs("the station shows it coming down", "Mode", "==", "Landing", after="fly"),
         drone_field("it is down at the end", "FlightState.Airborne", "==", 0, atEnd=True),
         {"name": "far from home: it came down where it was", "on": "far", "who": "Drone", "point": LAUNCH, "m": 150, "atEnd": True},
+        osd("the OSD warns the battery is low", "==", "BATTERY LOW — RETURN HOME", after="takeoff"),
+        osd("… and then that it is empty", "==", "BATTERY EMPTY", after="fly"),
     ],
 })
 

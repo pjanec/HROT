@@ -1211,7 +1211,7 @@ nothing un-operated / without authority / another type · panels 12–15 texts, 
 red-proved: the lost branch drawing the commands ⇒ red) and **`Hrot.Presentation.Tests/Map3D/DroneStationHudFrameRail`** (the real frame of panels 12–15 under
 `xvfb-run -a`, each element measured at the mockup's anchor; laid beside the mockup rasterised by Chromium and checked by eye). **Scenarios**: the OSD rows
 (`hud` on `station:1`) — `dv-drone-fly` MANUAL · a battery % · ARMED; `dv-drone-paused` `queued` at paused frame 60; `dv-drone-jammed` LINK LOST + JAMMED;
-`dv-drone-battery-out` BATTERY LOW — RETURN HOME then BATTERY EMPTY.
+`dv-drone-battery-out` BATTERY LOW — RETURN HOME then BATTERY EMPTY. All 14 `scenarios/demos/devices/*` pass; the four drone goldens recaptured — the only judged difference was the new rows' times (the pre-capture run read every unit SAME). `GizmoSchemaFollowsDeclarationRails.CE3123` names the skipped-assembly projectors: the binoculars' (missing since S1d-3 — red at base) and this one join the list.
 
 #### 3.13d SD-S5b + SD-S5c + SD-S6b — READY-TO-BUILD (mockups pending): the laser target designator, the device link, the laser-guided bomb *(user, `2026-11-28`: "can we design the laser target designator device now? including the link?")*
 

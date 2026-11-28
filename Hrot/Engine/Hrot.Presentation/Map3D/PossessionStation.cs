@@ -435,7 +435,9 @@ namespace Hrot.UI.Common.Map3D
             DrawDown(w, camera);                  // ⭐ CE-1220 (§8k K-1)
             var font = HudText.Font();
             DrawFriends(w, camera, font);   // ⭐ CE-1217 (§8k C-2)
-            DrawCompass(camera, font, cx);  // ⭐ CE-1217 (§8k C-1)
+            // ⭐ CE-1217 (§8k C-1) — the man's compass; ⭐ SD-S2d (devices-hud-drone.svg panel 12) NOT while the view rides what a device films (the drone):
+            //   that OSD's heading tape is the drone's heading, and two strips would read two headings
+            if (!device || !Fdp.Toolkit.Behavior.Devices.DeviceViews.TryTarget(w, BoundDevice, out _, out _, out _)) DrawCompass(camera, font, cx);
             // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
             int uy = cy + 26;
             foreach (var use in _driver.UseLines(w))
@@ -567,11 +569,20 @@ namespace Hrot.UI.Common.Map3D
                 ? w.GetComponentRO<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device).Behavior : default;
             if (behaviour.Equals(BinocularsName)) return ("BINOCULARS", "binoculars", HudText.Binoculars, DeviceTeal);
             if (behaviour.Equals(RangefinderName)) return ("LASER RANGEFINDER", "rangefinder", HudText.Crosshairs, DeviceRed);
+            if (behaviour.Equals(DroneStationName)) return ("DRONE STATION", "drone station", HudText.Video, EyeBlue);   // ⭐ SD-S2d (mockup devices-hud-drone.svg) — the camera, blue
             return ("DEVICE", "device", HudText.Crosshairs, new Color(160, 160, 170, 255));
         }
 
+        /// <summary>⭐ SD-S2d — the VIEW label's top (in the 460-px device frame): under the device's top-right status. The rangefinder's lamp (panel 6) puts it at
+        /// 94; the drone OSD's battery and link row (devices-hud-drone.svg, its 640-px frame's y 48 = 34.5 here) puts it just under that row — the drone OSD has no
+        /// lamp, and at 94 the label would sit in the empty middle of the right edge. One label, one rule: the row it sits under is the device's.</summary>
+        public static float ViewLabelTop(EntityRepository w, Entity device)
+            => !device.IsNull && w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInfo>() && w.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device)
+               && w.GetComponentRO<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device).Behavior.Equals(DroneStationName) ? 48f * MockupWidth / 640f : 94f;
+
         private static readonly FixedString64 BinocularsName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars);
         private static readonly FixedString64 RangefinderName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder);
+        private static readonly FixedString64 DroneStationName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDroneStation);
         /// <summary>The mockup kit's colours (C.BLUE, C.TEAL, C.RED).</summary>
         public static readonly Color EyeBlue = new(90, 169, 255, 255), DeviceTeal = new(62, 198, 176, 255), DeviceRed = new(230, 85, 85, 255);
 
@@ -594,12 +605,12 @@ namespace Hrot.UI.Common.Map3D
             {
                 var look = SourceLook(w, BoundDevice);
                 float lw = 56f + HudText.Measure(font, look.Label, 11f * k) / k + 13f;   // the mockup: the name at +56, 13 past its end
-                float lx = MockupWidth - 14f - lw;
-                var at = P(lx, 94f);
+                float lx = MockupWidth - 14f - lw, top = ViewLabelTop(w, BoundDevice);   // ⭐ SD-S2d — the row it sits under is the device's
+                var at = P(lx, top);
                 Raylib.DrawRectangleRounded(new Rectangle(at.X, at.Y, lw * k, 20f * k), 0.3f, 4, new Color(0, 0, 0, 178));
-                HudText.DrawIcon(look.Icon, P(lx + 6f, 97f).X, P(lx + 6f, 97f).Y, 13f * k, look.Colour);
-                LabelText(font, "VIEW", P(lx + 24f, 108.5f), 10.5f * k, grey);
-                LabelText(font, look.Label, P(lx + 56f, 108.5f), 11f * k, Color.White, bold: true);
+                HudText.DrawIcon(look.Icon, P(lx + 6f, top + 3f).X, P(lx + 6f, top + 3f).Y, 13f * k, look.Colour);
+                LabelText(font, "VIEW", P(lx + 24f, top + 14.5f), 10.5f * k, grey);
+                LabelText(font, look.Label, P(lx + 56f, top + 14.5f), 11f * k, Color.White, bold: true);
             }
             if (!Switching) return;
             int n = _sourceCount + 1;

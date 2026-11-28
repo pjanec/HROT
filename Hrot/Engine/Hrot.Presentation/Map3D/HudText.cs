@@ -57,6 +57,8 @@ public static class HudText
     public const string Binoculars = "\uf1e5";
     /// <summary>FontAwesome solid: the crosshairs.</summary>
     public const string Crosshairs = "\uf05b";
+    /// <summary>FontAwesome solid: the video camera (⭐ SD-S2d — the drone ground station's VIEW label).</summary>
+    public const string Video = "\uf03d";
 
     private static Font? s_icons;
     private static bool s_iconsTried;
@@ -69,7 +71,7 @@ public static class HudText
         try
         {
             var bytes = EmbeddedFontResources.GetFontAwesomeSolidTtfBytes();
-            int[] cps = { 0xf06e, 0xf1e5, 0xf05b };
+            int[] cps = { 0xf06e, 0xf1e5, 0xf05b, 0xf03d };
             var font = Raylib.LoadFontFromMemory(".ttf", bytes, BakeSize, cps, cps.Length);
             if (font.Texture.Id == 0) return null;
             Raylib.SetTextureFilter(font.Texture, TextureFilter.Bilinear);
