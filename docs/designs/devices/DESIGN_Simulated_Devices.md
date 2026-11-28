@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-28 (§3.13b D-112: ARM needs a round - user; the NO MISSILE screen is judged by `dv-sight-procedure` and the new `dv-sight-empty`) · 2026-11-28 (§3.13b D-100: the launcher sight unit's mockups, panels 7-11, drawn - `mockups/devices-hud-sight.svg`) · 2026-11-28 (§3.13c SD-S2: the gamepad as keymap value sources, one DroneBattery, the GCS device flying the drone through RemoteControl, the failsafe, one DeviceView rule) · 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
-current-answer: ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
+current-answer: ⭐ §3.13d (SD-S5b link + SD-S5c designator + SD-S6b laser-guided bomb READY-TO-BUILD) · ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
@@ -1001,6 +1001,130 @@ in the shortcuts window) and **`SDS2a_ThePad_WalksHim_AndThroughABoundDeviceIsIt
 red). Folded into `DESIGN_Input_And_Commands.md` §6g (as built). ⚠ The look's pad scale is per FRAME (as the mouse's pixels are) — a rate per second would
 need the frame's dt in the reader; not needed by any scenario (`do: control axis` never uses a pad).
 
+#### 3.13d SD-S5b + SD-S5c + SD-S6b — READY-TO-BUILD (mockups pending): the laser target designator, the device link, the laser-guided bomb *(user, `2026-11-28`: "can we design the laser target designator device now? including the link?")*
+
+🔒 User, `2026-11-27` (§3r): *"the binocular with a rangefinder … can send the target location to the laser target designator … two devices working more or
+less independently. They might be mounted as stacked on the same tripod, but don't need to be … their communication needs to be somehow safe."*
+
+**INVENTORY** (`2026-11-28`): grep `DeviceLinks|DeviceMessageEvent|Stacking` over `*.cs` (0 — not built) · grep `LaserGuided|SemiActive|Paveway|Hellfire|LaserCode|PrfCode`
+(0 production — the Hellfire appears only in `Hrot.Look` test prose) · `GuidanceKind` (`MissileDto.cs`: Unguided, Command, FireAndForget, InfraRed, Radar — no laser) ·
+grep `LaserSpot` (the S1c writer `LaserSpotSystem` and the rangefinder only — no consumer) · the bombs (`MunitionTkbCatalog.cs:83-85` Mk-82 6022, dropped by the A-10's
+Release profile, `NedTkbCatalog.cs:1942-1947`) · `search_graph .*(Jtac|Designation|Laser|Strike).*` (Air Operations' own inventory, `DESIGN_Air_Operations.md:79`:
+order designations only). Coverage could not be checked (no `check_index_coverage` in the CLI).
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a device's laser is `LaserPointing` (On, Band, Power, Direction, Seq) traced by the muscle into `LaserSpot`; `Band 2` is already named "a designator's code band" | ✅ `Laser.cs:18-30, :67-73`; `LaserSpotSystem` (S1c) | ✅ §3.8 LS-9 / LS-14 (*"generic over `LaserPointing` / `LaserSpot`, whoever carries them"*) |
+| a spot written in pause is `Preview` and no consumer may act on it | ✅ `LaserSpot.Preview` | ✅ R5-10 / LS-13, R-4300 (*"no designation in pause"*) |
+| no munition homes on a laser spot | ✅ `GuidanceKind` has no laser arm | ✅ `DESIGN_Air_Operations.md` A5 (*"guided bombs are guidance kinds in `GuidedRoundSystem` … laser later still"*), :818 (a guided bomb keeps gravity and pushes sideways ≤ 1.5 g against the miss), A7 (*"later: a designator type, Strike with clearance, the laser as the round's 'gunner'"*) |
+| data between devices are messages, applied by the receiver's own brain; pairing is an address | ⛔ not built | ✅ D-52, D-53, D-58 (binary + JSON forms), D-59 (measure replay of a managed event first) |
+| stacking is mounting one device in another device's `Station`, and `DevicePoses` walks the chain | ⛔ **`DevicePoses.TryWorld` does NOT walk the chain** — it composes the device's own placed `SimTransform` with its own pose (`DevicePose.cs:81-95`); the placement (`EmbarkedStateSystem`) uses the host's `SimTransform`, not the host DEVICE's pose ⇒ a stacked device would not follow its master's look | ✅ D-61, D-49's intent (*"resolved through A at the moment it is read"*) |
+| a device type has a stacking offset | ⛔ `DeviceDefDto` has no such field (the S1e report said it did — measured `2026-11-28`, grep `Stacking` = 0) | D-61 (the offset is the host's station place) |
+| the proven solution for a laser target designator (LTD) and semi-active-laser (SAL) homing | — | the LTD emits a PULSE-CODED beam (a 4-digit PRF code, set on the designator and on the weapon); the weapon's seeker sees spots inside its cone, accepts only its code, steers on the strongest; the designator holds the spot through the weapon's terminal seconds ("lase on"); lase time is duty-limited; a JTAC hands the target to the shooter and clears it. ⭐ adopted: the code match, the seeker cone, lase-on timing, the duty limit; ⛔ rejected: pulse timing physics, spot jitter and backscatter (no training need named) |
+
+##### The classes
+
+```mermaid
+classDiagram
+  class LaserPointing { <<existing S1c, grows R-4301>> + Code — the PRF code, Band 2 }
+  class LaserSpot { <<existing S1c>> points · Preview · PointingSeq }
+  class Designations { <<NEW, muscle serial pre-pass index>> live non-Preview Band-2 spots · code · point · strength — rebuilt after LaserSpotSystem }
+  class DesignatorBehavior { <<NEW, Hrot.AI.Behaviors/Devices/Designator>> OFF · STANDBY · LASING · COOLING · code set · range · lase timer }
+  class DesignatorState { <<NEW UnitMemory>> Phase · Code · LaseLeft · CoolLeft · press tracker · Received target }
+  class DesignatorHudGizmo { <<NEW, HUD family>> panels 16-18 }
+  class DeviceLinks { <<NEW, unmanaged, replicated, on the device, scenario-authored>> Peer0 · Peer1 }
+  class DeviceMessageEvent { <<NEW event 5205, unmanaged>> Target · From · Seq · Kind · Payload 64 B }
+  class TargetLocation { <<NEW shared DTO, Devices/Contracts>> Point · Range · TakenAt · FromType }
+  class DeviceMessages { <<NEW static>> Send via the batch's command buffer · Read into the receiver's own memory }
+  class RangefinderBehavior { <<existing, grows>> SEND channel: TargetLocation to its link }
+  class DevicePoses { <<existing, FIXED>> TryWorld walks a device mounted in a device: host world pose ∘ station place ∘ own pose }
+  class DeviceStacks { <<NEW static>> Root(device) — the station's look drives the ROOT; a stacked device ignores its own look and tracker (D-56) }
+  class DeviceDefDto { <<existing, grows>> + Stations: the stacking place }
+  class GuidanceKind { <<existing enum, grows>> + Laser }
+  class GuidedRoundSystem { <<existing, grows>> Laser: seeker cone, code, line of sight, strongest spot · gravity kept, ≤ MaxG sideways }
+  class MissileDto { <<existing, grows>> + LaserCode default · SeekerCos · MaxG }
+  DesignatorBehavior --> DesignatorState : self
+  DesignatorBehavior --> LaserPointing : self — On, Band 2, Code
+  DesignatorBehavior ..> LaserSpot : reads its own (range)
+  DesignatorBehavior ..> DeviceMessages : reads TargetLocation
+  RangefinderBehavior ..> DeviceMessages : sends TargetLocation
+  DeviceMessages ..> DeviceLinks : where
+  DeviceMessages --> DeviceMessageEvent : command buffer, after the phase
+  DeviceMessageEvent ..> TargetLocation : payload
+  Designations ..> LaserSpot
+  Designations ..> LaserPointing : Code, Band
+  GuidedRoundSystem ..> Designations : Laser branch
+  GuidedRoundSystem ..> GuidanceKind
+  DevicePoses ..> DeviceStacks
+  DeviceDefDto ..> DeviceStacks : the stacking station
+```
+
+*What the picture shows that prose hid: the designator adds no new path for the beam — it is one more writer of the S1c `LaserPointing`, with a code; the
+bomb reads the spots through ONE index on the node that already traces them; and the link is two small pieces (an address on the device, a message the
+receiver applies itself) — no device ever writes another.*
+
+##### The sequence — the rangefinder hands the target to the designator; the bomb homes on the code
+
+```mermaid
+sequenceDiagram
+  participant R as Rangefinder (device A)
+  participant L as Designator (device B, linked)
+  participant M as LaserSpotSystem + Designations (muscle)
+  participant A as A-10 (AI, Strike order on the area)
+  participant G as GuidedRoundSystem (the GBU-12)
+  R->>R: RANGE on the tank ⇒ its LaserSpot (point, range)
+  R->>R: SEND ⇒ DeviceMessages.Send(TargetLocation) to DeviceLinks.Peer0
+  R-->>L: DeviceMessageEvent (command buffer → the bus or the transport, next tick)
+  L->>L: reads it into its own memory ⇒ the HUD's slew cue to the point
+  L->>L: the trainee slews onto it (stacked: the same look) · CODE 1688 · LASE
+  L-->>M: LaserPointing On, Band 2, Code 1688
+  M->>M: trace ⇒ LaserSpot · Designations index (not Preview)
+  A->>G: Release over the area (the existing Release profile) · bomb code 1688
+  loop each advancing tick
+    G->>G: spots with code 1688 inside the seeker cone, in sight ⇒ steer on the strongest (≤ MaxG sideways, gravity kept)
+  end
+  G->>G: no spot ⇒ falls ballistic from where it is
+  Note over L,M: paused: a lase started in pause waits for the first live frame · spots are Preview · no seeker reads them
+```
+
+*What the picture shows that prose hid: the designator and the bomb never meet — the code on the beam and on the bomb is the whole contract, as on the real
+kit; and the hand-over between the two devices is one message, one tick late, applied by the receiver.*
+
+##### Decisions
+
+| # | decision | why |
+|---|---|---|
+| D-113 | ⭐⭐ **the LTD is a DEVICE, `Designator`** (type data: channels `POWER · LASE · CODE · RANGE`, `LaseSeconds` 60, `CoolSeconds` 30, its magnification, a default code) — hand-held in a kit station, on a tripod (a manned device, D-60), or in a vehicle station (D-1″). Procedure: `OFF →(POWER) STANDBY ⇄(LASE) LASING → (LaseSeconds) COOLING → STANDBY`; CODE steps the 4-digit code (1111 … 1788, the proven range) in STANDBY only; RANGE fires one ranging pulse (the rangefinder's path, D-31) | the proven LTD cycle; the duty limit makes "lase on" timing a skill |
+| D-114 | ⭐⭐ **the beam is the S1c laser with a code**: `LaserPointing` grows `Code` (R-4301); the designator writes `On = 1, Band = 2, Code` while LASING; `LaserSpotSystem` traces it every frame (already EveryFrame). ⛔ No second laser path | LS-9 |
+| D-115 | ⭐ **no designation in pause** (R-4300, LS-13): LASE pressed in pause is queued for the first live frame (the HUD shows it waiting); a lase running into a pause keeps its spot, written `Preview` — nothing homes on it; the lase timer stands still | the pause is observation |
+| D-116 | ⭐⭐ **`Designations` — ONE index of live designations** (muscle, serial, after `LaserSpotSystem`): every non-`Preview` spot of a `Band 2` beam with its code, point and strength. Readers: the laser seeker (D-118); later AI perception of a spot (LS-5) | R-4212: built before the phase that reads it |
+| D-117 | ⭐⭐ **`GuidanceKind.Laser` (semi-active laser)** in `GuidedRoundSystem`: the seeker sees spots of ITS code inside its cone (`SeekerCos`), within its range and in line of sight from the round; it steers on the STRONGEST; ⭐ a falling round (a bomb) keeps gravity and pushes sideways at most `MaxG` (Air Operations :818's shape, shared with the later GPS kind); a missile steers at its turn rate as today; no spot ⇒ it flies on ballistically from where it is (it never returns to an earlier spot) | A5, A7; one guidance system |
+| D-118 | ⭐ **the weapons**: munition **GBU-12** (the Mk-82 + a laser kit: `Laser`, code 1688, cone 30°, MaxG 2) and an **A-10C (GBU-12)** variant type released by the existing Release profile on a Strike order (the scenario orders it; the strike's clearance flow stays A7's) | a designator needs a consumer to be judged; the A-10 + Release profile exist |
+| D-119 | ⭐⭐ **the link — `DeviceLinks { Peer0, Peer1 }`** on a device (scenario-authored; pairing in-sim is SD-S5's), and **`DeviceMessageEvent` (event 5205, the BINARY form of D-58: `Target · From · Seq · Kind · 64 B`)** sent through the batch's command buffer (played after the phase) and read by the receiver's OWN device tick next frame into its memory. The first DTO: **`TargetLocation { Point, Range, TakenAt, FromType }`** in `Devices/Contracts/`. The rangefinder gains a SEND channel; the designator shows a slew cue (an arrow and the angle to the received point). ⚠ The JSON form waits for D-59's measurement; the wire arm is SD-C's (in the editor configuration the bus carries it) | D-52, D-53, D-58 as designed; thread-safe by construction (§3r) |
+| D-120 | ⭐⭐ **stacking — FIX the pose chain first**: `DevicePoses.TryWorld` walks a device mounted in a device (host's world pose ∘ the host's station place ∘ own pose); `DeviceStacks.Root(device)` names the chain's root; the station's look writes the ROOT's pose, whichever device the view is bound to; a stacked device ignores its own look and tracker (D-56). A device type that carries others gets a station in its `DeviceDefDto` (`Stations`, accepting `Device`, at the stacking place) | D-61 as designed; the as-built gap measured above |
+| D-121 | ⭐ **mockups before the build** (R-4143): 16 STANDBY with the code and a received target cue · 17 LASING (the lase timer, the code, the range, a LASING lamp) · 18 COOLING / a lase queued in pause | R-4138 |
+
+##### Scenarios (R-4277)
+
+| scenario | What | expect rows |
+|---|---|---|
+| `dv-ltd-procedure` | POWER, CODE to 1688, LASE, hold past `LaseSeconds`, wait the cool-down, LASE again; LASE pressed in a pause | `memory` Phase OFF → STANDBY → LASING → COOLING → STANDBY · `memory` Code = 1688 · ⛔ `never` a non-Preview spot during the pause · the queued lase starts on the first live frame |
+| `dv-linked-target` | the rangefinder ranges a tank and SENDs; the designator (linked) receives | `memory` the designator's received point within 2 m of the tank · `hud` shows the cue · a third, unlinked device receives nothing |
+| `dv-stacked-ltd` | the designator stacked on a tripod rangefinder; one scripted look | the two devices' world directions agree (≤ 0.1°) · the bound view's source changes nothing about the pose |
+| `dv-ltd-guided-bomb` | an A-10 (GBU-12) ordered to strike an area; the trainee lases a tank 150 m from the ordered point with code 1688 through the bomb's fall | `hit` on the tank by the A-10's bomb |
+| `dv-ltd-wrong-code` | the same, the designator on 1511 | ⛔ `never` a hit on the tank — the bomb falls ballistic near the ordered point |
+| `dv-ltd-no-lase` | the same, the lase stopped before release | ⛔ `never` a hit on the tank |
+
+⭐ Rails: the `Designations` index (code, Preview excluded, 0 B), the seeker branch (cone, code, sight, strongest, gravity kept, ≤ MaxG), the message's one-tick
+delivery and its parallel safety (`HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1`), the pose chain (a stacked device follows its root).
+
+##### Slices
+
+**SD-S5b** the link: `DeviceLinks`, `DeviceMessageEvent` (binary), `TargetLocation`, the rangefinder's SEND, the pose-chain fix and stacking (D-119, D-120) —
+`dv-linked-target`, `dv-stacked-ltd`. **SD-S5c** the designator: `LaserPointing.Code`, the `Designator` device and its HUD (D-113–D-115, D-121) —
+`dv-ltd-procedure`. **SD-S6b** the laser-guided bomb: `Designations`, `GuidanceKind.Laser`, GBU-12, the A-10 (GBU-12) (D-116–D-118) — `dv-ltd-guided-bomb`,
+`dv-ltd-wrong-code`, `dv-ltd-no-lase`. ⚠ SD-S5c's HUD waits for mockups 16–18 (R-4143).
+
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
 🔒 User: *"once we feel that it's right and that it's easy to extend, then it's time to start implementing the whole device stuff"*. The cleanup
@@ -1069,7 +1193,9 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the launcher sight unit (READY-TO-BUILD — §3.13b; mockups 7–11 drawn) | `FireControl` + `FireControls.Of` + `GuidedFlight` / `GuidedFlightSystem`; the `AtgmSight` device (procedure D-93, HUD panels 7–9) in a station of a NEW `TOW (tripod, sight unit)` type; the controller fires from the device (D-94); the launch is the device's by seq echo (D-95); the Command branch flies the device's guide line (D-96) | editor |
 | **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
-| **SD-S5b** linked devices + trackers | stacking by mounting (D-61), a stationary device manned with USE (D-60), trackers filling the frame's `Orientation` / `Position` / `BodyOffset`, `DeviceMessageEvent` (with `Seq`) + `DeviceLinks` | editor |
+| **SD-S5b** linked devices + stacking (READY-TO-BUILD — §3.13d) | `DeviceLinks`, `DeviceMessageEvent` (binary), `TargetLocation`, the rangefinder's SEND, the pose-chain fix and stacking (D-119, D-120); trackers stay here, unscheduled | editor |
+| **SD-S5c** the laser target designator (READY-TO-BUILD — §3.13d; mockups 16–18 pending) | `LaserPointing.Code`, the `Designator` device, its procedure and HUD (D-113–D-115, D-121) | editor |
+| **SD-S6b** the laser-guided bomb (READY-TO-BUILD — §3.13d) | `Designations`, `GuidanceKind.Laser`, GBU-12, the A-10 (GBU-12) (D-116–D-118) | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (the existing Take / Drop verbs) · a device drawn where it lies (D-64) · per-station node features | editor |
 | **SD-S6** the visible beam | `LaserLayer3D`, the ONE visibility rule (eye · night · thermal) for the map, the IG (D-36) and AI perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
 | **SD-S7** the weapon sight and the cockpit as view sources | a launcher's sight unit drives its launcher through `FireControl` (D-76) · non-device sources (D-66), the aimed-front-most switch (D-68), weapon-sight and cockpit projectors on the STATION only (a station-only constructor service, R4-4) gated by the `hud.*` features (R3-7), `FighterHud` folded in (D-69), a launcher's sight unit as a mounted device (D-67) | editor |
@@ -1110,8 +1236,8 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 | `dv-steer-manual` (S4b, MCLOS) | the same crossing tank, a `Manual` missile; the axes are scripted turn commands | `hit` on the tank · the unsteered twin misses (as above) |
 | `dv-steer-paused` (S4b) | `do: pause` 60 frames mid-flight with the axes swung hard | `atPausedFrame` rows: the round's position unchanged · after resume it continues from its pre-pause line (no step to the swung aim) |
 | `dv-steer-view-toggle` (S4b) | mid-flight the trainee presses VIEW, steers from the missile's view, presses VIEW again; a second launch ends with the view on the round | `field` device `GuidedFlight.Live` while it flies · the station's camera suggestion is `Follow` bound to the round while toggled, the shooter after · after the round's end the camera is back on the shooter · the round still hits (steering from the missile's view works) |
-| `dv-linked-pair` (S5b) | a rangefinder sends a target location to a linked second device | `device` field on the receiver's stored point, within tolerance |
-| `dv-stacked-tracker` (S5b) | one scripted orientation drives two stacked devices | their world directions agree |
+| `dv-linked-pair` (S5b) | ⛔ superseded by §3.13d's `dv-linked-target` / `dv-stacked-ltd` | — |
+| `dv-stacked-tracker` (S5b) | ⛔ superseded by §3.13d's `dv-linked-target` / `dv-stacked-ltd` | — |
 | `dv-issue-drop-pick` (S5) | a device issued at run time, dropped, picked up by another trainee | it lies in the world after the drop · it is in the other's kit station after · his `hud` shows it |
 | `dv-beam-visible` (S6) | a spot on a named target, seen by an observer with night vision and by one without | the spot is on the target · the night-vision observer's perception reports it, the other's does not |
 | `dv-ai-designator` (S6) | an AI vehicle with a pre-mounted designator is ordered to designate a target | its `LaserSpot.Entity` is the target · in pause its pointing does not change |
