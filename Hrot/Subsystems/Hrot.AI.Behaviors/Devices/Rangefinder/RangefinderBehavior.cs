@@ -31,6 +31,11 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         /// <summary>The power each mode emits (relative, <c>LaserPointing.Power</c>).</summary>
         public const float LowPower = 0.3f, HighPower = 1f;
 
+        /// <summary>⭐ S1d-3 — the rangefinder's fixed magnification (a placeholder until its TKB type, as the channels) and the field of view a view
+        /// bound to it shows (<see cref="DeviceOptics"/>: 50° / 7× ≈ 7.1°).</summary>
+        public const float Magnification = 7f;
+        public static readonly float FovDegrees = DeviceOptics.FovDegrees(Magnification);
+
         /// <summary>The laser's band: near infra-red (the visibility rule's key, SD-S6).</summary>
         public const byte Band = 1;
 
@@ -73,7 +78,9 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         {
             ws.Ticks++;
             ref var st = ref UnitMemory.Ref<RangefinderState>(world, self);
-            Presses(world, self, ref st, out int range, out int mode, out int menu, out int select);
+            Span<int> moved = stackalloc int[RangefinderChannels.Count];
+            DevicePressReader.Read(world, self, ref st.Presses, moved);   // ① the presses (re-based on a new operator epoch, R7-11)
+            int range = moved[RangefinderChannels.Range], mode = moved[RangefinderChannels.Mode], menu = moved[RangefinderChannels.Menu], select = moved[RangefinderChannels.Select];
 
             // ② the mode and the menu
             if ((mode & 1) != 0) st.Mode = st.Mode == RangefinderMode.Single ? RangefinderMode.Continuous : RangefinderMode.Single;
@@ -111,28 +118,11 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
                 else { st.Seq++; st.Ranging = 1; }
             }
 
-            // ④ its own outputs, on change
+            // ④ its own outputs, on change — ⭐ S1d-3 (R5-13): it points where its operator looks (DevicePose from the frame), its view at its fixed magnification
+            DeviceLooks.Follow(world, self, FovDegrees);
             WritePointing(world, self, in st, p.LowPower, p.HighPower);
             WritePanel(world, self, in st);
             return NodeStatus.Running;
-        }
-
-        /// <summary>① The presses since the last tick, per channel; re-bases (no press) on a new operator epoch or on input appearing.</summary>
-        private static void Presses(EntityRepository world, Entity self, ref RangefinderState st, out int range, out int mode, out int menu, out int select)
-        {
-            range = mode = menu = select = 0;
-            uint epoch = world.IsComponentTypeRegistered<PossessedBy>() && world.HasComponent<PossessedBy>(self)
-                         && world.GetComponentRO<PossessedBy>(self).Mode == PossessionMode.Operated
-                ? world.GetComponentRO<PossessedBy>(self).Epoch : 0u;
-            if (!world.IsComponentTypeRegistered<DeviceInput>() || !world.HasComponent<DeviceInput>(self)) { st.Based = 0; st.Epoch = epoch; return; }
-            ref readonly var presses = ref world.GetComponentRO<DeviceInput>(self).Control.Presses;
-            byte r = presses[RangefinderChannels.Range], m = presses[RangefinderChannels.Mode], n = presses[RangefinderChannels.Menu], s = presses[RangefinderChannels.Select];
-            if (st.Based != 0 && st.Epoch == epoch)
-            {
-                range = (byte)(r - st.SeenRange); mode = (byte)(m - st.SeenMode); menu = (byte)(n - st.SeenMenu); select = (byte)(s - st.SeenSelect);
-            }
-            st.SeenRange = r; st.SeenMode = m; st.SeenMenu = n; st.SeenSelect = s;
-            st.Based = 1; st.Epoch = epoch;
         }
 
         private static void WritePointing(EntityRepository world, Entity self, in RangefinderState st, float low, float high)

@@ -61,6 +61,18 @@ namespace Hrot.UI.Common.Map3D
         public static ActionRef Weapon(int index) => WeaponIds[index];
         private static readonly ActionRef[] WeaponIds = { Id("fps.weapon.1"), Id("fps.weapon.2"), Id("fps.weapon.3"), Id("fps.weapon.4") };
 
+        // ⭐ S1d-3 (devices §3.6 D-38, Q-5's lean) — the view's source and the bound device's own buttons (⛔ CE-1219's B hold: dropped, D-75)
+        /// <summary>The next view source: the plain eye → each device he operates → the eye.</summary>
+        public static readonly ActionRef ViewNext = Id("fps.view.next");
+        /// <summary>The previous view source.</summary>
+        public static readonly ActionRef ViewPrevious = Id("fps.view.previous");
+        /// <summary>While a view shows a device: designate for his men at the crosshair (CE-1219's LMB designate, rehomed — LMB is the device's).</summary>
+        public static readonly ActionRef Designate = Id("fps.designate");
+        /// <summary>While a view shows a device: its button <c>n</c> — the device's channel n: 0 = LMB (the <see cref="Fire"/> press, read as the device's
+        /// while a view shows one — one chord, one row), 1 = RMB; the wheel is 2 up / 3 down.</summary>
+        public static ActionRef DeviceButton(int index) => index == 0 ? Fire : DeviceButton2;
+        private static readonly ActionRef DeviceButton2 = Id("fps.device.button.2");
+
         // ── Hold ─────────────────────────────────────────────────────────────────────────────────
         /// <summary>Run (the gait).</summary>
         public static readonly ActionRef Sprint = Id("fps.sprint");
@@ -68,8 +80,6 @@ namespace Hrot.UI.Common.Map3D
         public static readonly ActionRef CrouchHeld = Id("fps.stance.crouch.held");
         /// <summary>The command wheel while held.</summary>
         public static readonly ActionRef CommandWheel = Id("fps.wheel");
-        /// <summary>The binoculars while held.</summary>
-        public static readonly ActionRef Binoculars = Id("fps.binoculars");
         /// <summary>Lean left while held.</summary>
         public static readonly ActionRef LeanLeft = Id("fps.lean.left");
         /// <summary>Lean right while held.</summary>
@@ -120,16 +130,19 @@ namespace Hrot.UI.Common.Map3D
             Press(EditorKey.N, MessageLog, "Message log");
             Press(EditorKey.O, Shoulder, "Over-the-shoulder view");
             Press(EditorKey.I, Select, "Select the unit under the crosshair");
-            Press(EditorKey.MouseLeft, Fire, "Fire: lock the shot");
+            Press(EditorKey.MouseLeft, Fire, "Fire: lock the shot (through a device: its button 1)");
             Press(EditorKey.X, CancelShot, "Drop the locked shot");
             Press(EditorKey.K, KillCam, "Kill cam");
             Press(EditorKey.F, Use, "Use");
             for (int i = 0; i < 4; i++) Press(EditorKey.D1 + i, Weapon(i), "Weapon " + (i + 1));
+            Press(EditorKey.B, ViewNext, "View: next source (eye, each device)");                       // ⭐ S1d-3
+            Press(EditorKey.B, ViewPrevious, "View: previous source", KeyModifiers.Shift);
+            Press(EditorKey.MouseMiddle, Designate, "Designate for his men (through a device)");
+            Press(EditorKey.MouseRight, DeviceButton(1), "Device button 2 (through a device)");
 
             Hold(EditorKey.Unknown, Sprint, "Run", KeyModifiers.Shift);
             Hold(EditorKey.Unknown, CrouchHeld, "Crouch", KeyModifiers.Ctrl);
             Hold(EditorKey.T, CommandWheel, "Command wheel");
-            Hold(EditorKey.B, Binoculars, "Binoculars");
             Hold(EditorKey.Q, LeanLeft, "Lean left");
             Hold(EditorKey.E, LeanRight, "Lean right");
             Hold(EditorKey.Tab, Scoreboard, "Scoreboard");

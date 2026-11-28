@@ -65,6 +65,14 @@ public sealed partial class PossessionStationTests
         Assert.NotNull(Find(EmbodiedKeys.LookX, KeyTrigger.Axis, EditorKey.MouseDeltaX));
         Assert.NotNull(Find(EmbodiedKeys.TeamNext, KeyTrigger.Press, EditorKey.J));
         Assert.Equal(KeyModifiers.Shift, Find(EmbodiedKeys.TeamPrevious, KeyTrigger.Press, EditorKey.J)!.Value.Chord.Modifiers);
+        // ⭐ S1d-3 (devices Q-5's lean) — B / Shift+B cycle the view's source; through a device LMB (the Fire row) and RMB are its buttons, the middle
+        //   button designates; ⛔ CE-1219's B hold is gone (D-75)
+        Assert.NotNull(Find(EmbodiedKeys.ViewNext, KeyTrigger.Press, EditorKey.B));
+        Assert.Equal(KeyModifiers.Shift, Find(EmbodiedKeys.ViewPrevious, KeyTrigger.Press, EditorKey.B)!.Value.Chord.Modifiers);
+        Assert.Equal(EmbodiedKeys.Fire, EmbodiedKeys.DeviceButton(0));
+        Assert.NotNull(Find(EmbodiedKeys.DeviceButton(1), KeyTrigger.Press, EditorKey.MouseRight));
+        Assert.NotNull(Find(EmbodiedKeys.Designate, KeyTrigger.Press, EditorKey.MouseMiddle));
+        Assert.DoesNotContain(Enumerable.Range(0, map.Count), i => map[i].Chord.Key == EditorKey.B && map[i].Trigger == KeyTrigger.Hold);
 
         // every row is labelled for the Keyboard shortcuts window (a label that is just the id means the declarer forgot it)
         for (int i = 0; i < map.Count; i++)

@@ -40,12 +40,9 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         public Entity LastHit;
         /// <summary>The measurement request number (<c>LaserPointing.Seq</c>) — bumped per RANGE.</summary>
         public uint Seq;
-        /// <summary>⭐ R7-11 — the operator epoch (<c>PossessedBy.Epoch</c>) the press counters below were last based on.</summary>
-        public uint Epoch;
-        /// <summary>1 when the counters below are based on the present input; 0 ⇒ the next input RE-BASES (no press fires).</summary>
-        public byte Based;
-        /// <summary>The press counters last seen, per channel (<see cref="RangefinderChannels"/>): a press = the counter moved.</summary>
-        public byte SeenRange, SeenMode, SeenMenu, SeenSelect;
+        /// <summary>⭐ R7-11 — the press counters last seen and the operator epoch they are based on (⭐ S1d-3: the ONE tracker every device keeps,
+        /// read by <c>DevicePressReader</c>).</summary>
+        public Fdp.Toolkit.Behavior.Devices.DevicePressTracker Presses;
     }
 
     /// <summary>
@@ -54,6 +51,8 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
     /// </summary>
     public static class RangefinderChannels
     {
+        /// <summary>The channels the rangefinder reads.</summary>
+        public const int Count = 4;
         /// <summary>RANGE — SINGLE: one measurement; CONTINUOUS: ranging on / off.</summary>
         public const int Range = 0;
         /// <summary>MODE — steps SINGLE ↔ CONTINUOUS.</summary>

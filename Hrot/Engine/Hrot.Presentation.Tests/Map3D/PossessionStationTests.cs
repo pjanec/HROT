@@ -36,7 +36,8 @@ public sealed partial class PossessionStationTests
         public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
         public bool MiddleDown { get; set; }      // ⭐ CE-1293 — a map drag
         public bool? Locked { get; private set; }
-        public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
+        public bool MiddlePressed { get; set; }   // ⭐ S1d-3 — designate through a device
+        public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right ? RightPressed : b == MapMouseButton.Middle && MiddlePressed;
         public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right ? RightDown : b == MapMouseButton.Middle && MiddleDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
@@ -499,66 +500,105 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐ CE-1219 (docs/DESIGN_Entity_Control.md §8k B-1) — B held asks for the binoculars in the frame; the view narrows to their 10° only
-    /// once the sim has them UP; then LMB designates (his men's MapPoint, or Target under the crosshair) instead of firing; a man who carries
-    /// none is told so.
+    /// ⭐⭐ Simulated devices S1d-3 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-38 / D-66, §3.10 D-75 — rehomes CE-1219's rail, whose B
+    /// level, 10° branch and overlay are gone): the view is bound to ONE source, station-local. B cycles the plain eye → each device he operates (the
+    /// replicated Operated rows naming his station) → the eye; the gizmo layer's <c>BoundSource</c> follows; the camera takes THE BOUND SOURCE's field of
+    /// view (its <c>DevicePose.FovDegrees</c> — one rule, no binoculars branch) and back; the device frames carry his look (relative to the mount) and
+    /// <c>Viewed</c> while bound; through a device LMB is its button 0 (no shot) and the middle button designates for his men (CE-1219's designate, kept);
+    /// a device that leaves him (its row gone) drops the view back to the eye. 🔴 Red-proof (compiles): <c>ZoomFovDegrees</c> ignores the bound source ⇒ red.
     /// </summary>
     [Fact]
-    public void CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen()
+    public void S1d3_BCyclesTheViewsSource_TheFovIsTheBoundSources_TheDeviceFramesCarryViewedAndTheLook_AndLmbIsTheDevicesButton()
     {
         var (w, unit, map) = World();
         using (w)
         {
             w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
-            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            w.RegisterComponent<WeaponPosture>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
-            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
-            var observer = new Fdp.Interfaces.TkbTemplate("Observer", 4714);
-            observer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = true });
-            db.Register(observer);
-            db.Register(new Fdp.Interfaces.TkbTemplate("Rifleman", 4715));
-            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4714) });
-            w.AddComponent(unit, new WeaponPosture());
+            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>();
+            Entity Device(int netId, string behaviour, float fov)
+            {
+                var d = w.CreateEntity();
+                w.AddComponent(d, new SimTransform { Position = new Vector3(100f, 50f, 1.5f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.3f) });
+                w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 78, Behavior = new FixedString64(behaviour) });
+                w.AddComponent(d, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = netId });
+                w.AddComponent(d, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Operated, Epoch = 1 });
+                w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DevicePose { Orientation = Quaternion.Identity, FovDegrees = fov });
+                map.Register(netId, d);
+                return d;
+            }
+            var rangefinder = Device(7002, Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder, 50f / 7f);
+            var binoculars = Device(7001, Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars, 5f);
             var man = w.CreateEntity();
             w.AddComponent(man, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
             w.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = unit });
             map.Register(601, man);
 
             var (_, sw, _) = Map();
-            var station = new PossessionStation(sw, () => w);
+            var layer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(64), new FdpEventBus());
+            var station = new PossessionStation(sw, () => w) { ViewLayer = layer };
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
-            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
-            OperatorControlFrameEvent Frame(Input input)
+            Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            (OperatorControlFrameEvent Body, Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent[] Devices) Frame(Input input)
             {
+                station.Update(0.016f);
                 sw.Camera3D.HandleInput(input);
                 w.Bus.SwapBuffers();
-                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+                return (Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()), w.Bus.Read<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>().ToArray());
             }
-            var b = new Input();
-            b.Keys.Add((int)Raylib_cs.KeyboardKey.B);
-            Assert.Equal(1, Frame(b).Binoculars);
-            Assert.Equal(45f, sw.Camera3D.FovyDegrees);                                       // asked, not yet up: no zoom
-            Assert.False(driver.NoBinoculars);
-            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.Binoculars;          // what his brain does (EmbarkNodesTests.CE1219)
-            Frame(b);
-            Assert.Equal(Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees, sw.Camera3D.FovyDegrees);
+            Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent Of(Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent[] frames, Entity d) => Assert.Single(frames, f => f.Device == d);
+            Input B() { var i = new Input(); i.Pressed.Add((int)Raylib_cs.KeyboardKey.B); return i; }
 
-            var click = new Input { LeftPressed = true, LeftDown = true };
-            click.Keys.Add((int)Raylib_cs.KeyboardKey.B);
-            var f = Frame(click);
-            Assert.Equal((0, (byte)0), (f.ShotSeq, f.Trigger));                                // no shot
-            Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
-            Assert.Equal("Point designated for 1 man", driver.WheelVerdict(station.Clock));
-
-            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.None;
-            w.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4715) });   // a man who carries none
-            Frame(b);
-            Assert.True(driver.NoBinoculars);
+            var eye = Frame(new Input());
+            Assert.Equal(2, eye.Devices.Length);                                              // one frame per device he operates
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(0, Of(eye.Devices, binoculars).Control.Viewed);
             Assert.Equal(45f, sw.Camera3D.FovyDegrees);
-            Assert.Equal(0, Frame(new Input()).Binoculars);                                    // let go
+            Assert.Equal(new[] { binoculars, rangefinder }, station.ViewSources.ToArray());       // the cycle: by network id
+
+            var bound = Frame(B());                                                           // B: the first device
+            Assert.Equal(binoculars, station.BoundDevice);
+            Assert.Equal(7001, layer.BoundSource);
+            Assert.True(station.Switching);
+            Assert.Equal(1, Of(bound.Devices, binoculars).Control.Viewed);
+            Assert.Equal(0, Of(bound.Devices, rangefinder).Control.Viewed);
+            Frame(new Input());
+            Assert.Equal(5f, sw.Camera3D.FovyDegrees, 3);                                    // the bound source's field
+            Assert.Equal(5f, station.ZoomFovDegrees!.Value, 3);
+            var df = Of(Frame(new Input()).Devices, binoculars).Control;
+            Assert.NotEqual(0, df.Trackers & Fdp.Toolkit.Behavior.Devices.DeviceControl.OrientationPresent);
+            var mount = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.3f);
+            var lookWorld = Vector3.Transform(Vector3.UnitX, mount * df.Orientation);           // his look, through the mount
+            Assert.Equal(sw.Camera3D.Forward.X, lookWorld.X, 3);
+            Assert.Equal(sw.Camera3D.Forward.Y, lookWorld.Y, 3);
+
+            var click = Frame(new Input { LeftPressed = true, LeftDown = true });               // LMB through a device: its button 0, no shot
+            Assert.Equal((0, (byte)0), (click.Body.ShotSeq, click.Body.Trigger));
+            Assert.Equal(1, Of(click.Devices, binoculars).Control.Presses[0]);
+            Frame(new Input { MiddlePressed = true });                                         // the middle button designates for his men
+            Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
+
+            Frame(B());                                                                       // the rangefinder
+            Assert.Equal(rangefinder, station.BoundDevice);
+            Frame(new Input());
+            Assert.Equal(50f / 7f, sw.Camera3D.FovyDegrees, 3);
+            var back = Frame(B());                                                            // back to the plain eye
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(0, layer.BoundSource);
+            Assert.Equal(0, Of(back.Devices, binoculars).Control.Viewed);
+            Frame(new Input());
+            Assert.Equal(45f, sw.Camera3D.FovyDegrees);
+
+            Frame(B());                                                                       // bound again … then the device leaves him
+            Assert.Equal(binoculars, station.BoundDevice);
+            w.RemoveComponent<PossessedBy>(binoculars);
+            Frame(new Input());
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(0, layer.BoundSource);
         }
     }
 

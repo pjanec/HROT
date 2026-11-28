@@ -158,6 +158,17 @@ public sealed class RangefinderHudFrameRail
             Assert.True(red.n > 80, $"the LASER lamp lit ({red.n})");
             Assert.InRange(red.centroid.X, lamp.X - 4, lamp.X + 4);
             Assert.InRange(red.centroid.Y, lamp.Y - 4, lamp.Y + 4);
+            // ⭐ S1d-3 — the glow is ONE round ring whatever the scene behind (S1d-2's render read a scene window through it as a dark-red square):
+            //   eight points on the ring between the dot and the glow's edge are the same colour
+            int lo = 255, hi = 0;
+            for (int k = 0; k < 8; k++)
+            {
+                float a = k * MathF.PI / 4f, rr = 7.2f * K;
+                var c = Raylib.GetImageColor(img, (int)(lamp.X + rr * MathF.Cos(a)), (int)(lamp.Y + rr * MathF.Sin(a)));
+                lo = Math.Min(lo, c.R + c.G + c.B); hi = Math.Max(hi, c.R + c.G + c.B);
+                Assert.True(c.R > c.G + 15, $"the glow is red at {k * 45}° ({c.R},{c.G},{c.B})");
+            }
+            Assert.True(hi - lo < 40, $"the glow ring is even ({lo}..{hi})");
             var g = Count(img, (int)(range.X - 150), (int)(range.Y - 45), (int)(range.X + 150), (int)(range.Y + 45), Gold);
             Assert.True(g.n > 400, $"'452 m' in gold ({g.n})");
             Assert.InRange(g.centroid.X, range.X - 12, range.X + 12);

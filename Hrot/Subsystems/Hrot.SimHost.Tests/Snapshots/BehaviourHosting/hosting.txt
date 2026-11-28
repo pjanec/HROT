@@ -60,6 +60,7 @@ Demo_TakeCover | hostedInput=- | inputBytes=0
 Demo_TaskChain | hostedInput=Hrot.AI.Behaviors.Brains.DemoTaskChainParams | inputBytes=120
 DestroyTargets | hostedInput=- | inputBytes=192
 DetonateCharge | hostedInput=Hrot.Map.Definitions.Behavior.DetonateChargeParamsJsonDto | inputBytes=16
+DeviceBinoculars | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 DeviceRangefinder | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 Disembark | hostedInput=Hrot.Map.Definitions.Behavior.DisembarkParamsJsonDto | inputBytes=20
 DoorLocksmith | hostedInput=Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto | inputBytes=236

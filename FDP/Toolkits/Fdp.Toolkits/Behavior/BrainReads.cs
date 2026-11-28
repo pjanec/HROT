@@ -47,6 +47,10 @@ namespace Fdp.Toolkit.Behavior
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponState>();          // SquadGates.Track — a member firing
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponMountInfo>();      // RoomDrill.FindThrower — a member's grenade mount
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>();              // SquadDefendPlay.LiftOwnHold — a member's weapon
+            // ⭐ S1d-3 (devices D-63 / R4-3) — the body's brain asks whether he carries a device and whether a view shows it (CarriedDevices): DeviceInfo
+            //   is written once at creation, DeviceInput by the device tick's serial pre-pass (its own system, after the brains) — never in this phase
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.DeviceInput>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Mountable>();                       // ⭐ C1 — is a carried thing an item (Items.IsMountable: checkpoint / stop-at-signal, carry stations, operator use)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();            // CE-7035 — a civilian reads how a forces man holds his weapon (covered / aimed at: CE-2239, CE-2241)
             ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleParams>();               // CE-7035 — a civilian / rioter tells a vehicle from a man (its params)

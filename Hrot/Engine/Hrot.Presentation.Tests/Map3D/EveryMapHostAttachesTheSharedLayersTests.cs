@@ -148,6 +148,19 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     /// shared attach hands it the view switch, found by the buffer <c>Build</c> made — so ① a host's attach reaches it with no wiring of
     /// its own, and ② every host hands the attach THAT buffer. 🔴 Red-proof: without the hand-over the layer control stays on the 2-D set
     /// in 3-D.</summary>
+    /// <summary>⭐ S1d-3 (devices D-38 / D-41) — the FORWARDING rail of the station's view binding, on the CONSTRUCTED object: the shared attach hands the
+    /// station the map's own gizmo layer, so binding a device's view scopes THAT layer's HUD runs (the silent-default pattern: a null layer would bind
+    /// nothing and every HUD stay hidden). 🔴 Red-proof: the pack line removed ⇒ <c>ViewLayer</c> is null ⇒ red.</summary>
+    [Fact]
+    public void S1d3_TheSharedAttach_GivesTheStationTheMapsGizmoLayer_ToBindTheViewsSource()
+    {
+        var world = new Fdp.Core.EntityRepository();
+        var mi = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(new Hrot.ScenarioEditor.Map.MapInteractionContext { World = world, LayerSettingsPath = "" });
+        var canvas = new Fdp.Toolkit.Vis2D.MapCanvas(input: null) { Camera = new Fdp.Toolkit.Vis2D.Components.MapCamera() };
+        var layers = Hrot.ScenarioEditor.Map.MapInteractionPack.AttachMapLayers(canvas, mi.Buffer, mi.InteractionBus, () => world);
+        Assert.Same(layers.GizmoLayer, layers.Possession!.ViewLayer);
+    }
+
     [Fact]
     public void CE1203_TheLayerControl_FollowsTheView_OnEveryMapHost()
     {

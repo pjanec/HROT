@@ -64,13 +64,7 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         public bool IsGloballyEnabled(ISimulationView view) => true;
 
         /// <summary>R7-3 — the device TYPE (its behaviour is the rangefinder's), operated, and this node holds its brain's authority.</summary>
-        public bool IsEntityVisible(ISimulationView view, Entity entity)
-        {
-            if (view is not EntityRepository w) return false;
-            if (!w.GetComponentRO<DeviceInfo>(entity).Behavior.Equals(Behavior)) return false;
-            if (w.GetComponentRO<PossessedBy>(entity).Mode != PossessionMode.Operated) return false;
-            return w.IsComponentTypeRegistered<BehaviorState>() && w.HasComponent<BehaviorState>(entity) && w.HasAuthority<BehaviorState>(entity);
-        }
+        public bool IsEntityVisible(ISimulationView view, Entity entity) => DeviceHuds.IsVisible(view, entity, in Behavior);   // ⭐ S1d-3 — the one rule
 
         // ── the HUD ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
@@ -173,6 +167,9 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
             var at = P(MockupWidth - 24, 82);
             if (lit)
             {
+                // ⭐ S1d-3 — the glow over a dark halo disc: the S1d-2 render showed a dark-red SQUARE behind the dot — a dark window of the SCENE seen
+                //   through the 28 % glow, not the HUD; the halo (as every HUD text and line carries) makes the glow one round, scene-independent ring
+                draw.EmitRaw(ViewCanvas.Disc(at, 9 * K, new Rgba32(0, 0, 0, 230), default, 0f, L));
                 draw.EmitRaw(ViewCanvas.Disc(at, 9 * K, new Rgba32(255, 59, 48, 71), default, 0f, L));
                 draw.EmitRaw(ViewCanvas.Disc(at, 5 * K, Laser, Black, 1f * K, L));
             }

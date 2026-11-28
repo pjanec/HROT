@@ -24,13 +24,15 @@ namespace Hrot.SimHost.Tests
         /// ⭐⭐ <c>CE-11027</c> S12-1 (Q114 A, R-11011) — retyping the four possession fields from <c>NodeId</c> to <c>StationId</c> must NOT change the layout hash of the three events and the component
         /// (<c>SchemaValidator</c> refuses a recording whose recorded hash differs): the hashes below were computed at the base, BEFORE the retype, and are hard-coded.
         /// 🔴 Mutation: the hasher ignores <c>[LayoutHashAs]</c> ⇒ all four differ.
+        /// ⭐ R-4301 (user, `2026-11-27`: no recording compatibility) — the control frame's hash is UPDATED when its layout changes, never routed around:
+        /// devices S1d-3 dropped CE-1219's <c>Binoculars</c> byte (D-75) ⇒ <c>0x353FF5AEC55DF7B8</c> → <c>0x5F11007E565C7600</c>.
         /// </summary>
         [Fact]
         public void CE11027_TheRetypeKeepsTheRecordedLayoutHashes_OfTheThreeEventsAndTheComponent()
         {
             Assert.Equal(0xEDB181D40B5C0FA7UL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(PossessRequestEvent)));
             Assert.Equal(0x6A8A8992039E9D2FUL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(ReleasePossessionEvent)));
-            Assert.Equal(0x353FF5AEC55DF7B8UL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(OperatorControlFrameEvent)));
+            Assert.Equal(0x5F11007E565C7600UL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(OperatorControlFrameEvent)));
             Assert.Equal(0x32AEB11D78EBE82BUL, Fdp.Core.FlightRecorder.ComponentLayoutHasher.ComputeHash(typeof(PossessedBy)));
         }
 
@@ -52,7 +54,7 @@ namespace Hrot.SimHost.Tests
                 {
                     [PossessionEventIds.PossessRequest] = new() { Name = typeof(PossessRequestEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(PossessRequestEvent)), LayoutHash = 0xEDB181D40B5C0FA7UL, IsManaged = false },
                     [PossessionEventIds.ReleasePossession] = new() { Name = typeof(ReleasePossessionEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(ReleasePossessionEvent)), LayoutHash = 0x6A8A8992039E9D2FUL, IsManaged = false },
-                    [PossessionEventIds.ControlFrame] = new() { Name = typeof(OperatorControlFrameEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(OperatorControlFrameEvent)), LayoutHash = 0x353FF5AEC55DF7B8UL, IsManaged = false },
+                    [PossessionEventIds.ControlFrame] = new() { Name = typeof(OperatorControlFrameEvent).FullName!, Size = Fdp.Core.TypeLayout.SizeOf(typeof(OperatorControlFrameEvent)), LayoutHash = 0x5F11007E565C7600UL, IsManaged = false },
                 },
             };
             Assert.Empty(Fdp.Core.FlightRecorder.SchemaValidator.Validate(meta));

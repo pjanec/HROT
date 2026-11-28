@@ -351,6 +351,46 @@ namespace Hrot.SimHost.Tests
             foreach (ref readonly var p in other) Assert.NotEqual(CoordinateSpace.ViewCanvas, p.Space);
         }
 
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1d-3 (§3.1 R5-13 / D-48 — S1c AS BUILT ⑧'s deferral) — END TO END, the LOOK: the station fills the device frame's
+        /// orientation with the trainee's look (relative to the device's mount); the rangefinder writes its own <c>DevicePose</c> from it, so the muscle's
+        /// laser points where he looks — RANGE while looking NORTH measures the man 300 m north, not the marker 450 m east it points at with no look.
+        /// Run under <c>HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1</c> too. 🔴 Red-proof (compiles): the rangefinder's <c>DeviceLooks.Follow</c> removed ⇒ the
+        /// east marker answers ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S1d3_EndToEnd_TheRangefinderRangesTheBodyTheTraineeLooksAt()
+        {
+            using var r = new Rig();
+            var north = r.W.CreateEntity();
+            r.W.AddComponent(north, new SimTransform { Position = new Vector3(0f, 300f, 0f), Rotation = Quaternion.Identity });
+            r.W.AddComponent(north, new PhysicsCollider { Radius = 0.5f, Height = 2f, CollisionLayer = 1 });
+            r.Grid.Add(north, new Vector2(0f, 300f));
+            r.W.SetSingleton(new SpatialGridData { Grid = r.Grid });
+            uint seq = 100;
+            void Look(float yaw, byte range)
+            {
+                var c = new DeviceControl { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw), Trackers = DeviceControl.OrientationPresent };
+                c.Presses[RangefinderChannels.Range] = range;
+                var input = new DeviceInput { Seq = ++seq, Control = c };
+                if (r.W.HasComponent<DeviceInput>(r.D)) r.W.SetComponent(r.D, input); else r.W.AddComponent(r.D, input);
+            }
+            Look(MathF.PI / 2f, 0);
+            for (int i = 0; i < 3; i++) r.Frame(0f);                                // started, based, and turned north (its own pose)
+            var fwd = Vector3.Transform(Vector3.UnitX, r.W.GetComponentRO<DevicePose>(r.D).Orientation);
+            Assert.True(fwd.Y > 0.99f, $"the device points north, where he looks ({fwd})");
+            Assert.Equal(RangefinderBehavior.FovDegrees, r.W.GetComponentRO<DevicePose>(r.D).FovDegrees, 4);   // its fixed magnification's field
+            Look(MathF.PI / 2f, 1);                                                  // RANGE
+            for (int i = 0; i < 3; i++) r.Frame(0f);
+            var s = r.State;
+            Assert.Equal(1, s.HasRange);
+            Assert.Equal(north, s.LastHit);                                          // the man he looks at
+            Assert.InRange(s.LastRange, 299f, 300f);
+            Look(0f, 2);                                                             // look east again, RANGE: the marker
+            for (int i = 0; i < 3; i++) r.Frame(0f);
+            Assert.Equal(r.Target, r.State.LastHit);
+        }
+
         [Fact]
         public void S1c_EndToEnd_ASteadyFrame_AllocatesNothing()
         {

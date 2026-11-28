@@ -681,6 +681,7 @@ namespace Hrot.ScenarioEditor.Map
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies, featureGate);   // ⭐ CE-4148 — the host's gate: the hud.* features   // ⭐ CE-1073 — the drawn heads
             stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
+            possession.ViewLayer = gizmoLayer;   // ⭐ S1d-3 (devices D-38 / D-41) — the view's source binds the gizmo layer (only that device's HUD run is drawn)
             canvas.AddLayer(possession);
             // ⭐ CE-1462 (W-B1) — the 2-D map frames its terrain when one is loaded (and when it changes), on EVERY host: here, so no host can lack it. Never a camera the user or a station owns (3-D on screen, a driver, first person).
             canvas.AddLayer(new Hrot.UI.Common.Map2D.TerrainFramingLayer(worldProvider, () => viewSwitch.Camera2D,

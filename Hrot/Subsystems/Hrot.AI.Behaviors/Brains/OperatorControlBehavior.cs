@@ -101,14 +101,16 @@ namespace Hrot.AI.Behaviors.Brains
                 //   change, so a frame per tick does not re-send dtLean. A prone man does not lean (the sim's rule, Leans.SignOf).
                 if (input.Lean <= (byte)LeanSide.LeanRight && Leans.Of(world, self) != (LeanSide)input.Lean)
                     Leans.Set(world, self, (LeanSide)input.Lean);
-                // ⭐ CE-1219 (§8k B-1) — binoculars up while B is held, through the one writer (it refuses a man who carries none); down again
-                //   when let go — only his OWN binoculars, never another held item
-                bool up = HeldItems.BinocularsUp(world, self);
-                if (input.Binoculars != 0 && !up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
-                else if (input.Binoculars == 0 && up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing
+            // ⭐⭐ Devices S1d-3 (DESIGN_Simulated_Devices §3.10 D-63 / D-75 — replaces CE-1219's B level) — he RAISES the optic while a view of his
+            //   station shows a hand-held device he carries (its frame's Viewed, CarriedDevices — a declared tick-start read), and lowers it after;
+            //   through the one writer (HeldItems.Set refuses a man who carries none) — only the binoculars pose, never another held item
+            bool viewed = Fdp.Toolkit.Behavior.Devices.CarriedDevices.AnyViewed(world, self);
+            bool up = HeldItems.BinocularsUp(world, self);
+            if (viewed && !up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+            else if (!viewed && up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             // ⭐ CE-1157 — no frame (a RIDER: the possession takes his frames while the station drives his vehicle) keeps the last frame
             //   number, so a station that restarts its frames after the ride (Seq 1 again, counters from 0) still reads as a NEW station and
             //   resets the press counters; zeroing it swallowed the first press after the ride (its counter equal to the last one acted on)

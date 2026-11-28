@@ -405,5 +405,7 @@ namespace Hrot.Map.Definitions.Behavior
         //   names (DeviceInfo.Behavior), started and kept running by the device tick; offered to nothing else (Requires = DeviceInfo).
         /// <summary>The laser rangefinder: RANGE measures (laser on until the spot answers), MODE / MENU step its modes (§3.8).</summary>
         public const string DeviceRangefinder = "DeviceRangefinder";
+        /// <summary>⭐ S1d-3 — the binoculars: ZOOM IN / OUT step its magnification (5× / 7× / 10×); its view's field follows the step (§3.10).</summary>
+        public const string DeviceBinoculars = "DeviceBinoculars";
     }
 }

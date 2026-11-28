@@ -151,7 +151,6 @@ namespace Hrot.Map.Common.Replication.Interactions
                     ShotSeq = e.ShotSeq, CancelSeq = e.CancelSeq, AmmoSeq = e.AmmoSeq, ShotTarget = e.ShotTarget,
                     UseSeq = e.UseSeq, UseVerb = e.UseVerb, UseTarget = e.UseTarget,   // ⭐ CE-1151
                     Lean = e.Lean,                                                     // ⭐ CE-1212
-                    Binoculars = e.Binoculars,                                         // ⭐ CE-1219
                     LookFromX = e.LookFrom.X, LookFromY = e.LookFrom.Y, LookFromZ = e.LookFrom.Z,   // ⭐ CE-4143
                     LookDirX = e.LookDir.X, LookDirY = e.LookDir.Y, LookDirZ = e.LookDir.Z, FirePref = e.FirePref,
                 },
@@ -166,7 +165,6 @@ namespace Hrot.Map.Common.Replication.Interactions
                 ShotTarget = p.ControlFrame.ShotTarget, IsRemote = true,
                 UseSeq = p.ControlFrame.UseSeq, UseVerb = p.ControlFrame.UseVerb, UseTarget = p.ControlFrame.UseTarget,   // ⭐ CE-1151
                 Lean = p.ControlFrame.Lean,                                                                               // ⭐ CE-1212
-                Binoculars = p.ControlFrame.Binoculars,                                                                   // ⭐ CE-1219
                 LookFrom = new System.Numerics.Vector3(p.ControlFrame.LookFromX, p.ControlFrame.LookFromY, p.ControlFrame.LookFromZ),   // ⭐ CE-4143
                 LookDir = new System.Numerics.Vector3(p.ControlFrame.LookDirX, p.ControlFrame.LookDirY, p.ControlFrame.LookDirZ),
                 FirePref = p.ControlFrame.FirePref,

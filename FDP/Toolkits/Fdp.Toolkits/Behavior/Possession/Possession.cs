@@ -125,9 +125,6 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1212 (DESIGN_Entity_Control §8j L-1, appended) — the lean the operator holds (<c>LeanSide</c>: 0 none, 1 left, 2
         /// right) — a LEVEL, every frame: it lasts while Q / E is held.</summary>
         public byte Lean;
-        /// <summary>⭐ CE-1219 (DESIGN_Entity_Control §8k B-1, appended) — 1 while the operator holds his binoculars up (B held), 0 otherwise —
-        /// a LEVEL; his brain raises them through <c>HeldItems.Set</c>, which refuses a man who carries none.</summary>
-        public byte Binoculars;
         /// <summary>⭐ <c>CE-4143</c> (DESIGN_Entity_Control §8r, appended) — the look ray's origin (the camera eye, world metres).</summary>
         public Vector3 LookFrom;
         /// <summary>⭐ CE-4143 — the look ray's direction (unit): the crosshair ray, which a SIGHT shot on a turret follows at the zero range.</summary>
@@ -178,8 +175,6 @@ namespace Fdp.Toolkit.Behavior.Possession
         public int UseTarget;
         /// <summary>⭐ CE-1212 (§8j L-1, appended) — the lean the operator holds (<see cref="OperatorControlFrameEvent.Lean"/>).</summary>
         public byte Lean;
-        /// <summary>⭐ CE-1219 (§8k B-1, appended) — binoculars up (<see cref="OperatorControlFrameEvent.Binoculars"/>).</summary>
-        public byte Binoculars;
         /// <summary>⭐ <c>CE-4143</c> (§8r) — the frame's look ray and fire-mode preference (<see cref="OperatorControlFrameEvent"/>).</summary>
         public Vector3 LookFrom;
         /// <summary>⭐ CE-4143 — the look ray's direction (unit): the crosshair ray, which a SIGHT shot on a turret follows at the zero range.</summary>
@@ -358,7 +353,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                 // ⭐ CE-1212 (§8j L-1) — and stands straight: an operator's lean does not outlive him (his task leans again if it wants)
                 if (Fdp.Toolkit.Combat.Leans.Of(repo, unit) != Fdp.Toolkit.Combat.LeanSide.LeanNone)
                     Fdp.Toolkit.Combat.Leans.Set(repo, unit, Fdp.Toolkit.Combat.LeanSide.LeanNone);
-                if (Fdp.Toolkit.Combat.HeldItems.BinocularsUp(repo, unit))                         // ⭐ CE-1219 — and puts his binoculars away
+                if (Fdp.Toolkit.Combat.HeldItems.BinocularsUp(repo, unit))                         // ⭐ CE-1219 / S1d-3 — and puts his binoculars away (raised by a viewed device, D-63)
                     Fdp.Toolkit.Combat.HeldItems.Set(repo, unit, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             }
         }
@@ -391,7 +386,6 @@ namespace Fdp.Toolkit.Behavior.Possession
                 ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
                 UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
                 Lean = f.Lean,                                                     // ⭐ CE-1212
-                Binoculars = f.Binoculars,                                         // ⭐ CE-1219
                 LookFrom = f.LookFrom, LookDir = f.LookDir, FirePref = f.FirePref, // ⭐ CE-4143
             };
             if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);

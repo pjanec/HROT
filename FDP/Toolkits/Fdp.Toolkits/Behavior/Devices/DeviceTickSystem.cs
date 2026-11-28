@@ -51,6 +51,10 @@ namespace Fdp.Toolkit.Behavior.Devices
             {
                 _devices = repo.Query().With<DeviceInfo>().WithOwnedWhen<BehaviorState>(_gate).Build();
                 _queryFor = repo;
+                // ⭐ S1d-3 — the device frame's event is the device tick's to read: registered here (as PossessionSystem registers the body's), so a
+                //   station's frames reach a device on every host — ⛔ before, only the rails registered it and no production frame was ever ingested
+                if (!repo.Bus.IsRegistered<DeviceFrameEvent>()) repo.Bus.Register<DeviceFrameEvent>();
+                if (!repo.IsComponentTypeRegistered<DeviceInput>()) repo.RegisterComponent<DeviceInput>();
             }
             foreach (var e in _devices)
             {

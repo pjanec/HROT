@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
+updated: 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
 current-answer: ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
@@ -166,7 +166,32 @@ classDiagram
   class DevicePoses { <<NEW, one resolver>> World of view and device = the mount chain ∘ pose }
   class DeviceLinks { <<NEW>> Peer2 — where its messages go }
   class DeviceMessageEvent { <<NEW>> Target · From · Seq · Kind · 64 B binary or JSON }
-  class OperatorControlFrameEvent { <<existing, grows>> Target · Seq · Axes4 · PressSeq16 · Orientation · Position · BodyOffset · Binoculars until SD-S5, then ViewedDevice }
+  class OperatorControlFrameEvent { <<existing>> the BODY's frame — CE-1219's Binoculars byte DROPPED (S1d-3, D-75; layout hash updated, R-4301) }
+  class DeviceFrameEvent { <<BUILT S1b-2, S1d-3 sent by the station>> one per operated device · DeviceControl: Axes4 · Presses16 · Orientation = the look rel. to the mount · Viewed }
+  class DevicePressReader { <<BUILT S1d-3, the one press reader>> DevicePressTracker in each type's state · re-base on a new Epoch }
+  class DeviceLooks { <<BUILT S1d-3>> Follow — its own DevicePose from its frame's Orientation, with its optic's field }
+  class DeviceOptics { <<BUILT S1d-3, THE optic rule>> FovDegrees = 50° / magnification · FovOf the bound device }
+  class CarriedDevices { <<BUILT S1d-3>> Any · AnyViewed — the devices in his own carry seats (declared tick-start reads) }
+  class OperatedDevices { <<BUILT S1d-3>> Of station — the Operated rows naming it, by network id: the view cycle }
+  class BinocularsState { <<BUILT S1d-3, UnitMemory>> Zoom step · Presses }
+  class BinocularsBehavior { <<BUILT S1d-3>> one StatefulAction · ZOOM IN / OUT · DeviceLooks.Follow at the step's field }
+  class BinocularsHudGizmo { <<BUILT S1d-3, GizmoProjector Hud>> two eyepieces · mil reticle at the step's field · zoom list · name }
+  class DeviceHuds { <<BUILT S1d-3>> IsVisible — the one per-entity HUD policy (type · Operated · brain authority) }
+  class PossessionStation { <<existing, grows S1d-3>> the view's SOURCE: BoundDevice · CycleView (B) · ViewLayer.BoundSource · BoundFovDegrees · VIEW label + strip · one DeviceFrameEvent per operated device }
+  class OperatorControlBehavior { <<existing, S1d-3>> raises HeldItems Binoculars while CarriedDevices.AnyViewed, lowers after }
+  BinocularsBehavior --> BinocularsState : self only
+  BinocularsBehavior ..> DevicePressReader : presses
+  BinocularsBehavior --> DeviceLooks : its own DevicePose
+  RangefinderBehavior --> DeviceLooks : its own DevicePose
+  DeviceLooks ..> DeviceOptics : the field
+  BinocularsHudGizmo ..> BinocularsState : reads
+  BinocularsHudGizmo ..> DeviceHuds : filtered by
+  RangefinderHudGizmo ..> DeviceHuds : filtered by
+  PossessionStation ..> OperatedDevices : the cycle
+  PossessionStation --> DebugGizmoLayer : BoundSource
+  PossessionStation ..> DeviceOptics : FovOf the bound device
+  PossessionStation --> DeviceFrameEvent : Viewed · the look · the bound device's buttons
+  OperatorControlBehavior ..> CarriedDevices : AnyViewed
   class LaserPointing { <<BUILT S1c, unmanaged>> On · Band · Power · Direction in the device frame · Seq echoed by the spot }
   class FireControl { <<NEW, unmanaged, replicated>> Ready · Target · AimPoint · LaunchSeq · Steer2 · ViewFromRound — on the device, written by it, SD-S4 / SD-S4b }
   class GuidedFlight { <<NEW, unmanaged, replicated>> Round network id · LaunchSeq · Live — on the device, written by the MUSCLE, SD-S4b }
@@ -319,7 +344,7 @@ run; his views choose what each shows (§3.6).
 | D-50 / D-56 | trackers are station input channels, each bound to ONE entity: orientation and / or position → that device's frame; every device has its own channel; a mounted (stacked) device ignores its own tracker while mounted | — |
 | D-51 | a body tracker fills the UNIT's frame **`BodyOffset`** (a continuous vector) over the base the player still moves; `Lean` stays the discrete posture it is | `Lean` is a side, not a displacement (`PossessionStation.cs:1858-1863`; `Possession.cs:119-121`) |
 | SD-15 / RV-6 | look and camera motion stay LOCAL on the station (mouse look, smoothing between steps, on the wall clock); the device owns the zoom STEP and the sensor mode | a round trip per mouse move would lag |
-| R3-5 / R7-7 | the UNIT's frame names what its views show — **`ViewedDevice`** (network id or none) — so the body's brain raises the held binoculars; it **replaces** the frame's `Binoculars` level **in SD-S1** (D-75 — the user dropped CE-1219) | `OperatorControlBehavior.cs:104-108` |
+| R3-5 / R7-7 | the UNIT's frame names what its views show — **`ViewedDevice`** (network id or none) — so the body's brain raises the held binoculars; it **replaces** the frame's `Binoculars` level **in SD-S1** (D-75 — the user dropped CE-1219) — ⭐ **as built (S1b-2 / S1d-3): the DEVICE frame's `Viewed` flag**, read by the body's brain through `CarriedDevices.AnyViewed`; the `Binoculars` byte is gone from the body frame (§3.10 S1d-3 AS BUILT) | `OperatorControlBehavior.cs:104-108` |
 
 ### 3.5 The device tick
 
@@ -466,6 +491,34 @@ EXIT) with ✓ on the active one and the cursor row on the value SELECT would st
 threaded node with a gizmo producer, and the parallel phases run in `Simulation`, before `PostSimulation`'s gizmo group. Rails: `RangefinderHudGizmoTests`
 (9), `StatelessGizmoSystemHudTests` (3), `RangefinderBehaviorTests.S1d2_…` (end to end), `RangefinderHudFrameRail` (xvfb).
 
+⭐ **S1d-3 AS BUILT (`2026-11-28`)** — the view's SOURCE, its field of view, the device's look. **The source** (D-38 / D-66): `PossessionStation.BoundDevice`
+— station-local UI, never simulation; the cycle is the plain eye → each device the possessed man operates (`OperatedDevices.Of(station)`, the replicated
+`Operated` rows naming his body's station, by network id — the station computes nothing, R7-1) → the eye; **B / Shift+B** (Q-5's lean, the key CE-1219
+freed); a device that leaves him (its row gone) drops the view to the eye; leaving FPS unbinds. Binding sets the map's gizmo layer `BoundSource` (the
+device's network id — `PossessionStation.ViewLayer`, wired by `MapInteractionPack.AttachMapLayers`; forwarding rail on the constructed object).
+**The field of view — ONE rule:** `DevicePose.FovDegrees` (a new field, written by the device from its state) read by `DeviceOptics.FovOf`; the driver's
+`ZoomFovDegrees` takes the BOUND SOURCE's field first, else the weapon zoom, else the map's — ⛔ no binoculars branch. The optic rule is
+`DeviceOptics.FovDegrees(m) = 50° / m` (an eyepiece's apparent field over its magnification: 5× 10° · 7× 7.1° · 10× 5°; the rangefinder's fixed 7×).
+Through a device the camera is at his eyes (no shoulder view), and the mouse is the DEVICE's (D-38's device scope): LMB = its channel 0 (the `Fire`
+row read as the device's — one chord, one row), RMB = 1, the wheel 2 up / 3 down; no shot, no trigger, no weapon zoom; **the middle button designates for
+his men** (CE-1219's LMB designate, rehomed — B-1's capability kept). **The device frames** (D-43): the station sends one `DeviceFrameEvent` per device
+it operates every input frame — `Orientation` = his LOOK relative to the device's mount (`Trackers` = orientation present — R5-13's mouse mode), `Viewed`
+while bound, the bound device's button counters — on the local bus (⚠ the interaction transport carries no device frame yet: SD-C). 📌 Found on the way:
+nothing in production REGISTERED `DeviceFrameEvent` (only rails did) — the device tick registers it now, as `PossessionSystem` registers the body's.
+**The look:** `DeviceLooks.Follow` — every device behaviour writes its OWN `DevicePose` from its frame's orientation (identity without one) and its
+optic's field, on change (S1c AS BUILT ⑧ closed); the rangefinder's laser therefore points where he looks (`LaserSpotSystem` already traced along
+`DevicePoses.TryWorld`). **The label and the strip** (mockup panel 6): drawn by the station's overlay over the device HUD, in the mockup's frame numbers
+through the HUD canvas's fit — `VIEW ▸ <device>` with its FontAwesome icon in its colour (eye blue, binoculars teal, crosshairs red — `HudText.Icons`) while
+bound; the strip (eye · each device, the selection framed) for `SwitchStripSeconds` = 2 s after a switch (wall clock — observation). Through a device the
+station draws no crosshair, spread ring or locked-shot marks (the device HUD has its reticle). Shared on the way: `DeviceHuds.IsVisible` (the one HUD
+policy, the rangefinder's moved there) and `DevicePressReader` + `DevicePressTracker` (the one press reader — `RangefinderState`'s four counters folded
+in). ⚠ **Deviations, argued:** ① the label is keyed on the device's behaviour (name, icon, colour) until `DeviceDefDto` names a type (D-26) — as the
+channels; ② the strip is centred for any count (`90 n + 2` wide; the mockup's three sources land on its numbers); ③ the label also shows in panel 1's view
+(panel 6's rule: *"always on while a view shows a device"*) — panel 1's mockup leaves it out of its scope. Rails: `PossessionStationTests.S1d3_…` (the
+cycle, `BoundSource`, the FOV, the frames' `Viewed` and look, LMB as the device's button, the middle-button designate, a dropped device),
+`PossessionStationTests.Keymap` (the rows), `EveryMapHostAttachesTheSharedLayersTests.S1d3_…` (forwarding), `DevicesViewFrameRail` (xvfb, panels 1 and 6),
+`RangefinderBehaviorTests.S1d3_…` (end to end: the man he looks at).
+
 ### Mockups
 
 🖼 **[`mockups/devices-hud.svg`](mockups/devices-hud.svg)** *(generated by `scripts/gen-devices-hud-mockup.py`; R-4138 / R-4143 — SD-S1's ui half builds the HUD projectors to it and renders each panel's frame to check fidelity)*. ⛔ Scope (R-4151): it specifies ONLY the device HUD drawn in a view bound to a device; the compass, the unit lines and the toolbar are context, drawn dashed and tagged *unchanged*; the 3-D scene is illustrative. ⚠ Every position is a proposal — the design names what the HUD shows, not where.
@@ -519,6 +572,27 @@ threaded node with a gizmo producer, and the parallel phases run in `Simulation`
 | R4-3 | carrying a binoculars device satisfies `HeldItems.Set`'s "does he carry binoculars" (pockets, leader, or the device in a kit station) | a non-leader trainee would otherwise get neither pose nor factor |
 | D-63 | while a view shows a hand-held device he raises it (the held-item pose) and lowers it again | — |
 | ~~R7-7~~ → **D-75** | ⛔ superseded by the user (`2026-11-27`): *"The current binoculars are not important at all. You can drop them right away"* ⇒ **SD-S1 drops CE-1219** — the frame's `Binoculars` level, the station's binocular overlay / FOV branch and the B key's raise; **`ViewedDevice` replaces `Binoculars` in SD-S1**. The trainee's binoculars are the DEVICE (pre-placed in the scenario's trainee kit in SD-S1; issued at run time from SD-S5); a possessed unit without one has no binoculars. The HELD ITEM stays for AI perception and the body pose (R3-5), raised by `ViewedDevice` | 🔒 user; no rush removal applies — the user removed it |
+
+⭐ **S1d-3 AS BUILT (`2026-11-28`)** — the binoculars are a DEVICE; CE-1219 is gone. **The device** (D-57, `Hrot.AI.Behaviors/Devices/Binoculars/`):
+`BinocularsState` (`[UnitMemory]`: the zoom step, the press tracker), `BinocularsBehavior` (`DeviceBinoculars`, one `StatefulAction`, `[Behavior(Params =
+NoParams, Requires = DeviceInfo)]`, hosting snapshot +1 line): ZOOM IN (channel 0) / ZOOM OUT (1) step 5× / 7× / 10× (`BinocularsZoom` — ⚠ placeholder
+constants until a TKB device type, as S1c's channels; 7× at the start), clamped, in pause too; its own `DevicePose` from the frame's look at the step's
+field (`DeviceLooks.Follow`). `BinocularsHudGizmo` (mockup panel 1): the view darkened outside the UNION of two eyepiece circles (CE-1219's proportions —
+r = 0.42 H, centres ± 0.55 r; cut into 56 strips of two triangles above and below the union's edge, since the canvas has no ring primitive), the mil
+reticle TRUE to the step's field (`PxPerMil(fov)` — 5-mil ticks, numbers every 10, the cross clamped inside the eyepieces at a wide field), the zoom list
+with the current step gold, the binoculars mark (teal) and the name; 0 B per steady frame. **CE-1219 dropped** (D-75 — the user removed it): the body
+frame's and `OperatorInput`'s `Binoculars` byte (`OperatorControlFrameEvent`'s recorded layout hash `0x353FF5AEC55DF7B8` → `0x5F11007E565C7600`, UPDATED in
+`PossessionReplicationTests` — R-4301), the transport's mapping and the HTTP `binoculars` key, the station's overlay (`DrawBinoculars`), its 10° FOV
+branch, the B hold (`fps.binoculars`) and its "no binoculars" verdict. ⚠ The WIRE payload `ControlFrameInteractionPayload.Binoculars` is KEPT, ignored: the
+external Unreal station (`tools/unreal/…/HrotDpsStation.cpp`) writes that DDS type's layout — it goes with that client's own CE-1219 removal (a necessary
+difference, not a second implementation). **The held item** (R3-5 / R4-3 / D-63): `OperatorControlBehavior` raises `HeldItems` Binoculars while
+`CarriedDevices.AnyViewed` (a device in his own carry seats whose newest frame says `Viewed`) and lowers it after; `HeldItems.Has(Binoculars)` also holds
+for a man who CARRIES a device — ⚠ **generalised from R4-3's "a binoculars device" to every hand-held device**: D-63 raises every hand-held device the same
+way, and `Set` refuses a man who `Has` none, so a rangefinder-only trainee could not raise his rangefinder otherwise. The body reads the device's
+`DeviceInfo` and `DeviceInput` — declared tick-start reads (`BrainReads`: written once at creation / by the device tick's serial pre-pass, never in the
+brain phase). AI leaders' pocket binoculars (CE-1224) are untouched — no device is involved. Rails: `BinocularsBehaviorTests` (3, incl. end to end + 0 B),
+`BinocularsHudGizmoTests` (6), `EmbarkNodesTests.S1d3_…` (raised / lowered / put away — rehomes `CE1219_BHeld…`), `HeldItemsTests.S1d3_…` (R4-3 +
+the leader), `DevicesViewFrameRail` (xvfb).
 
 ### 3.11 Recording, replay, cluster
 
@@ -755,7 +829,7 @@ per buffer-reader family (R5-4), the no-unit-system-touches-a-device rail (R5-5)
 |---|---|---|
 | Q-2 | the replica protocol's transport | a node extension on a local socket, one generic frame: in = a device's control frame (`Axes4`, `PressSeq16`, tracker pose), out = its `DevicePanel`; DDS later if a replica sits on another machine |
 | Q-4 | which lane | **ui** builds SD-S1's station half (the mockup first, R7-13's measurement, the keyboard / mouse adapter, the keymap device scope, views bound to sources, `HudScope` and the `FrameFor` filter, the screen pass in 3-D, the HUD projectors to the mockup); **backend** the brain half (`Mountable` / `IsMountable`, `Stations.OperatedBy`, the ingest routine, `DeviceInfo` + `DeviceTickSystem` + `BrainPhaseRunner`, `PossessedBy Operated`, the laser spot, the grammar extensions) — cross-lane allowed |
-| Q-5 | the device wheel's key and the HUD layout | the ui lane's mockup first (R-4143) |
+| Q-5 | the device wheel's key and the HUD layout | ⭐ **lean, as built S1d-3:** a CYCLE, not a wheel — **B** next / **Shift+B** previous (the key CE-1219's hold freed, and what a trainee already reaches for to look through binoculars); the strip shows the cycle for 2 s. What would change it: more than ~4 sources per station (then a held wheel, as T's command wheel). Layout: the mockup (panel 6) |
 | Q-8 | the gateway's wire (D-5, D-36) | a SimNetGateway row when SD-C is dispatched: the primitive's space and the meta primitives on the wire; the beam's two components as entity data |
 | Q-9 | an AI leader's pocket binoculars stay a held item only; a trainee is ISSUED a binoculars device | ⭐ as stated — what would change it: a need for AI to use device menus |
 | ~~Q-14~~ | answered by the user (`2026-11-27`): both, crosshair first (D-80 → D-81) | — |

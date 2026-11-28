@@ -89,6 +89,7 @@ def unit_lines(x, y, w=112):
 
 def lamp(x, y, on, label="LASER"):
     if on:
+        s.raw(f"<circle cx='{x}' cy='{y}' r='9' fill='#000' fill-opacity='0.9'/>")   # as built S1d-3: the glow over a dark halo (scene-independent)
         s.raw(f"<circle cx='{x}' cy='{y}' r='9' fill='{LASER}' fill-opacity='0.28'/>")
         s.raw(f"<circle cx='{x}' cy='{y}' r='5' fill='{LASER}' stroke='#000' stroke-width='1'/>")
     else:
@@ -198,6 +199,14 @@ s.rect(640, 56, 12, 12, "none", stroke="#8A8A96", dash="4 3"); s.text(658, 66, "
 s.text(30, 102, "Layout positions are PROPOSALS where the design is silent (it names what the HUD shows, not where) — each panel lists its own.", C.PEND, 11)
 s.text(30, 86, "Frames are 460 × 259 (16:9). The scene is the same in every panel and illustrative; the tank is only there so the reticle has something to rest on.", C.NOTE, 11)
 
+def view_label(x, y, glyph, gc, name):
+    """The VIEW ▸ label of the bound source — always on while a view shows a device (panel 6), right column under the lamp."""
+    lw = text_width("VIEW  " + name, 11) + 34
+    lx = x + PW - 14 - lw
+    s.rect(lx, y + 94, lw, 20, "#000", rx=3, op=0.7); s.glyph(glyph, lx + 6, y + 97, gc, 13)
+    s.text(lx + 24, y + 108.5, "VIEW", "#A0A0AA", 10.5); s.text(lx + 56, y + 108.5, name, WHITE, 11, weight="bold")
+
+
 # ── 1 · binoculars ──────────────────────────────────────────────────────────────────────────────────────
 x, y = head(0, "1 · BINOCULARS — the view bound to the binoculars device",
             ["Scope: the two-eyepiece frame, the mil reticle, the zoom step, the device name (D-42, D-75: replaces the station's overlay).", "The compass and the unit lines are context."])
@@ -205,25 +214,26 @@ frame(x, y, 3.0)
 cx, cy = x + PW / 2, y + PH / 2; r = PH * 0.42
 s.raw(f"<mask id='bm'><rect x='{x}' y='{y}' width='{PW}' height='{PH}' fill='#fff'/><circle cx='{cx - r * 0.55}' cy='{cy}' r='{r}' fill='#000'/>"
       f"<circle cx='{cx + r * 0.55}' cy='{cy}' r='{r}' fill='#000'/></mask><rect x='{x}' y='{y}' width='{PW}' height='{PH}' fill='#000' opacity='0.93' mask='url(#bm)'/>")
-px = PH / 174.5   # 1 mil in px, true to today's 10° view (HeldItems.BinocularsFovDegrees) over the frame height
+px = PH / (50 / 7 * 17.4533)   # 1 mil in px, true to the LIT step's field (S1d-3 as built: 7× ⇒ 50°/7 ≈ 7.1°, DeviceOptics) over the frame height
 for sgn in (-1, 1):                                                        # the cross with a gap, ticks every 5 mil, a number every 10
-    hline(cx + sgn * 6, cy, cx + sgn * 58 * px, cy); hline(cx, cy + sgn * 6, cx, cy + sgn * 58 * px)
+    hline(cx + sgn * 6, cy, cx + sgn * 58 * px, cy); hline(cx, cy + sgn * 6, cx, cy + sgn * min(58 * px, r * (1 - 0.55 ** 2) ** 0.5 - 4))   # as built: up/down to the cusp
 for m in range(5, 55, 5):
     d = m * px; big = m % 10 == 0
     for sgn in (-1, 1):
         hline(cx + sgn * d, cy - (4 if big else 2.5), cx + sgn * d, cy + (4 if big else 2.5), WHITE, 1)
-        hline(cx - (4 if big else 2.5), cy + sgn * d, cx + (4 if big else 2.5), cy + sgn * d, WHITE, 1)
+        if d <= r * (1 - 0.55 ** 2) ** 0.5 - 4: hline(cx - (4 if big else 2.5), cy + sgn * d, cx + (4 if big else 2.5), cy + sgn * d, WHITE, 1)
     if big and m <= 40:
         ht(cx + 8, cy + d + 3, str(m), "#E0E0E8", 8.5)
         if m % 20 == 0: ht(cx + d, cy - 7, str(m), "#E0E0E8", 8.5, "middle")
 s.raw(f"<circle cx='{cx}' cy='{cy}' r='1.5' fill='{WHITE}'/>")
-ht(cx, y + PH - 12, "BINOCULARS", "#C8C8D0", 11.5, "middle", "bold")                       # the device name, in the dark rim
+ht(cx, y + PH - 32, "BINOCULARS", "#C8C8D0", 11.5, "middle", "bold")                       # the device name, in the cusp (as built S1d-3: the unit lines cover the rim)
 for i, (z, on) in enumerate((("5×", False), ("7×", True), ("10×", False))):                # the zoom step list, right rim
-    ht(x + PW - 14, y + 108 + i * 18, z, GOLD if on else "#808088", 14 if on else 11, "end", "bold" if on else "normal")
+    ht(x + PW - 14, y + 132 + i * 18, z, GOLD if on else "#808088", 14 if on else 11, "end", "bold" if on else "normal")   # as built S1d-3: under the VIEW label
 s.glyph(FA.BINOCULARS, x + PW - 36, y + 78, C.TEAL, 15)
+view_label(x, y, FA.BINOCULARS, C.TEAL, "BINOCULARS")                                         # panel 6's always-on label (as built S1d-3: shown here too)
 compass(x, y); unit_lines(x, y)
 legend(x, y, "two-eyepiece frame · mil reticle (5-mil ticks, numbers every 10) · zoom step 7× of a list · device name", "compass strip · unit lines · the 3-D scene",
-       ["mil scale is true to today's 10° view (HeldItems.BinocularsFovDegrees) over this frame: 1 mil = 1.48 px.",
+       ["mil scale is true to the lit step's field (7× ⇒ 50°/7 ≈ 7.1°, DeviceOptics — S1d-3 as built; was today's 10°): 1 mil = 2.08 px; it moves with the zoom.",
         "PROPOSAL: step values 5× / 7× / 10× are illustrative (the type's data); the list sits in the right rim.",
         "No range shown: the binoculars carry no laser (the old overlay's RANGE / LMB-designate goes with CE-1219, D-75)."])
 
@@ -282,10 +292,7 @@ legend(x, y, "the HUD still answering in pause: mode (CONTINUOUS, changed by a p
 x, y = head(5, "6 · SWITCHING — the view's bound source (device wheel / cycle)",
             ["Scope: the 'VIEW ▸' label of the bound source and the cycle strip shown while switching. LAYOUT IS A PROPOSAL.", "Design says: a view is bound to ONE source (D-38 / D-66); the wheel's key is open (Q-5)."])
 frame(x, y, 2.2); rf_view(x, y); rf_reticle(x, y); rf_status(x, y, lamp_on=False); rf_range(x, y, "— m"); rf_menu_strip(x, y, cur=0)
-lw = text_width("VIEW  LASER RANGEFINDER", 11) + 34                                          # the always-on label (right column, under the lamp)
-lx = x + PW - 14 - lw
-s.rect(lx, y + 94, lw, 20, "#000", rx=3, op=0.7); s.glyph(FA.CROSSHAIRS, lx + 6, y + 97, C.RED, 13)
-s.text(lx + 24, y + 108.5, "VIEW", "#A0A0AA", 10.5); s.text(lx + 56, y + 108.5, "LASER RANGEFINDER", WHITE, 11, weight="bold")
+view_label(x, y, FA.CROSSHAIRS, C.RED, "LASER RANGEFINDER")                                    # the always-on label (right column, under the lamp)
 sw, sx = 3, x + PW / 2 - 130                                                                   # the cycle strip: eye · binoculars · rangefinder
 s.rect(sx - 6, y + 138, 272, 30, "#000", rx=4, op=0.7)
 for i, (g, gc, nm, sel) in enumerate(((FA.EYE, C.BLUE, "eye", False), (FA.BINOCULARS, C.TEAL, "binoculars", False), (FA.CROSSHAIRS, C.RED, "rangefinder", True))):

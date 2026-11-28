@@ -44,6 +44,9 @@ namespace Fdp.Toolkit.Combat
                 case HeldItemKind.Phone:
                 case HeldItemKind.Binoculars:
                     if (kind == HeldItemKind.Binoculars && Leads(world, man)) return true;   // ⭐ CE-1224
+                    // ⭐ S1d-3 (devices R4-3 / D-63) — or a hand-held DEVICE in his kit: the held item is the optic at his eyes, raised while a view
+                    //   shows the device (OperatorControlBehavior); a trainee is issued the device, not pocket binoculars (Q-9)
+                    if (kind == HeldItemKind.Binoculars && Fdp.Toolkit.Behavior.Devices.CarriedDevices.Any(world, man)) return true;
                     if (!CombatTkb.TryGetTemplate(world, man, out var t) || t.GetDescriptor<PocketItemsDto>() is not { } pockets) return false;
                     return kind == HeldItemKind.Phone ? pockets.Phone : pockets.Binoculars;
                 case HeldItemKind.Throwable:
