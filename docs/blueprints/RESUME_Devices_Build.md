@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (SD-S2b built — one DroneBattery) · 2026-11-28 (SD-S2a built — the gamepad) · 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
+updated: 2026-11-28 (SD-S5v-1 built — sparse device input) · 2026-11-28 (SD-S2b built — one DroneBattery) · 2026-11-28 (SD-S2a built — the gamepad) · 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
 current-answer: §1 (state) · §2 (the queue) — read §1 first after a compaction
 stale-below: nothing
 related-designs:
@@ -36,6 +36,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **designed `2026-11-28`** SD-S4 + SD-S4b (§3.13b) and SD-S2 (§3.13c) READY-TO-BUILD | ⏳ | ⚠ mockups pending: panels 7–11 (the sight unit — an agent drawing them was stopped by usage-policy safeguards) ✅ 12–15 drawn (`devices-hud-drone.svg`); the build order the user picks |
 | **SD-S2a** the gamepad as keymap value sources (D-102 / D-103): `EditorKey` pad sources, `IInputProvider` pad members (default no pad), `KeymapReader.PadDeadzone` 0.15 + `Inner` (an inner place shadows the outer), the FPS pad rows + the device place `EmbodiedKeys.DeviceHat` (sticks → axes 0–3, A … RB → channels 0–5) | ✅ | the S2a commit — `KeymapReaderTests.SDS2a_*` (5), `PossessionStationTests.SDS2a_…` (red-proved); ⚠ deviation: the device rows in their own place (a conflict otherwise) — design §3.13c S2a AS BUILT, input design §6g |
 | **SD-S2b** ONE `DroneBattery` (D-108): component 234 (brain group, recorded, saved), `DroneBatterySystem` (CGF pack, `WhenTimeAdvances`, airborne = not `FlightGround.OnTheGround`), full at creation for a DIS-unmanned drone type (`FlightTkbTranslator`), the recon / FPV / bomber timers read it (`DroneBatteries.Empty`) | ✅ | the S2b commit — `DroneBatterySystemTests` (4, red-proved), `AirAttackNodesTests` / `DroneOperatorBehaviorTests` / `AirDefenceNodesTests` green (also parallel + read check); drone scenarios: see the design's S2b AS BUILT |
+| **SD-S5v-1** the SPARSE input path (§3.13e D-137 – D-146): `DeviceDefDto.Elements` (kind, hotkey, wheel role) replaces `Channels`; `DeviceInputEvent` (5204, ≤ 8 × `InputChange`) replaces `DeviceFrameEvent`; ONE `DeviceInputEncoder` (changes only, 1 Hz heal) replaces `DeviceFrameSender`; `DeviceInputMerge` in the device ingest (presses add up, fields LWW under Tracker 3 > Replica 2 > Virtual / Script 1 held 0.5 s, duplicates dropped); `DeviceControl` + `Held` / `Switches` (R-4301) | ✅ | the S5v-1 commit — `DeviceOperatorTests.SDS5v_*` (6, red-proved); the station, the scripted station and the pad rows on the encoder; design §3.13e S5v-1 AS BUILT (writer / time / seq kept in the merge, not the recorded component) |
 
 ## 2. Rules learned this run (do not re-learn)
 
@@ -67,4 +68,6 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⭐ S2a: a pad stick that is BOTH a body row and a device row in one place is a keymap conflict — the device's rows live in their own place (`EmbodiedKeys.DeviceHat`) and the station sets `KeymapReader.Inner` while a view shows a device (the inner place shadows the outer).
 - ⭐ S2b: "is it airborne" is `FlightGround.OnTheGround` (the model's `Airborne` OR within 1 m of the ground and still) — ⛔ not `Locomotions.InAir`, which is the CLASS's domain (true for a drone on its feet).
 - ⭐ S2b: `Fdp.Toolkits.Tests` run whole reddens `DeviceTickSystemTests` / `DeviceOperatorTests` / `MissionDirectorSystemTests` / `SquadCoordination F11` / `ThreatEvaluation P1` by order (green alone); the S0 type rails (8), `S0WalkerTests` and `PersonHandsTests.CE3248` are red at `eeb4af028` — not chased.
+- ⭐ S5v-1: a recorded component is hashed by every scenario golden — ⛔ never put merge bookkeeping that depends on the WALL clock (a hold time, a heal time) in it; keep it in the system that merges.
+- ⭐ S5v-1: a test of a station's device input reads the MERGED result (`DeviceInputProbe` in Hrot.Presentation.Tests folds the bus through `DeviceInputMerge`) — sparse events are an encoding, not the state.
 - Known reds that predate the devices work (proved at `af786e236` in a clean worktree, `2026-11-28`): `NedTkbBuilderCombatTests.CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard` and `CE4621_TheMotorcycle…` (expects 2 seats, the bike has 3) — not chased.

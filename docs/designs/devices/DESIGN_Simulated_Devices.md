@@ -1450,6 +1450,31 @@ clicks the named button's rect through the adapter (the HUD is the path under te
 
 **SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rails: a test adapter swapped in for the virtual one drives the device identically (D-131); a replica's events + a HUD click in the same frame ⇒ both presses counted on the device, the replica's axes and look untouched; a tracker holds the look against the mouse for 0.5 s; a lost source heals at 1 Hz (D-137–D-140); a latching chip is not clickable beside a replica (D-135). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
 
+⭐ **S5v-1 AS BUILT (`2026-11-28`)** — the SPARSE input path, no UI change. **The descriptor** (D-142): `DeviceDefDto.Elements` (`DeviceElementDto`: `Name`,
+`Kind` = `Button` / `Switch` / `Axis`, `Positions`, `Min` / `Max`, `Hotkey` — an `EditorKey` name, `Wheel` = `None` / `Up` / `Down`) replaces `Channels`;
+`TryElement` / `ButtonOf` / `ElementAt` / `CountOf` (the index counts within the kind). TKB 640: RANGE `R` · MODE `O` · MENU `P` · SELECT `Enter` (keys the
+operator does not need through a device — R next round, O the shoulder view; P and Enter free; ⛔ M / B / J / Esc are never shadowed); 641: ZOOM IN `Equals` +
+wheel Up, ZOOM OUT `Minus` + wheel Down. `RangefinderBehaviorTests.S1e1_…` pins names, hotkeys and the wheel roles to the behaviours' constants. **The event**
+(D-143 – D-145): `DeviceInputEvent` (event 5204, `PossessionEventIds.DeviceInput`; ⛔ `DeviceFrameEvent` and `DeviceFrameSender` deleted) = `Device`, `Station`,
+`Source` (`DeviceInputSource` Virtual · Script · Instructor · Replica · Tracker — `DeviceInputSources.Priority` 1 · 1 · 1 · 2 · 3), `Count`, `PoseMask`
+(orientation · position · Viewed present · Viewed on), `SourceSeq`, the pose block, `InputChanges` ×8 of `InputChange` (8 B). **The encoder** (D-146):
+`DeviceInputEncoder` — an adapter STAGES per device (`Press` by index or by NAME through `Encode`, `Hold`, `SetSwitch`, `SetAxis`, `SetOrientation` /
+`SetWorldLook`, `SetPosition`, `SetViewed`); `Flush` sends each device ONLY its changes, ≤ 8 per event (more ⇒ the next event, the next seq), the pose on the
+first; a momentary press = `ButtonDown ×n` + `ButtonUp` in one event; a held level going down = one press. **The merge** (D-138 / D-139): `DeviceInputMerge`, run
+by `DeviceTickSystem`'s ingest for every event IN ORDER (the HeldBy / Operated gates unchanged); a `ButtonDown` ADDS to the device's own counter (so
+`DevicePressReader` is unchanged); a field (axis, switch, orientation, position) is last-writer-wins unless a higher priority wrote it within 0.5 s (wall);
+a duplicate `SourceSeq` is dropped. **`DeviceInput`** (R-4301): `DeviceControl` grew `Held` (16 bits) and `Switches` (×8), lost `BodyOffset` (no reader) and
+the frame `Seq`. **Adapters**: `PossessionStation` (Virtual), `ScriptedStation` (Script — a switch steps from the device's merged position) and the pad rows
+write through the encoder. ⚠ **Deviations, argued:** ① the per-field writer + time and the per-source seq are the MERGE's own state, NOT fields of
+`DeviceInput` — `DeviceInput` is recorded and hashed by every golden, and a wall time in it would make each run's recording differ (S1e's frame-paced lesson);
+the merged values alone replay exactly. ② `HeldSnapshot` speaks only for the bits its source holds (`Count` = that mask): an unscoped snapshot from the
+virtual source would clear a replica's held button every heal. It is therefore not priority-held. ③ `SourceSeq` is process-wide monotonic, so a NEW encoder of
+the same (station, source) — a re-possess builds a new driver — never restarts below the device's last; the merge also forgets a device whose input was
+cleared (a new operator). ④ `Device` is a local `Entity` and the event rides the local bus — SD-C re-keys it by network id. ⑤ The heal (1 Hz + at once on a new
+device or operator epoch) re-sends only what the source OWNS (switches / axes it set, its held buttons, the pose it set). Rails (`DeviceOperatorTests`,
+red-proved: the counter SET instead of added, the hold disabled): `SDS5v_TwoSourcesPresses_AddUp_…`, `…_HoldsAField_ForHalfASecond`,
+`…_ALostButtonUp_HealsOnTheSnapshot`, `…_ADuplicate_IsDroppedBySourceSeq`, `…_TheEncoder_SendsOnlyChanges_AtMostEightPerEvent`, `…_AllocatesNothing`. Scenarios: the six SD-S1 device scenarios 6 / 6 pass, every golden SAME (the merged input is unchanged in meaning).
+
 #### 3.13f SD-S4c — READY-TO-BUILD (mockups 20–23 drawn): a CONTROL UNIT that operates weapons it is not mounted on — the remote launcher box and the remote weapon station *(user, `2026-11-28`)*
 
 🔒 User: *"how a control unit device (which might not be a weapon itself) operates the launcher the device is connected to — how it initiates the launch, how it

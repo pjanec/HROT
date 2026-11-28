@@ -83,7 +83,7 @@ namespace Hrot.Editor.Director
     /// <summary>
     /// ⭐⭐ Simulated devices S1e-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §5a) — a station the checks drive as a scripted TRAINEE: possess a unit (as
     /// the HTTP possess does), bind its view to a device, and control that device — through the SAME device-frame sender a keyboard, a gamepad or a replica
-    /// fills (<c>DeviceFrameSender</c>). <see cref="Frame"/> is called on EVERY frame of the run (paused ones too): it sends one frame per device the station
+    /// fills (<c>DeviceInputEncoder</c>, SD-S5v). <see cref="Frame"/> is called on EVERY frame of the run (paused ones too): it sends one frame per device the station
     /// operates, as the real station does each input frame. Main thread.
     /// </summary>
     public interface IVerifyStation

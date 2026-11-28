@@ -33,8 +33,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         public const int ControlFrame = 5202;
         /// <summary>⭐ CE-11027 S12-3 — 5203 (free by a census of every <c>[EventId]</c> in the tree, <c>2026-11-21</c>).</summary>
         public const int ReleaseStation = 5203;
-        /// <summary>⭐ Simulated devices S1b-2 — a station's frame for ONE device it operates (<c>DeviceFrameEvent</c>).</summary>
-        public const int DeviceFrame = 5204;
+        /// <summary>⭐ Simulated devices SD-S5v — one source's SPARSE input for ONE device (<c>DeviceInputEvent</c>; ⛔ reuses S1b-2's <c>DeviceFrameEvent</c>
+        /// id — R-4301, no recording compatibility).</summary>
+        public const int DeviceInput = 5204;
     }
 
     /// <summary>

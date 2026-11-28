@@ -277,7 +277,7 @@ namespace Hrot.Map.Definitions.Tkb
 
         /// <summary>
         /// ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4 / D-26) — the DEVICE types: a hand-held laser
-        /// rangefinder and binoculars (<c>Gen.Device</c>). Each names the behaviour the device tick runs and its channels by NAME (the wire is the
+        /// rangefinder and binoculars (<c>Gen.Device</c>). Each names the behaviour the device tick runs and its input ELEMENTS by NAME (D-142 — the wire is the
         /// index — <c>RangefinderChannels</c> / <c>BinocularsChannels</c>, pinned to these names by <c>DeviceTkbTypesTests</c>) and its optic.
         /// Hidden from the Add Entity picker (placed by a scenario or a station preset; issued at run time from SD-S5); no map symbol (drawn where it
         /// lies from SD-S5, D-64).
@@ -288,7 +288,13 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDevice(TkbEntityTypes.Device_LaserRangefinder, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
                 {
                     Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder,
-                    Channels = { "RANGE", "MODE", "MENU", "SELECT" },
+                    // ⭐ SD-S5v (D-142 / D-124) — the descriptor: four buttons, each with its virtual-panel hotkey (keys the operator does not need
+                    //   while he looks through a device: R next round, O the shoulder view; P and Enter are free)
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE", "O"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MENU", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SELECT", "Enter"),
+                    },
                     Magnifications = { 7f },
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_LaserRangefinder);
@@ -296,7 +302,12 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDevice(TkbEntityTypes.Device_Binoculars, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
                 {
                     Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars,
-                    Channels = { "ZOOM IN", "ZOOM OUT" },
+                    // ⭐ SD-S5v (D-124 / D-125) — the WHEEL zooms (a notch up = ZOOM IN, down = ZOOM OUT; ⛔ S1d-3's wheel-by-index retired); + / − too
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ZOOM IN", "Equals", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Up),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ZOOM OUT", "Minus", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Down),
+                    },
                     Magnifications = { 5f, 7f, 10f },
                     DefaultStep = 1,
                 })

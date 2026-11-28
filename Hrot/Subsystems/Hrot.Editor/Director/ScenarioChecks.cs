@@ -143,7 +143,7 @@ namespace Hrot.Editor.Director
         public int Station { get; init; } = 1;
         /// <summary><c>possess</c>: the unit; <c>view</c>: the device (null = the plain eye).</summary>
         public string? Who { get; init; }
-        /// <summary><c>control</c>: buttons pressed once each, by the device type's channel NAME (<c>DeviceDefDto.Channels</c>).</summary>
+        /// <summary><c>control</c>: elements pressed once each, by the device type's element NAME (<c>DeviceDefDto.Elements</c>, D-142 — a switch steps).</summary>
         public IReadOnlyList<string> Press { get; init; } = Array.Empty<string>();
         /// <summary><c>control</c>: axis index (0–3) ⇒ value (−1…1), held for <see cref="For"/> s (0 = until changed).</summary>
         public IReadOnlyList<(int Axis, float Value)> Axes { get; init; } = Array.Empty<(int, float)>();

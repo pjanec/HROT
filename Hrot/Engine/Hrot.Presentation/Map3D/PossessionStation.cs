@@ -2069,38 +2069,45 @@ namespace Hrot.UI.Common.Map3D
             return true;
         }
 
-        // ── ⭐⭐ S1d-3 — the device frames (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4 D-43 / R5-13, §3.6 D-38) ──────────────────────────
-        //   ⭐ S1e-2 — written by THE ONE sender every adapter uses (DeviceFrameSender: this station, a scenario's scripted station, later a gamepad)
+        // ── ⭐⭐ S1d-3 — the device input (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4 D-43 / R5-13, §3.6 D-38) ─────────────────────────────
+        //   ⭐ SD-S5v (§3.13e D-146) — written by THE ONE encoder every adapter uses (DeviceInputEncoder: this station's virtual source, a scenario's scripted
+        //   station, later a replica): each device gets only what changed (sparse DeviceInputEvents)
 
-        private readonly Fdp.Toolkit.Behavior.Devices.DeviceFrameSender _deviceFrames = new(PossessionStation.MaxViewSources);
-        private readonly byte[] _devicePresses = new byte[EmbodiedKeys.PadDeviceChannels];   // ⭐ SD-S2a — 0–3 the mouse (LMB, RMB, wheel up / down), 0–5 the pad
-        private readonly float[] _deviceAxes = new float[Fdp.Toolkit.Behavior.Devices.DeviceAxes.Count];   // ⭐ SD-S2a — the pad's sticks
+        private readonly Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder _deviceInput = new(Fdp.Toolkit.Behavior.Devices.DeviceInputSource.Virtual, PossessionStation.MaxViewSources);
 
-        /// <summary>The device frames this driver sent (rails).</summary>
-        public long DeviceFramesSent => _deviceFrames.Sent;
+        /// <summary>The device input events this driver sent (rails).</summary>
+        public long DeviceFramesSent => _deviceInput.Sent;
+
+        /// <summary>⭐ SD-S5v — the driver's device-input encoder (the virtual source — rails).</summary>
+        internal Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder DeviceInput => _deviceInput;
 
         /// <summary>
-        /// One <see cref="Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent"/> per device the station operates (D-43) through
-        /// <see cref="Fdp.Toolkit.Behavior.Devices.DeviceFrameSender"/>: the operator's LOOK relative to each device's mount (R5-13), <c>Viewed</c> while
-        /// the view is bound to it (D-63), and to the BOUND device only its buttons: LMB = 0, RMB = 1, the wheel up = 2 / down = 3 (the device scope,
-        /// D-38). ⛔ None while HTTP or a scenario's scripted station drives the unit (CE-1464 — its counters would race ours). 0 B.
+        /// The device input of every device the station operates (D-43) through <see cref="Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder"/>: the operator's
+        /// LOOK relative to each device's mount (R5-13), <c>Viewed</c> while the view is bound to it (D-63), and to the BOUND device only its buttons: LMB = 0,
+        /// RMB = 1, the wheel up = 2 / down = 3 (the device scope, D-38), the pad's channels 0–5 and axes. ⛔ None while HTTP or a scenario's scripted station
+        /// drives the unit (CE-1464 — its input would race ours). 0 B.
         /// </summary>
         private void SendDeviceFrames(bool viewing, float wheel = 0f)
         {
             if (_world() is not { } w || HttpControlledUnits.IsMarked(_netId) || _station.BodyStation(w) is not { } station) return;
-            System.Array.Clear(_devicePresses);
-            System.Array.Clear(_deviceAxes);
-            if (viewing && _locked != null)
+            var devices = _station.ViewSources;
+            var bound = _station.BoundDevice;
+            var look = Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder.Look(_yaw, _pitch);
+            for (int i = 0; i < devices.Length; i++)
             {
-                for (int b = 0; b < 2; b++) if (_keys.Pressed(EmbodiedKeys.DeviceButton(b))) _devicePresses[b] = 1;
-                if (wheel > 0f) _devicePresses[2] = 1;
-                else if (wheel < 0f) _devicePresses[3] = 1;
-                // ⭐ SD-S2a (§3.13c D-103) — the pad, through the device place's rows: A B X Y LB RB = channels 0–5, the sticks = axes 0–3
-                for (int b = 0; b < EmbodiedKeys.PadDeviceChannels; b++) if (_deviceKeys.Pressed(EmbodiedKeys.DeviceChannel(b))) _devicePresses[b] = 1;
-                for (int a = 0; a < _deviceAxes.Length; a++) _deviceAxes[a] = _deviceKeys.Axis(EmbodiedKeys.DeviceAxis(a));
+                _deviceInput.SetWorldLook(w, devices[i], look);
+                _deviceInput.SetViewed(devices[i], viewing && devices[i] == bound);
             }
-            _deviceFrames.Send(w, station, _station.ViewSources, _station.BoundDevice, viewing,
-                Fdp.Toolkit.Behavior.Devices.DeviceFrameSender.Look(_yaw, _pitch), _devicePresses, _deviceAxes);
+            if (viewing && _locked != null && !bound.IsNull)
+            {
+                for (int b = 0; b < 2; b++) if (_keys.Pressed(EmbodiedKeys.DeviceButton(b))) _deviceInput.Press(bound, b);
+                if (wheel > 0f) _deviceInput.Press(bound, 2);
+                else if (wheel < 0f) _deviceInput.Press(bound, 3);
+                // ⭐ SD-S2a (§3.13c D-103) — the pad, through the device place's rows: A B X Y LB RB = channels 0–5, the sticks = axes 0–3
+                for (int b = 0; b < EmbodiedKeys.PadDeviceChannels; b++) if (_deviceKeys.Pressed(EmbodiedKeys.DeviceChannel(b))) _deviceInput.Press(bound, b);
+                for (int a = 0; a < Fdp.Toolkit.Behavior.Devices.DeviceAxes.Count; a++) _deviceInput.SetAxis(bound, a, _deviceKeys.Axis(EmbodiedKeys.DeviceAxis(a)));
+            }
+            _deviceInput.Flush(w, station, devices);
         }
 
         /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold

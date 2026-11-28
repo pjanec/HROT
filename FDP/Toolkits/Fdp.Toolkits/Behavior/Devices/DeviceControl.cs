@@ -5,25 +5,27 @@ using System.Runtime.InteropServices;
 namespace Fdp.Toolkit.Behavior.Devices
 {
     /// <summary>
-    /// ⭐⭐ Simulated devices S1b-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4) — THE device section of a control frame, ONE definition
-    /// carried by both <c>OperatorControlFrameEvent</c> (what a station sends) and <c>OperatorInput</c> (what the target keeps): the generic I/O
-    /// model's inputs — four analog axes, sixteen PRESS COUNTERS (a press = its counter moved; the device compares to the last it saw, so a re-read
-    /// frame never presses twice), the tracker pose (present-flags), the body offset and whether a view shows the device (<see cref="Viewed"/>).
-    /// ⚠ AS BUILT: carried by its OWN event (<see cref="DeviceFrameEvent"/>) into its OWN component (<see cref="DeviceInput"/>) — ⛔ never inside the body's
-    /// <c>OperatorControlFrameEvent</c> / <c>OperatorInput</c>: their recorded layout hashes are pinned so earlier recordings replay (CE-11027,
-    /// <c>PossessionReplicationTests</c>), and adding a field changes them. Local until SD-C (the interaction transport carries no device frame yet).
+    /// ⭐⭐ Simulated devices S1b-2 / ⭐⭐ SD-S5v (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4, §3.13e D-138) — a device's MERGED input, the
+    /// state its logic reads (in <see cref="DeviceInput"/>): four analog axes, sixteen PRESS COUNTERS — ⭐ the DEVICE's own (D-138: every source's
+    /// <c>ButtonDown</c> bumps them, so presses from any number of sources add up and the one press reader compares them to the last it saw) — the HELD
+    /// level of each button, eight latching SWITCH positions, the tracker pose (present-flags) and whether a view shows the device (<see cref="Viewed"/>).
+    /// ⛔ SD-S5v retired the whole-state <c>DeviceFrameEvent</c> that carried this struct: the sources now send SPARSE <see cref="DeviceInputEvent"/>s the
+    /// device merges (<see cref="DeviceInputMerge"/>). ⚠ Its own component, never inside the body's <c>OperatorInput</c>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct DeviceControl
     {
         public DeviceAxes Axes;
         public DevicePresses Presses;
+        /// <summary>⭐ D-143 — bit i: button i is held down now (set by <c>ButtonDown</c>, cleared by <c>ButtonUp</c>, healed by <c>HeldSnapshot</c>).</summary>
+        public ushort Held;
+        /// <summary>⭐ D-135 — the latching switch positions (switch i of the type's descriptor).</summary>
+        public DeviceSwitches Switches;
         public Quaternion Orientation;
         public Vector3 Position;
-        public Vector3 BodyOffset;
-        /// <summary>Bit 0: <see cref="Orientation"/> present (a tracker); bit 1: <see cref="Position"/> present.</summary>
+        /// <summary>Bit 0: <see cref="Orientation"/> present (a tracker, or the station's look); bit 1: <see cref="Position"/> present.</summary>
         public byte Trackers;
-        /// <summary>1 while a view of the sending station shows THIS device (the body's brain raises the held binoculars while its binoculars device is viewed).</summary>
+        /// <summary>1 while a view of the operating station shows THIS device (the body's brain raises the held binoculars while its binoculars device is viewed).</summary>
         public byte Viewed;
 
         public const byte OrientationPresent = 1, PositionPresent = 2;
@@ -74,7 +76,7 @@ namespace Fdp.Toolkit.Behavior.Devices
 #pragma warning restore IDE0044
     }
 
-    /// <summary>Sixteen press counters, one per button channel (the device type names the channels).</summary>
+    /// <summary>Sixteen press counters, one per BUTTON element (the device type's descriptor names them, D-142).</summary>
     [InlineArray(Count)]
     public struct DevicePresses
     {
@@ -83,28 +85,14 @@ namespace Fdp.Toolkit.Behavior.Devices
         private byte _element;
 #pragma warning restore IDE0044
     }
-}
 
-namespace Fdp.Toolkit.Behavior.Devices
-{
-    /// <summary>⭐ S1b-2 — a station's frame for ONE device it operates; the device tick ingests it on the device's brain owner (newest <see cref="Seq"/>).</summary>
-    [Fdp.Core.EventId(Fdp.Toolkit.Behavior.Possession.PossessionEventIds.DeviceFrame)]
-    [StructLayout(LayoutKind.Sequential)]
-    public struct DeviceFrameEvent
+    /// <summary>⭐ SD-S5v (D-135) — eight latching switch positions, one per SWITCH element.</summary>
+    [InlineArray(Count)]
+    public struct DeviceSwitches
     {
-        public Fdp.Core.Entity Device;
-        public Fdp.Core.StationId StationNodeId;
-        public uint Seq;
-        public DeviceControl Control;
-    }
-
-    /// <summary>⭐ S1b-2 — the newest frame a device took from its operator's station: what its logic reads (its OWN entity — the parallel rule).</summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [Fdp.Core.ComponentId(Fdp.Core.GlobalComponentIds.DeviceInput)]
-    [Fdp.Core.DataPolicy(Fdp.Core.DataPolicy.NoScenario)]
-    public struct DeviceInput
-    {
-        public uint Seq;
-        public DeviceControl Control;
+        public const int Count = 8;
+#pragma warning disable IDE0044 // backing field required by InlineArray
+        private byte _element;
+#pragma warning restore IDE0044
     }
 }

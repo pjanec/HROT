@@ -610,7 +610,7 @@ namespace Hrot.SimHost.Tests
             void Viewed(Entity device, bool on, Entity op, ref OperatorControlBehavior.ManualControlState ws)
             {
                 var c = new Fdp.Toolkit.Behavior.Devices.DeviceControl { Viewed = on ? (byte)1 : (byte)0 };
-                var input = new Fdp.Toolkit.Behavior.Devices.DeviceInput { Seq = 1, Control = c };
+                var input = new Fdp.Toolkit.Behavior.Devices.DeviceInput { Control = c };
                 if (_w.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceInput>(device)) _w.SetComponent(device, input); else _w.AddComponent(device, input);
                 _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op).Seq++;
                 Tick(op, ref ws);

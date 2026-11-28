@@ -151,7 +151,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private static TkbTemplate DeviceType(string behavior)
         {
             var t = new TkbTemplate("Test device", 640);
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = behavior, Channels = { "RANGE", "MODE" } });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = behavior, Elements = { Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE") } });
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto
             {
                 SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true,

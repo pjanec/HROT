@@ -37,7 +37,6 @@ namespace Hrot.SimHost.Tests
             public readonly Entity D;
             public RangefinderBehavior.RangefinderParams P;
             public RangefinderBehavior.RangefinderWork Ws;
-            private uint _seq;
 
             public Node()
             {
@@ -62,7 +61,7 @@ namespace Hrot.SimHost.Tests
                 var c = new DeviceControl();
                 c.Presses[RangefinderChannels.Range] = range; c.Presses[RangefinderChannels.Mode] = mode;
                 c.Presses[RangefinderChannels.Menu] = menu; c.Presses[RangefinderChannels.Select] = select;
-                var input = new DeviceInput { Seq = ++_seq, Control = c };
+                var input = new DeviceInput { Control = c };
                 if (W.HasComponent<DeviceInput>(D)) W.SetComponent(D, input); else W.AddComponent(D, input);
             }
 
@@ -96,17 +95,22 @@ namespace Hrot.SimHost.Tests
             var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
             var rf = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder).GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>()!;
             Assert.Equal(BehaviorNames.DeviceRangefinder, rf.Behavior);
-            Assert.Equal(RangefinderChannels.Count, rf.Channels.Count);
-            Assert.Equal(RangefinderChannels.Range, rf.ChannelOf("RANGE"));
-            Assert.Equal(RangefinderChannels.Mode, rf.ChannelOf("MODE"));
-            Assert.Equal(RangefinderChannels.Menu, rf.ChannelOf("MENU"));
-            Assert.Equal(RangefinderChannels.Select, rf.ChannelOf("select"));   // by name, any case
+            Assert.Equal(RangefinderChannels.Count, rf.CountOf(Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button));
+            Assert.Equal(RangefinderChannels.Count, rf.Elements.Count);   // ⭐ SD-S5v — four buttons, nothing else
+            Assert.All(rf.Elements, e => Assert.False(string.IsNullOrEmpty(e.Hotkey)));   // ⭐ D-124 — each with its virtual-panel key
+            Assert.Equal(RangefinderChannels.Range, rf.ButtonOf("RANGE"));
+            Assert.Equal(RangefinderChannels.Mode, rf.ButtonOf("MODE"));
+            Assert.Equal(RangefinderChannels.Menu, rf.ButtonOf("MENU"));
+            Assert.Equal(RangefinderChannels.Select, rf.ButtonOf("select"));   // by name, any case
             Assert.Equal(new[] { RangefinderBehavior.Magnification }, rf.Magnifications);
 
             var bn = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_Binoculars).GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>()!;
             Assert.Equal(BehaviorNames.DeviceBinoculars, bn.Behavior);
-            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomIn, bn.ChannelOf("ZOOM IN"));
-            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomOut, bn.ChannelOf("ZOOM OUT"));
+            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomIn, bn.ButtonOf("ZOOM IN"));
+            Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomOut, bn.ButtonOf("ZOOM OUT"));
+            // ⭐ SD-S5v (D-124 / D-125) — the wheel zooms by ROLE, not by index
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Up, bn.ElementAt(Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomIn)!.Wheel);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Down, bn.ElementAt(Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, Hrot.AI.Behaviors.Devices.Binoculars.BinocularsChannels.ZoomOut)!.Wheel);
             Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsZoom.Steps.ToArray(), bn.Magnifications);
             Assert.Equal(Hrot.AI.Behaviors.Devices.Binoculars.BinocularsZoom.DefaultStep, bn.DefaultStep);
 
@@ -262,7 +266,6 @@ namespace Hrot.SimHost.Tests
             public readonly LaserSpotSystem Laser = new();
             public SpatialHashGrid Grid;
             public readonly Entity D, Target;
-            private uint _seq;
             // ⭐ S1d-2 — the HUD half (when asked): the brain's gizmo system with the rangefinder's projector, and the man who carries the device
             public readonly DebugPrimitiveBuffer? Buffer;
             public readonly StatelessGizmoSystem? Gizmos;
@@ -312,7 +315,7 @@ namespace Hrot.SimHost.Tests
             {
                 var c = new DeviceControl();
                 c.Presses[RangefinderChannels.Range] = range; c.Presses[RangefinderChannels.Mode] = mode;
-                var input = new DeviceInput { Seq = ++_seq, Control = c };
+                var input = new DeviceInput { Control = c };
                 if (W.HasComponent<DeviceInput>(D)) W.SetComponent(D, input); else W.AddComponent(D, input);
             }
 
@@ -417,12 +420,11 @@ namespace Hrot.SimHost.Tests
             r.W.AddComponent(north, new PhysicsCollider { Radius = 0.5f, Height = 2f, CollisionLayer = 1 });
             r.Grid.Add(north, new Vector2(0f, 300f));
             r.W.SetSingleton(new SpatialGridData { Grid = r.Grid });
-            uint seq = 100;
             void Look(float yaw, byte range)
             {
                 var c = new DeviceControl { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, yaw), Trackers = DeviceControl.OrientationPresent };
                 c.Presses[RangefinderChannels.Range] = range;
-                var input = new DeviceInput { Seq = ++seq, Control = c };
+                var input = new DeviceInput { Control = c };
                 if (r.W.HasComponent<DeviceInput>(r.D)) r.W.SetComponent(r.D, input); else r.W.AddComponent(r.D, input);
             }
             Look(MathF.PI / 2f, 0);

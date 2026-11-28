@@ -28,7 +28,6 @@ namespace Hrot.SimHost.Tests
             public readonly Entity D;
             public BinocularsBehavior.BinocularsParams P;
             public BinocularsBehavior.BinocularsWork Ws;
-            private uint _seq;
 
             public Node()
             {
@@ -48,7 +47,7 @@ namespace Hrot.SimHost.Tests
                 var c = new DeviceControl();
                 c.Presses[BinocularsChannels.ZoomIn] = zoomIn; c.Presses[BinocularsChannels.ZoomOut] = zoomOut;
                 if (look is { } q) { c.Orientation = q; c.Trackers = DeviceControl.OrientationPresent; }
-                var input = new DeviceInput { Seq = ++_seq, Control = c };
+                var input = new DeviceInput { Control = c };
                 if (W.HasComponent<DeviceInput>(D)) W.SetComponent(D, input); else W.AddComponent(D, input);
             }
 
@@ -122,12 +121,11 @@ namespace Hrot.SimHost.Tests
             w.AddComponent(d, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             w.AddComponent(d, new BehaviorState());
             w.AddComponent(d, new DeviceInfo { DeviceType = 78, Behavior = new FixedString64(BehaviorNames.DeviceBinoculars) });
-            uint seq = 0;
             void Press(byte zoomIn)
             {
                 var c = new DeviceControl();
                 c.Presses[BinocularsChannels.ZoomIn] = zoomIn;
-                var input = new DeviceInput { Seq = ++seq, Control = c };
+                var input = new DeviceInput { Control = c };
                 if (w.HasComponent<DeviceInput>(d)) w.SetComponent(d, input); else w.AddComponent(d, input);
             }
             void Frame() { w.Bus.SwapBuffers(); devices.Execute(w, 0f); }

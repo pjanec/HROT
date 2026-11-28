@@ -445,15 +445,16 @@ public sealed class ScenarioChecksTests
         w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<EntityInfo>(); w.RegisterComponent<SimTransform>();
         w.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(); w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
         w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
-        w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>();
+        w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>();
         var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
         w.SetSingletonManaged(map);
         var db = new Fdp.Toolkit.Tkb.TkbDatabase();
         var type = new Fdp.Interfaces.TkbTemplate("Rangefinder", 640);
-        type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = "DeviceRangefinder", Channels = { "RANGE", "MODE", "MENU", "SELECT" } });
+        type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = "DeviceRangefinder", Elements = { B("RANGE"), B("MODE"), B("MENU"), B("SELECT") } });
         db.Register(type);
         w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
         var station = (StationId)9;
+        static Fdp.Toolkit.Tkb.Domain.DeviceElementDto B(string n) => Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button(n);
         Entity Make(int id, string name, Vector3 at)
         {
             var e = w.CreateEntity();
@@ -478,6 +479,7 @@ public sealed class ScenarioChecksTests
         });
         Assert.NotNull(s.View(2));                                  // nothing possessed yet
         Assert.Null(s.Possess(1));
+        s.Encoder.Clock = () => 0d;                                  // ⭐ SD-S5v — no wall-clock heal inside this rail
         Assert.NotNull(s.View(77));                                 // not a device he operates
         Assert.Null(s.View(2));
         Assert.Equal(2, s.BoundSource);
@@ -485,15 +487,22 @@ public sealed class ScenarioChecksTests
         Assert.Null(s.Control(new StationAction { Kind = "control", Press = new[] { "menu" }, AimAt = "Target" }, 0));
         s.Frame(0);
         w.Bus.SwapBuffers();
-        var frames = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>().ToArray();
-        Assert.Equal(2, frames.Length);                             // one per operated device
+        var frames = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>().ToArray();
+        Assert.Equal(2, frames.Length);                             // one per operated device (its first: the look, Viewed)
         var mine = frames.Single(f => f.Device == rf); var theirs = frames.Single(f => f.Device == other);
-        Assert.Equal(station, mine.StationNodeId);
-        Assert.Equal(1, mine.Control.Presses[2]);                   // MENU = channel 2, on the bound device only
-        Assert.Equal(0, theirs.Control.Presses[2]);
-        Assert.Equal(1, mine.Control.Viewed);
-        Assert.Equal(0, theirs.Control.Viewed);
-        var dir = Vector3.Transform(Vector3.UnitX, mine.Control.Orientation);
+        Assert.Equal(station, mine.Station);
+        Assert.Equal(Fdp.Toolkit.Behavior.Devices.DeviceInputSource.Script, mine.Source);
+        bool Pressed(Fdp.Toolkit.Behavior.Devices.DeviceInputEvent e, int button)
+        {
+            for (int i = 0; i < e.Count; i++)
+                if (e.Changes[i].Kind == Fdp.Toolkit.Behavior.Devices.InputChangeKind.ButtonDown && e.Changes[i].Element == button) return true;
+            return false;
+        }
+        Assert.True(Pressed(mine, 2));                              // MENU = button 2, on the bound device only
+        Assert.False(Pressed(theirs, 2));
+        Assert.NotEqual(0, mine.PoseMask & Fdp.Toolkit.Behavior.Devices.DeviceInputEvent.ViewedOn);
+        Assert.Equal(0, theirs.PoseMask & Fdp.Toolkit.Behavior.Devices.DeviceInputEvent.ViewedOn);
+        var dir = Vector3.Transform(Vector3.UnitX, mine.Orientation);
         Assert.True(Vector3.Dot(Vector3.Normalize(dir), Vector3.Normalize(new Vector3(100f, 100f, ScriptedStation.AimHeight))) > 0.9999f, $"the look points at the target ({dir})");
         for (int i = 0; i < 20; i++) { s.Frame(0); w.Bus.SwapBuffers(); }
         // ⭐ S1e-3 — nothing changed: nothing sent (a device's recorded input must not depend on how many frames a sim instant had — dv-replay-hud)

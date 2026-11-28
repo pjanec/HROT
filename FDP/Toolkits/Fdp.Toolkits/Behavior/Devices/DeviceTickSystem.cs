@@ -31,6 +31,9 @@ namespace Fdp.Toolkit.Behavior.Devices
         // a device whose start was REFUSED (an unknown behaviour, the gate) is not retried every frame: no string, no allocation — until its run changes
         private readonly System.Collections.Generic.Dictionary<int, uint> _refusedAtInstance = new();
 
+        /// <summary>⭐ SD-S5v (D-138) — the device-side merge of every source's sparse input events (its own wall clock and bookkeeping; a rail sets the clock).</summary>
+        public DeviceInputMerge Merge { get; } = new();
+
         /// <summary>Starts ever made (a rail reads it; never reset).</summary>
         public int Starts { get; private set; }
 
@@ -51,9 +54,9 @@ namespace Fdp.Toolkit.Behavior.Devices
             {
                 _devices = repo.Query().With<DeviceInfo>().WithOwnedWhen<BehaviorState>(_gate).Build();
                 _queryFor = repo;
-                // ⭐ S1d-3 — the device frame's event is the device tick's to read: registered here (as PossessionSystem registers the body's), so a
-                //   station's frames reach a device on every host — ⛔ before, only the rails registered it and no production frame was ever ingested
-                if (!repo.Bus.IsRegistered<DeviceFrameEvent>()) repo.Bus.Register<DeviceFrameEvent>();
+                // ⭐ S1d-3 — the device input's event is the device tick's to read: registered here (as PossessionSystem registers the body's), so a
+                //   station's input reaches a device on every host — ⛔ before, only the rails registered it and no production frame was ever ingested
+                if (!repo.Bus.IsRegistered<DeviceInputEvent>()) repo.Bus.Register<DeviceInputEvent>();
                 if (!repo.IsComponentTypeRegistered<DeviceInput>()) repo.RegisterComponent<DeviceInput>();
             }
             foreach (var e in _devices)
@@ -68,18 +71,20 @@ namespace Fdp.Toolkit.Behavior.Devices
                 if (_ingress.AssignNow(repo, e, name, "{}", BehaviorOrigin.Self)) { Starts++; _refusedAtInstance.Remove(e.Index); }
                 else _refusedAtInstance[e.Index] = b.InstanceId;
             }
-            // ⭐ S1b-2 — the DEVICE INGEST (D-72): this frame's device frames aimed at a device this node runs, sent by the station its row names
-            //   (the existing HeldBy gate, PossessionMode.Operated); the newest Seq becomes the device's own DeviceInput. Every frame, so a press in
-            //   pause reaches the device, and each frame is read once.
-            if (repo.Bus.IsRegistered<DeviceFrameEvent>() && repo.IsComponentTypeRegistered<DeviceInput>() && repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
-                foreach (ref readonly var f in repo.ReadEvents<DeviceFrameEvent>())
+            // ⭐ S1b-2 / ⭐⭐ SD-S5v (D-138) — the DEVICE INGEST: this frame's SPARSE input events aimed at a device this node runs, sent by the station its
+            //   row names (the existing HeldBy gate, PossessionMode.Operated), merged IN ARRIVAL ORDER into the device's own DeviceInput (DeviceInputMerge:
+            //   presses add up, fields last-writer-wins under the source priority). Every frame, so a press in pause reaches the device, each event read once.
+            if (repo.Bus.IsRegistered<DeviceInputEvent>() && repo.IsComponentTypeRegistered<DeviceInput>() && repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
+                foreach (ref readonly var f in repo.ReadEvents<DeviceInputEvent>())
                 {
                     if (!DeviceMarker.IsDevice(repo, f.Device) || !Fdp.Toolkit.Behavior.Possession.PossessionSystem.OwnsBrain(repo, f.Device)) continue;
-                    if (!Fdp.Toolkit.Behavior.Possession.PossessionSystem.HeldBy(repo, f.Device, f.StationNodeId)) continue;
+                    if (!Fdp.Toolkit.Behavior.Possession.PossessionSystem.HeldBy(repo, f.Device, f.Station)) continue;
                     if (repo.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(f.Device).Mode != Fdp.Toolkit.Behavior.Possession.PossessionMode.Operated) continue;
-                    if (repo.HasComponent<DeviceInput>(f.Device) && f.Seq <= repo.GetComponentRO<DeviceInput>(f.Device).Seq) continue;
-                    var input = new DeviceInput { Seq = f.Seq, Control = f.Control };
-                    if (repo.HasComponent<DeviceInput>(f.Device)) repo.SetComponent(f.Device, input); else repo.AddComponent(f.Device, input);
+                    bool has = repo.HasComponent<DeviceInput>(f.Device);
+                    if (!has) Merge.Forget(f.Device);   // a clean input (a new operator, R7-11): every source starts afresh
+                    var input = has ? repo.GetComponentRO<DeviceInput>(f.Device) : default;
+                    if (!Merge.Apply(in f, ref input)) continue;
+                    if (has) repo.SetComponent(f.Device, input); else repo.AddComponent(f.Device, input);
                 }
             return true;
         }

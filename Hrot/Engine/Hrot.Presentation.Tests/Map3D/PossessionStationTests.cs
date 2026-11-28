@@ -527,7 +527,8 @@ public sealed partial class PossessionStationTests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
-            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>();
+            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>();
+            var probe = new DeviceInputProbe();   // ⭐ SD-S5v — what each device would merge from the station's sparse events
             Entity Device(int netId, string behaviour, float fov)
             {
                 var d = w.CreateEntity();
@@ -552,20 +553,20 @@ public sealed partial class PossessionStationTests
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
             Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
-            (OperatorControlFrameEvent Body, Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent[] Devices) Frame(Input input)
+            (OperatorControlFrameEvent Body, Fdp.Toolkit.Behavior.Devices.DeviceInputEvent[] Devices) Frame(Input input)
             {
                 station.Update(0.016f);
                 sw.Camera3D.HandleInput(input);
                 w.Bus.SwapBuffers();
-                return (Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()), w.Bus.Read<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>().ToArray());
+                return (Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()), probe.Read(w));
             }
-            Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent Of(Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent[] frames, Entity d) => Assert.Single(frames, f => f.Device == d);
+            Fdp.Toolkit.Behavior.Devices.DeviceControl Of(Entity d) => probe.Of(d);
             Input B() { var i = new Input(); i.Pressed.Add((int)Raylib_cs.KeyboardKey.B); return i; }
 
             var eye = Frame(new Input());
-            Assert.Equal(2, eye.Devices.Length);                                              // one frame per device he operates
+            Assert.Equal(2, eye.Devices.Length);                                              // its first: one event per device he operates
             Assert.True(station.BoundDevice.IsNull);
-            Assert.Equal(0, Of(eye.Devices, binoculars).Control.Viewed);
+            Assert.Equal(0, Of(binoculars).Viewed);
             Assert.Equal(45f, sw.Camera3D.FovyDegrees);
             Assert.Equal(new[] { binoculars, rangefinder }, station.ViewSources.ToArray());       // the cycle: by network id
 
@@ -573,12 +574,13 @@ public sealed partial class PossessionStationTests
             Assert.Equal(binoculars, station.BoundDevice);
             Assert.Equal(7001, layer.BoundSource);
             Assert.True(station.Switching);
-            Assert.Equal(1, Of(bound.Devices, binoculars).Control.Viewed);
-            Assert.Equal(0, Of(bound.Devices, rangefinder).Control.Viewed);
+            Assert.Equal(1, Of(binoculars).Viewed);
+            Assert.Equal(0, Of(rangefinder).Viewed);
             Frame(new Input());
             Assert.Equal(5f, sw.Camera3D.FovyDegrees, 3);                                    // the bound source's field
             Assert.Equal(5f, station.ZoomFovDegrees!.Value, 3);
-            var df = Of(Frame(new Input()).Devices, binoculars).Control;
+            Frame(new Input());
+            var df = Of(binoculars);
             Assert.NotEqual(0, df.Trackers & Fdp.Toolkit.Behavior.Devices.DeviceControl.OrientationPresent);
             var mount = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.3f);
             var lookWorld = Vector3.Transform(Vector3.UnitX, mount * df.Orientation);           // his look, through the mount
@@ -587,7 +589,7 @@ public sealed partial class PossessionStationTests
 
             var click = Frame(new Input { LeftPressed = true, LeftDown = true });               // LMB through a device: its button 0, no shot
             Assert.Equal((0, (byte)0), (click.Body.ShotSeq, click.Body.Trigger));
-            Assert.Equal(1, Of(click.Devices, binoculars).Control.Presses[0]);
+            Assert.Equal(1, Of(binoculars).Presses[0]);
             Frame(new Input { MiddlePressed = true });                                         // the middle button designates for his men
             Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
 
@@ -598,7 +600,7 @@ public sealed partial class PossessionStationTests
             var back = Frame(B());                                                            // back to the plain eye
             Assert.True(station.BoundDevice.IsNull);
             Assert.Equal(0, layer.BoundSource);
-            Assert.Equal(0, Of(back.Devices, binoculars).Control.Viewed);
+            Assert.Equal(0, Of(binoculars).Viewed);
             Frame(new Input());
             Assert.Equal(45f, sw.Camera3D.FovyDegrees);
 

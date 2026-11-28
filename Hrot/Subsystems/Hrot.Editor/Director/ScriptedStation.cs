@@ -20,9 +20,10 @@ namespace Hrot.Editor.Director
     /// was proven over HTTP only — <c>scenarios/showcases/player-station</c>). It is a STATION in every sense the device code sees: ① it possesses through the
     /// one possess path (the host's <c>POST /entities/{id}/possess</c> service — the unit's row names this node's station, the device walk then writes each
     /// device's <c>Operated</c> row, R7-1); ② its view is bound to one of the devices those rows name (<see cref="OperatedDevices"/>, D-38) or the eye;
-    /// ③ every frame it sends one <see cref="DeviceFrameEvent"/> per device it operates through <see cref="DeviceFrameSender"/> — the SAME sender the
-    /// keyboard / mouse station fills: the LOOK relative to each mount (aimed at a unit or a point — the device's <c>DevicePose</c> follows, R5-13),
-    /// <c>Viewed</c> on the bound one, and its buttons pressed by their TKB channel NAME (<see cref="DeviceDefDto.Channels"/>, D-26) and its axes.
+    /// ③ ⭐ SD-S5v (D-146) — it is the SCRIPT SOURCE of every device it operates: through <see cref="DeviceInputEncoder"/> — the SAME encoder the keyboard /
+    /// mouse station and its virtual panel write through — it sends each device only what changed (sparse <see cref="DeviceInputEvent"/>s): the LOOK
+    /// relative to each mount (aimed at a unit or a point — the device's <c>DevicePose</c> follows, R5-13), <c>Viewed</c> on the bound one, and its elements
+    /// pressed by their TKB NAME (<see cref="DeviceDefDto.Elements"/>, D-142 — a click on the HUD makes the same bytes) and its axes.
     /// Main thread, on the host's brain world (the debug service's).
     /// </summary>
     public sealed class ScriptedStation : IVerifyStation
@@ -32,10 +33,11 @@ namespace Hrot.Editor.Director
 
         private readonly Func<EntityRepository?> _world;
         private readonly Func<int, string?> _possess;
-        private readonly DeviceFrameSender _sender = new(MaxDevices, onlyOnChange: true);   // ⭐ S1e-3 — frame-count independent (dv-replay-hud)
+        // ⭐ SD-S5v — the script source: only changes are sent, so the device's input never depends on how many frames a sim instant had (S1e-3, dv-replay-hud)
+        private readonly DeviceInputEncoder _encoder = new(DeviceInputSource.Script, MaxDevices);
         private readonly Entity[] _sources = new Entity[MaxDevices];
-        private readonly byte[] _presses = new byte[DevicePresses.Count];
         private readonly float[] _axes = new float[DeviceAxes.Count];
+        private int _axesSet;   // bit k: the script set axis k
         private double _axesUntil = double.PositiveInfinity;
         private int _body;            // the possessed unit's network id (0 = none)
         private long _bound;          // the view's device (network id, 0 = the eye)
@@ -52,8 +54,14 @@ namespace Hrot.Editor.Director
             _possess = possess ?? throw new ArgumentNullException(nameof(possess));
         }
 
-        /// <summary>Frames sent (rails).</summary>
-        public long FramesSent => _sender.Sent;
+        /// <summary>Input events sent (rails).</summary>
+        public long FramesSent => _encoder.Sent;
+
+        /// <summary>⭐ SD-S5v — the script source's encoder (a rail reads it; the <c>do: click</c> row's adapter writes through it).</summary>
+        public DeviceInputEncoder Encoder => _encoder;
+
+        /// <summary>⭐ SD-S5v — the bound device's entity (null when the view shows the eye).</summary>
+        public Entity BoundDevice => _world() is { } w ? BoundEntity(w) : Entity.Null;
 
         /// <summary>The bound device's network id (0 = the plain eye).</summary>
         public long BoundSource => _bound;
@@ -95,15 +103,10 @@ namespace Hrot.Editor.Director
             if (action.Press.Count > 0)
             {
                 var type = TypeOf(w, bound);
-                if (type is null) return "the device has no TKB type (Gen.Device) naming its channels";
                 foreach (var name in action.Press)
-                {
-                    int ch = type.ChannelOf(name);
-                    if (ch < 0 || ch >= DevicePresses.Count) return $"the device has no button '{name}' (its channels: {string.Join(", ", type.Channels)})";
-                    _presses[ch]++;
-                }
+                    if (_encoder.Press(bound, type, name, CurrentSwitch(w, bound, type, name)) is { } why) return why;   // ⭐ D-146 — the one name → element lookup
             }
-            foreach (var (axis, value) in action.Axes) _axes[axis] = value;
+            foreach (var (axis, value) in action.Axes) { _axes[axis] = value; _axesSet |= 1 << axis; }
             if (action.Axes.Count > 0) _axesUntil = action.For > 0d ? rel + action.For : double.PositiveInfinity;
             return null;
         }
@@ -116,8 +119,23 @@ namespace Hrot.Editor.Director
             if (rel + 1e-9 >= _axesUntil) { Array.Clear(_axes); _axesUntil = double.PositiveInfinity; }
             var bound = BoundEntity(w);
             if (!_bound.Equals(0L) && bound.IsNull) _bound = 0;   // dropped, taken, handed over: back to the eye (as the station does)
-            _sender.Send(w, station, _sources.AsSpan(0, n), bound, viewing: true, LookFrom(w, bound.IsNull ? _sources[0] : bound), _presses, _axes);
-            Array.Clear(_presses);
+            var look = LookFrom(w, bound.IsNull ? _sources[0] : bound);
+            for (int i = 0; i < n; i++)
+            {
+                _encoder.SetWorldLook(w, _sources[i], look);
+                _encoder.SetViewed(_sources[i], _sources[i] == bound);
+            }
+            if (!bound.IsNull)
+                for (int k = 0; k < DeviceAxes.Count; k++) if ((_axesSet & (1 << k)) != 0) _encoder.SetAxis(bound, k, _axes[k]);
+            _encoder.Flush(w, station, _sources.AsSpan(0, n));
+        }
+
+        /// <summary>A switch element's NEXT position as the device holds it now (its merged input) — a press steps it; −1 for any other element.</summary>
+        private static int CurrentSwitch(EntityRepository w, Entity device, DeviceDefDto? type, string name)
+        {
+            if (!DeviceInputEncoder.Encode(type, name, out var kind, out int index) || kind != DeviceElementKind.Switch) return -1;
+            int now = w.IsComponentTypeRegistered<DeviceInput>() && w.HasComponent<DeviceInput>(device) ? w.GetComponentRO<DeviceInput>(device).Control.Switches[index] : 0;
+            return (now + 1) % Math.Max(1, type!.ElementAt(kind, index)!.Positions);
         }
 
         // ── helpers ──────────────────────────────────────────────────────────────────────────────
@@ -152,12 +170,12 @@ namespace Hrot.Editor.Director
             if (to is { } target && (target - from).LengthSquared() > 1e-6f)
             {
                 var d = target - from;
-                return DeviceFrameSender.Look(MathF.Atan2(d.Y, d.X), MathF.Atan2(d.Z, MathF.Sqrt(d.X * d.X + d.Y * d.Y)));
+                return DeviceInputEncoder.Look(MathF.Atan2(d.Y, d.X), MathF.Atan2(d.Z, MathF.Sqrt(d.X * d.X + d.Y * d.Y)));
             }
             if (w.HasSingletonManaged<NetworkEntityMap>() && w.GetSingletonManaged<NetworkEntityMap>()!.TryGetEntity(_body, out var body) && w.HasComponent<SimTransform>(body))
             {
                 var f = Vector3.Transform(Vector3.UnitX, (Quaternion)w.GetComponentRO<SimTransform>(body).Rotation);
-                return DeviceFrameSender.Look(MathF.Atan2(f.Y, f.X), 0f);
+                return DeviceInputEncoder.Look(MathF.Atan2(f.Y, f.X), 0f);
             }
             return Quaternion.Identity;
         }
@@ -168,7 +186,7 @@ namespace Hrot.Editor.Director
             return 0;
         }
 
-        /// <summary>The device's TKB type (its <c>DeviceInfo.DeviceType</c>) — what names its channels.</summary>
+        /// <summary>The device's TKB type (its <c>DeviceInfo.DeviceType</c>) — what names its elements (D-142).</summary>
         public static DeviceDefDto? TypeOf(EntityRepository w, Entity device)
         {
             if (!w.IsComponentTypeRegistered<DeviceInfo>() || !w.HasComponent<DeviceInfo>(device) || !w.HasSingletonManaged<ITkbDatabase>()) return null;

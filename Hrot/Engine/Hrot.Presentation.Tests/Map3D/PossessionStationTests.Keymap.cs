@@ -258,7 +258,8 @@ public sealed partial class PossessionStationTests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
-            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>();
+            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>();
+            var probe = new DeviceInputProbe();   // ⭐ SD-S5v — the device's merged input
             var d = w.CreateEntity();
             w.AddComponent(d, new SimTransform { Position = new Vector3(100f, 50f, 1.5f), Rotation = Quaternion.Identity });
             w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 78, Behavior = new FixedString64(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars) });
@@ -275,7 +276,9 @@ public sealed partial class PossessionStationTests
                 station.Update(0.016f);
                 sw.Camera3D.HandleInput(input);
                 w.Bus.SwapBuffers();
-                return (Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()), Assert.Single(w.Bus.Read<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>().ToArray()).Control);
+                var body = Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+                probe.Read(w);
+                return (body, probe.Of(d));
             }
             Input Pad(float leftY = 0f, float rightX = 0f, params MapGamepadButton[] pressed)
             {
