@@ -1194,12 +1194,15 @@ classDiagram
   class VirtualPanelAdapter { <<NEW, station, Hrot.Presentation — implements IDevicePanelIo>> the HUD's PanelButtons + mouse (POINT / RMB LOOK) + keys (hotkeys, arrows) + gamepad }
   class ReplicaPanelAdapter { <<SD-S5, a node extension — implements IDevicePanelIo>> the physical replica's buttons, axes, tracker · its lamps from DevicePanel }
   class ScriptedPanelAdapter { <<S1e-2 ScriptedStation, re-homed — implements IDevicePanelIo>> do: press / click / axis / aim }
-  class DevicePanelIoBinding { <<NEW, station>> exactly ONE IDevicePanelIo per operated device: the replica if one is attached, else the virtual one }
+  class DevicePanelIoBinding { <<NEW, station>> ONE composed frame per device: the PRIMARY adapter (replica, else virtual) + ADDITIONAL press sources (HUD clicks, hotkeys, pad) · presses additive, axes / look / latching single-owner }
+  class IDevicePressSource { <<NEW interface>> momentary presses only }
+  VirtualPanelAdapter ..|> IDevicePressSource : its HUD clicks and hotkeys beside a replica
+  DevicePanelIoBinding --> IDevicePressSource : 0..n
   VirtualPanelAdapter ..|> IDevicePanelIo
   ReplicaPanelAdapter ..|> IDevicePanelIo
   ScriptedPanelAdapter ..|> IDevicePanelIo
-  DevicePanelIoBinding --> IDevicePanelIo : one per device
-  IDevicePanelIo --> DeviceFrameSender : the ONLY way in
+  DevicePanelIoBinding --> IDevicePanelIo : the primary, one
+  DevicePanelIoBinding --> DeviceFrameSender : the ONLY way in — one frame, one Seq
   class DeviceDefDto { <<existing, grows>> Channels gain a Hotkey and an optional Wheel role }
   class DeviceFrameSender { <<existing>> the ONE sender: presses · look · axes }
   class HudScopes { <<existing>> Keep — the bound run }
@@ -1259,8 +1262,30 @@ same channel — the device's logic cannot tell them apart, which is what makes 
 | D-128 | ⭐ **every existing device HUD adopts it**: the rangefinder's MODE / POWER / EXIT chips (and MENU / SELECT), the drone station's TAKEOFF / LAND / RTH / CAM chips, the sight unit's POWER / ARM / FIRE / VIEW (panels 7–11) — redrawn through `HudPanel`; the binoculars have no chips (the wheel zooms) | one pattern for every device (ruling 9) |
 | D-129 | ⭐ **pause**: POINT, hover, clicks and LOOK all work in pause (observation and device-local state — R-4300); what a press DOES in pause is the device's rule (queued, refused) | the device decides, not the adapter |
 | D-130 | ⭐⭐⭐ **the HUD is never a path into the device — every input goes through the PANEL IO** *(🔒 user, `2026-11-28`: "the HUD interaction needs to be routed via adapter to usual panel IO in case of fully virtualized device … no shortcuts desired (HUD->device logic), so the adapter can be replaced in case we have physical replica of the device")*. A click on a `PanelButton` is an INPUT EVENT of the virtual adapter, exactly as a pressed key on a replica is an input event of the replica adapter; the adapter turns it into the channel press of the device's control frame (`DeviceFrameSender`, `DeviceFrameEvent` → `DeviceInput`), and the device's logic reads only that. ⛔ No device logic, no device state and no HUD code is called from a click; ⛔ no second path (a HUD-to-device event, a direct component write) | a fully virtual device and a physical replica must be indistinguishable to the device — the replica then replaces the virtual adapter and nothing else changes |
-| D-131 | ⭐⭐ **`IDevicePanelIo` — ONE adapter seam, ONE bound adapter per device at a station**: inputs (channel presses by TKB channel, axes, the look or a tracker's orientation / position) out through `DeviceFrameSender`; outputs (`DevicePanel`: lamps, values, text) in. Implementations: `VirtualPanelAdapter` (the HUD's buttons + mouse POINT / RMB LOOK + keys + gamepad — D-122–D-126), `ReplicaPanelAdapter` (SD-S5, a node extension), `ScriptedPanelAdapter` (S1e-2's scripted station re-homed onto the seam). `DevicePanelIoBinding` picks: a replica attached for that device ⇒ the replica, else the virtual adapter — ⭐ swapping one for the other is a binding change only | D-29 / D-38 made one: the replica and the keyboard were already meant to be interchangeable adapters; S1d-3 / S2a put the mapping INLINE in `PossessionStation` — this extracts it |
-| D-132 | ⭐ **with a replica bound, the HUD is display only**: its `PanelButton`s are drawn (the replica's buttons are the same channels) but nothing reads them — the virtual adapter is not bound for that device; the mouse looks only if no tracker owns the orientation (D-126). ⭐ The virtual adapter's OUTPUT side is the HUD itself (drawn on the brain from the device's state); the replica's is `DevicePanel` — two pictures of one state (D-30), never two logics | one input owner per device; no double presses |
+| D-131 | ⭐⭐ **`IDevicePanelIo` — ONE adapter seam, ONE PRIMARY adapter per device at a station** *(refined by D-133: additional press sources join it)*: inputs (channel presses by TKB channel, axes, the look or a tracker's orientation / position) out through `DeviceFrameSender`; outputs (`DevicePanel`: lamps, values, text) in. Implementations: `VirtualPanelAdapter` (the HUD's buttons + mouse POINT / RMB LOOK + keys + gamepad — D-122–D-126), `ReplicaPanelAdapter` (SD-S5, a node extension), `ScriptedPanelAdapter` (S1e-2's scripted station re-homed onto the seam). `DevicePanelIoBinding` picks: a replica attached for that device ⇒ the replica, else the virtual adapter — ⭐ swapping one for the other is a binding change only | D-29 / D-38 made one: the replica and the keyboard were already meant to be interchangeable adapters; S1d-3 / S2a put the mapping INLINE in `PossessionStation` — this extracts it |
+| ~~D-132~~ → D-133 | ⛔ superseded by the user (`2026-11-28`): the HUD stays clickable beside a replica — see D-133–D-136 | — |
+
+🔒 User, `2026-11-28`: *"the HUD might still allow clicking the virtual buttons even when physical replica is connected, by sending event containing just that single button press to avoid overwriting another IO state coming from the physical IO. That might mean having multiple input adapters at once, or integrating the HUD ones as some kind of 'additional source' to the main adapter … pls analyze"*
+
+| claim | code — how it IS | design |
+|---|---|---|
+| a device's input is ONE whole-state frame — four axes, sixteen PRESS COUNTERS, the tracker pose, Viewed | ✅ `DeviceControl.cs:17-29` | §3.4 |
+| the device keeps ONLY the newest frame: `Seq` ≤ the last ⇒ dropped, else the whole frame replaces its input | ✅ `DeviceTickSystem.cs` ingest (S1b-2: *"newest Seq"*) | §3.4 |
+| a press is a counter that MOVED against the device's own tracker; a re-based tracker fires nothing | ✅ `DevicePressTracker` / `DevicePressReader` (`DeviceControl.cs:32-43`) | R7-11 |
+| a replica's LATCHING switch or rotary selector (a position, not a press) | ⛔ not modelled — channels are momentary counters only | ⛔ searched, none found (D-26 names channels, not their kind) |
+
+| option | verdict — the one fact that decides it |
+|---|---|
+| **A** two adapters, each sending its own full frame | ⛔ each sender has its own `Seq` and its own counters: the device keeps only the newest frame, so the HUD's frame **wipes the replica's axes and look**, the counters jump between two series (**phantom presses**), and frames from the lower-`Seq` sender are dropped outright |
+| **B** the HUD sends a separate press-only event (`DevicePressEvent { device, channel }`) beside the replica's frame | ⚠ works, but it is a **second input path INTO every device** (the ingest merges two kinds; their order within a frame is undefined; replay records two input kinds) — the device would again know *where* a press came from, which D-125 / D-130 rule out |
+| **C** ⭐ **one frame per device, COMPOSED at the station from several SOURCES** | ✅ the effect the user asked for — a HUD click is "just that single press" and overwrites nothing — with ONE frame, ONE `Seq`, ONE counter per channel, so the device and the wire are unchanged |
+
+| # | decision | why |
+|---|---|---|
+| D-133 | ⭐⭐ **the panel IO is ONE composed frame per device** (`DevicePanelIoBinding` owns the device's `DeviceFrameSender` slot); **several input sources contribute to it at once**: the PRIMARY adapter (the replica, or the virtual adapter when there is none) and any number of ADDITIONAL press sources (the HUD's clickable buttons, the keyboard hotkeys, the gamepad) | option C above; the device never sees a source |
+| D-134 | ⭐⭐ **merge rules, by field**: **momentary presses are ADDITIVE** — a source reports *"channel k pressed"* and the binding bumps the frame's ONE counter for k (two sources pressing in one frame = two presses); **axes, the look / orientation, the position are SINGLE-OWNER** — a tracker, else the replica, else the virtual adapter's mouse / arrows / stick; a non-owner's value for that field is ignored; **Viewed** is the station's (the view) | presses compose without loss; a continuous value has exactly one writer, so nothing is overwritten |
+| D-135 | ⭐⭐ **a LATCHING control has ONE owner**: a channel the type declares `Latching` (a switch or a rotary position — `DeviceDefDto.Channels` gains `Kind = Momentary \| Latching`) takes its position from the replica when one is bound; its HUD chip is then drawn but not clickable (a click would put the device in a state the physical switch does not show). With no replica, the virtual adapter owns it and a click toggles it. Momentary chips stay clickable beside a replica | the one real conflict a second source can create: the device and the hardware disagreeing about a switch's position |
+| D-136 | ⭐ **the replica's hardware lamps follow the device whoever pressed** — a HUD click that powers the device on lights the replica's POWER lamp through `DevicePanel` like any other change (D-28) | one state, two pictures (D-30) |
 
 ##### Rails and scenario rows
 
@@ -1272,7 +1297,7 @@ clicks the named button's rect through the adapter (the HUD is the path under te
 
 ##### Slice
 
-**SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rail: a test adapter swapped in for the virtual one drives the device identically (the replaceability, D-131). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
+**SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rails: a test adapter swapped in for the virtual one drives the device identically (D-131); a replica's frame + a HUD click in the same frame ⇒ both presses counted, the replica's axes and look untouched (D-133, D-134); a latching chip is not clickable beside a replica (D-135). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
 
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
