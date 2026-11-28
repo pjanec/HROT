@@ -91,6 +91,8 @@ public enum VisualFamily : byte
     LaidAssaultBridge,
     /// <summary>⭐ CE-6503 — a LAID floating bridge (TKB 8826): the terrain's deck, and here the pontoon bays in the water under it, the joints between bays and the curbs. ⛔ Appended.</summary>
     LaidFloatingBridge,
+    /// <summary>⭐ SD-S5d (DESIGN_Simulated_Devices §3.10a D-163) — a DEVICE (a <c>Gen.Device</c> type): its shape is its kind's (<c>Hrot.Look.Devices.DeviceLooks</c>).</summary>
+    Device,
 }
 
 /// <summary>
@@ -150,6 +152,7 @@ public static class VisualFamilies
         // ⭐ CE-6503 — the two laid-bridge obstacles share the cultural-feature DIS type (5.0.0.0.0) with every other obstacle: they are told apart by their TKB type
         if ((long)t.TkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_AssaultBridge) return VisualFamily.LaidAssaultBridge;
         if ((long)t.TkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_FloatingBridge) return VisualFamily.LaidFloatingBridge;
+        if (Hrot.Look.Devices.DeviceLooks.IsDevice(t)) return VisualFamily.Device;   // ⭐ SD-S5d (D-163) — a device type, whatever its DIS class
         var family = Of(t.DisType);
         if (family == VisualFamily.Jet && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.LocomotionDto>()?.Class == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft
             && EntityClassTable.Default.ChainContains(t.DisType, "Uav"))   // ⭐ CE-2394 — no LINQ

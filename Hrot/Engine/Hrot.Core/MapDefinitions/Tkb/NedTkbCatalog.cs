@@ -288,6 +288,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDevice(TkbEntityTypes.Device_LaserRangefinder, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
                 {
                     Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder,
+                    Look = "Rangefinder",   // ⭐ SD-S5d (D-163) — drawn as a rangefinder (ui, the one field the handoff lets ui add)
                     // ⭐ SD-S5v (D-142 / D-124) — the descriptor: four buttons, each with its virtual-panel hotkey (keys the operator does not need
                     //   while he looks through a device: R next round, O the shoulder view; P and Enter are free)
                     Elements =
@@ -302,6 +303,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDevice(TkbEntityTypes.Device_Binoculars, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
                 {
                     Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars,
+                    Look = "Binoculars",    // ⭐ SD-S5d (D-163)
                     // ⭐ SD-S5v (D-124 / D-125) — the WHEEL zooms (a notch up = ZOOM IN, down = ZOOM OUT; ⛔ S1d-3's wheel-by-index retired); + / − too
                     Elements =
                     {

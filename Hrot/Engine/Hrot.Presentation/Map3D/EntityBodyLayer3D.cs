@@ -63,7 +63,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                                            BodyGeometryDto? Geometry = null, WeaponKind Weapon = WeaponKind.Hmg,
                                            bool TypeColoured = false, bool Child = false, PersonKit Kit = PersonKit.Civilian,
                                            bool Elderly = false, bool Toy = false, CarBodyStyle? Style = null,
-                                           PersonSex Sex = PersonSex.Unspecified, Wardrobe? Wardrobe = null);
+                                           PersonSex Sex = PersonSex.Unspecified, Wardrobe? Wardrobe = null,
+                                           Hrot.Look.Devices.DeviceKind Device = Hrot.Look.Devices.DeviceKind.Box);
 
     /// <summary>⭐ CE-1099 (§6q O-3) — a person shorter than this (m) is a child: drawn with a larger head.</summary>
     public const float ChildHeight = Hrot.Look.People.PersonLook.ChildHeight;   // ⭐ CE-4671 LK-S2
@@ -334,10 +335,15 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
             var look = LookOf(type, tkb);
             if (look.Family == VisualFamily.Unit) continue;
+            // ⭐ SD-S5d (D-164, D-64) — a device a PERSON holds (his carry seat) is drawn only in his hands while raised (HeldItemShown); at a vehicle's station or
+            //   stacked on a device it is drawn below, as itself, at its DevicePoses pose
+            if (look.Family == VisualFamily.Device && Hrot.Look.Devices.DeviceLooks.HolderOf(world, e) is { IsNull: false } holder
+                && world.HasComponent<TkbIdentity>(holder) && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, tkb).Family == VisualFamily.Person)
+            { _drawn.Add(e); continue; }
             // ⭐ CE-4623 (AU-4) — a FLOCK is one entity drawn as N birds, closed-form (never one body)
             if (look.Family == VisualFamily.Bird && AnimalReader.FlockOf(world, e, out var flock)) { DrawFlock(world, e, flock, simTime); _drawn.Add(e); continue; }
             // ⭐ CE-1058 — a passenger inside an ENCLOSED vehicle is not seen (the engine's one rule, R-271); an exposed rider is drawn.
-            if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;
+            if (look.Family != VisualFamily.Device && Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) continue;   // ⭐ SD-S5d — a device at a station is MOUNTED there (drawn, D-164 ②), never a hidden passenger
 
             var size = SizeOf(world, e, look);
             if (_recordPick) RecordBox(world, e, look, size, hasNet);   // ⭐ CE-4558 — every band: a tiny body is still hovered through the pick's pixel margin
@@ -381,6 +387,9 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             bool wreck = look.Family is not (VisualFamily.Person or VisualFamily.Dragon) && !animal && Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e);
             ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
             var body = Matrix4x4.CreateFromQuaternion(tf.Rotation) * Matrix4x4.CreateTranslation(tf.Position);
+            // ⭐ SD-S5d (D-166) — a device is drawn where the ONE pose resolver puts it: its station's place, turned by its DevicePose (where the trainee looks)
+            if (look.Family == VisualFamily.Device && Fdp.Toolkit.Behavior.Devices.DevicePoses.TryWorld(world, e, out var devAt, out var devRot))
+                body = Matrix4x4.CreateFromQuaternion(devRot) * Matrix4x4.CreateTranslation(devAt);
             var carriage = look.Family == VisualFamily.Person ? Carriage.Of(world, e, tkb) : FigureCarriage.Free;   // ⭐ CE-1081..1084 (§6m)
             // ⭐ CE-1033 S4 — wheels roll, limbs swing, a rotor turns while flying (MotionTracker); a parked helicopter's rotor stands.
             bool rotorTurning = !wreck && (look.Family == VisualFamily.Drone   // ⭐ CE-1086 — a drone's rotors run while it lives
@@ -455,7 +464,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 }
                 // ⭐ CE-1169 (People Display U7) — a pocket item or a throwable in his hand: the phone to his ear (in front while he
                 //   walks), the binoculars at his eyes, a stone or grenade low and ready; a gesture, a throw or a blow below wins
-                (parts, heldItem) = HeldItemShown(world, e, look.Soldier, carriage, parts, motion);
+                (parts, heldItem) = HeldItemShown(world, e, look.Soldier, carriage, parts, motion, tkb);
                 // ⭐ CE-1166 (civilian U-6, DESIGN_Civilians_And_Crowd_Control §8.7 U6-a) — what his arms show (backend's Gesture, B-6)
                 parts = Gestured(world, e, look.Soldier, carriage, parts, simTime);
                 parts = Thrown(world, e, look.Soldier, carriage, parts, simTime);   // ⭐ CE-1195 — the arm of a throw just made
@@ -930,7 +939,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// crouched, free, alive and not cowering; otherwise the parts as they are and <c>None</c>. Walking = his gait is moving.
     /// </summary>
     public static (KitPart[] Parts, Fdp.Toolkit.Combat.Components.HeldItemKind Item) HeldItemShown(EntityRepository world, Entity e, bool soldier,
-        in FigureCarriage carriage, KitPart[] parts, in MotionPose motion)
+        in FigureCarriage carriage, KitPart[] parts, in MotionPose motion, Fdp.Interfaces.ITkbDatabase? tkb = null)
     {
         var none = Fdp.Toolkit.Combat.Components.HeldItemKind.None;
         var item = Fdp.Toolkit.Combat.HeldItems.Of(world, e);
@@ -938,7 +947,10 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         if (Fdp.Toolkit.Combat.CombatLife.IsDestroyed(world, e) || Cowers(world, e, soldier)) return (parts, none);
         var stance = LogicalStance.Of(world, e);
         if (stance is not (StanceId.Standing or StanceId.Crouched)) return (parts, none);
-        return (BlockFigure.HeldItemArms(parts, item, stance == StanceId.Crouched, soldier, walking: motion.Moving > 0.1f), item);
+        // ⭐ SD-S5d (D-164 ①) — a RAISED device is drawn as itself (its kind), not as the generic binoculars; his own binoculars (no device) as before
+        Hrot.Look.Devices.DeviceKind? device = item == Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars && Hrot.Look.Devices.DeviceLooks.RaisedBy(world, e, out _)
+            ? Hrot.Look.Devices.DeviceLooks.RaisedKind(world, e, tkb) : null;
+        return (BlockFigure.HeldItemArms(parts, item, stance == StanceId.Crouched, soldier, walking: motion.Moving > 0.1f, device), item);
     }
 
     /// <summary>⭐ <c>CE-1169</c> — the round a throwable's hand holds, as its munition looks (its <c>Munition.Visual</c>: a grey stone,
@@ -2234,7 +2246,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
 
     /// <summary>⭐ CE-1457 (§6ad-3 TC1) — the kit a look is drawn with: its body style's when a wheeled car type names one, else its family's.</summary>
     public static ShapeKit KitOf(in TypeLook look)
-        => look.Family == VisualFamily.WheeledCar && look.Style is { } style ? CarKits.For(style) : ShapeKits.For(look.Family);
+        => look.Family == VisualFamily.Device ? DeviceKits.For(look.Device)   // ⭐ SD-S5d — the device's kind
+           : look.Family == VisualFamily.WheeledCar && look.Style is { } style ? CarKits.For(style) : ShapeKits.For(look.Family);
 
     /// <summary>The look of a template (null ⇒ an unknown box). Pure — the rail runs it over the whole built-in catalog.</summary>
     public static TypeLook Resolve(TkbTemplate? t)
@@ -2247,6 +2260,13 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         if (t.DisType.Kind == 2 || t.GetDescriptor<MunitionVisualDto>() != null)
             return new TypeLook(VisualFamily.Unit, Vector3.Zero, DefaultColour(VisualFamily.Unit), false);
         var family = VisualFamilies.Of(t);
+        if (family == VisualFamily.Device)   // ⭐ SD-S5d (D-163) — a device: its kind's size and colour from the shared rule (never the vehicle box it was defined with)
+        {
+            var kind = Hrot.Look.Devices.DeviceLooks.KindOf(t);
+            var typeColourD = ParseHex(t.GetDescriptor<VisualDefinitionDto>()?.ColorHex);
+            return new TypeLook(family, Hrot.Look.Devices.DeviceLooks.SizeOf(kind), typeColourD ?? Hrot.Look.Devices.DeviceLooks.ColourOf(kind).ToColor(), false,
+                                TypeColoured: typeColourD != null, Device: kind);
+        }
         var weapon = family == VisualFamily.WeaponSystem ? WeaponKits.KindOf(t.DisType) : WeaponKind.Hmg;   // ⭐ CE-1087
         var size = family == VisualFamily.WeaponSystem ? WeaponKits.DefaultSize(weapon) : ShapeKits.DefaultSize(family);
         var geometry = t.GetDescriptor<BodyGeometryDto>();
@@ -2347,6 +2367,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
             ref readonly var shape = ref world.GetComponentRO<Fdp.Toolkit.Terrain.ObstacleShape>(e);
             if (shape.Length > 0f && shape.Width > 0f && shape.Height > 0f) return new Vector3(shape.Length, shape.Width, shape.Height);
         }
+        if (look.Family == VisualFamily.Device) return look.Size;   // ⭐ SD-S5d — a device is its kind's size, whatever vehicle box its type was defined with
         if (look.Family == VisualFamily.Person || !world.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()
             || !world.HasComponent<CarKinem.Core.VehicleParams>(e)) return look.Size;
         ref readonly var p = ref world.GetComponentRO<CarKinem.Core.VehicleParams>(e);
@@ -2388,6 +2409,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     public static Color DefaultColour(VisualFamily family) => family switch
     {
         VisualFamily.Person => Hrot.Look.People.PersonLook.DefaultColour.ToColor(),   // ⭐ CE-4671 LK-S2
+        VisualFamily.Device => Hrot.Look.Devices.DeviceLooks.ColourOf(Hrot.Look.Devices.DeviceKind.Box).ToColor(),   // ⭐ SD-S5d — a device's own colour comes from its kind (Resolve)
         VisualFamily.Tank => new Color(112, 120, 82, 255),
         VisualFamily.Dragon => new Color(122, 31, 31, 255),   // ⭐ CE-4634 — TKB 411's own #7A1F1F (the TKB's colour wins anyway)
         VisualFamily.Afv => new Color(122, 116, 84, 255),

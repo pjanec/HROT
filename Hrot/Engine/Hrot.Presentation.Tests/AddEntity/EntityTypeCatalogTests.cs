@@ -615,6 +615,7 @@ public sealed class EntityTypeCatalogTests
         117 M67 flame tank | dis 1.1.225.1.20.0.0 | family Tank | folder Platform/Land/United States/Tank | icon _tank
         118 Assault Bridge Layer | dis 1.1.225.9.3.0.0 | family BridgeLayer | folder Platform/Land/United States/Large Tracked Utility Vehicle | icon _tank
         119 Floating Bridge Engineer | dis 1.1.225.7.1.0.0 | family FloatingBridge | folder Platform/Land/United States/Large Wheeled Utility Vehicle | icon _wheeled
+        120 HMMWV (observer, rangefinder) | dis 1.1.225.6.0.0.0 | family WheeledUtility | folder Platform/Land/United States/Small Wheeled Utility Vehicle | icon _wheeled
         200 Rifleman | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         201 Officer | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
         202 Rifleman (Stinger) | dis 3.1.225.1.0.0.0 | family Person | folder Life Form/Land/United States/Infantry (HROT) | icon _person
@@ -669,6 +670,8 @@ public sealed class EntityTypeCatalogTests
         616 Rifle (pick-up) | dis 1.1.0.50.8.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         617 Pistol (pick-up) | dis 1.1.0.50.9.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
         618 Explosive charge | dis 1.1.0.50.10.0.0 | family WeaponSystem | folder Platform/Land/Weapon System (HROT) | icon -
+        640 Laser rangefinder | dis - | family Device | folder Other | icon -
+        641 Binoculars | dis - | family Device | folder Other | icon -
         1002 CivilianCar | dis 1.1.0.81.10.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1050 Hatchback | dis 1.1.0.81.52.0.0 | family WheeledCar | folder Platform/Land/Car | icon _wheeled
         1051 DeliveryVan | dis 1.1.0.83.74.0.0 | family WheeledCar | folder Platform/Land/Cargo Truck | icon _wheeled

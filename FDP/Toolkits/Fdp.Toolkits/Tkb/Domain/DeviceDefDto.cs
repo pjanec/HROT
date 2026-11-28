@@ -27,6 +27,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// value (at most 4). A type that changes its elements re-indexes (R-4301).</summary>
         public List<DeviceElementDto> Elements { get; init; } = new();
 
+        /// <summary>⭐ SD-S5d (§3.10a D-163) — what the device LOOKS like: a <c>Hrot.Look.Devices.DeviceKind</c> name (<c>Binoculars</c>, <c>Rangefinder</c>,
+        /// <c>Designator</c>, <c>DroneController</c>, <c>Console</c>, <c>Box</c>); empty = defaulted by <see cref="Behavior"/> (<c>DeviceLooks.KindOf</c>). TKB data — ⛔ never
+        /// inferred from the type's name. Read only by renderers (the 3-D map, the IG).</summary>
+        public string Look { get; init; } = "";
+
         /// <summary>The message kinds the device sends and accepts (SD-S5b — <c>DeviceMessageEvent.Kind</c>); empty in SD-S1.</summary>
         public List<string> Messages { get; init; } = new();
 

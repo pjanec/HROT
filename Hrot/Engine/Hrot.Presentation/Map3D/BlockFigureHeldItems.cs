@@ -27,7 +27,10 @@ public static partial class BlockFigure
     /// <paramref name="walking"/>; the binoculars (a dark box) at the eyes; a throwable's hand low and ready (its round is a detail,
     /// <see cref="ThrowableDetail"/>). Anything else is returned as it is.
     /// </summary>
-    public static KitPart[] HeldItemArms(KitPart[] parts, HeldItemKind item, bool crouched, bool soldier, bool walking)
+    /// <param name="device">⭐ SD-S5d (DESIGN_Simulated_Devices §3.10a D-164 ①) — the KIND of the device he has raised (the held item is then
+    /// <see cref="HeldItemKind.Binoculars"/>, the raise's one pose): its own kit is drawn in his hands — an optic at his eyes, a controller / console / box in
+    /// front of his chest — instead of the generic binoculars box. Null = his own binoculars (no device): the box, as before.</param>
+    public static KitPart[] HeldItemArms(KitPart[] parts, HeldItemKind item, bool crouched, bool soldier, bool walking, Hrot.Look.Devices.DeviceKind? device = null)
     {
         if (!IsPocketOrThrowable(item) || parts.Length < TorsoIndex + 2 + 4) return parts;
         var drop = crouched ? CrouchDrop : Vector3.Zero;
@@ -44,6 +47,12 @@ public static partial class BlockFigure
             case HeldItemKind.Phone:
                 handR = new Vector3(0.30f, -0.10f, 1.12f) + drop;                            // in front of him, looked at
                 arms = [.. hangL, .. Arm(r, r + new Vector3(0.06f, -0.02f, -0.26f), handR, PartRole.Hull)];
+                break;
+            case HeldItemKind.Binoculars when device is { } d && !Hrot.Look.Devices.DeviceLooks.AtTheEyes(d):
+                handL = new Vector3(0.30f, 0.12f, 1.20f) + drop;                             // ⭐ SD-S5d — a controller / console / box in front of his chest
+                handR = new Vector3(0.30f, -0.12f, 1.20f) + drop;
+                arms = [.. Arm(l, l + new Vector3(0.06f, 0.04f, -0.26f), handL, PartRole.Hull),
+                        .. Arm(r, r + new Vector3(0.06f, -0.04f, -0.26f), handR, PartRole.Hull)];
                 break;
             case HeldItemKind.Binoculars:
                 handL = new Vector3(0.18f, 0.06f, 1.62f) + drop;                             // both hands at his eyes, the elbows out
@@ -64,6 +73,7 @@ public static partial class BlockFigure
         {
             HeldItemKind.Phone when !walking => [.. shaped, Limb(handR + new Vector3(0f, 0f, -0.08f), handR + new Vector3(0.02f, 0f, 0.06f), PhoneWidth, PhoneThickness, ColourRole.Dark)],
             HeldItemKind.Phone => [.. shaped, Limb(handR, handR + new Vector3(0.04f, 0f, 0.13f), PhoneWidth, PhoneThickness, ColourRole.Dark)],
+            HeldItemKind.Binoculars when device is { } raised => [.. shaped, .. DeviceKits.Held(raised, (handL + handR) / 2f, S)],   // ⭐ SD-S5d — the device itself
             HeldItemKind.Binoculars => [.. shaped, Limb((handL + handR) / 2f + new Vector3(-0.07f, 0f, 0.01f), (handL + handR) / 2f + new Vector3(0.07f, 0f, 0.01f),
                                                         BinocularsWidth, BinocularsHeight, ColourRole.Dark)],
             _ => shaped,
