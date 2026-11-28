@@ -131,6 +131,31 @@ namespace Hrot.Editor.DebugApi
         public Func<Hrot.Presentation.DebugApi.GizmoReadLease?>? GizmoLeaseProvider { get; set; }
         private Hrot.Presentation.DebugApi.GizmoReadLease? GizmoLease => GizmoLeaseProvider?.Invoke();
 
+        private DebugPrimitive[] _hudBound = Array.Empty<DebugPrimitive>(), _hudUnbound = Array.Empty<DebugPrimitive>();
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-2 (DESIGN_Simulated_Devices §5a, the checks' <c>hud</c> cue) — the HUD run a view bound to <paramref name="source"/> (a
+        /// network id) draws in the PUBLISHED frame (<see cref="Hrot.Editor.Director.HudRuns"/> — <c>HudScopes.Keep</c>): its texts, its size; −1 with no gizmo
+        /// feed. ⭐ Touches the headless editor's gizmo gate (CE-11045) on every read, so a verifier that reads each sample keeps the projectors drawing.
+        /// </summary>
+        public int HudRun(long source, List<string> texts)
+        {
+            if (_gizmoFeed is not { } buffer) return -1;
+            GizmoLease?.Touch();
+            return Hrot.Editor.Director.HudRuns.Read(buffer.ReaderFrame(), source, texts, ref _hudBound, ref _hudUnbound);
+        }
+
+        /// <summary>⭐ S1e-2 — the checks' <c>field</c> cue's <c>memory</c>: the unit's <c>[UnitMemory]</c> struct by name, read on THIS host's brain world.</summary>
+        public JsonObject? UnitMemoryOf(int networkId, string type)
+            => _entityMap.TryGetEntity(networkId, out var e) ? Hrot.Editor.Director.UnitMemoryJson.Read(_world, e, type) : null;
+
+        private Hrot.Editor.Director.ScriptedStation? _scriptedStation;
+
+        /// <summary>⭐ S1e-2 — this node's station as the checks drive it (<c>do: possess / view / control</c>), on the brain world; possessing through
+        /// <see cref="PostPossess"/> (the HTTP possess: the map's own station then sends no frames that would race it, CE-1464).</summary>
+        public Hrot.Editor.Director.ScriptedStation ScriptedStation
+            => _scriptedStation ??= new Hrot.Editor.Director.ScriptedStation(() => _world, id => PostPossess(id).error);
+
         public (JsonNode? result, string? error, string? hintCategory) GetGizmoFrame(int max = 500)
         {
             // ⭐⭐ BP-487 — `_gizmoFeed`, NOT `_primitiveBuffer`: on a cluster host the buffer belongs to the

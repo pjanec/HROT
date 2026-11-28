@@ -7,6 +7,7 @@ stale-below: `## ⛔ HISTORY — the decision record` (every amendment round —
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
 related-designs:
+  - ../../DESIGN_Scenario_Regression.md — OWNS the checks grammar and the verifier (§3); S1e-2 added the scripted trainee (possess / view / control / pause, atPausedFrame), the field cue's memory and the hud cue there
   - ../../DESIGN_Capability_Components.md — BUILT FIRST (user, `2026-11-27`): one component per capability; this design's audit rows (R3-1, R4-1, R5-5, D-73, R6-7, R7-5, R3-4, R5-4) are its inventory and shrink to nothing when it is done
   - ../../DESIGN_Unit_Camera.md — OWNS the station camera (over the shoulder to move, from the eyes to aim — UC-3); §3.6 (D-68) extends the aim rule to switch the view's source to the weapon's sight
   - ../../DESIGN_Replay_Time_Axis_And_Review.md — OWNS the replay's two axes (sim time collapses a pause; the wall-clock axis keeps it) and the `ReplayState` stop (§12l) — the paused-device scenarios are judged on the wall-clock axis

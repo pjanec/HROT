@@ -67,5 +67,14 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ CE-11061 — the <c>POST /entities/{id}/revive</c> service.</summary>
         public string? Revive(int networkId) => Service.ReviveEntity(networkId).error;
+
+        /// <summary>⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — the node's station the checks drive (possess · view · control), on the brain world.</summary>
+        public IVerifyStation? Station => _service() is { } s ? s.ScriptedStation : null;
+
+        /// <summary>⭐ S1e-2 — a unit's [UnitMemory] struct by name, read on the brain world (⛔ not <see cref="World"/> — the threaded editor's UI mirror).</summary>
+        public JsonObject? Memory(int networkId, string type) => Service.UnitMemoryOf(networkId, type);
+
+        /// <summary>⭐ S1e-2 — the HUD run a view bound to the source draws in the published gizmo frame.</summary>
+        public int HudRun(long source, System.Collections.Generic.List<string> texts) => Service.HudRun(source, texts);
     }
 }

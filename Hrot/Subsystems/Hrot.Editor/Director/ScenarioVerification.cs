@@ -61,6 +61,38 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ CE-11061 — revives the unit (<c>POST /entities/{id}/revive</c>); null when revived or asked of its owner, else why not.</summary>
         string? Revive(int networkId) => "this host revives no units";
+
+        /// <summary>⭐⭐ Simulated devices S1e-2 (DESIGN_Simulated_Devices §5a) — this node's station, driven by the checks (<c>do: possess / control / view</c>);
+        /// null where the host has none (a do row then says so).</summary>
+        IVerifyStation? Station => null;
+
+        /// <summary>⭐ S1e-2 — the unit's <c>[UnitMemory]</c> struct named <paramref name="type"/> as JSON (enums by name, an entity as the name of the unit it
+        /// holds), read on the unit's BRAIN; null when the unit or the type is unknown here.</summary>
+        JsonObject? Memory(int networkId, string type) => null;
+
+        /// <summary>⭐ S1e-2 — the HUD run a view bound to <paramref name="source"/> (a network id) draws in the frame's PUBLISHED primitives: its texts into
+        /// <paramref name="texts"/>, the run's primitive count returned (0 = no run); −1 where the host reads no gizmo feed.</summary>
+        int HudRun(long source, List<string> texts) => -1;
+    }
+
+    /// <summary>
+    /// ⭐⭐ Simulated devices S1e-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §5a) — a station the checks drive as a scripted TRAINEE: possess a unit (as
+    /// the HTTP possess does), bind its view to a device, and control that device — through the SAME device-frame sender a keyboard, a gamepad or a replica
+    /// fills (<c>DeviceFrameSender</c>). <see cref="Frame"/> is called on EVERY frame of the run (paused ones too): it sends one frame per device the station
+    /// operates, as the real station does each input frame. Main thread.
+    /// </summary>
+    public interface IVerifyStation
+    {
+        /// <summary>The station possesses the unit; null when asked, else why not.</summary>
+        string? Possess(int networkId);
+        /// <summary>The view is bound to the device (a network id; 0 = the plain eye); null when bound, else why not (he does not operate it).</summary>
+        string? View(long deviceNetworkId);
+        /// <summary>Presses the bound device's buttons by NAME, holds its axes for <c>for</c> s, aims the look; null when taken, else why not.</summary>
+        string? Control(StationAction action, double rel);
+        /// <summary>One input frame (every frame of the run).</summary>
+        void Frame(double rel);
+        /// <summary>The network id the station's view is bound to (0 = the plain eye) — the <c>hud</c> cue's <c>"source": "station:1"</c>.</summary>
+        long BoundSource { get; }
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
@@ -131,10 +163,12 @@ namespace Hrot.Editor.Director
 
         public double? TimeOf(AtExpr? at) => at?.Resolve(n => _times.TryGetValue(n, out var t) ? t : null);
 
-        /// <summary>One sample: the rows since the last, then every anchor and expectation still open.</summary>
-        public void Observe(double rel)
+        /// <summary>One sample: the rows since the last, then every anchor and expectation still open. ⭐ S1e-2 — <paramref name="pausedFrame"/>: the n-th
+        /// frame of a <c>do: pause</c> (0 = not paused) — an <c>atPausedFrame</c> row is judged on that frame only.</summary>
+        public void Observe(double rel, int pausedFrame = 0)
         {
             _rel = rel;
+            _memo.Clear();
             _comps.Clear();
             _vehiclePoints = null;
             _holder.Clear();
@@ -145,6 +179,11 @@ namespace Hrot.Editor.Director
             foreach (var e in _checks.Expect)
             {
                 if (e.AtEnd) continue;
+                if (e.AtPausedFrame is { } apf)   // ⭐ S1e-2 — judged on that paused frame only (the sim time stands still there)
+                {
+                    if (pausedFrame == apf && !_times.ContainsKey(e.Name) && When(e.Cue) is not null) _times[e.Name] = rel;
+                    continue;
+                }
                 double? lo = TimeOf(e.After), hi = TimeOf(e.Before);
                 if (e.After is { Anchor: not null } && lo is null) continue;   // its window opens on a beat not seen yet
                 if (e.Never)
@@ -173,6 +212,7 @@ namespace Hrot.Editor.Director
 
         public IReadOnlyList<Verdict> Verdicts() => _checks.Expect.Select(e =>
             (e.If != null && !_times.ContainsKey(e.If)) || (e.Unless != null && _times.ContainsKey(e.Unless)) ? new Verdict(e.Name, true, null, "skipped")
+            : e.AtPausedFrame is { } apf ? new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var pt) ? pt : null, $"pausedFrame:{apf}")
             : e.Never ? new Verdict(e.Name, !_broken.ContainsKey(e.Name), _broken.TryGetValue(e.Name, out var b) ? b : null, "never",
                                     By: _brokenBy.TryGetValue(e.Name, out var by) ? by : null)
                     : new Verdict(e.Name, _times.ContainsKey(e.Name), _times.TryGetValue(e.Name, out var t) ? t : null, e.AtEnd ? "atEnd" : "once",
@@ -224,8 +264,9 @@ namespace Hrot.Editor.Director
                     if (c.Dead) units = units.Where(id => HealthOf(id) is <= 0f).ToList();   // ⭐ CE-4672 — only the dead the name matches
                     if (c.Fighting) units = units.Where(InTheFight).ToList();                // ⭐ CE-2455 — only the men still in the fight
                     var want = c.Value is JsonValue v && v.ToString() == "$now" ? JsonValue.Create(_rel + _t0) : c.Value;
-                    int held = units.Count(id => Lasted(c, id, FieldHolds(Components(id), c.Path!, c.Op, want, c.Elements, c.Where)
-                                                 && c.Also.All(x => FieldHolds(Components(id), x.Path, x.Op, x.Value, 1))));   // ⭐ CE-2443 — the same unit meets every "also" too · CE-2455 for
+                    // ⭐ S1e-2 — with memory: the unit's [UnitMemory] struct by name, read on its brain, instead of its dumped components
+                    int held = units.Count(id => Lasted(c, id, FieldHolds(FieldSource(c, id), c.Path!, c.Op, want, c.Elements, c.Where)
+                                                 && c.Also.All(x => FieldHolds(FieldSource(c, id), x.Path, x.Op, x.Value, 1))));   // ⭐ CE-2443 — the same unit meets every "also" too · CE-2455 for
                     bool ok = c.Quantifier switch
                     {
                         "any" => held > 0,
@@ -253,6 +294,8 @@ namespace Hrot.Editor.Director
                     return PerceivesHolds(c) ? _rel : null;  // ⭐ CE-2476 — per unit
                 case "bunched":
                     return Lasted(c, -1, BunchedHolds(c)) ? _rel : null;
+                case "hud":
+                    return Lasted(c, -1, HudHolds(c)) ? _rel : null;   // ⭐ S1e-2
                 default:
                 {
                     // a task cue may name several behaviours: any of them
@@ -557,6 +600,45 @@ namespace Hrot.Editor.Director
                 if (Lasted(c, id, ok)) held++;
             }
             return Quantified(c.Quantifier, units, held);
+        }
+
+        // ⭐ S1e-2 — the memory structs read this sample (a judge's cache, never per frame of the sim)
+        private readonly Dictionary<(int, string), JsonObject?> _memo = new();
+        private readonly List<string> _hudTexts = new();
+
+        /// <summary>⭐ S1e-2 — what a <c>field</c> cue reads on <paramref name="id"/>: its <c>[UnitMemory]</c> struct when the cue names one, else its dump.</summary>
+        private JsonNode? FieldSource(CheckCue c, int id)
+        {
+            if (c.Memory is not { } type) return Components(id);
+            if (!_memo.TryGetValue((id, type), out var m)) _memo[(id, type)] = m = _w.Memory(id, type);
+            return m;
+        }
+
+        /// <summary>
+        /// ⭐⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — <c>hud</c>: the frame's PUBLISHED primitives as a view bound to the source draws them (<c>HudScopes.Keep</c>):
+        /// its run's primitive count compares by <c>count</c>, and some text of the run by <c>text</c> (both when both are given). The source is the unit
+        /// the name matches (its network id — what a HUD run is scoped by, D-41).
+        /// </summary>
+        private bool HudHolds(CheckCue c)
+        {
+            if (c.Source is not { } name) return false;
+            // ⭐ "station:1" — what the station's VIEW shows: the run of the source it is bound to now (the eye ⇒ no run)
+            IEnumerable<int> sources = name == CheckCue.StationView ? (_w.Station is { BoundSource: > 0 } st ? new[] { (int)st.BoundSource } : Array.Empty<int>()) : UnitsNamed(name);
+            foreach (var id in sources)
+            {
+                _hudTexts.Clear();
+                int n = _w.HudRun(id, _hudTexts);
+                if (n < 0) return false;
+                if (c.Count is { } cnt && !Compare(JsonValue.Create(n), cnt.Op, cnt.Value)) continue;
+                if (c.Text is { } t)
+                {
+                    bool any = false;
+                    foreach (var text in _hudTexts) if (Compare(JsonValue.Create(text), t.Op, t.Value)) { any = true; break; }
+                    if (!any) continue;
+                }
+                return true;
+            }
+            return false;
         }
 
         /// <summary>⭐ <c>CE-2455</c> — <paramref name="holds"/> for <paramref name="unit"/> (−1 = the cue itself) at this sample, and it has held at every sample
@@ -1321,19 +1403,58 @@ namespace Hrot.Editor.Director
                   .Where(n => n.StartsWith('*') ? !units.Names.Any(x => x.Contains(n[1..], StringComparison.Ordinal)) : units.Resolve(n) is null)
                   .Select(n => $"no unit named '{n}' in {checks.Scenario}").ToList();
 
+        /// <summary>
+        /// Called on EVERY frame of the run. ⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — inside a <c>do: pause</c> each frame is a PAUSED FRAME: its
+        /// <c>atPausedFrame</c> actions land, the book samples it (so a <c>never</c> row is judged on every paused frame, and an <c>atPausedFrame</c> row on its
+        /// own), and the scripted station sends its frames — every frame, paused or not, as a real station does.
+        /// </summary>
         public void Observe(double rel)
         {
-            if (rel + 1e-9 >= _nextSample) { _book.Observe(rel); _nextSample += _checks.SampleEvery; }
+            bool paused = _pauseLeft > 0;
+            if (paused)
+            {
+                _pausedFrame++;
+                if (_pausedFrame == 1 && _pauseName != null) _book.Record(_pauseName, rel);
+                foreach (var a in _checks.Do)
+                    if (a.AtPausedFrame == _pausedFrame && !_done.Contains(a)) { _done.Add(a); Apply(a, rel); }
+            }
+            _w.Station?.Frame(rel);
+            if (paused) _book.Observe(rel, _pausedFrame);
+            else if (rel + 1e-9 >= _nextSample) { _book.Observe(rel); _nextSample += _checks.SampleEvery; }
             if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _every!.Value; }
         }
+
+        // ⭐ S1e-2 — the pause in progress: frames still to hold, the paused frame we are on, the pause's name (recorded on its first paused frame)
+        private int _pauseLeft, _pausedFrame;
+        private string? _pauseName;
+
+        /// <summary>⭐ S1e-2 — the run's step is HELD this frame (a <c>do: pause</c> holds the sim time for its frames; the frames go on). Called once a frame.</summary>
+        public bool HoldStep()
+        {
+            if (_pauseLeft <= 0) return false;
+            _pauseLeft--;
+            return true;
+        }
+
+        /// <summary>⭐ S1e-2 — a pause is in progress (rails).</summary>
+        public bool Paused => _pauseLeft > 0;
 
         /// <summary>Each action due by <paramref name="rel"/> is applied now (before this frame's step).</summary>
         public void ApplyDue(double rel)
         {
             foreach (var a in _checks.Do)
             {
+                if (a.AtPausedFrame != null) continue;   // ⭐ S1e-2 — lands on its paused frame (Observe)
                 if (_done.Contains(a) || _book.TimeOf(a.At) is not { } at || rel + 1e-9 < at) continue;
                 _done.Add(a);
+                Apply(a, rel);
+            }
+        }
+
+        private void Apply(CheckAction a, double rel)
+        {
+            {
+                if (a.Station is { } st) { ApplyStation(a, st, rel); return; }
                 var ids = _w.Named().Where(x => a.Who.StartsWith('*') ? x.Name.Contains(a.Who[1..], StringComparison.Ordinal)
                                                                        : string.Equals(x.Name, a.Who, StringComparison.Ordinal))
                                     .Select(x => x.Id).Distinct().ToList();
@@ -1349,6 +1470,33 @@ namespace Hrot.Editor.Director
                 }
                 if (a.Name != null) _book.Record(a.Name, rel);
             }
+        }
+
+        /// <summary>⭐ S1e-2 — a trainee's action: through the host's station (possess · control · view), or the verifier's own pause.</summary>
+        private void ApplyStation(CheckAction a, StationAction st, double rel)
+        {
+            string when = a.AtPausedFrame is { } pf ? $"paused frame {pf}" : $"{rel:0.###} s";
+            if (st.Kind == "pause")
+            {
+                _pauseLeft = st.Frames;
+                _pausedFrame = 0;
+                _pauseName = a.Name;   // recorded on the first paused frame (the instant the sim time stands at)
+                return;
+            }
+            string? why;
+            if (_w.Station is not { } station) why = "this host has no station to drive";
+            else
+            {
+                int? IdOf(string? name) => name == null ? null : _w.Named().Where(x => string.Equals(x.Name, name, StringComparison.Ordinal)).Select(x => (int?)x.Id).FirstOrDefault();
+                why = st.Kind switch
+                {
+                    "possess" => IdOf(st.Who) is { } who ? station.Possess(who) : $"no unit '{st.Who}'",
+                    "view" => st.Who == null ? station.View(0) : IdOf(st.Who) is { } dev ? station.View(dev) : $"no device '{st.Who}'",
+                    _ => station.Control(st, rel),
+                };
+            }
+            if (why != null) ActionProblems.Add($"do at {when}: {st.Kind}: {why}");
+            if (a.Name != null && st.Kind != "pause") _book.Record(a.Name, rel);
         }
 
         public VerifyResult Finish(double rel, long steps)

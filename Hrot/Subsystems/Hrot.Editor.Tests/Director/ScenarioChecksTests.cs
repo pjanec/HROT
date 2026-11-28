@@ -300,12 +300,273 @@ public sealed class ScenarioChecksTests
         Assert.Contains(bad, p => p.Contains("order is {who, kind", StringComparison.Ordinal));
     }
 
+    // ── ⭐⭐ Simulated devices S1e-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §5a) — the trainee's grammar ─────────────────────────
+
+    /// <summary>⭐ S1e-2 — possess / view / control / pause parse into station actions (a press by NAME, an aim at a unit), atPausedFrame on a do row and
+    /// an expect row, the field cue's memory and the hud cue; every mistake is named.</summary>
+    [Fact]
+    public void S1e2_TheTraineeGrammar_Parses_AndNamesEveryMistake()
+    {
+        var c = Parse("""
+            { "runFor": 10,
+              "do": [{"name": "p", "at": 0.5, "possess": {"who": "Obs", "station": 1}},
+                     {"name": "v", "at": 1, "view": {"source": "Rf"}},
+                     {"name": "a", "at": 1.5, "control": {"aim": "Target", "press": ["MENU", "SELECT"], "axis": {"0": 0.5}, "for": 2}},
+                     {"name": "z", "at": 2, "pause": {"frames": 30}},
+                     {"name": "m", "atPausedFrame": 10, "control": {"press": "RANGE"}}],
+              "expect": [{"name": "menu", "atPausedFrame": 12, "on": "field", "who": "Rf", "memory": "RangefinderState", "field": "MenuOpen", "op": "==", "value": 1},
+                         {"name": "hud", "on": "hud", "source": "station:1", "text": ["contains", "452"]},
+                         {"name": "hud2", "on": "hud", "source": "Rf", "count": [">", 0]}] }
+            """, out var ok);
+        Assert.Empty(ok);
+        Assert.Equal(new[] { "possess", "view", "control", "pause", "control" }, c.Do.Select(d => d.Station!.Kind));
+        Assert.Equal(new[] { "MENU", "SELECT" }, c.Do[2].Station!.Press);
+        Assert.Equal("Target", c.Do[2].Station!.AimAt);
+        Assert.Equal(30, c.Do[3].Station!.Frames);
+        Assert.Equal(10, c.Do[4].AtPausedFrame);
+        Assert.Equal(12, c.Expect[0].AtPausedFrame);
+        Assert.Equal("RangefinderState", c.Expect[0].Cue.Memory);
+        Assert.Equal("MenuOpen", c.Expect[0].Cue.Path);
+        Assert.Contains("Target", c.Names());
+        Assert.DoesNotContain("station:1", c.Names());   // the view, not a unit
+        Assert.DoesNotContain("MenuOpen", c.Paths());     // a memory field is not a component path
+
+        Parse("""
+            { "runFor": 10,
+              "do": [{"at": 1, "possess": {"who": "Obs", "station": 2}},
+                     {"atPausedFrame": 3, "pause": {"frames": 2}},
+                     {"at": 1, "atPausedFrame": 2, "control": {"press": "X"}},
+                     {"at": 1, "control": {}},
+                     {"at": 1, "pause": {"frames": 0}},
+                     {"atPausedFrame": 2, "set": {"who": "A", "component": "Health", "patch": {}}}],
+              "expect": [{"name": "a", "on": "hud", "text": ["==", "x"]},
+                         {"name": "b", "on": "task", "who": "A", "is": "X", "memory": "S"}] }
+            """, out var bad);
+        Assert.Contains(bad, p => p.Contains("station is 1", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("a pause starts at a time", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("at and atPausedFrame together", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("control needs press, axis or aim", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("pause is {\"frames\": n}", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("atPausedFrame belongs to a station action", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("a hud cue needs source", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("memory belongs to a field cue", StringComparison.Ordinal));
+    }
+
+    /// <summary>
+    /// ⭐⭐ S1e-2 — <c>do: pause</c> HOLDS the step for its frames while the run's frames go on; each is a paused frame: its <c>atPausedFrame</c> action lands
+    /// there, the book samples EVERY one (a <c>never</c> broken on paused frame 4 is caught — at the 0.25 s cadence the paused instant is one sample), an
+    /// <c>atPausedFrame</c> row is judged on its frame only; the station sends a frame every frame. 🔴 Red-proof: sampling paused frames on the cadence
+    /// only ⇒ the never row passes.
+    /// </summary>
+    [Fact]
+    public void S1e2_APause_HoldsTheStep_SamplesEveryPausedFrame_AndLandsItsPausedActions()
+    {
+        var c = Parse("""
+            { "runFor": 10,
+              "do": [{"name": "p", "at": 0.1, "possess": {"who": "Obs"}},
+                     {"name": "paused", "at": 0.2, "pause": {"frames": 6}},
+                     {"name": "pressed", "atPausedFrame": 2, "control": {"press": "MENU"}}],
+              "expect": [{"name": "open at paused frame 3", "atPausedFrame": 3, "on": "field", "who": "Rf", "memory": "RangefinderState", "field": "MenuOpen", "op": "==", "value": 1},
+                         {"name": "closed at paused frame 1", "atPausedFrame": 1, "on": "field", "who": "Rf", "memory": "RangefinderState", "field": "MenuOpen", "op": "==", "value": 1},
+                         {"name": "the marker never moves in the pause", "never": {"on": "field", "who": "Rf", "memory": "RangefinderState", "field": "Moved", "op": "==", "value": 1}, "after": "paused", "before": "paused"}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld().Unit("Obs", 1, 100, 0).Unit("Rf", 2, 100, 0);
+        w.St = new FakeStation();
+        var menu = new JsonObject { ["MenuOpen"] = 0, ["Moved"] = 0 };
+        w.Memories[(2, "RangefinderState")] = menu;
+        var v = new ScenarioVerification(c, null, false, w, 0);
+        double rel = 0;
+        int held = 0;
+        for (int frame = 0; frame < 40; frame++)
+        {
+            v.Observe(rel);
+            if (w.St.Calls.Count >= 2 && menu["MenuOpen"]!.GetValue<int>() == 0) menu["MenuOpen"] = 1;   // the press lands on paused frame 2; the device answers
+            if (held == 3) menu["Moved"] = 1;            // broken on paused frame 4 — between two cadence samples
+            if (held == 4) menu["Moved"] = 0;
+            if (v.HoldStep()) { held++; continue; }      // no step: the sim time stands still
+            v.ApplyDue(rel);
+            rel += 1d / 60d;
+        }
+        Assert.Equal(6, held);
+        Assert.Equal(new[] { "possess 1", "control MENU aim=" }, w.St.Calls);
+        Assert.Equal(40, w.St.Frames);                    // every frame, paused ones too
+        var verdicts = v.Finish(rel, 0).Verdicts.ToDictionary(x => x.Name, x => x.Ok);
+        Assert.True(verdicts["open at paused frame 3"]);
+        Assert.False(verdicts["closed at paused frame 1"], "judged on paused frame 1 only — before the press");
+        Assert.False(verdicts["the marker never moves in the pause"], "every paused frame is sampled");
+    }
+
+    /// <summary>⭐ S1e-2 — the <c>hud</c> cue: a source's run (count, a text that compares) through the world's published frame; <c>"station:1"</c> reads
+    /// whatever the station's view is bound to now (the eye ⇒ nothing); the field cue's <c>also</c> reads the same memory struct.</summary>
+    [Fact]
+    public void S1e2_TheHudCue_JudgesTheSourcesRun_AndTheStationsView()
+    {
+        var c = Parse("""
+            { "runFor": 10,
+              "expect": [{"name": "the rangefinder's run shows 452 m", "on": "hud", "source": "Rf", "text": ["contains", "452"]},
+                         {"name": "the view shows the binoculars", "on": "hud", "source": "station:1", "text": ["==", "BINOCULARS"]},
+                         {"name": "the binoculars draw a run", "on": "hud", "source": "Bn", "count": [">", 1]},
+                         {"name": "a range within", "on": "field", "who": "Rf", "memory": "RangefinderState", "field": "LastRange", "op": ">=", "value": 450, "also": [{"path": "LastRange", "op": "<=", "value": 455}]}] }
+            """, out var problems);
+        Assert.Empty(problems);
+        var w = new FakeWorld().Unit("Rf", 2, 100, 0).Unit("Bn", 3, 100, 0);
+        w.St = new FakeStation();
+        w.Huds[2] = new() { "LAST RANGE", "452 m" };
+        w.Huds[3] = new() { "BINOCULARS", "7×" };
+        w.Memories[(2, "RangefinderState")] = new JsonObject { ["LastRange"] = 460.0 };
+        var book = new ConditionBook(c, w, 0);
+        book.Observe(1);
+        Assert.True(book.Times.ContainsKey("the rangefinder's run shows 452 m"));
+        Assert.True(book.Times.ContainsKey("the binoculars draw a run"));
+        Assert.False(book.Times.ContainsKey("the view shows the binoculars"), "the view is the plain eye");
+        Assert.False(book.Times.ContainsKey("a range within"), "460 is outside 450…455 (also)");
+        w.St.BoundSource = 3;
+        w.Memories[(2, "RangefinderState")] = new JsonObject { ["LastRange"] = 452.0 };
+        book.Observe(2);
+        Assert.True(book.Times.ContainsKey("the view shows the binoculars"));
+        Assert.True(book.Times.ContainsKey("a range within"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ S1e-2 — the SCRIPTED STATION on a real world: possessed (the body's row names its station), its view bound to one of the devices that station
+    /// operates, a press by the device type's channel NAME and an aim: one frame per operated device every frame through the shared sender — the press on
+    /// the BOUND device only, Viewed on it only, its look pointing at the aimed unit's centre; a press on an unknown button is refused with the type's
+    /// channels; a steady frame allocates nothing.
+    /// </summary>
+    [Fact]
+    public void S1e2_TheScriptedStation_SendsAFramePerOperatedDevice_PressesByName_AimsTheLook()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<EntityInfo>(); w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(); w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+        w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
+        w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>();
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        w.SetSingletonManaged(map);
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        var type = new Fdp.Interfaces.TkbTemplate("Rangefinder", 640);
+        type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = "DeviceRangefinder", Channels = { "RANGE", "MODE", "MENU", "SELECT" } });
+        db.Register(type);
+        w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        var station = (StationId)9;
+        Entity Make(int id, string name, Vector3 at)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new NetworkIdentity { Value = id });
+            w.AddComponent(e, new EntityInfo { Name = name });
+            w.AddComponent(e, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            map.Register(id, e);
+            return e;
+        }
+        var obs = Make(1, "Obs", Vector3.Zero);
+        var target = Make(5, "Target", new Vector3(100f, 100f, 0f));
+        var rf = Make(2, "Rf", Vector3.Zero); var other = Make(3, "Other", Vector3.Zero);
+        foreach (var d in new[] { rf, other })
+        {
+            w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 640 });
+            w.AddComponent(d, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = station, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Operated, Epoch = 1 });
+        }
+        var s = new ScriptedStation(() => w, id =>
+        {
+            w.AddComponent(obs, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = station, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            return null;
+        });
+        Assert.NotNull(s.View(2));                                  // nothing possessed yet
+        Assert.Null(s.Possess(1));
+        Assert.NotNull(s.View(77));                                 // not a device he operates
+        Assert.Null(s.View(2));
+        Assert.Equal(2, s.BoundSource);
+        Assert.Contains("RANGE, MODE, MENU, SELECT", s.Control(new StationAction { Kind = "control", Press = new[] { "FIRE" } }, 0)!);
+        Assert.Null(s.Control(new StationAction { Kind = "control", Press = new[] { "menu" }, AimAt = "Target" }, 0));
+        s.Frame(0);
+        w.Bus.SwapBuffers();
+        var frames = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>().ToArray();
+        Assert.Equal(2, frames.Length);                             // one per operated device
+        var mine = frames.Single(f => f.Device == rf); var theirs = frames.Single(f => f.Device == other);
+        Assert.Equal(station, mine.StationNodeId);
+        Assert.Equal(1, mine.Control.Presses[2]);                   // MENU = channel 2, on the bound device only
+        Assert.Equal(0, theirs.Control.Presses[2]);
+        Assert.Equal(1, mine.Control.Viewed);
+        Assert.Equal(0, theirs.Control.Viewed);
+        var dir = Vector3.Transform(Vector3.UnitX, mine.Control.Orientation);
+        Assert.True(Vector3.Dot(Vector3.Normalize(dir), Vector3.Normalize(new Vector3(100f, 100f, ScriptedStation.AimHeight))) > 0.9999f, $"the look points at the target ({dir})");
+        for (int i = 0; i < 20; i++) { s.Frame(0); w.Bus.SwapBuffers(); }
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 50; i++) { s.Frame(0); w.Bus.SwapBuffers(); }
+        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    public enum S1e2Mode : byte { One = 0, Two = 1 }
+
+    [UnitMemory]
+    public struct S1e2Memory
+    {
+        public S1e2Mode Mode;
+        public float Range;
+        public Entity Hit;
+    }
+
+    /// <summary>⭐ S1e-2 — the <c>field</c> cue's <c>memory</c> reads a unit's <c>[UnitMemory]</c> struct BY NAME on a real store: enums by name, numbers,
+    /// an entity as the name of the unit it holds; an unknown struct name is null (the row then holds nothing).</summary>
+    [Fact]
+    public void S1e2_UnitMemoryJson_ReadsAStructByName()
+    {
+        using var w = new EntityRepository();
+        w.RegisterComponent<EntityInfo>();
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(w);
+        var marker = w.CreateEntity();
+        w.AddComponent(marker, new EntityInfo { Name = "Marker 450" });
+        var device = w.CreateEntity();
+        Fdp.Toolkit.Behavior.UnitMemory.Set(w, device, new S1e2Memory { Mode = S1e2Mode.Two, Range = 451.5f, Hit = marker });
+        var json = UnitMemoryJson.Read(w, device, nameof(S1e2Memory))!;
+        Assert.Equal("Two", json["Mode"]!.GetValue<string>());
+        Assert.Equal(451.5, json["Range"]!.GetValue<double>(), 3);
+        Assert.Equal("Marker 450", json["Hit"]!.GetValue<string>());
+        Assert.Null(UnitMemoryJson.Read(w, device, "NoSuchMemory"));
+    }
+
+    /// <summary>⭐ S1e-2 — the HUD reader: the frame as a view BOUND to a source draws it (<c>HudScopes.Keep</c>): that run's texts kept, another source's
+    /// removed, the run's size counted; the plain eye's run is empty.</summary>
+    [Fact]
+    public void S1e2_HudRuns_ReadTheBoundSourcesRun_Only()
+    {
+        static Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive Text(string t)
+            => new() { Shape = Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveShape.Text, TextContent = new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32(t) };
+        var frame = new[]
+        {
+            Text("a unit label"),
+            Fdp.Toolkit.Diagnostics.Gizmos.HudScopes.Make(2, 2), Text("LASER RANGEFINDER"), Text("452 m"),
+            Fdp.Toolkit.Diagnostics.Gizmos.HudScopes.Make(3, 1), Text("BINOCULARS"),
+        };
+        Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive[] a = Array.Empty<Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitive>(), b = a;
+        var texts = new List<string>();
+        Assert.Equal(2, HudRuns.Read(frame, 2, texts, ref a, ref b));
+        Assert.Equal(new[] { "a unit label", "LASER RANGEFINDER", "452 m" }, texts);
+        texts.Clear();
+        Assert.Equal(1, HudRuns.Read(frame, 3, texts, ref a, ref b));
+        Assert.DoesNotContain("452 m", texts);
+        texts.Clear();
+        Assert.Equal(0, HudRuns.Read(frame, 0, texts, ref a, ref b));
+    }
+
     private sealed class Units : IShotWorld
     {
         public readonly Dictionary<string, int> Ids = new(StringComparer.Ordinal);
         public int? Resolve(string who) => Ids.TryGetValue(who, out var id) ? id : null;
         public Vector3? PositionOf(int networkId) => null;
         public IReadOnlyCollection<string> Names => Ids.Keys;
+    }
+
+    private sealed class FakeStation : IVerifyStation
+    {
+        public readonly List<string> Calls = new();
+        public int Frames;
+        public long BoundSource { get; set; }
+        public string? Possess(int networkId) { Calls.Add($"possess {networkId}"); return null; }
+        public string? View(long device) { Calls.Add($"view {device}"); BoundSource = device; return null; }
+        public string? Control(StationAction a, double rel) { Calls.Add($"control {string.Join("+", a.Press)} aim={a.AimAt}"); return null; }
+        public void Frame(double rel) => Frames++;
     }
 
     private sealed class FakeWorld : IVerifyWorld
@@ -330,6 +591,18 @@ public sealed class ScenarioChecksTests
         public readonly List<string> Calls = new();
         public string? Order(int networkId, JsonObject order) { Calls.Add($"order {networkId} {order.ToJsonString()}"); return null; }
         public string? ResumePlan(int networkId) { Calls.Add($"resume {networkId}"); return null; }
+        // ⭐ S1e-2 — a station the checks drive, a unit's memory structs, and the published HUD runs (texts per source network id)
+        public FakeStation? St;
+        public IVerifyStation? Station => St;
+        public readonly Dictionary<(int, string), JsonObject> Memories = new();
+        public JsonObject? Memory(int networkId, string type) => Memories.TryGetValue((networkId, type), out var m) ? m : null;
+        public readonly Dictionary<long, List<string>> Huds = new();
+        public int HudRun(long source, List<string> texts)
+        {
+            if (!Huds.TryGetValue(source, out var t)) return 0;
+            texts.AddRange(t);
+            return t.Count;
+        }
 
         public FakeWorld Unit(string name, int id, double health, double x)
         {

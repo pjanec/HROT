@@ -2060,61 +2060,32 @@ namespace Hrot.UI.Common.Map3D
         }
 
         // ── ⭐⭐ S1d-3 — the device frames (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4 D-43 / R5-13, §3.6 D-38) ──────────────────────────
-        private struct DeviceSlot
-        {
-            public Entity Device;
-            public uint Seq;
-            public Fdp.Toolkit.Behavior.Devices.DeviceControl Control;
-        }
+        //   ⭐ S1e-2 — written by THE ONE sender every adapter uses (DeviceFrameSender: this station, a scenario's scripted station, later a gamepad)
 
-        private readonly DeviceSlot[] _deviceSlots = new DeviceSlot[PossessionStation.MaxViewSources];
+        private readonly Fdp.Toolkit.Behavior.Devices.DeviceFrameSender _deviceFrames = new(PossessionStation.MaxViewSources);
+        private readonly byte[] _devicePresses = new byte[4];
 
         /// <summary>The device frames this driver sent (rails).</summary>
-        public long DeviceFramesSent { get; private set; }
+        public long DeviceFramesSent => _deviceFrames.Sent;
 
         /// <summary>
-        /// One <see cref="Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent"/> per device the station operates (D-43 — one frame per operated entity,
-        /// targeted at it): ① its <c>Orientation</c> = the operator's LOOK relative to the device's mount (R5-13 — the station fills it from the look when
-        /// no tracker is bound; the device writes its own <c>DevicePose</c> from it), ② <c>Viewed</c> while the view is bound to it (D-63 — the body's
-        /// brain raises a carried one), ③ to the BOUND device only, its buttons as press counters: LMB = 0, RMB = 1, the wheel up = 2 / down = 3 (the
-        /// device scope, D-38). ⚠ Published on the local bus — the interaction transport carries no device frame yet (SD-C). 0 B.
+        /// One <see cref="Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent"/> per device the station operates (D-43) through
+        /// <see cref="Fdp.Toolkit.Behavior.Devices.DeviceFrameSender"/>: the operator's LOOK relative to each device's mount (R5-13), <c>Viewed</c> while
+        /// the view is bound to it (D-63), and to the BOUND device only its buttons: LMB = 0, RMB = 1, the wheel up = 2 / down = 3 (the device scope,
+        /// D-38). ⛔ None while HTTP or a scenario's scripted station drives the unit (CE-1464 — its counters would race ours). 0 B.
         /// </summary>
         private void SendDeviceFrames(bool viewing, float wheel = 0f)
         {
-            if (_world() is not { } w || !w.Bus.IsRegistered<Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent>() || _station.BodyStation(w) is not { } station) return;
-            var sources = _station.ViewSources;
-            var look = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, _yaw) * Quaternion.CreateFromAxisAngle(Vector3.UnitY, -_pitch);
-            for (int i = 0; i < sources.Length; i++)
+            if (_world() is not { } w || HttpControlledUnits.IsMarked(_netId) || _station.BodyStation(w) is not { } station) return;
+            System.Array.Clear(_devicePresses);
+            if (viewing && _locked != null)
             {
-                var d = sources[i];
-                ref var slot = ref SlotOf(d);
-                bool bound = viewing && d == _station.BoundDevice;
-                Quaternion mount = w.HasComponent<SimTransform>(d) ? (Quaternion)w.GetComponentRO<SimTransform>(d).Rotation : Quaternion.Identity;
-                slot.Control.Orientation = Quaternion.Normalize(Quaternion.Inverse(mount == default ? Quaternion.Identity : mount) * look);
-                slot.Control.Trackers |= Fdp.Toolkit.Behavior.Devices.DeviceControl.OrientationPresent;
-                slot.Control.Viewed = bound ? (byte)1 : (byte)0;
-                if (bound && _locked != null)
-                {
-                    for (int b = 0; b < 2; b++) if (_keys.Pressed(EmbodiedKeys.DeviceButton(b))) unchecked { slot.Control.Presses[b]++; }
-                    if (wheel > 0f) unchecked { slot.Control.Presses[2]++; }
-                    else if (wheel < 0f) unchecked { slot.Control.Presses[3]++; }
-                }
-                w.Bus.Publish(new Fdp.Toolkit.Behavior.Devices.DeviceFrameEvent { Device = d, StationNodeId = station, Seq = ++slot.Seq, Control = slot.Control });
-                DeviceFramesSent++;
+                for (int b = 0; b < 2; b++) if (_keys.Pressed(EmbodiedKeys.DeviceButton(b))) _devicePresses[b] = 1;
+                if (wheel > 0f) _devicePresses[2] = 1;
+                else if (wheel < 0f) _devicePresses[3] = 1;
             }
-        }
-
-        private ref DeviceSlot SlotOf(Entity device)
-        {
-            int free = -1;
-            for (int i = 0; i < _deviceSlots.Length; i++)
-            {
-                if (_deviceSlots[i].Device == device) return ref _deviceSlots[i];
-                if (free < 0 && (_deviceSlots[i].Device.IsNull || _station.ViewSources.IndexOf(_deviceSlots[i].Device) < 0)) free = i;
-            }
-            if (free < 0) free = 0;
-            _deviceSlots[free] = new DeviceSlot { Device = device };   // a new device: counters from 0 (its own epoch re-bases them, R7-11)
-            return ref _deviceSlots[free];
+            _deviceFrames.Send(w, station, _station.ViewSources, _station.BoundDevice, viewing,
+                Fdp.Toolkit.Behavior.Devices.DeviceFrameSender.Look(_yaw, _pitch), _devicePresses, default);
         }
 
         /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold
