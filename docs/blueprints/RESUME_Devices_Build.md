@@ -32,7 +32,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **S1e-2** the grammar: `do: possess / view / control / pause`, `atPausedFrame`, `field` + `memory`, `hud` (+ `"station:1"`); `ScriptedStation` over `DeviceFrameSender` (extracted from the station) | ✅ | the S1e-2 commit — `ScenarioChecksTests.S1e2_*` (6, red-proved), `PossessionStationTests` 82 / 82; grammar rows in DESIGN_Scenario_Regression §3 |
 | **S1e-3** the six SD-S1 scenarios (`scenarios/demos/devices/`, `scripts/gen-devices-scenarios.py`) | ✅ | the S1e-3 commit — **6 / 6 pass**, goldens captured, `dv-replay-hud` H5 review SAME; 3 defects fixed (frame-counting device state, the headless gizmo gate, the eye's hud) — design §5a S1e AS BUILT; ⏳ CE-4713 (the HUD text in the review) |
 | **queued (user `2026-11-27`)** SD-S4b steer the round in flight (both modes, crosshair first) + the missile's-view toggle — design §3.13a (D-80–D-91), §5 row, §5a `dv-steer-*` (5), Q-15 answered (R-4301: the device goes straight into `GuidedRound`) | ⏳ | after SD-S4 `FireControl`; real joystick = SD-S2 |
-| **designed `2026-11-28`** SD-S4 + SD-S4b (§3.13b) and SD-S2 (§3.13c) READY-TO-BUILD | ⏳ | ⚠ mockups pending: panels 7–11 (the sight unit — an agent drawing them was stopped by usage-policy safeguards) and 12–15 (the drone OSD); the build order the user picks |
+| **designed `2026-11-28`** SD-S4 + SD-S4b (§3.13b) and SD-S2 (§3.13c) READY-TO-BUILD | ⏳ | ⚠ mockups pending: panels 7–11 (the sight unit — an agent drawing them was stopped by usage-policy safeguards) ✅ 12–15 drawn (`devices-hud-drone.svg`); the build order the user picks |
 
 ## 2. Rules learned this run (do not re-learn)
 
