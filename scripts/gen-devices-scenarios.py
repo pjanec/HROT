@@ -11,7 +11,7 @@ import json
 import os
 
 ROOT = os.path.join(os.path.dirname(__file__), "..", "scenarios", "demos", "devices")
-RANGEFINDER, BINOCULARS, SOLDIER, OBSERVER_HMMWV = 640, 641, 2002, 120
+RANGEFINDER, BINOCULARS, SOLDIER, OBSERVER_HMMWV, DESIGNATOR = 640, 641, 2002, 120, 643
 
 
 def guid(block, n):
@@ -579,5 +579,106 @@ write("dv-stacked-devices", scenario(
         {"name": "the cue is drawn on the stacked binoculars' HUD", "on": "hud", "source": "station:1", "text": ["==", "TARGET"], "after": "binoculars viewed+0.25"},
     ],
 }, "SD-S5b")
+
+# ── ⭐ SD-S5c (§3.13d D-113 – D-115) — the LASER TARGET DESIGNATOR ─────────────────────────────────────────────────────────────────────
+# dv-ltd-procedure — the procedure and the duty cycle (TKB 643: a 60 s lase, a 30 s cool-down, code 1688; CODE steps like an odometer over each digit's
+#   proven range — 1688 → 1711), and R-4300: a LASE pressed in a pause waits for the first live frame; nothing is designated while paused.
+# dv-ltd-linked — the rangefinder ranges a marker and SENDs to the designator it is linked to (paired back); the designator holds the point and draws the cue.
+DG = "DesignatorState"
+LTD_BLOCK = 9
+ents = observer_with(LTD_BLOCK, [("Designator", DESIGNATOR, 4)], at=(OX, OY))
+ents[guid(LTD_BLOCK, 2)] = man("Marker 450", MX, MY)
+LASE_AT, PAUSE_AT = 4.0, 96.0
+write("dv-ltd-procedure", scenario(
+    "dv-ltd-procedure",
+    "Simulated devices SD-S5c (§3.13d D-113 - D-115, R-4300). The Observer carries a laser target designator (kit 1; TKB 643: a lase lasts at most 60 s, then "
+    "the laser cools 30 s; its PRF code starts at 1688 and CODE steps it to the next valid code, each digit in its proven range: 1 / 1-7 / 1-8 / 1-8). A "
+    "scripted trainee possesses him, binds his view to the designator and aims at a marker 450 m away; POWER; CODE once (1688 -> 1711); LASE at 4 s and "
+    "holds it past the duty limit; a CODE press while lasing and a LASE press while cooling; after the cool-down the run PAUSES for 120 frames and he presses "
+    "LASE inside the pause (paused frame 10).",
+    "(1) the phase runs OFF -> STANDBY -> LASING -> COOLING (at the 60 s limit) -> STANDBY (30 s later) -> LASING (the queued lase); (2) the code is 1688 "
+    "after POWER and 1711 after CODE, and the presses while lasing / cooling are refused (the code stays, the cooling runs on); (3) while lasing the laser "
+    "meets the marker and is a live designation; (4) the LASE pressed in the pause is QUEUED - nothing is designated on any paused frame - and the lase "
+    "starts on the first live frame after it; (5) the HUD shows LASING, then COOLING, then 'queued' in the pause. Fail: a lase past 60 s, a lase "
+    "while cooling, a code changed outside STANDBY, or a designation inside the pause.",
+    ents), {
+    "runFor": 100, "golden": {"every": 25},
+    "do": [
+        {"name": "possessed", "at": 0.5, "possess": {"who": "Observer", "station": 1}},
+        {"name": "viewed", "at": 1.0, "view": {"station": 1, "source": "Designator"}},
+        {"name": "aimed", "at": 1.5, "control": {"aim": "Marker 450"}},
+        press("powered", 2.0, "POWER"),
+        press("coded", 3.0, "CODE"),
+        press("lased", LASE_AT, "LASE"),
+        press("code while lasing", 10.0, "CODE"),
+        press("lase while cooling", 70.0, "LASE"),
+        {"name": "paused", "at": PAUSE_AT, "pause": {"frames": 120}},
+        {"name": "lase in pause", "atPausedFrame": 10, "control": {"press": "LASE"}},
+    ],
+    "expect": [
+        mem("before POWER the designator is OFF", "Designator", DG, "Phase", "==", "Off", after="viewed", before="powered"),
+        mem("POWER: STANDBY, the type's code 1688", "Designator", DG, "Phase", "==", "Standby", after="powered", before="coded", also=[{"path": "Code", "op": "==", "value": 1688}]),
+        mem("CODE steps the code to the next valid one: 1711", "Designator", DG, "Code", "==", 1711, after="coded", before="lased"),
+        mem("LASE: LASING", "Designator", DG, "Phase", "==", "Lasing", after="lased", before=LASE_AT + 59.5),
+        mem("the lase meets the marker and is a live designation", "Designator", DG, "Designating", "==", 1, after="lased", before=LASE_AT + 59.5,
+            also=[{"path": "LastHit", "op": "==", "value": "Marker 450"}, {"path": "LastRange", "op": ">=", "value": 447.0}, {"path": "LastRange", "op": "<=", "value": 450.5}]),
+        {"name": "the code never changes outside STANDBY", "never": {"on": "field", "who": "Designator", "memory": DG, "field": "Code", "op": "!=", "value": 1711}, "after": "lased"},
+        {"name": "the lase never runs past its 60 s", "never": {"on": "field", "who": "Designator", "memory": DG, "field": "Phase", "op": "==", "value": "Lasing"}, "after": LASE_AT + 60.5, "before": LASE_AT + 89.5},
+        mem("at the duty limit it COOLS", "Designator", DG, "Phase", "==", "Cooling", after=LASE_AT + 60.5, before=LASE_AT + 61.0),
+        mem("LASE while cooling is refused: still COOLING", "Designator", DG, "Phase", "==", "Cooling", after="lase while cooling+0.5", before=LASE_AT + 89.5),
+        mem("cooled: STANDBY again", "Designator", DG, "Phase", "==", "Standby", after=LASE_AT + 90.5, before="paused"),
+        {"name": "the LASE pressed in the pause is QUEUED, the phase STANDBY (paused frame 60)", "atPausedFrame": 60, "on": "field", "who": "Designator", "memory": DG,
+         "field": "Queued", "op": "==", "value": 1, "also": [{"path": "Phase", "op": "==", "value": "Standby"}]},
+        {"name": "nothing is designated on any paused frame", "never": {"on": "field", "who": "Designator", "memory": DG, "field": "Designating", "op": "!=", "value": 0}, "after": "paused", "before": "paused"},
+        # the book samples every 0.25 s of sim time out of a pause: the first sample after it (96.25 s) — the frame itself is the rails' (DesignatorBehaviorTests)
+        mem("the queued lase starts on the first live frame (lasing at the first sample after the pause)", "Designator", DG, "Phase", "==", "Lasing", after=PAUSE_AT + 0.05, before=PAUSE_AT + 0.3,
+            also=[{"path": "Queued", "op": "==", "value": 0}]),
+        mem("… and designates the marker", "Designator", DG, "Designating", "==", 1, after=PAUSE_AT + 0.02, before=PAUSE_AT + 1.0),
+        {"name": "the HUD shows LASING", "on": "hud", "source": "station:1", "text": ["==", "LASING"], "after": "lased+0.25", "before": LASE_AT + 59.5},
+        {"name": "the HUD shows COOLING", "on": "hud", "source": "station:1", "text": ["==", "COOLING"], "after": LASE_AT + 60.5, "before": LASE_AT + 89.5},
+        {"name": "the HUD shows the lase queued in the pause (paused frame 60)", "atPausedFrame": 60, "on": "hud", "source": "station:1", "text": ["==", "queued"]},
+    ],
+}, "SD-S5c")
+
+# ── dv-ltd-linked ──
+LINK_BLOCK = 10
+ents = observer_with(LINK_BLOCK, [("Rangefinder", RANGEFINDER, 4), ("Designator", DESIGNATOR, 5)], at=(OX, OY))
+ents[guid(LINK_BLOCK, 10)]["DeviceLinks"] = {"Peer0": guid(LINK_BLOCK, 11)}   # the rangefinder sends to the designator
+ents[guid(LINK_BLOCK, 11)]["DeviceLinks"] = {"Peer0": guid(LINK_BLOCK, 10)}   # paired back: its cue says "(linked)"
+ents[guid(LINK_BLOCK, 2)] = man("Marker 450", MX, MY)
+write("dv-ltd-linked", scenario(
+    "dv-ltd-linked",
+    "Simulated devices SD-S5c (§3.13d D-119 with the designator as the receiver). The Observer carries a laser rangefinder (kit 1) and a laser target "
+    "designator (kit 2), linked both ways. A scripted trainee possesses him, ranges a marker 450 m away through the rangefinder, presses its SEND chip, then "
+    "binds his view to the designator and switches it on.",
+    "(1) before SEND the designator holds no target; (2) after it the designator holds the marker's point (within 2 m), its range (~450 m) and the sender's "
+    "type; (3) the designator's HUD shows the received-target cue - TARGET and 'from LASER RANGEFINDER (linked)'. Fail: the point lost or wrong, or no cue.",
+    ents), {
+    "runFor": 8, "golden": {"every": 4},
+    "do": [
+        {"name": "possessed", "at": 0.5, "possess": {"who": "Observer", "station": 1}},
+        {"name": "viewed", "at": 1.0, "view": {"station": 1, "source": "Rangefinder"}},
+        {"name": "aimed", "at": 1.5, "control": {"aim": "Marker 450"}},
+        press("ranged", 2.5, "RANGE"),
+        {"name": "designator viewed", "at": 3.0, "view": {"station": 1, "source": "Designator"}},
+        press("powered", 3.5, "POWER"),
+        {"name": "rangefinder viewed", "at": 4.0, "view": {"station": 1, "source": "Rangefinder"}},
+        press("sent", 4.5, "SEND"),
+        {"name": "designator viewed again", "at": 5.5, "view": {"station": 1, "source": "Designator"}},
+    ],
+    "expect": [
+        mem("the rangefinder measured the marker", "Rangefinder", RF, "LastRange", ">=", 447.0, after="ranged", before="sent", also=[{"path": "LastRange", "op": "<=", "value": 450.5}]),
+        mem("the designator is on", "Designator", DG, "Phase", "==", "Standby", after="powered", before="rangefinder viewed"),
+        mem("before SEND the designator holds no target", "Designator", DG, "HasTarget", "==", 0, after="powered", before="sent"),
+        mem("SEND hands the target to the linked designator", "Designator", DG, "HasTarget", "==", 1, after="sent",
+            also=[{"path": "Target.Point.X", "op": ">=", "value": round(MX - 2.0, 1)}, {"path": "Target.Point.X", "op": "<=", "value": round(MX + 2.0, 1)},
+                  {"path": "Target.Point.Y", "op": ">=", "value": round(MY - 2.0, 1)}, {"path": "Target.Point.Y", "op": "<=", "value": round(MY + 2.0, 1)},
+                  {"path": "Target.Range", "op": ">=", "value": 447.0}, {"path": "Target.Range", "op": "<=", "value": 450.5},
+                  {"path": "Target.FromType", "op": "==", "value": RANGEFINDER}]),
+        mem("the target came from the rangefinder", "Designator", DG, "TargetFrom", "==", "Rangefinder", after="sent"),
+        {"name": "the designator's HUD draws the received-target cue", "on": "hud", "source": "station:1", "text": ["==", "TARGET"], "after": "designator viewed again+0.25"},
+        {"name": "the cue names its sender and the link", "on": "hud", "source": "station:1", "text": ["==", LINKED_SENDER], "after": "designator viewed again+0.25"},
+    ],
+}, "SD-S5c")
 
 print("wrote", sorted(os.listdir(ROOT)))

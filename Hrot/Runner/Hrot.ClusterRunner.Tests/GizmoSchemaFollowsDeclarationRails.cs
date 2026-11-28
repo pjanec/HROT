@@ -110,7 +110,9 @@ public sealed class GizmoSchemaFollowsDeclarationRails
         //    found only on a host that loads it for its own reasons (CGF, Editor, IG). Named here so adding one is a decision.
         //    ⭐ Simulated devices S1d-2 — the rangefinder's HUD projector lives with its device (D-57) and draws on the BRAIN that runs it (CGF, the Editor).
         //    ⭐ S1d-3 the binoculars' and ⭐ SD-S2d the drone ground station's OSD join it, by the same rule (the binoculars' row was missing since S1d-3 — red at base).
-        Assert.Equal(new[] { "Hrot.AI.Behaviors.Devices.Binoculars.BinocularsHudGizmo", "Hrot.AI.Behaviors.Devices.DroneStation.DroneStationHudGizmo",
+        //    ⭐ SD-S5c the laser designator's HUD joins it too.
+        Assert.Equal(new[] { "Hrot.AI.Behaviors.Devices.Binoculars.BinocularsHudGizmo", "Hrot.AI.Behaviors.Devices.Designator.DesignatorHudGizmo",
+                             "Hrot.AI.Behaviors.Devices.DroneStation.DroneStationHudGizmo",
                              "Hrot.AI.Behaviors.Devices.Rangefinder.RangefinderHudGizmo", "Hrot.AI.Behaviors.Gizmos.HillAttackGizmo" },
                      skipped.Select(s => s.type).OrderBy(t => t, StringComparer.Ordinal).ToArray());
     }

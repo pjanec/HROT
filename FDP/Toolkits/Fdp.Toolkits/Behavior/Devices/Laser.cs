@@ -28,6 +28,10 @@ namespace Fdp.Toolkit.Behavior.Devices
         /// <summary>The pointer's REQUEST number — bumped each time it starts a measurement; the spot echoes the one it answers
         /// (<see cref="LaserSpot.PointingSeq"/>), so a device never reads a spot left from an earlier emission (one hop late across nodes).</summary>
         public uint Seq;
+        /// <summary>⭐ SD-S5c (design §3.13d D-114, R-4301) — the beam's PULSE CODE (a 4-digit PRF code, 1111 … 1788) while a designator LASES (<see cref="Band"/> 2):
+        /// the one contract between the designator and a laser seeker (D-117 — a seeker homes only on its own code). 0 = uncoded (every other beam, and a
+        /// designator's single RANGE pulse — a ranging pulse is no designation).</summary>
+        public ushort Code;
     }
 
     /// <summary>One point the beam reaches (S1c: the first return only — the room for four is for partial obscurants, SD-S6).</summary>

@@ -409,6 +409,8 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DeviceBinoculars = "DeviceBinoculars";
         /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION's logic (TKB 642).</summary>
         public const string DeviceDroneStation = "DeviceDroneStation";
+        /// <summary>⭐ SD-S5c (§3.13d D-113) — the LASER TARGET DESIGNATOR's logic (TKB 643): OFF · STANDBY · LASING · COOLING, the PRF code, one RANGE pulse.</summary>
+        public const string DeviceDesignator = "DeviceDesignator";
         /// <summary>⭐ SD-S2c (§3.13c D-104 / D-107) — a drone flown THROUGH a ground station: its own brain reads the station's command (never possessed).</summary>
         public const string RemotePilot = "RemotePilot";
     }

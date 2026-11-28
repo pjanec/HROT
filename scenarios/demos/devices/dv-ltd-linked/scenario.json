@@ -1,0 +1,151 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S5c (§3.13d D-119 with the designator as the receiver). The Observer carries a laser rangefinder (kit 1) and a laser target designator (kit 2), linked both ways. A scripted trainee possesses him, ranges a marker 450 m away through the rangefinder, presses its SEND chip, then binds his view to the designator and switches it on. Judge: (1) before SEND the designator holds no target; (2) after it the designator holds the marker's point (within 2 m), its range (~450 m) and the sender's type; (3) the designator's HUD shows the received-target cue - TARGET and 'from LASER RANGEFINDER (linked)'. Fail: the point lost or wrong, or no cue. Check: scripts/scenario-regression.sh dv-ltd-linked"
+  },
+  "entities": {
+    "d5e1000a-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "d5e1000a-0000-4000-8000-000000000010",
+          "d5e1000a-0000-4000-8000-000000000011"
+        ],
+        "Seats": [
+          4,
+          5
+        ]
+      }
+    },
+    "d5e1000a-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e1000a-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "DeviceLinks": {
+        "Peer0": "d5e1000a-0000-4000-8000-000000000011"
+      }
+    },
+    "d5e1000a-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 643
+      },
+      "EntityInfo": {
+        "Name": "Designator",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e1000a-0000-4000-8000-000000000001",
+        "Seat": 5
+      },
+      "DeviceLinks": {
+        "Peer0": "d5e1000a-0000-4000-8000-000000000010"
+      }
+    },
+    "d5e1000a-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -131.8,
+          18.19999999999999,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

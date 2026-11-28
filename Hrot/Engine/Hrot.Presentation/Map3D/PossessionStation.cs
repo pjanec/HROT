@@ -570,6 +570,7 @@ namespace Hrot.UI.Common.Map3D
             if (behaviour.Equals(BinocularsName)) return ("BINOCULARS", "binoculars", HudText.Binoculars, DeviceTeal);
             if (behaviour.Equals(RangefinderName)) return ("LASER RANGEFINDER", "rangefinder", HudText.Crosshairs, DeviceRed);
             if (behaviour.Equals(DroneStationName)) return ("DRONE STATION", "drone station", HudText.Video, EyeBlue);   // ⭐ SD-S2d (mockup devices-hud-drone.svg) — the camera, blue
+            if (behaviour.Equals(DesignatorName)) return ("LASER DESIGNATOR", "designator", HudText.Crosshairs, DeviceRed);   // ⭐ SD-S5c — a laser device, red as the rangefinder
             return ("DEVICE", "device", HudText.Crosshairs, new Color(160, 160, 170, 255));
         }
 
@@ -583,6 +584,7 @@ namespace Hrot.UI.Common.Map3D
         private static readonly FixedString64 BinocularsName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars);
         private static readonly FixedString64 RangefinderName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder);
         private static readonly FixedString64 DroneStationName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDroneStation);
+        private static readonly FixedString64 DesignatorName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDesignator);
         /// <summary>The mockup kit's colours (C.BLUE, C.TEAL, C.RED).</summary>
         public static readonly Color EyeBlue = new(90, 169, 255, 255), DeviceTeal = new(62, 198, 176, 255), DeviceRed = new(230, 85, 85, 255);
 

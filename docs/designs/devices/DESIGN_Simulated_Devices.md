@@ -1384,7 +1384,7 @@ the marker and its laser met it · the target reaches the stacked binoculars · 
 (R-4138; the HUD's geometry is in the unit rails above) · the JSON form (D-59) and the wire arm (SD-C) · `dv-stacked-ltd` (SD-S5c). ⚠ `Fdp.Toolkits.Tests` / `Hrot.Presentation.Tests`
 run whole show red tests on this machine that are not the devices' (a decimal-comma locale and Windows path separators; a code scan of another lane's panel) — measured, not chased.
 
-⭐ **S5c AS BUILT (`2026-11-28`)** — the laser target designator (D-113 – D-115, D-121); `dv-ltd-procedure` + `dv-ltd-linked` pass, every other device scenario the same.
+⭐ **S5c AS BUILT (`2026-11-28`)** — the laser target designator (D-113 – D-115, D-121); `dv-ltd-procedure` + `dv-ltd-linked` pass (goldens captured, a second fresh run SAME); the 14 earlier device scenarios pass with every golden SAME — `LaserPointing`'s new field moved no hash, so none was recaptured.
 **The device** (`Hrot.AI.Behaviors/Devices/Designator/`, D-57): TKB **643** `Laser designator` (`TkbEntityTypes.Device_LaserDesignator`, the next free id in 640–659) —
 `DeviceDefDto` elements **POWER · LASE · CODE · RANGE** (buttons 0–3, hotkeys P · L · C · R — the type's own keymap place shadows them only while a view shows it),
 `Magnifications { 10 }`, `Messages { TargetLocation }`, and a new descriptor **`Gen.LaserDesignator`** (`LaserDesignatorDto`: `LaseSeconds` 60 · `CoolSeconds` 30 ·
@@ -1422,7 +1422,7 @@ real frame of panels 16–19 under `xvfb-run -a`, each element measured at the m
 **Red-proved:** the code off the beam ⇒ 3 behaviour rails red · the cooling arm of `StateOf` ⇒ panel 18 red · the duty-limit branch ⇒ the procedure rail red.
 **Scenarios** (`scripts/gen-devices-scenarios.py`): `dv-ltd-procedure` (17 rows: OFF → STANDBY (1688) → 1711 → LASING (meets the marker, a live designation) → the code
 never changes outside STANDBY → never lasing past 60 s → COOLING (LASE refused) → STANDBY → paused: LASE QUEUED, nothing designated on any paused frame → the lase starts
-on the first live frame and designates · the HUD shows LASING, COOLING, `queued`) and `dv-ltd-linked` (7 rows: the rangefinder ranges and SENDs; the designator holds the
+at the first sample after the pause (the book samples every 0.25 s; the exact frame is the rails') and designates · the HUD shows LASING, COOLING, `queued`) and `dv-ltd-linked` (7 rows: the rangefinder ranges and SENDs; the designator holds the
 marker's point within 2 m, its range, the sender; its HUD draws TARGET and "from LASER RANGEFINDER (linked)"). ⏳ **Not built:** `dv-stacked-ltd` (S5b judged stacking
 by `dv-stacked-devices`; the designator stacked on the rangefinder needs no new code — a scenario row for later) · the laser-guided bomb (SD-S6b).
 
