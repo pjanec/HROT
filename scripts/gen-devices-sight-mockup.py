@@ -266,7 +266,7 @@ def legend(x, y, specs, ctx, notes=(), dy=0):
 s.rect(30, 56, 12, 12, "#000", stroke=WHITE, sw=1); s.text(48, 66, "specified HUD element (full colour, dark halo — as the station's HudText draws over the 3-D view)", C.SUB, 11)
 s.rect(640, 56, 12, 12, "none", stroke="#8A8A96", dash="4 3"); s.text(658, 66, "context — unchanged, not specified here", C.SUB, 11)
 s.text(30, 86, "Frames are 460 × 259 (16:9). The scene is illustrative; the tank is only there so the reticle has something to rest on. The missile and its flare are world effects.", C.NOTE, 11)
-s.text(30, 102, "Layout positions are PROPOSALS where the design is silent (it names what the HUD shows, not where) — each panel lists its own. Panels 1–6: devices-hud.svg · 12–15: devices-hud-drone.svg · 16–19: devices-hud-designator.svg · 20–23: devices-hud-control.svg.", C.PEND, 11)
+s.text(30, 102, "Layout positions are PROPOSALS where the design is silent (it names what the HUD shows, not where) — each panel lists its own. Panels 1–6: devices-hud.svg · 12–15: devices-hud-drone.svg · 16–19: devices-hud-designator.svg · 20–23: devices-hud-control.svg · 24–26: devices-hud-link.svg · 27–32: devices-hud-lock.svg.", C.PEND, 11)
 
 lx = 30                                                                                          # the procedure ladder (D-93): one colour per phase, used by every panel
 s.text(lx, 130, "THE PROCEDURE (D-93)", "#9FB7D8", 11, weight="bold"); lx += 142
@@ -278,6 +278,7 @@ for i, ph in enumerate(("OFF", "TEST", "STANDBY", "ARMED", "GUIDING")):
 s.text(lx + 6, 132.5, "the flight ends ▸ ARMED (or STANDBY, NO MISSILE) · POWER from any phase ▸ OFF", "#8A8A96", 10)
 s.text(30, 156, "Phase colours: OFF grey · TEST amber · STANDBY blue · ARMED green · GUIDING red — the chip, and nothing else, carries the phase. Commands: on = set · plain = pressable · greyed = refused.", C.NOTE, 11)
 s.text(30, 172, "Every chip is a HudPanel button (D-122, D-128): clickable, with its hotkey badge (D-124 — the keys are proposals). The hover frame, the cursor and RMB-LOOK are the virtual adapter's, drawn in panels 16–19.", C.NOTE, 11)
+s.text(30, 188, "SD-S4d (§3.13g): this unit is the one-weapon PROFILE of the FireControlUnit (D-172) — its controls are type data: no GUIDE chip (one guidance position, greyed away), no TRACK chip (no lock device); VIEW shows the glyph of the view it switches TO and returns to the sight by itself when the flight ends (D-178). A lock-on type adds both chips: panels 27–32 of devices-hud-lock.svg.", C.NOTE, 11)
 
 SIGHT = "ATGM SIGHT · TOW"
 
@@ -383,7 +384,7 @@ chips(x, y, (("POWER", "on"), ("ARM", "on"), ("FIRE", "off"), ("VIEW", "on")))
 legend(x, y, "the VIEW ▸ MISSILE label (rocket glyph) · the AIM ring: where the shooter's crosshair is, relative to the missile's heading · its offset in degrees · IN FLIGHT with the time of flight · VIEW set (press it to go back to the shooter)",
        "the unit lines · the picture and the round in it (world effects)",
        ["Crosshair mode (D-90): the missile's view is a WATCH — the stick still moves the shooter's crosshair; the AIM ring shows the offset and the round turns toward it. In MCLOS the stick turns the round itself (panel 11).",
-        "The view stays bound to the sight (D-109): the HUD above is the sight's, only the camera is on the round; the round's end (`Lost`) gives the camera back to the shooter. Works in pause (D-91): the camera can jump to the frozen round and back.",
+        "D-178: in the missile's view the VIEW chip carries the SIGHT glyph (what it switches to) and the label names the current view; the unit goes back to the sight by itself when the flight ends. A type option AutoView starts the flight in this view.", "The view stays bound to the sight (D-109): the HUD above is the sight's, only the camera is on the round; the round's end (`Lost`) gives the camera back to the shooter. Works in pause (D-91): the camera can jump to the frozen round and back.",
         "PROPOSAL: the sight's optic mask and the mil reticle are not drawn here (the picture is the missile's, not the sight's); the station's compass strip is not drawn either (it would show the man's heading, not the round's); the AIM ring and its degrees line are mine."])
 
 # ── 11 · the MCLOS box ─────────────────────────────────────────────────────────────────────────────────────
