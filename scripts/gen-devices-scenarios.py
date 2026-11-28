@@ -571,4 +571,103 @@ write("dv-stacked-devices", scenario(
     ],
 }, "SD-S5b")
 
+# -- SD-S4 - the launcher SIGHT UNIT (DESIGN_Simulated_Devices 3.13b D-92 - D-96 / D-112): dv-sight-procedure ------------------------------------------
+# A scripted trainee possesses the Gunner of a "TOW (tripod, sight unit)" (TKB 619: Gunner seat 0, the sight unit TKB 643 pre-mounted in the device station
+# the Gunner seat operates). The rows that read the HUD (TEST, ARMED, IN FLIGHT, NO MISSILE) wait for the sight unit's HUD projector (panels 7-10) - the
+# procedure is judged on the unit's own state (FireControlUnitState) and on the world (the shot, the hit).
+TOW_SIGHT, SIGHT_UNIT = 619, 643
+FC = "FireControlUnitState"
+
+
+def sight_world(block, rounds):
+    wpn, gun, tgt = guid(block, 1), guid(block, 2), guid(block, 3)
+    return {
+        wpn: {
+            "SimTransform": {"Position": [0, 0, 0], "Rotation": [0, 0, 0, 1]},
+            "TkbIdentity": {"TkbType": TOW_SIGHT},
+            "EntityInfo": {"Name": "TOW", "ForceId": "Friend"},
+            "PassengerBuffer": {"Count": 1, "Passengers": [gun], "Seats": [0]},
+        },
+        gun: {**man("Gunner", 0, 0), "IsEmbarkedTag": {"Vehicle": wpn, "Seat": 0}},
+        tgt: man("Target", 700, 0, side="Hostile"),
+    }
+
+
+SIGHT_DO = [
+    {"name": "loaded", "at": 0.1, "set": {"who": "TOW", "component": "WeaponState", "patch": {"Ammo": 1, "MagazineRounds": 1}}},
+    {"name": "possessed", "at": 0.5, "possess": {"who": "Gunner", "station": 1}},
+    {"name": "viewed", "at": 1.0, "view": {"station": 1, "source": "Launcher sight unit"}},
+    {"name": "aimed", "at": 1.2, "control": {"aim": "Target"}},
+    press("fire early", 2.0, "FIRE"),
+    press("power", 2.5, "POWER"),
+    press("arm early", 3.5, "ARM"),
+    press("armed", 6.5, "ARM"),
+    {"name": "paused", "at": 7.0, "pause": {"frames": 60}},
+    {"name": "fire in pause", "atPausedFrame": 20, "control": {"press": "FIRE"}},
+    press("fire", 9.0, "FIRE"),
+    press("arm again", 18.0, "ARM"),
+    press("fire again", 19.0, "FIRE"),
+]
+SIGHT_EXPECT = [
+    mem("the unit is OFF until POWER", "Launcher sight unit", FC, "Phase", "==", "Off", after="viewed", before="power"),
+    mem("POWER starts the self-test", "Launcher sight unit", FC, "Phase", "==", "Test", after="power+0.5", before="power+2.5"),
+    mem("ARM before the test ends is refused", "Launcher sight unit", FC, "Phase", "==", "Test", after="arm early+0.2", before="arm early+1.0"),
+    mem("the test ends in STANDBY", "Launcher sight unit", FC, "Phase", "==", "Standby", after="power+3.5", before="armed"),
+    {"name": "never ARMED before ARM is accepted", "never": {"on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Phase", "op": "==", "value": "Armed"}, "after": "viewed", "before": "armed"},
+    mem("ARM arms it", "Launcher sight unit", FC, "Phase", "==", "Armed", after="armed+0.2", before="paused"),
+    mem("READY when armed on a live frame", "Launcher sight unit", FC, "Ready", "==", 1, after="armed+0.2", before="paused"),
+    {"name": "READY is off in the pause", "atPausedFrame": 40, "on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Ready", "op": "==", "value": 0},
+    {"name": "still ARMED after FIRE in the pause (refused, never remembered)", "atPausedFrame": 40, "on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Phase", "op": "==", "value": "Armed"},
+    mem("the refused press is not carried to the first live frame", "Launcher sight unit", FC, "Phase", "==", "Armed", after="paused+0.5", before="fire"),
+    {"name": "no launch before FIRE on a live armed unit (FIRE early, in the pause)", "never": {"on": "shot", "by": "TOW"}, "after": "viewed", "before": "fire"},
+    {"name": "FIRE launches the missile", "on": "shot", "by": "TOW", "n": 1, "after": "fire"},
+    mem("GUIDING while it flies", "Launcher sight unit", FC, "Phase", "==", "Guiding", after="fire+0.3", before="fire+1.0"),
+    {"name": "the missile hits the man the trainee held the crosshair on (the round flew the device's sight line)", "on": "field", "who": "Target", "path": "Health.Current", "op": "<=", "value": 0, "after": "fire"},
+    mem("the flight ends in STANDBY: the launcher is empty (NO MISSILE)", "Launcher sight unit", FC, "Phase", "==", "Standby", after="fire+6.0", before="arm again"),
+    mem("MISSILES 0", "Launcher sight unit", FC, "Missiles", "==", 0, after="arm again-0.5"),
+    {"name": "never ARMED after the flight (ARM refused on the emptied launcher, D-112)", "never": {"on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Phase", "op": "==", "value": "Armed"}, "after": "fire+1.0"},
+    {"name": "never a second launch", "never": {"on": "shot", "by": "TOW", "n": 2}, "after": "fire"},
+]
+write("dv-sight-procedure", scenario(
+    "dv-sight-procedure",
+    "Simulated devices SD-S4 (DESIGN_Simulated_Devices 3.13b D-93 / D-94 / D-95 / D-96 / D-112). A scripted trainee possesses the Gunner of a TOW tripod with a "
+    "SIGHT UNIT (TKB 619, the launcher authored with ONE round), binds his view to the unit and holds the crosshair on a hostile man 700 m away. He presses FIRE "
+    "before POWER, POWER, ARM before the self-test ends, ARM; a FIRE inside a 60-frame pause; FIRE on a live frame; and, once the flight has ended, ARM and FIRE "
+    "again on the emptied launcher.",
+    "(1) the unit's own state (FireControlUnitState) follows OFF, TEST, STANDBY, ARMED, GUIDING, STANDBY; (2) nothing is launched before FIRE on a live armed unit - "
+    "FIRE early (OFF) and FIRE in the pause (READY off) are refused and never remembered; (3) the weapon's controller fires the missile from the device (D-94), "
+    "the round is the device's by seq echo (D-95) and flies the device's sight line (D-96) onto the man; (4) the unit never arms an emptied launcher (D-112). "
+    "Not judged yet: the unit's HUD (panels 7-10) - it waits for the HUD projector. Fail: a launch before ARMED, a launch in the pause, a miss, or ARMED after the flight.",
+    sight_world(7, 1)), {"runFor": 24, "golden": {"every": 6}, "do": SIGHT_DO, "expect": SIGHT_EXPECT}, "SD-S4")
+
+# dv-sight-empty (D-112, "ARM should not work with empty launcher"): the same unit and presses, the launcher authored EMPTY
+SIGHT_EMPTY_DO = [
+    {"name": "emptied", "at": 0.1, "set": {"who": "TOW", "component": "WeaponState", "patch": {"Ammo": 0, "MagazineRounds": 0}}},
+    {"name": "possessed", "at": 0.5, "possess": {"who": "Gunner", "station": 1}},
+    {"name": "viewed", "at": 1.0, "view": {"station": 1, "source": "Launcher sight unit"}},
+    {"name": "aimed", "at": 1.2, "control": {"aim": "Target"}},
+    press("power", 2.0, "POWER"),
+    press("arm", 6.0, "ARM"),
+    press("fire", 6.5, "FIRE"),
+    press("arm again", 7.0, "ARM"),
+    {"name": "paused", "at": 8.0, "pause": {"frames": 60}},
+    {"name": "arm in pause", "atPausedFrame": 20, "control": {"press": "ARM"}},
+]
+SIGHT_EMPTY_EXPECT = [
+    mem("POWER and the test end in STANDBY", "Launcher sight unit", FC, "Phase", "==", "Standby", after="power+3.5", before="arm"),
+    mem("MISSILES 0 (NO MISSILE) from the test's end", "Launcher sight unit", FC, "Missiles", "==", 0, after="power+3.5"),
+    {"name": "the unit never arms an empty launcher (ARM refused, also in the pause)", "never": {"on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Phase", "op": "==", "value": "Armed"}, "after": "viewed"},
+    {"name": "never GUIDING", "never": {"on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Phase", "op": "==", "value": "Guiding"}, "after": "viewed"},
+    {"name": "never READY", "never": {"on": "field", "who": "Launcher sight unit", "memory": FC, "field": "Ready", "op": "==", "value": 1}, "after": "viewed"},
+    {"name": "never a launch", "never": {"on": "shot", "by": "TOW"}},
+    mem("it stays in STANDBY to the end - the ARM press in the pause is not carried to the first live frame", "Launcher sight unit", FC, "Phase", "==", "Standby", after="paused+1.0"),
+]
+write("dv-sight-empty", scenario(
+    "dv-sight-empty",
+    "Simulated devices SD-S4 (DESIGN_Simulated_Devices 3.13b D-112; the twin of dv-sight-procedure with the launcher authored EMPTY). The scripted trainee powers the "
+    "TOW's sight unit, waits out the self-test, presses ARM, FIRE and ARM again, and presses ARM inside a 60-frame pause.",
+    "(1) the unit reaches STANDBY and stays there; (2) it never arms (ARM is refused on an empty launcher - in the pause too, and never remembered), never reads "
+    "READY or GUIDING, and nothing is launched; (3) MISSILES reads 0 (the HUD's NO MISSILE - the HUD rows wait for its projector). Fail: ARMED, READY, GUIDING or a shot.",
+    sight_world(8, 0)), {"runFor": 11, "golden": {"every": 5}, "do": SIGHT_EMPTY_DO, "expect": SIGHT_EMPTY_EXPECT}, "SD-S4")
+
 print("wrote", sorted(os.listdir(ROOT)))

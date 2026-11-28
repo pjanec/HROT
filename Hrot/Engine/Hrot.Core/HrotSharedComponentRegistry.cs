@@ -272,6 +272,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.ControlledEntities>();   // ⭐ SD-S2c (D-147) — what a device commands (authored; ControlledBy indexes it)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.RemoteControl>();        // ⭐ SD-S2c (D-104) — the ground station's command on itself
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceView>();           // ⭐ SD-S2c (D-109) — the entity a view bound to the device films through
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.FireControl>();          // SD-S4 (D-76) - what a fire-control device asks of its weapon (the device writes it on itself)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.GuidedFlight>();         // SD-S4 (D-88) - the flight of the device's round (the muscle writes it on the device)
 
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();     // ⭐ SD-S5b — the devices a device sends to (scenario-authored)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInbox>();     // ⭐ SD-S5b — the newest two messages addressed to a device

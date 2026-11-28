@@ -6,6 +6,7 @@ using Fbt.Kernel;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Devices;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Combat.Executors;
@@ -54,6 +55,10 @@ namespace Hrot.AI.Behaviors.Brains
             public uint UseStarted;
             /// <summary>⭐ <c>CE-1298</c> (§8s) — when an empty-handed operator may strike again (<see cref="Melee.CooldownSeconds"/>). Appended.</summary>
             public Fdp.Core.SimInstant NextStrikeAt;
+            /// <summary>SD-S4 (devices sec 3.13b D-94) - the fire-control device's <c>LaunchSeq</c> already acted on, and the device it belongs to (a different device re-bases it: no launch). Appended.</summary>
+            public uint DeviceSeq;
+            /// <inheritdoc cref="DeviceSeq"/>
+            public Entity DeviceSeen;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -226,9 +231,17 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         private static unsafe void OperateWeapon(EntityRepository world, Entity self, ref ManualControlState ws, uint lastSeq)
         {
-            if (!world.HasComponent<WeaponChannel>(self) || !world.IsComponentTypeRegistered<OperatorInput>()
-                || !world.HasComponent<OperatorInput>(self)) return;
-            var input = world.GetComponentRO<OperatorInput>(self);
+            if (!world.HasComponent<WeaponChannel>(self) || !world.IsComponentTypeRegistered<OperatorInput>()) return;
+            OperatorInput input;
+            if (world.HasComponent<OperatorInput>(self)) input = world.GetComponentRO<OperatorInput>(self);
+            else
+            {
+                // SD-S4 (devices sec 3.13b D-94) - a station that sends NO body frame (the scripted trainee, which drives only its devices) still fires the weapon whose fire-control
+                //   device he operates: the first weapon he controls that has one; nothing else of the operator's weapon runs without a frame
+                int deviceMount = DeviceFiredMountOf(world, self);
+                if (deviceMount < 0) return;
+                input = new OperatorInput { Mount = (byte)deviceMount };
+            }
             ref var channel = ref world.GetComponentRW<WeaponChannel>(self);
             ref var p = ref System.Runtime.CompilerServices.Unsafe.As<byte, AimAndFireParams>(ref channel.Params[0]);
             bool restarted = false;
@@ -263,7 +276,29 @@ namespace Hrot.AI.Behaviors.Brains
                 && Fdp.Toolkit.Combat.WeaponBrainProfiles.For(mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown)
                        .UsesTurretTask(world, platform, mountDto);
             var lookPoint = OperatorFireModes.SightPoint(input.LookFrom, input.LookDir, input.AimPoint);   // ⭐ CE-1299 — zero at the crosshair's own distance
-            if (input.ShotSeq != ws.ShotSeq)
+            // SD-S4 (devices sec 3.13b D-94) - a weapon with a FIRE-CONTROL DEVICE (FireControls.Of: a sight unit in its station, or the console commanding it) is fired by the
+            //   device ALONE: its LaunchSeq passing the last this man saw, with Ready, is the shot; his own trigger does nothing on that mount. The turret follows the device's sight line.
+            var fireControl = FireControls.Of(world, platform);
+            bool deviceFires = !fireControl.IsNull;
+            if (deviceFires)
+            {
+                ref readonly var fc = ref world.GetComponentRO<FireControl>(fireControl);
+                if (ws.DeviceSeen != fireControl) { ws.DeviceSeen = fireControl; ws.DeviceSeq = fc.LaunchSeq; }   // a new device: the standing seq is not a press
+                else if (fc.LaunchSeq != ws.DeviceSeq)
+                {
+                    bool launch = (int)(fc.LaunchSeq - ws.DeviceSeq) > 0 && fc.Ready != 0 && CanFireNow(world, platform, platformMount) && fc.GuideDir.LengthSquared() > 0.5f;
+                    ws.DeviceSeq = fc.LaunchSeq;
+                    if (launch)
+                    {
+                        ws.Pending = 1;
+                        ws.PendingTarget = Entity.Null;
+                        ws.PendingPoint = DeviceAimPoint(in fc);
+                        ws.Cap = fired + 1;
+                    }
+                }
+            }
+            if (input.ShotSeq != ws.ShotSeq && deviceFires) ws.ShotSeq = input.ShotSeq;   // his trigger is not the weapon's
+            else if (input.ShotSeq != ws.ShotSeq)
             {
                 ws.ShotSeq = input.ShotSeq;
                 if (PersonHands.EmptyHanded(world, platform, mountDto))
@@ -299,7 +334,11 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.Pending = 0;   // the round left — or the unit it was locked on is gone
 
             var category = mountDto?.Category ?? Fdp.Toolkit.Tkb.Domain.WeaponCategory.Unknown;
-            bool held = input.Trigger != 0 && !WeaponBrainProfiles.FiresPerPress(category);
+            bool held = input.Trigger != 0 && !WeaponBrainProfiles.FiresPerPress(category) && !deviceFires;
+            // SD-S4 (D-94) - a device-fired mount's turret follows the device's sight line (the weapon bears where the operator looks), else the crosshair as ever
+            var restPoint = deviceFires && world.GetComponentRO<FireControl>(fireControl).GuideDir.LengthSquared() > 0.5f
+                ? DeviceAimPoint(in world.GetComponentRO<FireControl>(fireControl))
+                : alongBarrel ? lookPoint : input.AimPoint;
             p = ws.Pending != 0
                 ? new AimAndFireParams
                 {
@@ -312,7 +351,7 @@ namespace Hrot.AI.Behaviors.Brains
                 : new AimAndFireParams
                 {
                     Operator = alongBarrel ? AimAndFireParams.OperatorAlongBarrel : (byte)1,   // ⭐ CE-4143
-                    Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = alongBarrel ? lookPoint : input.AimPoint,
+                    Trigger = held ? (byte)1 : (byte)0, Mount = input.Mount, Point = restPoint,
                     CooldownSeconds = OperatorCooldownFor(mountDto),
                 };
         }
@@ -341,6 +380,23 @@ namespace Hrot.AI.Behaviors.Brains
             if (!WeaponSystems.IsControlledIndex(mount)) return (self, mount);
             var weapon = WeaponSystems.ControlledAt(world, self, mount);
             return weapon.IsNull ? (self, mount) : (weapon, 0);
+        }
+
+        /// <summary>SD-S4 (D-94) - how far along the device's sight line the weapon is laid (m): the shot is a pending point on the line (the round flies the line itself, D-96).
+        /// Near enough that the muzzle line is not masked by a distant ridge (<c>LineOfFire.MuzzleMasked</c> judges a point shot).</summary>
+        public const float DeviceAimRangeM = 400f;
+
+        private static System.Numerics.Vector3 DeviceAimPoint(in FireControl fc) => fc.GuideOrigin + fc.GuideDir * DeviceAimRangeM;
+
+        /// <summary>SD-S4 (D-94) - the controlled-weapon mount index (<see cref="WeaponSystems.ControlledMountBase"/> + k) of the first weapon <paramref name="man"/> controls that
+        /// has a fire-control device (<see cref="FireControls.Of"/>), or -1. 0 B.</summary>
+        private static int DeviceFiredMountOf(EntityRepository world, Entity man)
+        {
+            Span<Entity> weapons = stackalloc Entity[WeaponSystems.MaxControlled];
+            int n = WeaponSystems.Controlled(world, man, weapons);
+            for (int k = 0; k < n; k++)
+                if (!FireControls.Of(world, weapons[k]).IsNull) return WeaponSystems.ControlledMountBase + k;
+            return -1;
         }
 
         /// <summary>⭐ CE-1078 — the unit a press locked on (its network id; never the operator's own unit), or null for the point.</summary>

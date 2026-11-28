@@ -427,8 +427,12 @@ namespace Fdp.Toolkit.Combat.Systems
                     float apex = 0f;
                     bool top = !evt.AtPoint && GuidedRoundSystem.TopAttackFits(missile, velocity.Length(),
                                    new Vector2(targetPos.X - muzzlePos.X, targetPos.Y - muzzlePos.Y).Length(), muzzlePos.Z - targetPos.Z, out apex);
+                    // SD-S4 (DESIGN_Simulated_Devices sec 3.13b D-95) - the launch is the DEVICE's by seq echo: the weapon's fire-control device moved its LaunchSeq past the flight it
+                    //   last echoed => this round is its (the flight is written on the device); an AI shot moves no seq and flies today's line
+                    var fireControl = Fdp.Toolkit.Behavior.Devices.FireControls.ClaimLaunch(repo, shooter, bullet, missile.Guidance);
                     repo.AddComponent(bullet, new GuidedRound
                     {
+                        Device        = fireControl,
                         Guidance      = missile.Guidance,
                         Phase         = top ? GuidedPhase.Climb : GuidedPhase.Cruise,
                         TopAttack     = (byte)(top ? 1 : 0),

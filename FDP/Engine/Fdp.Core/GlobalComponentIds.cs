@@ -981,13 +981,22 @@ namespace Fdp.Core
         /// written by the device on itself. ⚠ 398 — listed FREE AND used by no test fixture (2026-11-28; 242 collided with a fixture).</summary>
         public const int DeviceView = 398;
 
+        /// <summary><c>FireControl</c> - Simulated devices SD-S4 (DESIGN_Simulated_Devices sec 3.13b D-76 / D-87, grown by sec 3.13f D-151 and sec 3.13g): what a fire-control device asks of
+        /// its weapon (ready, launch seq, the guide line, the stick, the view request, the lay, the lock) - written by the device on ITSELF, read by the weapon's controller and the
+        /// muscle. NOTE: 289 - listed FREE AND used by no test fixture (2026-11-28; 322 collided with <c>ParallelSyncTests</c>).</summary>
+        public const int FireControl = 289;
+
+        /// <summary><c>GuidedFlight</c> - SD-S4 (sec 3.13b D-88): the flight of the round a fire-control device launched, written ON THE DEVICE by the MUSCLE (the launch echo, the round,
+        /// whether it flies). NOTE: 459 - listed FREE AND used by no test fixture (2026-11-28; 457 / 458 are fixtures').</summary>
+        public const int GuidedFlight = 459;
+
         /// <summary><c>DeviceLinks</c> — ⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119): the devices a device SENDS to
         /// (its peers — an address, scenario-authored). ⚠ 318 — listed FREE AND used by no test fixture (2026-11-28; 235 collided with a fixture, as the drone station's did).</summary>
-        public const int DeviceLinks = 318;
+        public const int DeviceLinks = 235;   // NOTE: was 318 = Minefield's (the registry threw "Component ID collision" on every world): 235 as origin/coordinator took it (2026-11-28)
 
         /// <summary><c>DeviceInbox</c> — ⭐ SD-S5b (D-119): the newest two <c>DeviceMessageEvent</c>s addressed to a device, filed by the device tick's serial ingest.
         /// ⚠ 319 — listed FREE AND used by no test fixture (2026-11-28; 236 collided with a fixture).</summary>
-        public const int DeviceInbox = 319;
+        public const int DeviceInbox = 236;   // NOTE: was 319 = MinefieldStrikes' (the same collision): 236 as origin/coordinator took it
 
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>

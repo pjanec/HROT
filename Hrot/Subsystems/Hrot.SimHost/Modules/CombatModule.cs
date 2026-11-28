@@ -47,6 +47,8 @@ namespace Hrot.SimHost.Modules
                 new CombatTraceSystem(),   // ⭐ CE-3117 — the recorded traces the map draws, after the systems that end a shot
                 // ⭐ Simulated devices S1c (DESIGN_Simulated_Devices §3.8 LS-15) — every device laser's spot, synchronous, EVERY frame (paused ⇒ a Preview)
                 new Fdp.Toolkit.Behavior.Devices.LaserSpotSystem(),
+                // Simulated devices SD-S4 (DESIGN_Simulated_Devices sec 3.13b D-99) - a fire-control device's flight ends when its round is gone (after the systems that end a round)
+                new Fdp.Toolkit.Behavior.Devices.GuidedFlightSystem(),
             };
         }
     }

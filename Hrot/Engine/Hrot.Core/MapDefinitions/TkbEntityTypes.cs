@@ -105,6 +105,8 @@ namespace Hrot.Map.Common
         /// <summary>⭐ CE-3233 (B-11b, AW-12; §7.13 ST-8) — an EXPLOSIVE CHARGE: worn in a hidden station, placed, or in a car's cargo
         /// station; never fired, only set off where it stands.</summary>
         public const long WeaponSystem_ExplosiveCharge = 618;
+        /// <summary>SD-S4 (devices sec 3.13b D-98) - the TOW tripod with a SIGHT UNIT in a device station its Gunner seat operates: the trainee variant (the AI TOW stays 607, untouched).</summary>
+        public const long WeaponSystem_TowTripodSight = 619;
 
         // ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4) — DEVICES (640–659, measured free on every lane
         //   2026-11-28): items a trainee operates whose logic is a behaviour on their own brain (Gen.Device). ⛔ PERMANENT WIRE VALUES.
@@ -115,6 +117,9 @@ namespace Hrot.Map.Common
         /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION (hand-held kit device): POWER · ARM · TAKEOFF · LAND · RTH · CAM UP · CAM DOWN and four
         /// stick axes (Mode 2); it flies the drone its <c>ControlledEntities</c> slot 0 names.</summary>
         public const long Device_DroneStation = 642;
+        /// <summary>SD-S4 (sec 3.13b D-92 / D-172) - the launcher SIGHT UNIT (the TOW's TAS): the fire-control unit in its mounted one-weapon profile - POWER - ARM - FIRE - VIEW; the device
+        /// station of <see cref="WeaponSystem_TowTripodSight"/>.</summary>
+        public const long Device_AtgmSight = 643;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

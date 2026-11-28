@@ -345,6 +345,23 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_DroneStation);
+            // SD-S4 (sec 3.13b D-92 / D-93 / D-172) - the launcher SIGHT UNIT (the TOW's TAS): the ONE fire-control unit in its mounted one-weapon profile. Four buttons (the sight
+            //   sheet's chips, mockup panels 7-10; the hotkeys are proposals): POWER, ARM, FIRE, VIEW (FireControlUnitChannels); a 10x optic; a 3 s power-up self-test. Its FireControl
+            //   and GuidedFlight exist from creation (the weapon's controller and the muscle read / write them across entities)
+            builder.DefineVehicle(TkbEntityTypes.Device_AtgmSight, "Launcher sight unit")
+                .WithDevice(TkbEntityTypes.Device_AtgmSight, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceFireControlUnit,
+                    FireControl = true,
+                    TestSeconds = 3f,
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("POWER", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ARM", "A"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("FIRE", "F"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("VIEW", "V"),
+                    },
+                    Magnifications = { 10f },
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_AtgmSight);
         }
 
         /// <summary>⭐ SD-S5b (D-120) — the rangefinder's stacking station: a device stacked on it sits this high above it (m).</summary>
@@ -372,7 +389,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// </summary>
         private static void WeaponSystemType(NedTkbBuilder builder, long type, string name, byte sub, WeaponSystemDto ws, WeaponMount weapon,
                                              TurretDto? turret, WeaponBreaks breaks, float sensorRange = 0f, byte category = 50,
-                                             Report report = default)
+                                             Report report = default, SeatDto? deviceStation = null)
         {
             builder
                 .DefineVehicle(type, name)
@@ -402,6 +419,7 @@ namespace Hrot.Map.Definitions.Tkb
                 var crew = new CarrierDefDto { Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open };
                 crew.Seats.Add(new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Gunner });
                 if (ws.Portable == WeaponPortability.TwoMan) crew.Seats.Add(new SeatDto());   // the loader
+                if (deviceStation != null) crew.Seats.Add(deviceStation);   // SD-S4 (D-98) - a device station the Gunner seat (0) operates: the launcher's sight unit
                 builder.WithCarrier(type, crew);
             }
             else builder.WithFaction(type, 1);   // W-E — it fights on its own
@@ -587,6 +605,16 @@ namespace Hrot.Map.Definitions.Tkb
                     AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile), Category = WeaponCategory.Atgm, TurretIndex = 0,
                     MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0.2f) },
                 Pintle(-10f, 20f, 30f, 15f, 0.3f), new(0.4f, 0f, 25f), report: AtgmReport);
+            // SD-S4 (devices sec 3.13b D-98) - the trainee's TOW: the same tripod and missile (the AI TOW 607 is untouched, no golden moves) with a DEVICE STATION its Gunner seat
+            //   (0) operates, starting with the sight unit. The tripod's seats: Gunner 0, loader 1, the station 2.
+            WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_TowTripodSight, "TOW (tripod, sight unit)", 3, heavy with { DeploySeconds = 30f },
+                new WeaponMount { WeaponType = "TOW_ATGM", Ammunition = 4, Range = 3750, RateOfFire = 2, DamagePerHit = 1800,
+                    AimSeconds = 1.5f, MagazineSize = 1, ReloadSeconds = 15f, FireOnMove = false,
+                    AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.TkbTowMissile), Category = WeaponCategory.Atgm, TurretIndex = 0,
+                    MuzzleOffset = new System.Numerics.Vector3(0.7f, 0f, 0.2f) },
+                Pintle(-10f, 20f, 30f, 15f, 0.3f), new(0.4f, 0f, 25f), report: AtgmReport,
+                deviceStation: new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Device, OperatedBy = 0,
+                                             X = 0.1f, Z = 0.7f, StartWith = TkbEntityTypes.Device_AtgmSight });
             WeaponSystemType(builder, TkbEntityTypes.WeaponSystem_SentryGun, "Sentry gun", 5,
                 new WeaponSystemDto { NeedsOperator = false, Portable = WeaponPortability.Static, MountKinds = MountKinds.Ground | MountKinds.Pintle },
                 new WeaponMount { WeaponType = "7.62mm_RWS", Ammunition = 1000, Range = 900, RateOfFire = 600, Penetration = 8, DamagePerHit = 30,

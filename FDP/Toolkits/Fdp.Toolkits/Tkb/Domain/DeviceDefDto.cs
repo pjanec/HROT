@@ -54,6 +54,13 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// it in the tick-start view from its first tick (a cross-entity read cannot see a component added in the same frame).</summary>
         public bool RemoteStation { get; init; }
 
+        /// <summary>SD-S4 (sec 3.13b D-76 / D-92) - a FIRE-CONTROL device (a launcher's sight unit, a control unit): its <c>FireControl</c> and <c>GuidedFlight</c> are created WITH the
+        /// device, so the weapon's controller and the muscle find them in the tick-start view from the first tick.</summary>
+        public bool FireControl { get; init; }
+
+        /// <summary>SD-S4 (sec 3.13b D-93) - seconds of SIM time the power-up self-test takes before STANDBY (0 = none: a box with a joystick).</summary>
+        public float TestSeconds { get; init; }
+
         /// <summary>Where it can be mounted — a kit station by default (<see cref="MountKinds.Device"/>).</summary>
         public MountKinds MountKinds { get; init; } = MountKinds.Device;
 

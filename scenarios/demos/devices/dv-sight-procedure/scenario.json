@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S4 (DESIGN_Simulated_Devices 3.13b D-93 / D-94 / D-95 / D-96 / D-112). A scripted trainee possesses the Gunner of a TOW tripod with a SIGHT UNIT (TKB 619, the launcher authored with ONE round), binds his view to the unit and holds the crosshair on a hostile man 700 m away. He presses FIRE before POWER, POWER, ARM before the self-test ends, ARM; a FIRE inside a 60-frame pause; FIRE on a live frame; and, once the flight has ended, ARM and FIRE again on the emptied launcher. Judge: (1) the unit's own state (FireControlUnitState) follows OFF, TEST, STANDBY, ARMED, GUIDING, STANDBY; (2) nothing is launched before FIRE on a live armed unit - FIRE early (OFF) and FIRE in the pause (READY off) are refused and never remembered; (3) the weapon's controller fires the missile from the device (D-94), the round is the device's by seq echo (D-95) and flies the device's sight line (D-96) onto the man; (4) the unit never arms an emptied launcher (D-112). Not judged yet: the unit's HUD (panels 7-10) - it waits for the HUD projector. Fail: a launch before ARMED, a launch in the pause, a miss, or ARMED after the flight. Check: scripts/scenario-regression.sh dv-sight-procedure"
+  },
+  "entities": {
+    "d5e10007-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 619
+      },
+      "EntityInfo": {
+        "Name": "TOW",
+        "ForceId": "Friend"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10007-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          0
+        ]
+      }
+    },
+    "d5e10007-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Gunner",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10007-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "d5e10007-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          700,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Target",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

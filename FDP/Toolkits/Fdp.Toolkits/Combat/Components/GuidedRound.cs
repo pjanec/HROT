@@ -63,5 +63,10 @@ namespace Fdp.Toolkit.Combat.Components
         public Vector3 SteerDir;
         /// <summary>The g it pulled last step (more drag while it turns).</summary>
         public float LoadG;
+
+        /// <summary>SD-S4 (DESIGN_Simulated_Devices sec 3.13b D-86 / D-95) - the fire-control DEVICE this round is the launch of (set at launch by the seq echo,
+        /// <c>FireControls.ClaimLaunch</c>); null for an AI shot. A <see cref="Fdp.Toolkit.Tkb.Domain.GuidanceKind.Command"/> round with a device flies the DEVICE's sight line
+        /// (D-96), not the gunner's eye onto the target. Appended (R-4301).</summary>
+        public Entity Device;
     }
 }

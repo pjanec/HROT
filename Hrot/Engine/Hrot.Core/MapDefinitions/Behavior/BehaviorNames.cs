@@ -411,5 +411,7 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DeviceDroneStation = "DeviceDroneStation";
         /// <summary>⭐ SD-S2c (§3.13c D-104 / D-107) — a drone flown THROUGH a ground station: its own brain reads the station's command (never possessed).</summary>
         public const string RemotePilot = "RemotePilot";
+        /// <summary>SD-S4 (sec 3.13g D-172) - the ONE fire-control unit's logic: the launcher sight unit (mounted, one weapon) today; the control unit and the lock follow in S4c / S4d (TKB 643).</summary>
+        public const string DeviceFireControlUnit = "DeviceFireControlUnit";
     }
 }

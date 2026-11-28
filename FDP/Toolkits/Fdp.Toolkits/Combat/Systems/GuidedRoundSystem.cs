@@ -255,6 +255,25 @@ namespace Fdp.Toolkit.Combat.Systems
                 targetPoint = repo.GetComponentRO<SimTransform>(g.Target).Position
                               + new Vector3(0f, 0f, Fdp.Toolkit.Physics.Components.PhysicsColliderReaders.HullHeight(repo, g.Target) + g.OverflyHeightM);
 
+            // SD-S4 (DESIGN_Simulated_Devices sec 3.13b D-80 / D-96, sec 3.13g D-177) - a command round launched THROUGH a fire-control device flies the DEVICE's sight line (the
+            //   crosshair the trainee holds, SACLOS by hand), not the gunner's eye onto the target's middle: it needs no target, it misses when the line is off the target.
+            //   Lost (NO LOCK) when the device is gone or off (no line) or the sight line to the ROUND is blocked - the sight must see the flare.
+            if (g.Guidance == GuidanceKind.Command && !g.Device.IsNull)
+            {
+                if (!Fdp.Toolkit.Behavior.Devices.FireControls.GuideLine(repo, g.Device, out var origin, out var sight)
+                    || (world != null && world.SightBlocked(origin, pos)))
+                {
+                    g.Phase = GuidedPhase.Lost;
+                    Fdp.Toolkit.Behavior.Devices.FireControls.MarkFlight(repo, g.Device, Fdp.Toolkit.Behavior.Devices.GuidedFlightState.NoLock);
+                    return false;
+                }
+                float ahead = MathF.Max(Vector3.Dot(pos - origin, sight) + g.SpeedMps * CommandLookaheadSeconds, 0f);
+                var toLine = origin + sight * ahead - pos;
+                if (toLine.LengthSquared() < 1e-6f) toLine = sight;
+                desired = Vector3.Normalize(toLine);
+                return true;
+            }
+
             if (g.Guidance == GuidanceKind.Command)
             {
                 if (!targetKnown || !repo.IsAlive(g.Gunner) || !repo.HasComponent<SimTransform>(g.Gunner)) { g.Phase = GuidedPhase.Lost; return false; }

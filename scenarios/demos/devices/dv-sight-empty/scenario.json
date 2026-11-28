@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S4 (DESIGN_Simulated_Devices 3.13b D-112; the twin of dv-sight-procedure with the launcher authored EMPTY). The scripted trainee powers the TOW's sight unit, waits out the self-test, presses ARM, FIRE and ARM again, and presses ARM inside a 60-frame pause. Judge: (1) the unit reaches STANDBY and stays there; (2) it never arms (ARM is refused on an empty launcher - in the pause too, and never remembered), never reads READY or GUIDING, and nothing is launched; (3) MISSILES reads 0 (the HUD's NO MISSILE - the HUD rows wait for its projector). Fail: ARMED, READY, GUIDING or a shot. Check: scripts/scenario-regression.sh dv-sight-empty"
+  },
+  "entities": {
+    "d5e10008-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 619
+      },
+      "EntityInfo": {
+        "Name": "TOW",
+        "ForceId": "Friend"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10008-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          0
+        ]
+      }
+    },
+    "d5e10008-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Gunner",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10008-0000-4000-8000-000000000001",
+        "Seat": 0
+      }
+    },
+    "d5e10008-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          700,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Target",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

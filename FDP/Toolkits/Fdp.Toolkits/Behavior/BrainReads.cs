@@ -57,6 +57,10 @@ namespace Fdp.Toolkit.Behavior
             //   FlightTkbTranslator): a component another phase ADDED this frame is not in the tick-start view, and the read throws (measured, SD-S2c)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.RemoteControl>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.DroneLink>();
+            // devices SD-S4 (sec 3.13b D-94) - the weapon's controller (OperatorControlBehavior) reads its fire-control device's FireControl (written by the device tick, its own
+            //   system - a tick-start read; the device holds it from CREATION, DeviceTkbTranslator) and the device reads its weapon's deploy state (WeaponDeploySystem writes it, serially)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.FireControl>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.WeaponSystemState>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Mountable>();                       // ⭐ C1 — is a carried thing an item (Items.IsMountable: checkpoint / stop-at-signal, carry stations, operator use)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();            // CE-7035 — a civilian reads how a forces man holds his weapon (covered / aimed at: CE-2239, CE-2241)
             ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleParams>();               // CE-7035 — a civilian / rioter tells a vehicle from a man (its params)

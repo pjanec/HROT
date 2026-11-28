@@ -26,6 +26,8 @@ namespace Fdp.Toolkit.Behavior.Devices
             yield return typeof(Mountable);
             yield return typeof(DeviceInfo);
             yield return typeof(RemoteControl);   // ⭐ SD-S2c — a ground station only
+            yield return typeof(FireControl);     // SD-S4 - a fire-control device only
+            yield return typeof(GuidedFlight);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -46,6 +48,13 @@ namespace Fdp.Toolkit.Behavior.Devices
             // ⭐ SD-S2c (§3.13c D-104) — a ground station's command exists from creation (Off): its drone's brain reads it across entities
             if (dto.RemoteStation && repo.IsComponentTypeRegistered<RemoteControl>() && !repo.HasComponent<RemoteControl>(entity))
                 repo.AddComponent(entity, new RemoteControl { Mode = RemoteMode.Off });
+            // SD-S4 (sec 3.13b D-76 / D-88) - a FIRE-CONTROL device's two components exist from creation too: the weapon's controller and the muscle read FireControl across
+            //   entities, and the muscle writes GuidedFlight on the device (a cross-entity read cannot see a component another phase added this frame)
+            if (dto.FireControl)
+            {
+                if (repo.IsComponentTypeRegistered<FireControl>() && !repo.HasComponent<FireControl>(entity)) repo.AddComponent(entity, new FireControl());
+                if (repo.IsComponentTypeRegistered<GuidedFlight>() && !repo.HasComponent<GuidedFlight>(entity)) repo.AddComponent(entity, new GuidedFlight());
+            }
         }
 
         /// <summary>True when <paramref name="template"/> is a device type (<c>BehaviorTkbTranslator</c>'s "not a unit" test, R7-4).</summary>
