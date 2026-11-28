@@ -87,31 +87,48 @@ public sealed class DeviceLooksFrameRail
         Assert.Equal(0, AirCombatLooksRail.Diff(carried, gone));
     }
 
+    /// <summary>
+    /// D-164 ② / D-166 — a device at a vehicle station is drawn (and picked) where <see cref="DevicePoses"/> puts it, and turns with its <see cref="DevicePose"/>.
+    /// ① GEOMETRY on the observer HMMWV's real station 7 (X 0.6, Y −0.45, Z 1.45): the box the layer draws and picks sits on the station and turns.
+    /// ⚠ FINDING (2026-11-28): station 7 is INSIDE the HMMWV's drawn cab (its roof is 1.83 m up), so that rangefinder is hidden by the hull in every frame —
+    /// the station's data is the coordinator's; reported, not changed here. ② the PICTURE therefore on a station on the ROOF (Z 2.0): drawn, and turned.
+    /// </summary>
     [SkippableFact]
-    public void D164_TheObserverHmmwvsRangefinder_IsDrawnAtItsStation_AndTurnsWithItsPose()
+    public void D164_ADeviceAtAStation_IsDrawnThere_AndTurnsWithItsPose()
     {
         Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
         using var s = Scene();
         var hmmwv = s.Jet(TkbEntityTypes.Truck_HMMWV_Observer, 0f, 0f);
-        // the station's place, as EmbarkedStateSystem puts it: station 7 of the observer HMMWV (X 0.6, Y −0.45, Z 1.45 in its frame)
-        var station = s.Where(hmmwv) + new Vector3(0.6f, -0.45f, 1.45f);
-        Look(s, station);
+        var station7 = s.Where(hmmwv) + new Vector3(0.6f, -0.45f, 1.45f);
+        var rf = Device(s, TkbEntityTypes.Device_LaserRangefinder, hmmwv, 7, station7, viewed: false);
+        s.World.SetComponent(rf, new IsEmbarkedTag { VehicleEntity = hmmwv, Seat = 7, Exposed = 0 });   // the seat is not declared exposed — still a MOUNT
+        Assert.True(s.Bodies.TryGetBox(s.World, rf, s.Tkb, out var centre, out var rotation, out _));
+        Assert.True(Vector3.Distance(centre, station7 + new Vector3(0f, 0f, 0.05f)) < 0.01f, $"on station 7: {centre}");
+        s.World.AddComponent(rf, new DevicePose { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });   // the trainee looks left
+        Assert.True(s.Bodies.TryGetBox(s.World, rf, s.Tkb, out _, out var turnedRot, out _));
+        Assert.True(Vector3.Transform(Vector3.UnitX, turnedRot).Y > 0.99f, $"turned left with its pose: {Vector3.Transform(Vector3.UnitX, turnedRot)}");
+        s.World.DestroyEntity(rf);
+
+        // the picture: the same rangefinder on a station on the roof
+        var roof = s.Where(hmmwv) + new Vector3(0.2f, -0.45f, 2.0f);
+        Look(s, roof);
+        for (int i = 0; i < 4; i++) s.Render();   // settle: the trees stream in over the first frames
         var without = AirCombatLooksRail.ScreenOf(s);
-        var rf = Device(s, TkbEntityTypes.Device_LaserRangefinder, hmmwv, 7, station, viewed: false);
-        s.World.SetComponent(rf, new IsEmbarkedTag { VehicleEntity = hmmwv, Seat = 7, Exposed = 0 });   // the seat is not declared exposed (CarrierSeats) — still drawn: it is MOUNTED
-        Look(s, station);
+        var onRoof = Device(s, TkbEntityTypes.Device_LaserRangefinder, hmmwv, 7, roof, viewed: false);
         var ahead = AirCombatLooksRail.ScreenOf(s);
         s.Shot(AirCombatLooksRail.ShotsDir(), "device-station-ahead.png");
         int drawn = AirCombatLooksRail.Diff(without, ahead);
-        _out.WriteLine($"the station's rangefinder: {drawn} px");
+        _out.WriteLine($"the roof station's rangefinder: {drawn} px");
         Assert.True(drawn > 40, $"the rangefinder is drawn at the station: {drawn} px");
-        s.World.AddComponent(rf, new DevicePose { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });   // the trainee looks left
+        s.World.AddComponent(onRoof, new DevicePose { Orientation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f) });
         var left = AirCombatLooksRail.ScreenOf(s);
         s.Shot(AirCombatLooksRail.ShotsDir(), "device-station-left.png");
         int turned = AirCombatLooksRail.Diff(ahead, left);
         _out.WriteLine($"turned 90°: {turned} px");
         Assert.True(turned > 20, $"it turns with its DevicePose: {turned} px");
+        s.World.DestroyEntity(onRoof);
+        Assert.Equal(0, AirCombatLooksRail.Diff(without, AirCombatLooksRail.ScreenOf(s)));   // the noise floor: the scene alone is the scene it was
     }
 
-    private static void Look(AirCombatLooksRail.JetScene s, Vector3 at) => s.Look(at, 2.6f, MathF.PI * 0.5f + 0.7f, -0.35f);
+    private static void Look(AirCombatLooksRail.JetScene s, Vector3 at) => s.Look(at, 3.0f, MathF.PI * 0.5f + 0.7f, -0.45f);
 }

@@ -34,7 +34,7 @@ public static class DeviceKits
             X(k, 0.099f, 0.045f, 0.04f, 0.004f, 0.05f, 0.05f, ColourRole.Glass), X(k, 0.099f, -0.045f, 0.04f, 0.004f, 0.05f, 0.05f, ColourRole.Glass),   // the receivers
             B(k, 0.045f, 0f, 0.09f, 0.09f, 0.06f, 0.02f, ColourRole.Body),                                                                  // the emitter housing on top
             B(k, 0.092f, 0f, 0.09f, 0.008f, 0.03f, 0.014f, ColourRole.Red),                                                                 // the emitter aperture
-            B(k, -0.104f, 0.045f, 0.045f, 0.012f, 0.04f, 0.035f, ColourRole.Dark), B(k, -0.104f, -0.045f, 0.045f, 0.012f, 0.04f, 0.035f, ColourRole.Dark),   // the eyepieces
+            B(k, -0.096f, 0.045f, 0.045f, 0.012f, 0.04f, 0.035f, ColourRole.Dark), B(k, -0.096f, -0.045f, 0.045f, 0.012f, 0.04f, 0.035f, ColourRole.Dark),   // the eyepieces
         ],
         DeviceKind.Designator =>
         [
@@ -47,20 +47,20 @@ public static class DeviceKits
         [
             B(k, 0f, 0f, 0.09f, 0.04f, 0.30f, 0.18f, ColourRole.Body),
             B(k, 0.021f, 0f, 0.10f, 0.004f, 0.15f, 0.11f, ColourRole.Glass),                                                                // the screen
-            B(k, 0.025f, 0.12f, 0.05f, 0.02f, 0.025f, 0.025f, ColourRole.Dark), B(k, 0.025f, -0.12f, 0.05f, 0.02f, 0.025f, 0.025f, ColourRole.Dark),   // the sticks
+            B(k, 0.015f, 0.12f, 0.05f, 0.01f, 0.025f, 0.025f, ColourRole.Dark), B(k, 0.015f, -0.12f, 0.05f, 0.01f, 0.025f, 0.025f, ColourRole.Dark),   // the sticks
             B(k, 0f, -0.12f, 0.19f, 0.008f, 0.008f, 0.02f, ColourRole.Dark),                                                                // the antenna
         ],
         DeviceKind.Console =>
         [
             B(k, 0f, 0f, 0.125f, 0.12f, 0.35f, 0.25f, ColourRole.Body),
-            B(k, 0.061f, 0.04f, 0.15f, 0.004f, 0.2f, 0.13f, ColourRole.Glass),                                                              // the screen
-            B(k, 0.062f, -0.13f, 0.15f, 0.006f, 0.05f, 0.09f, ColourRole.Metal),                                                            // the keys
+            B(k, 0.059f, 0.04f, 0.15f, 0.004f, 0.2f, 0.13f, ColourRole.Glass),                                                              // the screen
+            B(k, 0.058f, -0.13f, 0.15f, 0.006f, 0.05f, 0.09f, ColourRole.Metal),                                                            // the keys
         ],
         _ =>
         [
             B(k, 0f, 0f, 0.075f, 0.30f, 0.20f, 0.15f, ColourRole.Body),
-            B(k, 0.152f, 0.05f, 0.09f, 0.01f, 0.02f, 0.02f, ColourRole.Metal), B(k, 0.152f, 0f, 0.09f, 0.01f, 0.02f, 0.02f, ColourRole.Metal),
-            B(k, 0.152f, -0.05f, 0.09f, 0.01f, 0.02f, 0.02f, ColourRole.Metal),                                                             // the switches
+            B(k, 0.145f, 0.05f, 0.09f, 0.01f, 0.02f, 0.02f, ColourRole.Metal), B(k, 0.145f, 0f, 0.09f, 0.01f, 0.02f, 0.02f, ColourRole.Metal),
+            B(k, 0.145f, -0.05f, 0.09f, 0.01f, 0.02f, 0.02f, ColourRole.Metal),                                                             // the switches
         ],
     }, default);
 

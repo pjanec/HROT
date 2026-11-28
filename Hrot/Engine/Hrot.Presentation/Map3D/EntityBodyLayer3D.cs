@@ -2333,6 +2333,16 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         if (!world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
         if (world.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.LightweightRound>()
             && world.HasComponent<Fdp.Toolkit.Replication.Components.LightweightRound>(e)) return false;   // LR-3: a round has no box
+        var boxLook = LookOf(world.GetComponentRO<TkbIdentity>(e).TkbType, tkb);
+        if (boxLook.Family == VisualFamily.Device)   // ⭐ SD-S5d — a device's box is where it is DRAWN: none while a man carries it, else at its DevicePoses pose
+        {
+            if (Hrot.Look.Devices.DeviceLooks.HolderOf(world, e) is { IsNull: false } holder && world.HasComponent<TkbIdentity>(holder)
+                && LookOf(world.GetComponentRO<TkbIdentity>(holder).TkbType, tkb).Family == VisualFamily.Person) return false;
+            if (!Fdp.Toolkit.Behavior.Devices.DevicePoses.TryWorld(world, e, out var at, out rotation)) return false;
+            centre = at + Vector3.Transform(new Vector3(0f, 0f, boxLook.Size.Z / 2f), rotation);
+            half = Vector3.Max(boxLook.Size / 2f, new Vector3(MinPickHalf));
+            return true;
+        }
         if (Fdp.Toolkit.Perception.PhysicalPresence.IsEnclosedPassenger(world, e)) return false;   // ⭐ CE-1058: nothing to pick or select
         // ⭐ CE-1068 — a door is picked and selected by its LEAF, where it is drawn (shut, open, or nothing when destroyed)
         if (DoorLeaf3D.IsDoor(world, e))
