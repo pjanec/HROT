@@ -19,7 +19,7 @@ namespace Fdp.Toolkit.Behavior.Devices
     {
         /// <summary>1 while the laser emits.</summary>
         public byte On;
-        /// <summary>The band (a visibility rule's key, SD-S6): 0 visible, 1 near infra-red (a rangefinder), 2 a designator's code band.</summary>
+        /// <summary>The band — the key of the ONE visibility rule (<see cref="LaserVisibility"/>, design §3.8a D-159; names in <see cref="LaserBands"/>): 0 visible, 1 an eye-safe rangefinder (1 540 nm — nothing sees it), 2 a designator (1 064 nm — night vision, faint), 3 a near-IR pointer / illuminator (≈ 850 nm — night vision, bright).</summary>
         public byte Band;
         /// <summary>Relative output, 0..1 (a device's LOW / HIGH modes, D-74) — the spot's strength scales with it.</summary>
         public float Power;

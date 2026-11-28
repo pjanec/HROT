@@ -100,6 +100,7 @@ public sealed class EveryMapHostAttachesTheSharedLayersTests
     [InlineData(@"new\s+([\w.]+\.)?FilmCaptureLayer\(")]   // ⭐ CE-3289 — the film is every map's, by construction
     [InlineData(@"new\s+([\w.]+\.)?GridMapLayer\(")]       // ⭐ CE-1288 — the 2-D helper grid is the shared attach's (the editor used to add its own, above the entities)
     [InlineData(@"new\s+([\w.]+\.)?MapCursorLayer\(")]     // ⭐ CE-1289 — the cursor's reading is measured once, the same on every host
+    [InlineData(@"new\s+([\w.]+\.)?LaserLayer3D\(")]      // ⭐ SD-S6a — laser beams and spots are the shared attach's, so no map host can lack them
     public void NoHostBuildsAMapLayerOfItsOwn(string pattern)
     {
         var re = new Regex(pattern);
