@@ -20,7 +20,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from mockup_kit import Svg, C, FA, text_width
 
 ROCKET = 0xf135
-W, H = 1500, 1770
+W, H = 1500, 1840
 PW, PH = 460, 259                     # one view frame (16:9)
 GOLD, WHITE = "#FFD700", "#FFFFFF"
 PHASE = {"OFF": "#A0A0AA", "TEST": C.AMBER, "STANDBY": C.BLUE, "ARMED": C.GREEN, "GUIDING": C.RED}   # one colour per procedure phase (D-93)
@@ -182,22 +182,41 @@ def message(x, y, big, bigc, sub=None, subc="#C8C8D0"):
     if sub: ht(cx, y + PH - 46, sub, subc, 11, "middle")
 
 
-def chips(x, y, states):
-    """The command chips, bottom-right (channels POWER / ARM / FIRE / VIEW, D-92). state: on = the switch is set (blue), ready = pressable, off = refused (greyed)."""
+KEYS = {"POWER": "P", "SELECT": "S", "ARM": "A", "FIRE": "F", "ZOOM": "Z", "VIEW": "V"}       # PROPOSAL: the type names its hotkeys (D-124)
+
+
+def chips(x, y, states, sz=10.5):
+    """The command chips, bottom-right: HudPanel buttons (D-122), each with its hotkey badge (D-124). Channels POWER / ARM / FIRE / VIEW (D-92), the control
+    box adds SELECT / ZOOM (D-154). state: on = the switch is set (blue), ready = pressable, off = refused (greyed)."""
     xx = x + PW - 14
     for nm, st in reversed(states):
-        w = text_width(nm, 11) + 14; xx -= w
+        w = text_width(nm, sz) + 23; xx -= w
         if st == "on": s.rect(xx, y + PH - 36, w, 18, "#3369AD", rx=3, op=0.95)
         else: s.rect(xx, y + PH - 36, w, 18, "#000", rx=3, op=0.55, stroke="#8A8A96" if st == "ready" else None, sw=1)
-        s.text(xx + w / 2, y + PH - 23.5, nm, WHITE if st == "on" else ("#E0E0E8" if st == "ready" else "#6A6A74"), 11, "middle", "bold" if st == "on" else "normal")
-        xx -= 5
+        s.text(xx + 6, y + PH - 23.5, nm, WHITE if st == "on" else ("#E0E0E8" if st == "ready" else "#6A6A74"), sz, weight="bold" if st == "on" else "normal")
+        kc = "#6A6A74" if st == "off" else "#C8C8D0"
+        s.rect(xx + w - 14, y + PH - 33, 10, 12, "none", stroke=kc, rx=2, sw=0.9); s.text(xx + w - 9, y + PH - 23.5, KEYS[nm], kc, 8.5, "middle", "bold")
+        xx -= 3
+
+
+def launchers(x, y, states):
+    """The control box's launcher lamps (D-155, up to four): (state, selected). loaded green / in flight red / spent greyed with a cross / not connected dashed;
+    the selected one framed gold."""
+    ht(x + 24, y + 124, "LAUNCHERS", "#A0A0AA", 10)
+    for i, (st, sel) in enumerate(states):
+        lx, ly = x + 24 + i * 30, y + 130
+        col = {"loaded": C.GREEN, "flight": C.RED, "spent": "#6A6A74", "none": "#6A6A74"}[st]
+        s.rect(lx, ly, 24, 22, col if st == "flight" else "#000", rx=3, op=0.55 if st == "flight" else 0.65)
+        s.rect(lx, ly, 24, 22, "none", stroke=GOLD if sel else col, rx=3, sw=2 if sel else 1.2, dash="3 2" if st == "none" else None)
+        ht(lx + 12, ly + 15, str(i + 1), WHITE if st in ("loaded", "flight") else "#808088", 11, "middle", "bold")
+        if st == "spent": hline(lx + 4, ly + 18, lx + 20, ly + 4, "#808088", 1)
 
 
 # ── page: defs, key, the procedure ladder ──────────────────────────────────────────────────────────────────
 s.raw("<defs><linearGradient id='sky' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#5B87B8'/><stop offset='1' stop-color='#BFD3E3'/></linearGradient>"
       "<linearGradient id='grass' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#6B7E4A'/><stop offset='1' stop-color='#4A5A33'/></linearGradient></defs>")
 COLX = [30, 520, 1010]
-ROWY = [186, 706, 1226]
+ROWY = [204, 724, 1244]
 
 
 def wrap(t, w, sz):
@@ -233,7 +252,7 @@ def legend(x, y, specs, ctx, notes=(), dy=0):
 s.rect(30, 56, 12, 12, "#000", stroke=WHITE, sw=1); s.text(48, 66, "specified HUD element (full colour, dark halo — as the station's HudText draws over the 3-D view)", C.SUB, 11)
 s.rect(640, 56, 12, 12, "none", stroke="#8A8A96", dash="4 3"); s.text(658, 66, "context — unchanged, not specified here", C.SUB, 11)
 s.text(30, 86, "Frames are 460 × 259 (16:9). The scene is illustrative; the tank is only there so the reticle has something to rest on. The missile and its flare are world effects.", C.NOTE, 11)
-s.text(30, 102, "Layout positions are PROPOSALS where the design is silent (it names what the HUD shows, not where) — each panel lists its own. Panels 1–6: devices-hud.svg · 12–15: devices-hud-drone.svg.", C.PEND, 11)
+s.text(30, 102, "Layout positions are PROPOSALS where the design is silent (it names what the HUD shows, not where) — each panel lists its own. Panels 1–6: devices-hud.svg · 12–15: devices-hud-drone.svg · 16–19: devices-hud-designator.svg · 20–23: devices-hud-control.svg.", C.PEND, 11)
 
 lx = 30                                                                                          # the procedure ladder (D-93): one colour per phase, used by every panel
 s.text(lx, 130, "THE PROCEDURE (D-93)", "#9FB7D8", 11, weight="bold"); lx += 142
@@ -244,6 +263,7 @@ for i, ph in enumerate(("OFF", "TEST", "STANDBY", "ARMED", "GUIDING")):
         s.text(lx + 4, 132.5, ["POWER ▸", "test ends ▸", "ARM ▸", "FIRE ▸"][i], "#8A8A96", 10); lx += text_width(["POWER ▸", "test ends ▸", "ARM ▸", "FIRE ▸"][i], 10) + 10
 s.text(lx + 6, 132.5, "the flight ends ▸ ARMED (or STANDBY, NO MISSILE) · POWER from any phase ▸ OFF", "#8A8A96", 10)
 s.text(30, 156, "Phase colours: OFF grey · TEST amber · STANDBY blue · ARMED green · GUIDING red — the chip, and nothing else, carries the phase. Commands: on = set · plain = pressable · greyed = refused.", C.NOTE, 11)
+s.text(30, 172, "Every chip is a HudPanel button (D-122, D-128): clickable, with its hotkey badge (D-124 — the keys are proposals). The hover frame, the cursor and RMB-LOOK are the virtual adapter's, drawn in panels 16–19.", C.NOTE, 11)
 
 SIGHT = "ATGM SIGHT · TOW"
 
@@ -353,10 +373,11 @@ legend(x, y, "the VIEW ▸ MISSILE label (rocket glyph) · the AIM ring: where t
         "PROPOSAL: the sight's optic mask and the mil reticle are not drawn here (the picture is the missile's, not the sight's); the station's compass strip is not drawn either (it would show the man's heading, not the round's); the AIM ring and its degrees line are mine."])
 
 # ── 11 · the MCLOS box ─────────────────────────────────────────────────────────────────────────────────────
-x, y = head(7, "11 · THE MCLOS BOX — the stick steers the round itself (dv-steer-manual)",
-            "Scope: the 9S415 control box (no self-test), GUIDING, the stick gauge and its numbers, IN FLIGHT. The missile has no crosshair to hold: the reticle is the boresight.")
+x, y = head(7, "11 · THE 9K11 BOX, MCLOS flight — the stick steers the round",
+            "Scope: the 9S415 control box (D-155: a separate cable box commanding up to four launchers; dv-steer-manual, dv-remote-launcher), GUIDING, the launcher lamps, the stick gauge and its numbers, IN FLIGHT. The reticle is the boresight.")
 scene(x, y, 3.8, tank_dx=2); optic(x, y); flare(x, y, -50, 17); reticle(x, y, mil_px=3.4); compass(x, y); unit_lines(x, y)
-status(x, y, "9S415 CONTROL BOX · MALYUTKA", "GUIDING", missiles=0, lamp_on=False)
+status(x, y, "9S415 · 9K11 CONTROL BOX", "GUIDING", lamp_on=False)
+launchers(x, y, (("flight", True), ("loaded", False), ("loaded", False), ("none", False)))
 view_label(x, y, FA.TARGET, C.ORANGE, "9S415")
 gx, gy, gs = x + PW - 96, y + PH - 128, 80                                                        # the stick gauge: the deflection the device reads (axes 0 / 1)
 s.rect(gx, gy, gs, gs, "#000", rx=3, op=0.6, stroke="#8A8A96", sw=1)
@@ -366,13 +387,13 @@ sx_, sy_ = gx + gs / 2 + 0.35 * (gs / 2 - 8), gy + gs / 2 - 0.20 * (gs / 2 - 8)
 hline(gx + gs / 2, gy + gs / 2, sx_, sy_, GOLD, 1.4)
 s.raw(f"<circle cx='{sx_}' cy='{sy_}' r='5' fill='{GOLD}' stroke='#000' stroke-width='1'/>")
 ht(gx + gs / 2, gy - 5, "STICK", "#C8C8D0", 10.5, "middle", "bold")
-message(x, y, "IN FLIGHT  T+ 9.8 s", C.RED, "turn  X +0.35 · Y +0.20")
-chips(x, y, (("POWER", "on"), ("ARM", "on"), ("FIRE", "off"), ("VIEW", "ready")))
-legend(x, y, "the control box's name · GUIDING (red) with no TEST phase · the STICK gauge: the deflection the device reads (axes 0 / 1), a dot on a square with the unit circle dashed · the same two numbers on the message line · IN FLIGHT with the time of flight",
+message(x, y, "IN FLIGHT  T+ 9.8 s", C.RED, "LAUNCHER 1 · turn  X +0.35 · Y +0.20")
+chips(x, y, (("POWER", "on"), ("SELECT", "off"), ("ARM", "on"), ("FIRE", "off"), ("ZOOM", "ready"), ("VIEW", "ready")), sz=9.5)
+legend(x, y, "the box's name · GUIDING (red) · the LAUNCHER lamps (1 in flight and selected, 2 and 3 loaded, 4 not connected) · the STICK gauge: the deflection the device reads (axes 0 / 1) and the same two numbers on the message line · IN FLIGHT with the time of flight · the six chips of D-154 as HudPanel buttons: SELECT refused while a round flies",
        "compass · unit lines · the scene · the flare and its trail",
-       ["MCLOS (D-97): the round turns at stick × its turn rate and never looks at the target; the trainee watches the flare against the target and corrects. Here the flare is low-left of the target and the stick is pushed up-right.",
-        "TestSeconds 0 (a box with a joystick): POWER goes straight to STANDBY. In pause the gauge still shows the stick (observation) but the command the round reads stays frozen (D-83).",
-        "PROPOSAL: the gauge's place and look, the signed two-decimal numbers, and the narrower field (a Malyutka's 8×) are mine. The VIEW press shows the missile's picture as in panel 10, the gauge stays."])
+       ["D-155 refines D-97: the 9S415 is a CONTROL UNIT (panel 22 shows it ARMED, selecting a launcher), not a sight mounted on the launcher; the Malyutka launchers are uncrewed and fire from its console. The box has no TEST phase: POWER goes straight to STANDBY (D-154).",
+        "MCLOS (D-97): the round turns at stick × its turn rate and never looks at the target; the trainee watches the flare against the target and corrects. Here the flare is low-left of the target and the stick is pushed up-right. In pause the gauge still shows the stick (observation) but the command the round reads stays frozen (D-83).",
+        "PROPOSAL: the gauge's place and look, the lamp strip, the signed numbers, the narrower field (a Malyutka's 8×) and the hotkeys (D-124: the type names them) are mine. The VIEW press shows the missile's picture as in panel 10, the gauge stays."])
 
 os.makedirs("docs/designs/devices/mockups", exist_ok=True)
 s.save("docs/designs/devices/mockups/devices-hud-sight.svg")
