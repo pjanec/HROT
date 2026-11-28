@@ -58,6 +58,10 @@ namespace Fdp.Toolkit.Behavior.Devices
                 //   station's input reaches a device on every host — ⛔ before, only the rails registered it and no production frame was ever ingested
                 if (!repo.Bus.IsRegistered<DeviceInputEvent>()) repo.Bus.Register<DeviceInputEvent>();
                 if (!repo.IsComponentTypeRegistered<DeviceInput>()) repo.RegisterComponent<DeviceInput>();
+                // ⭐ SD-S5b (D-119) — and the device MESSAGE: the receiver's ingest lives here, so the event is registered here (a send from the device phase rides
+                //   the batch's command buffer, which needs the stream)
+                if (!repo.Bus.IsRegistered<DeviceMessageEvent>()) repo.Bus.Register<DeviceMessageEvent>();
+                if (!repo.IsComponentTypeRegistered<DeviceInbox>()) repo.RegisterComponent<DeviceInbox>();
             }
             foreach (var e in _devices)
             {
@@ -86,6 +90,9 @@ namespace Fdp.Toolkit.Behavior.Devices
                     if (!Merge.Apply(in f, ref input)) continue;
                     if (has) repo.SetComponent(f.Device, input); else repo.AddComponent(f.Device, input);
                 }
+            // ⭐⭐ SD-S5b (D-119) — the MESSAGE ingest, beside the input merge: last frame's DeviceMessageEvents filed into each target's inbox (newest two), which its
+            //   own behaviour reads this frame — one tick late, applied by the receiver only. No operator gate: the address is the authorisation (D-53).
+            DeviceMessages.Ingest(repo);
             return true;
         }
 

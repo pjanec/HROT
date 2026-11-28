@@ -36,6 +36,9 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ Simulated devices SD-S5v — one source's SPARSE input for ONE device (<c>DeviceInputEvent</c>; ⛔ reuses S1b-2's <c>DeviceFrameEvent</c>
         /// id — R-4301, no recording compatibility).</summary>
         public const int DeviceInput = 5204;
+        /// <summary>⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119) — a MESSAGE from one device to another
+        /// (<c>DeviceMessageEvent</c>, the binary form of D-58); 5205 free by a census of the tree (2026-11-28).</summary>
+        public const int DeviceMessage = 5205;
     }
 
     /// <summary>

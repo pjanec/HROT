@@ -88,6 +88,38 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
                                              ViewCanvasAlign.Right, on ? GizmoTextStyle.HaloBold : GizmoTextStyle.Halo));
             }
             DrawMark(draw, MockupWidth - 36, 78);
+            if (st.HasTarget != 0 && view is EntityRepository w) DrawCue(draw, w, entity, in st, BinocularsZoom.FovDegrees(step));
+        }
+
+        // ── ⭐⭐ SD-S5b (§3.13d D-119, mockup devices-hud-link.svg panels 25 / 26) — the RECEIVED-TARGET cue, through the one helper (HudCue) ───────────────
+
+        /// <summary>The ellipse the cue's arrow rides on (mockup px half-axes, inside the eyepieces: across to the outer rims, up and down to the cusp).</summary>
+        public const float CueEdgeX = 140f, CueEdgeY = 76f;
+
+        private long _senderType = long.MinValue;
+        private bool _senderLinked;
+        private HudText _senderText;
+
+        /// <summary>"from LASER RANGEFINDER (linked)" — the sender's TKB name, built once per (type, linked) (allocates then, never per frame).</summary>
+        private HudText SenderText(EntityRepository w, Entity entity, in BinocularsState st)
+        {
+            bool linked = DeviceMessages.IsLinked(w, entity, st.TargetFrom);
+            if (_senderType == st.Target.FromType && _senderLinked == linked) return _senderText;
+            string name = "DEVICE";
+            if (w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() && w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db
+                && db.TryGetByType(st.Target.FromType, out var t) && t != null && !string.IsNullOrEmpty(t.Name)) name = t.Name.ToUpperInvariant();
+            _senderText = new HudText("from " + name + (linked ? " (linked)" : ""));
+            _senderType = st.Target.FromType; _senderLinked = linked;
+            return _senderText;
+        }
+
+        private void DrawCue(IDebugDrawBuilder draw, EntityRepository w, Entity entity, in BinocularsState st, float fovDegrees)
+        {
+            if (!DevicePoses.TryWorld(w, entity, out var at, out var rotation)) return;
+            if (!HudCue.Offset(at, rotation, st.Target.Point, out float bearing, out float elevation)) return;
+            float range = Vector3.Distance(at, st.Target.Point);
+            HudCue.Target(draw, P(MockupWidth / 2f, MockupHeight / 2f), new Vector2(CueEdgeX, CueEdgeY) * K, ViewCanvas.Height / MathF.Max(fovDegrees, 0.1f),
+                          bearing, elevation, HudCue.OffsetText(bearing), HudCue.RangeText(range), SenderText(w, entity, in st), K, L);
         }
 
         /// <summary>The eyepiece frame: everything outside the UNION of the two circles darkened — past the canvas too, so a letterboxed view is dark to

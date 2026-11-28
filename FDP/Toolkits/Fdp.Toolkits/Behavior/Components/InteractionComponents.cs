@@ -305,6 +305,14 @@ namespace Fdp.Toolkit.Behavior.Components
         public Angle TraverseMin, TraverseMax, ElevationMin, ElevationMax;
         /// <summary>Where the weapon stands, metres in the host's frame (x forward, y left, z up), and which way it faces (radians, CCW).</summary>
         public float X, Y, Z, Facing;
+
+        /// <summary>⭐ SD-S5b — the ONE station-place formula (WS-2): an occupant of this station stands at the seat's place in the host's frame and faces its way.
+        /// <c>EmbarkedStateSystem</c> places from the host's transform; <c>DevicePoses</c> from a host device's world pose (D-120).</summary>
+        public readonly void Place(System.Numerics.Vector3 hostPosition, System.Numerics.Quaternion hostRotation, out System.Numerics.Vector3 position, out System.Numerics.Quaternion rotation)
+        {
+            position = hostPosition + System.Numerics.Vector3.Transform(new System.Numerics.Vector3(X, Y, Z), hostRotation);
+            rotation = hostRotation * System.Numerics.Quaternion.CreateFromAxisAngle(System.Numerics.Vector3.UnitZ, Facing);
+        }
     }
 
     /// <summary>Inline array of <see cref="PassengerBuffer.Capacity"/> <see cref="StationSeat"/> values (one per <see cref="PassengerBuffer"/> slot).</summary>

@@ -980,6 +980,13 @@ namespace Fdp.Core
         /// <summary><c>DeviceView</c> — ⭐ SD-S2c (§3.13c D-109): the entity a view bound to the device films through (the drone's camera), its mode and pitch;
         /// written by the device on itself. ⚠ 398 — listed FREE AND used by no test fixture (2026-11-28; 242 collided with a fixture).</summary>
         public const int DeviceView = 398;
+        /// <summary><c>DeviceLinks</c> — ⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119): the devices a device SENDS to
+        /// (its peers — an address, scenario-authored). ⚠ 235, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceLinks = 235;
+
+        /// <summary><c>DeviceInbox</c> — ⭐ SD-S5b (D-119): the newest two <c>DeviceMessageEvent</c>s addressed to a device, filed by the device tick's serial ingest.
+        /// ⚠ 236, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceInbox = 236;
 
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
@@ -1598,6 +1605,7 @@ namespace Fdp.Core
         public const int GlobalDebugSettings = 185;
         public const int CanvasContextMenuState = 186;
         public const int InitialBlueprintsIntent = 187;
+        // 241 — RETIRED (was InitialDeviceLinksIntent, SD-S5b WIP): DeviceLinks holds EntityLinks, resolved by the one load walker (R-184). Do not reuse.
         // from NavigationContractsComponentIds
         public const int NavigationIntent = 67;
         public const int NavigationStatus = 68;

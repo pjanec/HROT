@@ -38,6 +38,7 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterManagedComponent<InitialVehicleIntent>();
             _repo.RegisterManagedComponent<InitialHierarchyIntent>();
             _repo.RegisterManagedComponent<InitialRouteIntent>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();
             _repo.RegisterManagedComponent<InitialTargetsIntent>();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
@@ -217,6 +218,8 @@ namespace Hrot.SimHost.Tests
             Assert.True(_repo.HasComponent<PersonalRouteRef>(vehicle));
             Assert.Equal(route, _repo.GetComponent<PersonalRouteRef>(vehicle).RouteEntity);
         }
+
+        // ── ⭐ SD-S5b (§3.13d D-119) — a device's authored link, resolved once EVERY named peer is alive ──────────────────────────────────
 
         // â”€â”€ Test 6: TargetMemory partial materialization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

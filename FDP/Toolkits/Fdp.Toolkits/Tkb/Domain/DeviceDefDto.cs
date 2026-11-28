@@ -37,12 +37,18 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <summary>The step a fresh device starts at (index into <see cref="Magnifications"/>).</summary>
         public int DefaultStep { get; init; }
 
-        /// <summary>D-61 — where a device STACKED on this one (mounted in its station) sits, metres in this device's frame (x forward, y left, z up).</summary>
-        public float StackOffsetX { get; init; }
-        /// <inheritdoc cref="StackOffsetX"/>
-        public float StackOffsetY { get; init; }
-        /// <inheritdoc cref="StackOffsetX"/>
-        public float StackOffsetZ { get; init; }
+        // ⭐ SD-S5b (D-120 / D-61) — ⛔ StackOffsetX/Y/Z RETIRED (R-4301; no reader): where a device STACKED on this one sits is the place of the type's STACKING
+        //   STATION — a Gen.Carrier seat (Role Station, Accepts Device, X/Y/Z), the kit stations' one mechanism (boarding, the carry, the operator walk), read by
+        //   DevicePoses through StationSeat.Place. Two fields for one place would drift (ruling 9).
+
+        /// <summary>⭐ D-171 — where the device's OPTIC (its lens, its laser's exit) sits above its own base, metres in the device's frame (x forward, y left,
+        /// z up): a tripod rangefinder ~1.3 m above its feet, a console's sight on top of the console. 0 = at its base (a hand-held device — carried, it is used
+        /// at the man's eye, D-170). Copied once into <c>DeviceInfo.OpticOffset</c> at creation.</summary>
+        public float OpticOffsetX { get; init; }
+        /// <inheritdoc cref="OpticOffsetX"/>
+        public float OpticOffsetY { get; init; }
+        /// <inheritdoc cref="OpticOffsetX"/>
+        public float OpticOffsetZ { get; init; }
 
         /// <summary>⭐ SD-S2c (§3.13c D-104) — a GROUND STATION: its command (<c>RemoteControl</c>) is created WITH the device, so the paired drone's brain finds
         /// it in the tick-start view from its first tick (a cross-entity read cannot see a component added in the same frame).</summary>

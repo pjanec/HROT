@@ -43,16 +43,26 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         /// <summary>⭐ R7-11 — the press counters last seen and the operator epoch they are based on (⭐ S1d-3: the ONE tracker every device keeps,
         /// read by <c>DevicePressReader</c>).</summary>
         public Fdp.Toolkit.Behavior.Devices.DevicePressTracker Presses;
+        /// <summary>⭐ SD-S5b (D-119) — where the last range's laser met (world), and when (sim s) — what SEND sends (a <c>TargetLocation</c>).</summary>
+        public System.Numerics.Vector3 LastPoint;
+        /// <inheritdoc cref="LastPoint"/>
+        public double RangeAt;
+        /// <summary>⭐ SD-S5b — the sender's message seq (<c>DeviceMessages.Send</c> bumps it; the receiver drops a repeat — R3-10).</summary>
+        public uint SendSeq;
+        /// <summary>⭐ SD-S5b — targets sent, and when the last one was (sim s): the HUD's SENT tag shows for <see cref="RangefinderPanel.SentSeconds"/>.</summary>
+        public uint Sent;
+        /// <inheritdoc cref="Sent"/>
+        public double SentAt;
     }
 
     /// <summary>
     /// The rangefinder's press channels (the <c>DeviceInput</c> press counter each one reads) — the BUTTON indexes of TKB type 640's elements (D-142:
-    /// RANGE, MODE, MENU, SELECT; pinned by <c>RangefinderBehaviorTests.S1e1_…</c>); the numbers are the wire, the names are the type's data.
+    /// RANGE, MODE, MENU, SELECT, SEND; pinned by <c>RangefinderBehaviorTests.S1e1_…</c>); the numbers are the wire, the names are the type's data.
     /// </summary>
     public static class RangefinderChannels
     {
         /// <summary>The channels the rangefinder reads.</summary>
-        public const int Count = 4;
+        public const int Count = 5;
         /// <summary>RANGE — SINGLE: one measurement; CONTINUOUS: ranging on / off.</summary>
         public const int Range = 0;
         /// <summary>MODE — steps SINGLE ↔ CONTINUOUS.</summary>
@@ -61,6 +71,8 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         public const int Menu = 2;
         /// <summary>SELECT — applies the cursor's item (MODE steps the mode, POWER the power, EXIT closes the menu).</summary>
         public const int Select = 3;
+        /// <summary>⭐ SD-S5b (D-119) — SEND: the last range's point to the device's link (<c>DeviceLinks.Peer0</c>) as a <c>TargetLocation</c>.</summary>
+        public const int Send = 4;
     }
 
     /// <summary>The rangefinder's panel channels (<c>DevicePanel</c>) — the same placeholder rule as <see cref="RangefinderChannels"/>.</summary>
@@ -72,5 +84,7 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         public const int ValueRange = 0, ValueMode = 1, ValuePower = 2, ValueMenu = 3;
         /// <summary>Text lines: the mode, the range ("452 m" / "— m"), the menu line, the power.</summary>
         public const int TextMode = 0, TextRange = 1, TextMenu = 2, TextPower = 3;
+        /// <summary>⭐ SD-S5b — how long the HUD shows SENT after a send (sim s; it stays while paused — sim time stands).</summary>
+        public const double SentSeconds = 2.0;
     }
 }

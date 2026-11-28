@@ -145,8 +145,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     {
                         // ⭐⭐ Weapon systems WS-2 (R-2016, DESIGN_Weapon_Systems §6) — a weapon in a STATION stands at the seat's place and
                         //   faces its way, in the host's frame (sim, not only drawn): its muzzle and its arc are where the station is.
-                        newPos = v.Position + Vector3.Transform(new Vector3(station.X, station.Y, station.Z), v.Rotation);
-                        newRot = v.Rotation * Quaternion.CreateFromAxisAngle(Vector3.UnitZ, station.Facing);
+                        station.Place(v.Position, v.Rotation, out newPos, out newRot);   // ⭐ SD-S5b — the one formula (DevicePoses walks a stack with it)
                     }
                     else
                     {

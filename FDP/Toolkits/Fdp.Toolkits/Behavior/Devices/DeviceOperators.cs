@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Behavior.Devices
     /// writer of its <see cref="PossessedBy"/> row (<see cref="PossessionMode.Operated"/>). A device has no fire conditions (that is
     /// <c>WeaponSystems.ControllerOf</c>'s weapon rule); its operator is: ① the man in its OWN gunner seat (a device on a tripod, MANNED with USE —
     /// D-60), ② the PERSON whose carry station holds it (carried — D-62 / D-63), ③ the occupant of the seat that OPERATES the host station it is
-    /// mounted in (a vehicle's device station — §3q). The device's row names the station that holds that operator's BODY (its Fps / Riding hold —
+    /// mounted in (a vehicle's device station — §3q), ④ ⭐ SD-S5b (D-120) — mounted in another DEVICE (stacked): the operator of that device. The device's row names the station that holds that operator's BODY (its Fps / Riding hold —
     /// <see cref="StationBody.IsBodyMode"/>), or the device has no row. ⭐ Run by the device tick's serial pre-pass every frame on the device's
     /// brain owner, so the station never computes it: it reads the replicated row (R7-1), and the existing <c>HeldBy</c> gate authorises its frames.
     /// A change of operator bumps <see cref="PossessedBy.Epoch"/> and clears the old <see cref="DeviceInput"/> — <c>Possess</c>'s own rule.
@@ -17,7 +17,9 @@ namespace Fdp.Toolkit.Behavior.Devices
     public static class DeviceOperators
     {
         /// <summary>The body operating <paramref name="device"/>, or null (see the class summary).</summary>
-        public static Entity OperatorOf(EntityRepository w, Entity device)
+        public static Entity OperatorOf(EntityRepository w, Entity device) => OperatorOf(w, device, 0);
+
+        private static Entity OperatorOf(EntityRepository w, Entity device, int depth)
         {
             var gunner = Fdp.Toolkit.Combat.WeaponSystems.GunnerOf(w, device);   // ① manned (its own gunner seat)
             if (!gunner.IsNull) return gunner;
@@ -25,6 +27,8 @@ namespace Fdp.Toolkit.Behavior.Devices
             ref readonly var tag = ref w.GetComponentRO<IsEmbarkedTag>(device);
             var host = tag.VehicleEntity;
             if (host.IsNull || !w.IsAlive(host)) return Entity.Null;
+            // ⭐ SD-S5b (D-120) — ④ STACKED on another device: the stack's operator operates it (his look turns the root, DeviceStacks)
+            if (DeviceMarker.IsDevice(w, host)) return depth < DeviceStacks.MaxDepth ? OperatorOf(w, host, depth + 1) : Entity.Null;
             if (Embarkation.IsPersonCarrier(w, host)) return host;               // ② carried by a person
             if (!w.IsComponentTypeRegistered<CarrierStations>() || !w.HasComponent<CarrierStations>(host)) return Entity.Null;
             ref readonly var stations = ref w.GetComponentRO<CarrierStations>(host);
