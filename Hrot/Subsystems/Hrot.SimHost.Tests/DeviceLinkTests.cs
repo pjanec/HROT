@@ -9,6 +9,8 @@ using Fdp.Toolkit.Behavior.Devices;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Physics.Components;
+using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Components;
 using Hrot.AI.Behaviors.Devices.Binoculars;
 using Hrot.AI.Behaviors.Devices.Rangefinder;
 using Hrot.CGF.Configuration;
@@ -50,7 +52,7 @@ namespace Hrot.SimHost.Tests
                 R = DeviceOf(BehaviorNames.DeviceRangefinder, 640);
                 B = DeviceOf(BehaviorNames.DeviceBinoculars, 641);
                 C = DeviceOf(BehaviorNames.DeviceBinoculars, 641);
-                W.AddComponent(R, new DeviceLinks { Peer0 = B });
+                W.AddComponent(R, DeviceLinks.To(EntityRef.Of(W, B)));
                 Target = W.CreateEntity();   // a marker 450 m east
                 W.AddComponent(Target, new SimTransform { Position = new Vector3(450f, 0f, 0f), Rotation = Quaternion.Identity });
                 W.AddComponent(Target, new PhysicsCollider { Radius = 0.5f, Height = 2f, CollisionLayer = 1 });
@@ -66,6 +68,7 @@ namespace Hrot.SimHost.Tests
                 W.AddComponent(d, new BehaviorState());
                 W.SetAuthority<BehaviorState>(d, true);
                 W.AddComponent(d, new DeviceInfo { DeviceType = type, Behavior = new FixedString64(behavior) });
+                W.AddComponent(d, new NetworkIdentity { Value = 7000 + d.Index });   // ⭐ the link and the message carry network ids (R-184)
                 return d;
             }
 
@@ -113,7 +116,7 @@ namespace Hrot.SimHost.Tests
             Assert.InRange(b.Target.Range, 449f, 450f);
             Assert.Equal(640, b.Target.FromType);
             Assert.Equal(12.5, b.Target.TakenAt);
-            Assert.Equal(r.R, b.TargetFrom);
+            Assert.Equal(EntityRef.Of(r.W, r.R), b.TargetFrom);
             Assert.Equal(0, r.Bn(r.C).HasTarget);                            // ⭐ the unlinked device receives nothing
             Assert.False(r.W.HasComponent<DeviceInbox>(r.C));
             for (int i = 0; i < 5; i++) r.Frame(0.016f);                     // re-read: applied once

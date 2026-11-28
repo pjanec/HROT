@@ -29,7 +29,6 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new VisHierarchyNodeTranslator())
                 .RegisterTranslator(new IsEmbarkedTagTranslator())
                 .RegisterTranslator(new PersonalRouteRefTranslator())
-                .RegisterTranslator(new DeviceLinksTranslator())   // ⭐ SD-S5b (D-119) — a device's authored link, resolved by Genesis once its peers are alive
                 .RegisterTranslator(new UnitSubordinateTranslator())
                 .RegisterTranslator(new EditablePolylineTranslator())
                 .RegisterTranslator(new ParamBindingsTranslator())   // ⭐ macros S3a ① (SR-163) — a binding survives a save

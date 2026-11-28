@@ -293,11 +293,10 @@ namespace Hrot.Player.Tests.Gizmos
         public void SDS5b_TheSendChip_IsGreyedWithoutARangeOrALink_AndShowsSentForTwoSecondsAfterASend()
         {
             _w.RegisterComponent<DeviceLinks>();
-            var peer = _w.CreateEntity();
             State(new RangefinderState { HasRange = 1, LastRange = 450f });
             PanelButtonState SendState(DebugPrimitive[] run) => run.Where(p => PanelButtons.Is(p)).First(b => b.PanelElement == RangefinderChannels.Send).PanelState;
             Assert.Equal(PanelButtonState.Disabled, SendState(Frame()));                  // a range, no link
-            _w.AddComponent(_d, new DeviceLinks { Peer0 = peer });
+            _w.AddComponent(_d, DeviceLinks.To(new Fdp.Toolkit.Replication.EntityRef(NetId + 1)));   // a peer is a network id — nothing resolves it here
             var idle = Frame();
             Assert.Equal(PanelButtonState.Normal, SendState(idle));                       // a range and a link
             Assert.DoesNotContain("SENT", Texts(idle));

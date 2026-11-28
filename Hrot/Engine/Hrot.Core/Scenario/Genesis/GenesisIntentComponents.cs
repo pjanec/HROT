@@ -97,25 +97,6 @@ namespace Hrot.Common.Serializers
     }
 
     /// <summary>
-    /// ⭐ Simulated devices SD-S5b (§3.13d D-119) — managed Intent DTO that stores the two peer Network IDs of a device's authored
-    /// <see cref="Fdp.Toolkit.Behavior.Devices.DeviceLinks"/> during scenario genesis.
-    ///
-    /// <para>Written by <c>DeviceLinksTranslator.Inject</c>; resolved to a live <c>DeviceLinks</c> by <c>GenesisMaterializationSystem</c> once every
-    /// named peer is alive. ⛔ Not the generic serializer: a device is created through its TKB type AFTER the file's own entities, so a plain
-    /// <c>Entity</c> field read as a GUID names the load pass's placeholder, not the live device (measured: a link that sent to the wrong entity).</para>
-    /// </summary>
-    [DataPolicy(DataPolicy.Transient)]
-    [ComponentId(GlobalComponentIds.InitialDeviceLinksIntent)]
-    public sealed class InitialDeviceLinksIntent
-    {
-        /// <summary>Network ID of the first peer (none = no peer).</summary>
-        public EntityLink Peer0 { get; set; }
-
-        /// <summary>Network ID of the second peer (none = no peer).</summary>
-        public EntityLink Peer1 { get; set; }
-    }
-
-    /// <summary>
     /// A single entry in <see cref="InitialTargetsIntent"/> carrying the Network ID and
     /// sensor data for one perceived target at scenario load time.
     /// </summary>

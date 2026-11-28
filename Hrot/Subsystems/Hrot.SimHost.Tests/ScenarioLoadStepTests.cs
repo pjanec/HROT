@@ -778,18 +778,6 @@ public sealed class ScenarioLoadStepTests : IDisposable
         }
     }
 
-    /// <summary>⭐ SD-S5b (D-119) — a device's authored link still unresolved blocks readiness, as the six intents above do (a scenario that judges the link starts
-    /// only after Genesis resolved it).</summary>
-    [Fact]
-    public void SDS5b_TheDeviceLinksIntent_BlocksReadiness()
-    {
-        var step = MakeStep(null, NewBus());
-        using var world = new EntityRepository();
-        world.RegisterManagedComponent<InitialDeviceLinksIntent>();
-        world.SetManagedComponent(world.CreateEntity(), new InitialDeviceLinksIntent());
-        Assert.False(step.IsResolved(world));
-    }
-
     /// <summary>
     /// ⭐⭐⭐ <b>The OTHER re-homed drift claim.</b> Zone terrain is made resident at readiness — the first
     /// moment the zone ENTITIES provably exist. 🔴 CGF's former handler never made this call at all.

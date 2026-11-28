@@ -178,7 +178,7 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         {
             var c = ChipsOf(view, entity);
             bool sent = RecentlySent(view, in st);
-            bool linked = view is EntityRepository lw && !DeviceMessages.Peer(lw, entity, 0).IsNull;
+            bool linked = view is EntityRepository lw && !DeviceMessages.Peer(lw, entity, 0).IsNone;
             for (int i = 0; i < RangefinderChannels.Count; i++)
             {
                 var state = i == RangefinderChannels.Range && st.Ranging != 0 ? PanelButtonState.Lit

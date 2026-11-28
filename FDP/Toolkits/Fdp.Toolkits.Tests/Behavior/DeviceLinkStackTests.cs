@@ -4,6 +4,8 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Devices;
 using Fdp.Toolkit.Behavior.Possession;
+using Fdp.Toolkit.Replication;
+using Fdp.Toolkit.Replication.Components;
 using Xunit;
 
 namespace Fdp.Toolkit.Behavior.Tests
@@ -33,6 +35,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             w.RegisterComponent<CarrierSeats>();
             w.RegisterComponent<CarrierStations>();
             if (!w.IsComponentTypeRegistered<SimTransform>()) w.RegisterComponent<SimTransform>();
+            if (!w.IsComponentTypeRegistered<NetworkIdentity>()) w.RegisterComponent<NetworkIdentity>();
             w.Bus.Register<DeviceMessageEvent>();
             return w;
         }
@@ -44,6 +47,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             w.SetAuthority<BehaviorState>(d, true);   // this node runs its logic (the ingest files only there)
             w.AddComponent(d, new DeviceInfo { DeviceType = 77 });
             w.AddComponent(d, new SimTransform { Position = at, Rotation = Quaternion.Identity });
+            w.AddComponent(d, new NetworkIdentity { Value = 5000 + d.Index });   // ⭐ a link and a message name a device by its NETWORK id (R-184)
             return d;
         }
 
@@ -62,7 +66,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             using var w = World();
             Entity a = Device(w), b = Device(w), c = Device(w);
-            w.AddComponent(a, new DeviceLinks { Peer0 = b });
+            w.AddComponent(a, DeviceLinks.To(EntityRef.Of(w, b)));
             uint seq = 0;
             Assert.True(DeviceMessages.SendToPeer(w, a, 0, Kind, new Dto { Point = new Vector3(1, 2, 3), Range = 450f }, ref seq));
             Assert.Equal(1u, seq);
@@ -88,7 +92,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             using var w = World();
             Entity a = Device(w), b = Device(w);
             uint seq = 0;
-            for (int i = 1; i <= 3; i++) DeviceMessages.Send(w, a, b, Kind, new Dto { Range = i }, ref seq);
+            for (int i = 1; i <= 3; i++) DeviceMessages.Send(w, a, EntityRef.Of(w, b), Kind, new Dto { Range = i }, ref seq);
             Frame(w);
             var inbox = w.GetComponentRO<DeviceInbox>(b);
             Assert.Equal(2, inbox.Count);
@@ -99,10 +103,36 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(2, Received(w, b, ref seen, out var last));    // oldest first, the newest last
             Assert.Equal(3f, last.Range);
             // a duplicate of seq 3 (a paused frame's event read again at resume, R3-10) is not applied
-            var dup = new DeviceMessageEvent { Target = b, From = a, Seq = 3, Kind = Kind, Size = (ushort)System.Runtime.CompilerServices.Unsafe.SizeOf<Dto>() };
+            var dup = new DeviceMessageEvent { Target = EntityRef.Of(w, b), From = EntityRef.Of(w, a), Seq = 3, Kind = Kind, Size = (ushort)System.Runtime.CompilerServices.Unsafe.SizeOf<Dto>() };
             w.Bus.Publish(dup);
             Frame(w);
             Assert.Equal(0, Received(w, b, ref seen, out _));
+        }
+
+        /// <summary>
+        /// ⭐⭐ SD-S5b (R-184) — the link is AUTHORED as the peer's scenario GUID and resolved by the ONE load walker: the file's <c>{"Peer0": "&lt;guid&gt;"}</c>
+        /// reads into <see cref="DeviceLinks"/> (the <see cref="EntityLink"/> converter, as the auto-serializer reads every non-handle field) and
+        /// <see cref="EntityRefRemap.WalkObject"/> with this load's scope (<see cref="Fdp.Toolkit.Scenario.ScenarioRefScope"/>, GUID → the network id the
+        /// entity will have — <c>StagingEntityExtractor</c>) names the peer's network id; an unset peer stays none; a save writes the GUID back.
+        /// ⛔ No translator, no intent, no materialize step. 🔴 Red-proof: <c>DeviceLinks</c> back on <see cref="Entity"/> fields ⇒ the walker resolves
+        /// nothing and the GUID does not deserialize ⇒ red.
+        /// </summary>
+        [Fact]
+        public void SDS5b_ALinkAuthoredByGuid_IsResolvedByTheOneLoadWalker_ToThePeersNetworkId()
+        {
+            var peer = Guid.Parse("d5e10007-0000-4000-8000-000000000011");
+            var opts = new System.Text.Json.JsonSerializerOptions { IncludeFields = true };
+            var links = System.Text.Json.JsonSerializer.Deserialize<DeviceLinks>($"{{\"Peer0\":\"{peer}\"}}", opts);
+            Assert.True(links.Peer0.Ref.IsNone);                         // authored, not yet resolved
+            var scope = new Fdp.Toolkit.Scenario.ScenarioRefScope("rail");
+            scope.Add(new EntityRef(4242), null, peer, null);
+            object boxed = links;
+            Assert.True(EntityRefRemap.WalkObject(boxed, new RefResolve(scope)));
+            links = (DeviceLinks)boxed;
+            Assert.Equal(new EntityRef(4242), links.Peer0.Ref);
+            Assert.True(links.Peer1.Ref.IsNone);
+            Assert.True(links.Names(new EntityRef(4242)));
+            Assert.Contains(peer.ToString(), System.Text.Json.JsonSerializer.Serialize(links, opts), StringComparison.OrdinalIgnoreCase);
         }
 
         [Fact]
@@ -110,7 +140,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             using var w = World();
             Entity a = Device(w), b = Device(w);
-            w.AddComponent(a, new DeviceLinks { Peer0 = b });
+            w.AddComponent(a, DeviceLinks.To(EntityRef.Of(w, b)));
             uint seq = 0;
             var seen = default(DeviceMessageTracker);
             void Step() { DeviceMessages.SendToPeer(w, a, 0, Kind, new Dto { Range = 1f }, ref seq); Frame(w); Received(w, b, ref seen, out _); }

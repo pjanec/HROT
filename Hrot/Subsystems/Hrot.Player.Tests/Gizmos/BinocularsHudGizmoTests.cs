@@ -136,7 +136,7 @@ namespace Hrot.Player.Tests.Gizmos
             if (!_w.HasComponent<SimTransform>(_d)) _w.AddComponent(_d, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
             UnitMemory.Ref<BinocularsState>(_w, _d) = new BinocularsState
             {
-                Zoom = 1, Ready = 1, HasTarget = 1, TargetFrom = from,
+                Zoom = 1, Ready = 1, HasTarget = 1, TargetFrom = Fdp.Toolkit.Replication.EntityRef.Of(_w, from),
                 Target = new Hrot.AI.Behaviors.Devices.Contracts.TargetLocation { Point = point, Range = point.Length(), TakenAt = 3.0, FromType = 640 },
             };
         }
@@ -171,7 +171,8 @@ namespace Hrot.Player.Tests.Gizmos
             _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
             _w.RegisterComponent<DeviceLinks>();
             var sender = _w.CreateEntity();
-            _w.AddComponent(_d, new DeviceLinks { Peer0 = sender });
+            _w.AddComponent(sender, new NetworkIdentity { Value = NetId + 1 });
+            _w.AddComponent(_d, DeviceLinks.To(Fdp.Toolkit.Replication.EntityRef.Of(_w, sender)));
 
             float yaw = 20f * MathF.PI / 180f;                                              // 20° LEFT, 1 240 m away: off the 7.1° view
             Received(new Vector3(MathF.Cos(yaw), MathF.Sin(yaw), 0f) * 1240f, sender);

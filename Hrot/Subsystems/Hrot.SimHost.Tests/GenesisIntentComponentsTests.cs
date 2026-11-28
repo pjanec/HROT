@@ -122,17 +122,6 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(DataPolicy.Transient, attr.Policy);
         }
 
-        // ── ⭐ SD-S5b — InitialDeviceLinksIntent ───────────────────────────────
-
-        [Fact]
-        public void SDS5b_InitialDeviceLinksIntent_IsRegistered_UnderItsId_AndTransient()
-        {
-            Assert.Null(Record.Exception(() => _repo.RegisterManagedComponent<InitialDeviceLinksIntent>()));
-            Assert.Equal(typeof(InitialDeviceLinksIntent), ComponentTypeRegistry.GetType(GlobalComponentIds.InitialDeviceLinksIntent));
-            var attr = typeof(InitialDeviceLinksIntent).GetCustomAttribute<DataPolicyAttribute>();
-            Assert.NotNull(attr);
-            Assert.Equal(DataPolicy.Transient, attr.Policy);
-        }
 
         // ── InitialTargetsIntent ───────────────────────────────────────────────
 

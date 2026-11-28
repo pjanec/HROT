@@ -17,7 +17,6 @@ public static class GenesisIntentRegistry
         world.RegisterManagedComponent<InitialVehicleIntent>();
         world.RegisterManagedComponent<InitialHierarchyIntent>();
         world.RegisterManagedComponent<InitialRouteIntent>();
-        world.RegisterManagedComponent<InitialDeviceLinksIntent>();   // ⭐ SD-S5b (D-119) — a device's authored link
         world.RegisterManagedComponent<InitialTargetsIntent>();
         world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
         world.RegisterManagedComponent<InitialBlueprintsIntent>();
