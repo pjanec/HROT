@@ -141,7 +141,7 @@ menu_and_modes("dv-menu-and-modes-click", click, "by CLICKING their chips on the
 #   and no laser (the CE-2193 warning). Measured: a marker at (0, 900) was never hit. So the observer stands west and the 900 m marker east.
 OX, OY = -450, -300
 ents = observer_with(2, [("Rangefinder", RANGEFINDER, 4)], at=(OX, OY))
-ents[guid(2, 2)] = man("Marker 200", OX + 200, OY)
+ents[guid(2, 2)] = man("Marker 200", OX + 141.4, OY - 141.4)   # ⭐ D-170 — OFF the line to Marker 900: from his eye (1.7 m) the laser to 900 m crossed Marker 200 at chest height
 ents[guid(2, 3)] = man("Marker 450", OX + 318.2, OY + 318.2)
 ents[guid(2, 4)] = man("Marker 900", OX + 900, OY)
 ranges = [("200", 200.0, 1.5), ("450", 450.0, 3.5), ("900", 900.0, 5.5)]

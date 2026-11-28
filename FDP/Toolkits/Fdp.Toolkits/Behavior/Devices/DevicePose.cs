@@ -98,12 +98,21 @@ namespace Fdp.Toolkit.Behavior.Devices
                 if (w.IsComponentTypeRegistered<CarrierStations>() && w.HasComponent<CarrierStations>(host) && w.GetComponentRO<CarrierStations>(host).IsStation(seat))
                     w.GetComponentRO<CarrierStations>(host).Seats[seat].Place(hostAt, hostRot, out position, out rotation);
                 else { position = hostAt; rotation = hostRot; }
+                position += Optic(w, device, rotation);   // ⭐ D-171 — its own optic above the place it is stacked at
             }
             else
             {
                 if (!w.HasComponent<SimTransform>(device)) return false;
                 ref readonly var at = ref w.GetComponentRO<SimTransform>(device);
                 position = at.Position; rotation = at.Rotation;
+                // ⭐⭐ D-170 (user, `2026-11-28`: "the offsetting case of the device held by a human character should definitely not be 0 because that would
+                //   originate from the ground level") — a device CARRIED by a person (one of his carry stations: kit, hands) is used at his EYE: THE eye rule
+                //   (TerrainWorldLosStrategy.EyeOf — his feet raised by the eye height of his stance, 1.7 m standing · 1.1 crouched · prone low, moved by his
+                //   lean) that sight, the rifle's shot (ShotOrigin) and command guidance already use (R-217) — so he lases from where he sees and shoots.
+                //   ⛔ Its SimTransform stays the mount point (his feet, D-169). A device in a vehicle's station keeps the station's place.
+                if (CarriedBy(w, device) is { IsNull: false } man)
+                    position = Fdp.Toolkit.Perception.LineOfSight.TerrainWorldLosStrategy.EyeOf(w, man, Fdp.Toolkit.Combat.HitModel.LogicalStance(w, man));
+                else position += Optic(w, device, rotation);
             }
             if (w.IsComponentTypeRegistered<DevicePose>() && w.HasComponent<DevicePose>(device))
             {
@@ -113,6 +122,23 @@ namespace Fdp.Toolkit.Behavior.Devices
                 rotation = rotation * o;
             }
             return true;
+        }
+
+        /// <summary>⭐⭐ D-171 — where the device's OPTIC sits above its base (its type's <see cref="DeviceInfo.OpticOffset"/>, device frame), turned by
+        /// <paramref name="rotation"/> (its base's) — a tripod device's lens above its feet, a mounted one's above its station. 0 B.</summary>
+        private static Vector3 Optic(EntityRepository w, Entity device, Quaternion rotation)
+        {
+            if (!w.IsComponentTypeRegistered<DeviceInfo>() || !w.HasComponent<DeviceInfo>(device)) return Vector3.Zero;
+            var o = w.GetComponentRO<DeviceInfo>(device).OpticOffset;
+            return o == Vector3.Zero ? Vector3.Zero : Vector3.Transform(o, rotation);
+        }
+
+        /// <summary>⭐ D-170 — the PERSON carrying <paramref name="device"/> in one of his carry stations, or null (in a vehicle's station, lying, stacked).</summary>
+        public static Entity CarriedBy(EntityRepository w, Entity device)
+        {
+            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.HasComponent<IsEmbarkedTag>(device) || !w.IsComponentTypeRegistered<PersonCarrier>()) return Entity.Null;
+            var host = w.GetComponentRO<IsEmbarkedTag>(device).VehicleEntity;
+            return !host.IsNull && w.IsAlive(host) && w.HasComponent<PersonCarrier>(host) && w.HasComponent<SimTransform>(host) ? host : Entity.Null;
         }
     }
 

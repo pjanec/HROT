@@ -41,6 +41,15 @@ namespace Fdp.Toolkit.Tkb.Domain
         //   STATION — a Gen.Carrier seat (Role Station, Accepts Device, X/Y/Z), the kit stations' one mechanism (boarding, the carry, the operator walk), read by
         //   DevicePoses through StationSeat.Place. Two fields for one place would drift (ruling 9).
 
+        /// <summary>⭐ D-171 — where the device's OPTIC (its lens, its laser's exit) sits above its own base, metres in the device's frame (x forward, y left,
+        /// z up): a tripod rangefinder ~1.3 m above its feet, a console's sight on top of the console. 0 = at its base (a hand-held device — carried, it is used
+        /// at the man's eye, D-170). Copied once into <c>DeviceInfo.OpticOffset</c> at creation.</summary>
+        public float OpticOffsetX { get; init; }
+        /// <inheritdoc cref="OpticOffsetX"/>
+        public float OpticOffsetY { get; init; }
+        /// <inheritdoc cref="OpticOffsetX"/>
+        public float OpticOffsetZ { get; init; }
+
         /// <summary>Where it can be mounted — a kit station by default (<see cref="MountKinds.Device"/>).</summary>
         public MountKinds MountKinds { get; init; } = MountKinds.Device;
 

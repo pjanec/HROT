@@ -223,5 +223,66 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(PossessionMode.Operated, w.GetComponentRO<PossessedBy>(top).Mode);
             Assert.Equal((StationId)5, w.GetComponentRO<PossessedBy>(top).StationNodeId);
         }
+
+        /// <summary>
+        /// ⭐⭐ D-170 (user, `2026-11-28`) — a device CARRIED by a person is used at his EYE (THE eye rule, <c>TerrainWorldLosStrategy.EyeOf</c>: his feet +
+        /// 1.7 m standing — the default mount — the rule sight and the rifle's shot use), not at his feet; its SimTransform stays the mount (D-169); a device
+        /// stacked on it rises with it (the chain); a device NOT carried by a person stays where its SimTransform puts it.
+        /// 🔴 Red-proof: drop the <c>CarriedBy</c> branch ⇒ the carried device's world Z is 0 (his feet) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D170_ACarriedDevice_IsUsedAtItsCarriersEye_NotAtHisFeet()
+        {
+            using var w = World();
+            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>()) w.RegisterComponent<IsEmbarkedTag>();
+            var man = w.CreateEntity();
+            w.AddComponent(man, new PersonCarrier());
+            w.AddComponent(man, new SimTransform { Position = new Vector3(5f, 0f, 0f), Rotation = Quaternion.Identity });
+            Entity held = Device(w, new Vector3(5f, 0f, 0f)), top = Device(w), lying = Device(w, new Vector3(9f, 0f, 0f));
+            w.AddComponent(held, new IsEmbarkedTag { VehicleEntity = man, Seat = 4 });
+            Stack(w, held, top, 0.08f);
+
+            Assert.True(DevicePoses.TryWorld(w, held, out var eye, out _));
+            Assert.Equal(new Vector3(5f, 0f, Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding), eye);
+            Assert.Equal(0f, w.GetComponentRO<SimTransform>(held).Position.Z);                                   // the mount point is unchanged (D-169)
+            Assert.True(DevicePoses.TryWorld(w, top, out var stacked, out _));
+            Assert.Equal(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding + 0.08f, stacked.Z, 3);    // the stack rises with its root
+            Assert.True(DevicePoses.TryWorld(w, lying, out var ground, out _));
+            Assert.Equal(0f, ground.Z);                                                                          // not carried: its own place
+        }
+        /// <summary>
+        /// ⭐⭐ D-171 — a device NOT carried by a person is used at its type's OPTIC above its base (<see cref="DeviceInfo.OpticOffset"/>, device frame, turned by
+        /// its base): a tripod device on the ground 1.3 m above its feet (and 0.2 m ahead, turned with the tripod); its SimTransform stays its base (D-169); a
+        /// device stacked on it starts from that place; a CARRIED device of the same type is at its carrier's eye instead (D-170 wins).
+        /// 🔴 Red-proof: drop the <c>Optic</c> term ⇒ the tripod device's world Z is 0 ⇒ red.
+        /// </summary>
+        [Fact]
+        public void D171_ADeviceNotCarried_IsUsedAtItsTypesOptic_AboveItsBase()
+        {
+            using var w = World();
+            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>()) w.RegisterComponent<IsEmbarkedTag>();
+            var yaw = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 2f);   // the tripod faces north
+            var tripod = Device(w, new Vector3(20f, 0f, 0f));
+            w.SetComponent(tripod, new SimTransform { Position = new Vector3(20f, 0f, 0f), Rotation = yaw });
+            var info = w.GetComponentRO<DeviceInfo>(tripod); info.OpticOffset = new Vector3(0.2f, 0f, 1.3f); w.SetComponent(tripod, info);
+
+            Assert.True(DevicePoses.TryWorld(w, tripod, out var lens, out _));
+            Assert.Equal(20f, lens.X, 3); Assert.Equal(0.2f, lens.Y, 3); Assert.Equal(1.3f, lens.Z, 3);   // above its feet, ahead along its own facing
+            Assert.Equal(0f, w.GetComponentRO<SimTransform>(tripod).Position.Z);                            // the base is unchanged (D-169)
+
+            var top = Device(w);
+            Stack(w, tripod, top, 0.08f);
+            Assert.True(DevicePoses.TryWorld(w, top, out var stacked, out _));
+            Assert.Equal(1.38f, stacked.Z, 3);                                                               // the stack starts at the optic
+
+            var man = w.CreateEntity();
+            w.AddComponent(man, new PersonCarrier());
+            w.AddComponent(man, new SimTransform { Position = new Vector3(30f, 0f, 0f), Rotation = Quaternion.Identity });
+            var held = Device(w, new Vector3(30f, 0f, 0f));
+            var hi = w.GetComponentRO<DeviceInfo>(held); hi.OpticOffset = new Vector3(0.2f, 0f, 1.3f); w.SetComponent(held, hi);
+            w.AddComponent(held, new IsEmbarkedTag { VehicleEntity = man, Seat = 4 });
+            Assert.True(DevicePoses.TryWorld(w, held, out var eye, out _));
+            Assert.Equal(Fdp.Toolkit.Tkb.Parameters.EngineFallbacks.EyeHeightStanding, eye.Z, 3);              // carried: his eye, not the type's optic
+        }
     }
 }
