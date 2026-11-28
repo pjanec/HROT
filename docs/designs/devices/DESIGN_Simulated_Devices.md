@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-11-28 (§3.13b D-112: ARM needs a round - user; the NO MISSILE screen is judged by `dv-sight-procedure` and the new `dv-sight-empty`) · 2026-11-28 (§3.13b D-100: the launcher sight unit's mockups, panels 7-11, drawn - `mockups/devices-hud-sight.svg`) · 2026-11-28 (§3.13c SD-S2: the gamepad as keymap value sources, one DroneBattery, the GCS device flying the drone through RemoteControl, the failsafe, one DeviceView rule) · 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
-current-answer: ⭐ §3.13d (SD-S5b link + SD-S5c designator + SD-S6b laser-guided bomb READY-TO-BUILD) · ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
+current-answer: ⭐ §3.13e (SD-S5v the virtual panel — clickable HUD buttons, the mouse/keyboard adapter) · ⭐ §3.13d (SD-S5b link + SD-S5c designator + SD-S6b laser-guided bomb READY-TO-BUILD) · ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
@@ -1001,6 +1001,23 @@ in the shortcuts window) and **`SDS2a_ThePad_WalksHim_AndThroughABoundDeviceIsIt
 red). Folded into `DESIGN_Input_And_Commands.md` §6g (as built). ⚠ The look's pad scale is per FRAME (as the mouse's pixels are) — a rate per second would
 need the frame's dt in the reader; not needed by any scenario (`do: control axis` never uses a pad).
 
+⭐ **S2b AS BUILT (`2026-11-28`)** — ONE `DroneBattery` (D-108). **`FDP/Toolkits/Fdp.Toolkits/Motion/DroneBattery.cs`**: `DroneBattery { Remaining01 }` (id 234 —
+listed FREE by `ComponentIdCatalogueTests`; unmanaged, recorded, saved — no `NoScenario`, so a scenario may author a lower start by the component's name) ·
+`DroneBatteries` (`IsUnmannedAir` = DIS 1.2.*.50 — ⭐ the ONE unmanned rule, `RadarSamBehaviors.Unmanned` now reads it · `IsBatteryDrone` = that + an endurance ·
+`Empty` / `Remaining`) · **`DroneBatterySystem`** (`Simulation`, `[TickMode(WhenTimeAdvances)]` ⇒ frozen in pause; serial — a handful of drones, each writes only its
+own battery; gated on `HasAuthority<DroneBattery>`; drains `dt ÷ FlightParams.EnduranceSeconds` while NOT `FlightGround.OnTheGround` — the existing one answer to
+"is this aircraft down", not `Locomotions.InAir`, which is the class's domain and is true for a drone sitting on its feet; never below 0; query built once, 0 B).
+**Creation**: `FlightTkbTranslator` gives a battery drone type its battery FULL (`overwrite: false` — an authored charge is kept); a helicopter (1.2.*.20, 7 200 s) gets
+none. **Registered** in `HrotSharedComponentRegistry` (every node) · in the **brain group** (`HrotOwnershipGroups`, like `AirCombatState`: no descriptor carries it yet,
+the binding links it to the group's anchor — R-165; ⏭ its wire topic comes with the OSD that reads it on a station node, SD-S2c / S2d) · the system in the **CGF
+pack** before the brain tick (CgfCapabilities.Brain — the CGF node and the editor; `CgfLogicPackTests` 57 → 58 / 65 → 66). **The two AI timers READ it**:
+`DroneReconBehavior.Recon` and `AirAttackNodes.Dive` — `DroneBatteries.Empty(world, self)` ⇒ the same "down where it is" path; ⛔ `DroneReconParams.StartedAt`
+removed (it existed only for the clock; `AirAttackState.StartedAt` stays — the FPV's track sightings are timed from it). Folded into `DESIGN_FPV_Drone.md` (the
+battery row, §6) and `DESIGN_Air_Operations.md` D-6. Rails: **`DroneBatterySystemTests`** (4: a drone type full / a helicopter none / an authored charge kept · drains
+airborne only by dt ÷ endurance, never below 0 · frozen in pause + the authority gate · 0 B — red-proved: the airborne check dropped ⇒ the landed drone drains),
+`AirAttackNodesTests` (the rig's drone carries the battery and `FlyDrone` steps it — the two battery rails keep their 60 s timing), `DroneOperatorBehaviorTests`,
+`AirDefenceNodesTests` (the radar SAM's unmanned rule), also under `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` (44 / 44).
+
 #### 3.13d SD-S5b + SD-S5c + SD-S6b — READY-TO-BUILD (mockups pending): the laser target designator, the device link, the laser-guided bomb *(user, `2026-11-28`: "can we design the laser target designator device now? including the link?")*
 
 🔒 User, `2026-11-27` (§3r): *"the binocular with a rangefinder … can send the target location to the laser target designator … two devices working more or
@@ -1102,7 +1119,7 @@ kit; and the hand-over between the two devices is one message, one tick late, ap
 | D-118 | ⭐ **the weapons**: munition **GBU-12** (the Mk-82 + a laser kit: `Laser`, code 1688, cone 30°, MaxG 2) and an **A-10C (GBU-12)** variant type released by the existing Release profile on a Strike order (the scenario orders it; the strike's clearance flow stays A7's) | a designator needs a consumer to be judged; the A-10 + Release profile exist |
 | D-119 | ⭐⭐ **the link — `DeviceLinks { Peer0, Peer1 }`** on a device (scenario-authored; pairing in-sim is SD-S5's), and **`DeviceMessageEvent` (event 5205, the BINARY form of D-58: `Target · From · Seq · Kind · 64 B`)** sent through the batch's command buffer (played after the phase) and read by the receiver's OWN device tick next frame into its memory. The first DTO: **`TargetLocation { Point, Range, TakenAt, FromType }`** in `Devices/Contracts/`. The rangefinder gains a SEND channel; the designator shows a slew cue (an arrow and the angle to the received point). ⚠ The JSON form waits for D-59's measurement; the wire arm is SD-C's (in the editor configuration the bus carries it) | D-52, D-53, D-58 as designed; thread-safe by construction (§3r) |
 | D-120 | ⭐⭐ **stacking — FIX the pose chain first**: `DevicePoses.TryWorld` walks a device mounted in a device (host's world pose ∘ the host's station place ∘ own pose); `DeviceStacks.Root(device)` names the chain's root; the station's look writes the ROOT's pose, whichever device the view is bound to; a stacked device ignores its own look and tracker (D-56). A device type that carries others gets a station in its `DeviceDefDto` (`Stations`, accepting `Device`, at the stacking place) | D-61 as designed; the as-built gap measured above |
-| D-121 | ⭐ **mockups before the build** (R-4143): 16 STANDBY with the code and a received target cue · 17 LASING (the lase timer, the code, the range, a LASING lamp) · 18 COOLING / a lase queued in pause | R-4138 |
+| D-121 | ⭐ **mockups before the build** (R-4143) — ✅ drawn `2026-11-28`: 16 STANDBY + received target · 17 LASING + RMB LOOK · 18 COOLING · 19 a lase queued in pause, every chip through the virtual panel (§3.13e) | R-4138 |
 
 ##### Scenarios (R-4277)
 
@@ -1118,12 +1135,134 @@ kit; and the hand-over between the two devices is one message, one tick late, ap
 ⭐ Rails: the `Designations` index (code, Preview excluded, 0 B), the seeker branch (cone, code, sight, strongest, gravity kept, ≤ MaxG), the message's one-tick
 delivery and its parallel safety (`HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1`), the pose chain (a stacked device follows its root).
 
+##### Mockups — the designator through the virtual panel (panels 16–19)
+
+🖼 **[`mockups/devices-hud-designator.svg`](mockups/devices-hud-designator.svg)** *(generated by `scripts/gen-devices-designator-mockup.py`; R-4138 / R-4143 — SD-S5c
+builds `DesignatorHudGizmo` to it, SD-S5v the adapter's hover frame and cursor states)*. ⛔ Scope (R-4151): the designator's HUD in a view bound to it and the
+station adapter's hover frame / cursor / LOOK hint; the compass, the unit lines and the toolbar are context (dashed, *unchanged*); the scene is illustrative.
+
+| panel | specifies | context (unchanged) | chosen where the design is silent |
+|---|---|---|---|
+| 16 STANDBY, target received | STATE (green), CODE 1688 (gold), the received-target cue (an amber arrow at the window's edge toward the point, bearing offset, range, the sender), RANGE `— m`, the chips POWER P · LASE L · CODE C · RANGE R with their key boxes, the gold hover frame + hand cursor on CODE (POINT), the LOOK hint | compass · unit lines · scene | the cue at the left edge; the chips bottom-right; the hint bottom-left |
+| 17 LASING, LOOK | the lamp lit, the reticle red, STATE LASING (red), the lase timer (42 s of 60), RANGE 1 240 m, LASE lit, CODE greyed, LOOK active (no cursor, the hint gold) | as above; the spot is the laser layer's (SD-S6) | the timer under CODE |
+| 18 COOLING | STATE COOLING (amber), the cool-down bar, LASE and CODE greyed (disabled chips — hover still frames them, a click presses nothing) | as above | a disabled chip takes the hover frame |
+| 19 PAUSED, lase queued | LASE lit with *queued*, no spot, POINT and LOOK still working | the toolbar paused · compass · unit lines | the *queued* tag above the chip (as the drone OSD, panel 15) |
+
 ##### Slices
 
 **SD-S5b** the link: `DeviceLinks`, `DeviceMessageEvent` (binary), `TargetLocation`, the rangefinder's SEND, the pose-chain fix and stacking (D-119, D-120) —
 `dv-linked-target`, `dv-stacked-ltd`. **SD-S5c** the designator: `LaserPointing.Code`, the `Designator` device and its HUD (D-113–D-115, D-121) —
 `dv-ltd-procedure`. **SD-S6b** the laser-guided bomb: `Designations`, `GuidanceKind.Laser`, GBU-12, the A-10 (GBU-12) (D-116–D-118) — `dv-ltd-guided-bomb`,
-`dv-ltd-wrong-code`, `dv-ltd-no-lase`. ⚠ SD-S5c's HUD waits for mockups 16–18 (R-4143).
+`dv-ltd-wrong-code`, `dv-ltd-no-lase`. ✅ Mockups 16–19 drawn (above); SD-S5c builds after SD-S5v (§3.13e).
+
+#### 3.13e SD-S5v — READY-TO-BUILD: the VIRTUAL PANEL — a clickable HUD and the mouse/keyboard adapter for every device *(user, `2026-11-28`)*
+
+🔒 User: *"I will need to control the device virtually, by keyboard presses (and/or) mouse clicks that generate button press player inputs — the HUD need to
+show the buttons and when that device is focused the HUD should be clickable and when we click on a button area it should be converted into player IO panel
+input as if physical button on physical replica was pressed … Also … how to turn the view from the device while observing using mouse as the default
+mechanism if there is not physical tracker and no physical replica … When the device HUD is focused the mouse cursor should be allowed to point at buttons
+and maybe when pressing accelerator keys (similar to free flight camera) the view could rotate … The same apply to binocular and basically to any other device
+with HUD and some player inputs. In case of weapon sight HUD … such HUD has not device so no adapter required as the player's controller already moves/rotates
+the camera."*
+
+**INVENTORY** (`2026-11-28`): grep `InputCaptureBinding|ContextMenuBinding` (the meta-primitive family: `DebugPrimitiveShape.cs:16-22`; the gizmo interaction
+manager's exclusive raw-input capture, `GizmoInteractionManager.cs:96-106`) · grep `SetCursorLocked|DeviceFrameSender|MouseButton` in `PossessionStation.cs`
+(the device view LOCKS the cursor and maps LMB / RMB / the wheel to channels 0–3 by index, `:2076-2103`, S1d-3) · `MapCamera3D.cs:21-24` (the free camera:
+*right-drag looks; W/A/S/D move only while the right button is held; a right CLICK stays the context menu*) · `FollowCameraDriver.cs:146` (RMB drags the
+orbit) · `ViewCanvas` (`GizmoMap.Contracts/Primitives/ViewCanvas.cs:18-24`, the 1280×720 canvas `Fit` into the view). Coverage could not be checked.
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| a device's buttons reach it as the press counters of ONE control frame per device, from any adapter | ✅ `DeviceFrameSender` (S1e-2; the station, the scripted station, the pad) | ✅ D-38 / SD-5 (*"the logic never knows which"*), D-29 (a replica maps the same channel numbers) |
+| the station draws no device code; the HUD is gizmo primitives from the brain, kept per bound view | ✅ `HudScopes.Keep` / `DebugGizmoLayer.BoundSource` (S1d-1) | ✅ D-21 |
+| a meta primitive can tell the station something without drawing (bindings, scopes) | ✅ `ContextMenuBinding`, `InputCaptureBinding`, `HudScope` | ✅ D-41 |
+| today a device view LOCKS the cursor (pure look) and maps mouse buttons to channels by INDEX — a button's meaning is lost | ✅ `PossessionStation.cs:1854, :2076-2103` | ⛔ no design said "by index" — S1d-3's interim choice |
+| the house convention for "rotate the view while a button is held" is the right button | ✅ `MapCamera3D.cs:21-24`, `FollowCameraDriver.cs:146` | `DESIGN_Map_3D_Mode.md` M8 (the free camera) |
+| the proven solution | — | the CLICKABLE COCKPIT of flight simulators: each panel control is a hit zone bound to the SAME control id as the physical panel and the key binding; a mode switch between pointing (the cursor free) and looking (the cursor captured); hover highlights the control. ⭐ adopted: one id per control for every input source, hover, point/look modes; ⛔ rejected: 3-D cockpit hit meshes (our panels are flat HUD canvases) |
+
+##### The classes
+
+```mermaid
+classDiagram
+  class DebugPrimitiveShape { <<existing enum, grows>> + PanelButton (meta, protected, only inside a HudScope run) }
+  class PanelButton { <<NEW meta primitive>> Channel · canvas Rect · State (normal, lit, disabled) · Hotkey char }
+  class HudPanel { <<NEW static, Fdp.Toolkits Gizmos>> Button(draw, channel, rect, label, state, hotkey) — draws the chip AND emits its PanelButton }
+  class RangefinderHudGizmo { <<existing, changes>> MODE · POWER · MENU · SELECT · EXIT chips through HudPanel }
+  class DesignatorHudGizmo { <<NEW S5c>> POWER · LASE · CODE · RANGE through HudPanel }
+  class DroneStationHudGizmo { <<NEW S2d>> TAKEOFF · LAND · RTH · CAM through HudPanel }
+  class DevicePanelAdapter { <<NEW, station, Hrot.Presentation>> POINT: the cursor free, hover, LMB on a button = its channel · LOOK: RMB held = the look · hotkeys · arrows = fine look }
+  class DeviceDefDto { <<existing, grows>> Channels gain a Hotkey and an optional Wheel role }
+  class DeviceFrameSender { <<existing>> the ONE sender: presses · look · axes }
+  class HudScopes { <<existing>> Keep — the bound run }
+  class PossessionStation { <<existing, changes>> a bound device ⇒ the adapter owns the mouse; no cursor lock; LMB / RMB / wheel by INDEX retired }
+  class Keymap { <<existing>> the device scope rows: hotkeys per bound type, RMB look, arrows }
+  HudPanel --> PanelButton : emits in the scope
+  RangefinderHudGizmo ..> HudPanel
+  DesignatorHudGizmo ..> HudPanel
+  DroneStationHudGizmo ..> HudPanel
+  DevicePanelAdapter ..> HudScopes : the kept run
+  DevicePanelAdapter ..> PanelButton : hit test, canvas coordinates
+  DevicePanelAdapter ..> DeviceDefDto : hotkeys, wheel roles
+  DevicePanelAdapter ..> Keymap : rows
+  DevicePanelAdapter --> DeviceFrameSender : the channel pressed · the look
+  PossessionStation --> DevicePanelAdapter : while a device is bound
+```
+
+*What the picture shows that prose hid: the button's rectangle and its channel are emitted by the SAME call that draws it, on the brain — so what the trainee
+sees and what he can click cannot drift; and the station-side adapter is GENERIC: it never knows a device type, it reads hit zones and hotkeys and writes
+the one frame every other adapter writes.*
+
+##### The sequence — point and click, then look
+
+```mermaid
+sequenceDiagram
+  participant U as mouse / keys
+  participant A as DevicePanelAdapter (station)
+  participant V as the bound view's kept HUD run
+  participant F as DeviceFrameSender
+  participant D as the device (brain)
+  D-->>V: HudScope run with PanelButton {LASE, rect, hotkey L} (S1d-1 path)
+  U->>A: cursor over the LASE chip
+  A->>V: hit test in canvas coordinates
+  A->>A: hover ⇒ a station-local hover frame over the rect
+  U->>A: LMB click
+  A->>F: press channel LASE (the same counter a replica button bumps)
+  F-->>D: DeviceFrameEvent next frame ⇒ the device's logic
+  U->>A: RMB held + drag
+  A->>A: LOOK: the cursor hidden and captured, the drag turns the look (the stacking root's, D-120)
+  A->>F: the look
+  U->>A: RMB released ⇒ POINT again, the cursor where it was
+  U->>A: L pressed (the hotkey) ⇒ the same press as the click
+```
+
+*What the picture shows that prose hid: clicking, the hotkey, a gamepad button and a physical replica button all end as the SAME press counter of the
+same channel — the device's logic cannot tell them apart, which is what makes a virtual panel a faithful stand-in for the replica.*
+
+##### Decisions
+
+| # | decision | why |
+|---|---|---|
+| D-122 | ⭐⭐ **a HUD button is emitted by the drawing call**: `HudPanel.Button(draw, channel, rect, label, state, hotkey)` draws the chip and appends a `PanelButton` meta primitive (channel, canvas rect, state, hotkey) inside the open `HudScope`; ⛔ a projector never emits a hit zone separately | the visual and the hit zone cannot drift (by construction); the station still runs no device code (D-21) |
+| D-123 | ⭐⭐ **one generic station adapter, `DevicePanelAdapter`**, owns the mouse while a view is bound to a device: **POINT** is the default — the cursor is FREE (⛔ no lock), hovering a `PanelButton` frames it (station-local), LMB on it presses its channel; **LOOK** while RMB is held — the cursor is hidden and captured, the drag turns the look, release returns to POINT with the cursor where it was (the free camera's convention, M8). LMB on no button does nothing | 🔒 user; the clickable-cockpit pattern; the house's right-drag-to-look |
+| D-124 | ⭐ **hotkeys**: each channel of a device type may name a key (`DeviceDefDto.Channels` entries gain `Hotkey`, e.g. designator P · L · C · R); the adapter declares them as device-scope keymap rows while that type is bound (shown and rebindable with the rest); the HUD chip shows the key. ⭐ The arrow keys turn the look in fine steps (no mouse needed); the wheel drives the channel a type names for it (`Wheel = ZOOM`), else nothing | keyboard-only operation; one id per control |
+| D-125 | ⭐⭐ **one press, every source**: click, hotkey, pad button (D-103), a scenario's `press` (S1e-2) and a replica button (SD-S5) all bump the SAME channel counter through `DeviceFrameSender`. ⛔ RETIRES S1d-3's by-index mapping (LMB = 0, RMB = 1, wheel = 2 / 3) — the binoculars name the wheel for ZOOM IN / OUT instead | D-38, D-29: the logic never knows which |
+| D-126 | ⭐ **what takes over the look**: a physical TRACKER bound to the device (D-50) owns its orientation — RMB-look and the arrows then do nothing for that device; a stacked device turns its ROOT (D-120). With neither, the mouse is the default (D-123) | 🔒 user: the mouse is the fallback when there is no tracker and no replica |
+| D-127 | ⭐ **no adapter for a source that is not a device** — the weapon sight and the cockpit (SD-S7, D-66 / D-68) are moved by the possession controller as today; their HUDs carry no `PanelButton`s | 🔒 user |
+| D-128 | ⭐ **every existing device HUD adopts it**: the rangefinder's MODE / POWER / EXIT chips (and MENU / SELECT), the drone station's TAKEOFF / LAND / RTH / CAM chips, the sight unit's POWER / ARM / FIRE / VIEW (panels 7–11) — redrawn through `HudPanel`; the binoculars have no chips (the wheel zooms) | one pattern for every device (ruling 9) |
+| D-129 | ⭐ **pause**: POINT, hover, clicks and LOOK all work in pause (observation and device-local state — R-4300); what a press DOES in pause is the device's rule (queued, refused) | the device decides, not the adapter |
+
+##### Rails and scenario rows
+
+Rails: `HudPanel.Button` emits exactly one `PanelButton` inside the scope with the drawn rect (0 B) · the adapter's hit test in canvas coordinates at two view
+sizes (the `ViewCanvas.Fit` letterbox) · click = hotkey = pad = scripted press (one counter) · RMB-look captures and restores the cursor · a tracker-owned device
+ignores RMB-look · a frame rail per HUD with the hover frame drawn (fidelity, R-4146). Scenario rows: `dv-menu-and-modes` and `dv-ltd-procedure` gain a
+`do: click {"station": 1, "button": "LASE"}` variant that must give the SAME `memory` rows as `press` — ⭐ a new `do: click` row of the S1e-2 grammar that
+clicks the named button's rect through the adapter (the HUD is the path under test).
+
+##### Slice
+
+**SD-S5v** — `PanelButton`, `HudPanel`, `DevicePanelAdapter`, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips
+redrawn (D-122–D-129). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
 
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
@@ -1194,7 +1333,8 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S4** the launcher sight unit (READY-TO-BUILD — §3.13b; mockups 7–11 drawn) | `FireControl` + `FireControls.Of` + `GuidedFlight` / `GuidedFlightSystem`; the `AtgmSight` device (procedure D-93, HUD panels 7–9) in a station of a NEW `TOW (tripod, sight unit)` type; the controller fires from the device (D-94); the launch is the device's by seq echo (D-95); the Command branch flies the device's guide line (D-96) | editor |
 | **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
 | **SD-S5b** linked devices + stacking (READY-TO-BUILD — §3.13d) | `DeviceLinks`, `DeviceMessageEvent` (binary), `TargetLocation`, the rangefinder's SEND, the pose-chain fix and stacking (D-119, D-120); trackers stay here, unscheduled | editor |
-| **SD-S5c** the laser target designator (READY-TO-BUILD — §3.13d; mockups 16–18 pending) | `LaserPointing.Code`, the `Designator` device, its procedure and HUD (D-113–D-115, D-121) | editor |
+| **SD-S5v** the virtual panel (READY-TO-BUILD — §3.13e) | `PanelButton` + `HudPanel` (the chip and its hit zone in one call), `DevicePanelAdapter` (POINT / RMB LOOK / hotkeys / wheel roles), every device HUD's chips through it, the by-index mouse mapping retired (D-122–D-129) | editor |
+| **SD-S5c** the laser target designator (READY-TO-BUILD — §3.13d; mockups 16–19 drawn) | `LaserPointing.Code`, the `Designator` device, its procedure and HUD (D-113–D-115, D-121) | editor |
 | **SD-S6b** the laser-guided bomb (READY-TO-BUILD — §3.13d) | `Designations`, `GuidanceKind.Laser`, GBU-12, the A-10 (GBU-12) (D-116–D-118) | editor |
 | **SD-S5** the replica panel + run-time issue | the replica adapter as a node extension (one generic protocol) · a device issued, dropped and picked up at run time (the existing Take / Drop verbs) · a device drawn where it lies (D-64) · per-station node features | editor |
 | **SD-S6** the visible beam | `LaserLayer3D`, the ONE visibility rule (eye · night · thermal) for the map, the IG (D-36) and AI perception; an AI vehicle's designator (`StartWith`) pointed by its AI | editor |
