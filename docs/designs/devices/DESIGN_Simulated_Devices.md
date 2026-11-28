@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (§3.13b D-112: ARM needs a round - user; the NO MISSILE screen is judged by `dv-sight-procedure` and the new `dv-sight-empty`) · 2026-11-28 (§3.13b D-100: the launcher sight unit's mockups, panels 7-11, drawn - `mockups/devices-hud-sight.svg`) · 2026-11-28 (§3.13c SD-S2: the gamepad as keymap value sources, one DroneBattery, the GCS device flying the drone through RemoteControl, the failsafe, one DeviceView rule) · 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
+updated: 2026-11-28 (§3.13c S2a + S2b AS BUILT — the gamepad as keymap value sources; ONE DroneBattery, 7 drone scenarios pass) · 2026-11-28 (§3.13b D-112: ARM needs a round - user; the NO MISSILE screen is judged by `dv-sight-procedure` and the new `dv-sight-empty`) · 2026-11-28 (§3.13b D-100: the launcher sight unit's mockups, panels 7-11, drawn - `mockups/devices-hud-sight.svg`) · 2026-11-28 (§3.13c SD-S2: the gamepad as keymap value sources, one DroneBattery, the GCS device flying the drone through RemoteControl, the failsafe, one DeviceView rule) · 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
-current-answer: ⭐ §3.13e (SD-S5v the virtual panel — clickable HUD buttons, the mouse/keyboard adapter) · ⭐ §3.13d (SD-S5b link + SD-S5c designator + SD-S6b laser-guided bomb READY-TO-BUILD) · ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
+current-answer: ⭐ §3.13f (SD-S4c a control unit commanding weapons it is not mounted on — the RWS console and the 9K11 box) · ⭐ §3.13e (SD-S5v the virtual panel — clickable HUD buttons, the mouse/keyboard adapter) · ⭐ §3.13d (SD-S5b link + SD-S5c designator + SD-S6b laser-guided bomb READY-TO-BUILD) · ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
@@ -655,7 +655,7 @@ tell the entity who has the weapon to initiate a fire sequence? … command bus 
 | D-76 | ⭐⭐ **a device that drives a weapon is its FIRE CONTROL, never its controller and never a channel holder.** It writes, on ITSELF, **`FireControl { Ready, Target (EntityRef), AimPoint, LaunchSeq }`** — unmanaged, replicated, recorded. ⭐ The weapon's ONE controller (`ControllerOf` — possessed or AI) finds the device structurally (a device in a `Station` of its weapon, D-67, or one it operates) and, in its own brain tick, fires through ITS weapon channel when `LaunchSeq` has moved past the last it saw and `Ready` holds, at the device's `Target` / `AimPoint`; after launch it keeps reading `AimPoint` every tick (command guidance). The same for a shoulder launcher, a tripod launcher and a vehicle station — only `ControllerOf` differs | one controller per weapon kept (W-D); the device writes only itself (R-4212); ⇒ **devices use no channels** (Q-13 closed). The reader (`BrainTickSystem`) runs before the writer (`DeviceTickSystem`, R6-6) ⇒ it reads the previous frame's value — one frame of latency, no same-phase read |
 | D-77 | ⭐ **state, not an event**: a launch is not one-shot — guidance follows the device's aim every frame, which must be state anyway, so the counter rides in the same component; no routing to the controller's brain node, nothing stale when the operator changes, and the counter survives a cadenced AI brain, a late join and replay. ⭐ An event stays the tool for a discrete message to an entity with no structural link (`DeviceMessageEvent`, D-52) or for CHANGING another entity | ⛔ rejected: a fire event from the device to the controller (routing, staleness, a second mechanism beside the guidance state) |
 | D-78 | ⭐ **no launch in pause**: a launch is a world effect (R-4300) ⇒ while paused the device keeps `Ready = false` and does not move `LaunchSeq` (its HUD may show the press refused) — otherwise the press would fire at resume, when the controller's brain next ticks | R-4300; the pause is observation (R6-4) |
-| D-79 | ⭐ **what would change it**: a weapon with NO human controller that a device fires alone — then the device is that weapon's controller (`ControllerOf` names it) and holds the weapon channel on itself | not in any slice |
+| D-79 *(⛔ superseded by D-149, §3.13f — the weapon's own brain fires from a console; the device never becomes a controller)* | ⭐ **what would change it**: a weapon with NO human controller that a device fires alone — then the device is that weapon's controller (`ControllerOf` names it) and holds the weapon channel on itself | not in any slice |
 
 #### 3.13a Steering the round in flight — the trainee guides it with the stick *(user, `2026-11-27`)*
 
@@ -691,7 +691,7 @@ the missile in flight) and back from the shooter"* ⇒ Q-14 answered (D-80 then 
 
 | # | decision | why |
 |---|---|---|
-| D-85 | ⭐⭐ **ONE resolver finds a weapon's fire control** — `FireControls.Of(weapon)` (the device in a `Station` of the weapon, or the one its controller operates): the controller reads it to fire (D-76) and the MUSCLE reads it at launch to know which device guides the round | two readers, one walk (ruling 9) |
+| D-85 *(refined by D-148, §3.13f: else the device commanding it)* | ⭐⭐ **ONE resolver finds a weapon's fire control** — `FireControls.Of(weapon)` (the device in a `Station` of the weapon, or the one its controller operates): the controller reads it to fire (D-76) and the MUSCLE reads it at launch to know which device guides the round | two readers, one walk (ruling 9) |
 | D-86 | *(refined by D-95, §3.13b)* ⭐ **the round carries its device**: at launch `FireProcessingSystem` stores the resolved device on the round, in `GuidedRound` (a new field — no recording compatibility is kept, R-4301); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), the `Manual` branch turns by `FireControl.Steer` (D-81) | the muscle owns the round; the device writes only itself (D-82) |
 | D-87 | ⭐⭐ **`FireControl` grows the two guidance outputs and the view request** — `AimPoint` (D-80), `Steer` (2 axes, D-81), **`ViewFromRound`** (a byte, toggled by the device's VIEW press) — all written by the device on ITSELF, replicated | one component for what the device asks of its weapon; the toggle is device state, so it works in pause and replays |
 | D-88 | ⭐⭐ **the muscle writes `GuidedFlight { Round (network id), LaunchSeq, Live }` ON THE DEVICE** at launch and clears `Live` when the round ends — the same shape as `LaserSpot` (muscle-written on the device, LS-14) | the only node that knows the round tells the device's watchers which entity to follow; replicated, so every station resolves it by network id |
@@ -942,7 +942,7 @@ so the link can GATE them in one place (the drone), and a cluster needs no new p
 | D-102 | ⭐⭐ **the gamepad is VALUE SOURCES of the keymap, not a new input path**: `EditorKey` grows the pad's sticks, triggers and buttons; `IInputProvider` grows `GamepadAvailable / GamepadAxis / GamepadButtonDown` with default "no pad" bodies (every test fake keeps compiling); `RaylibInputProvider` reads pad 0; `KeymapReader` applies ONE deadzone (0.15) to every pad axis. Bindings are rows — rebindable and shown with the rest | §6g's Hold / Axis model, one reader (ruling 9); the scenarios never need a pad (`do: control axis`) |
 | D-103 | ⭐ **default rows**: device scope — left stick → `Axes 0/1`, right stick → `Axes 2/3`, A B X Y LB RB → channels 0–5 of the focused view's device; FPS scope — left stick move, right stick look, LT aim, RT fire, A jump/use as the keys' rows. ⭐ The GCS maps its axes Mode 2 (left: vertical + yaw, right: forward + lateral) in its own behaviour | one mapping for every device (channel by index — the TKB names them); the man is drivable by pad too, for free |
 | D-104 | ⭐⭐ **the drone is flown THROUGH the GCS device, not possessed**: the GCS writes `RemoteControl { Vehicle, Mode, sticks, CameraPitch, Seq }` on itself; the drone's brain runs `RemotePilot`, which reads it (tick-start view) and drives its own `ManualDrive` / autopilot. ⛔ rejected: a second possession row on the drone — a station has ONE body (`StationBody`), and frames to a non-body entity would need their own epoch and release rules | the §3.13 pattern (D-76/77): the device commands, the driven entity's own brain acts; the link gates in ONE place |
-| D-105 | ⭐ **pairing is authored once, on the device** (`RemoteControl.Vehicle`, set by the scenario or the type's preset); `RemoteControls.ControllerOf(drone)` is an index rebuilt in the brains' serial pre-pass (`BrainPhase.PrepareToolkitFrame`, beside `DroneJamming`) | R-4212: no lazy index mid-phase, no cross-entity write |
+| D-105 *(refined by D-147, §3.13f: the pairing is `ControlledEntities`, shared with the weapon consoles)* | ⭐ **pairing is authored once, on the device** (`RemoteControl.Vehicle`, set by the scenario or the type's preset); `RemoteControls.ControllerOf(drone)` is an index rebuilt in the brains' serial pre-pass (`BrainPhase.PrepareToolkitFrame`, beside `DroneJamming`) | R-4212: no lazy index mid-phase, no cross-entity write |
 | D-106 | ⭐⭐ **`DroneLink`** — written by the drone's brain on itself each tick: `Quality` = 1 inside the type's link range from its controller device's world pose, falling to 0 over the last 20 %; `Jammed` = `DroneJamming.Jammed`; `Lost` = quality 0 or jammed or no controller. A new `RemoteLinkDto { RangeM, FailsafeSeconds }` on the drone types (recon 407 — 5 km, FPV and bomber — 3 km; FailsafeSeconds 5) | the proven range + jamming model; terrain masking left out (a line in §4 when a need is named) |
 | D-107 | ⭐⭐ **the failsafe** — link lost: hover `FailsafeSeconds`, then return home (the launch point) and land; sticks ignored while lost; the link back ⇒ the GCS's mode again. Battery out ⇒ down where it is (the existing rule) | the proven GCS failsafe; the jammer now has a TRAINING effect on a trainee's drone |
 | D-108 | ⭐⭐ **`DroneBattery` — ONE battery state** on every drone, drained by `DroneBatterySystem` (brain, `WhenTimeAdvances` ⇒ frozen in pause — 🔒 user `2026-11-27`: *"drone battery must freeze"*) while the drone is airborne, `dt ÷ EnduranceSeconds`. ⭐ The AI's two timers (`DroneReconBehavior.cs:77`, `AirAttackBehaviors.cs:696`) READ it instead ⇒ one rule (ruling 9). ⚠ blast radius: those AI drones now drain only while airborne (they drained from their order's start) — the drone scenarios' goldens may move; the recon / bomber / FPV rails are the gate | one owner per state |
@@ -1017,6 +1017,10 @@ battery row, §6) and `DESIGN_Air_Operations.md` D-6. Rails: **`DroneBatterySyst
 airborne only by dt ÷ endurance, never below 0 · frozen in pause + the authority gate · 0 B — red-proved: the airborne check dropped ⇒ the landed drone drains),
 `AirAttackNodesTests` (the rig's drone carries the battery and `FlyDrone` steps it — the two battery rails keep their 60 s timing), `DroneOperatorBehaviorTests`,
 `AirDefenceNodesTests` (the radar SAM's unmanned rule), also under `HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1` (44 / 44).
+**`dv-ai-drones-unchanged`'s gate, run as the existing drone scenarios** (every scenario with a type 403 / 407 / 408 drone): `ac-guns-drone` (golden SAME) ·
+`sam-site` · `ua-drone-shelter` · `cc-battalion` · `cc-battalion-collapse` · `cc-battalion-stall` · `city-battle` — **7 / 7 pass**, no golden moved by S2b (the drones'
+batteries never empty inside these runs). ⚠ `ua-drone-shelter`'s golden reads *different* — measured IDENTICAL at `eeb4af028` (before S2a / S2b: the open tank's first
+shot 5.55 s vs 5.58, its target at 10 s Drone B vs A), so it predates this slice; not recaptured here.
 
 #### 3.13d SD-S5b + SD-S5c + SD-S6b — READY-TO-BUILD (mockups pending): the laser target designator, the device link, the laser-guided bomb *(user, `2026-11-28`: "can we design the laser target designator device now? including the link?")*
 
@@ -1398,6 +1402,114 @@ clicks the named button's rect through the adapter (the HUD is the path under te
 
 **SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rails: a test adapter swapped in for the virtual one drives the device identically (D-131); a replica's events + a HUD click in the same frame ⇒ both presses counted on the device, the replica's axes and look untouched; a tracker holds the look against the mouse for 0.5 s; a lost source heals at 1 Hz (D-137–D-140); a latching chip is not clickable beside a replica (D-135). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
 
+#### 3.13f SD-S4c — READY-TO-BUILD (mockups pending): a CONTROL UNIT that operates weapons it is not mounted on — the remote launcher box and the remote weapon station *(user, `2026-11-28`)*
+
+🔒 User: *"how a control unit device (which might not be a weapon itself) operates the launcher the device is connected to — how it initiates the launch, how it
+writes the steering inputs to the weapon (which might be another entity)"* · *"the 'launcher' could be also a firearm like MG mounted on a remote weapon station
+which we also would like to train how to operate (it has some kind of HUD as well) so this fits the 'remote launcher operated from the box' case … yes please
+design it"*.
+
+**INVENTORY** (`2026-11-28`): grep `RWS|RemoteWeapon|CROWS|Protector` (the sentry gun's `7.62mm_RWS` mount, `NedTkbCatalog.cs:545`; no console, no remote
+station type) · `DESIGN_Weapon_Systems.md` §4c (an automatic turret fights on its own) · grep `FiresPerPress` (`WeaponBrainProfiles.cs:71`, read by
+`OperatorControlBehavior.cs:305`) · `TurretPose` (`Combat/Components/TurretPose.cs:13`, replicated as `EntityTurretPose`) · this design's §3.13 / §3.13b / §3.13c
+(`FireControl`, `FireControls.Of`, `RemoteControl` + `RemoteControls`). Coverage could not be checked.
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| an UNCREWED weapon system is its OWN controller and fires its mount through its own weapon brain | ✅ `WeaponSystems.ControllerOf` (`:41-60`) | ✅ `DESIGN_Weapon_Systems.md` §4c (*"ControllerOf(sentry) = the sentry itself ⇒ fires its mount 0"*) |
+| an automatic weapon fires while the trigger is HELD; a launcher fires per press | ✅ `WeaponBrainProfiles.FiresPerPress` (`:71`), `OperatorControlBehavior.cs:305` | CE-1079 |
+| a weapon's brain slews its turret toward a point and the MUSCLE turns it at its rates; the pose replicates | ✅ `AimAndFireParams.Point` → the weapon task → `TurretPose` (`EntityTurretPose`) | `DESIGN_Weapon_Systems.md` §2 |
+| a device driving another entity writes a component on ITSELF that the other's own brain reads | ✅ the §3.13 / §3.13c pattern | D-76, D-104 |
+| a fire-control device is found only when MOUNTED in a station of the weapon | ✅ `FireControls.Of` as designed (D-85) | ⛔ a separate box was not covered — D-79 left it "not in any slice" |
+| the proven solution | — | a remote weapon station (CROWS, Protector) and a wire-guided launcher box (the 9S415 of the 9K11, up to four launchers on cables): the console SLEWS the weapon by a stick (rate control), sees through the WEAPON's sight camera, selects the weapon, arms, and fires (held trigger for a gun, a press for a missile); the turret's own drives lag the command. ⭐ adopted: rate slew, the view from the weapon's sight, select, arm, the two trigger kinds; ⛔ rejected: stabilisation and ballistic-computer modelling (no training need named) |
+
+##### The classes
+
+```mermaid
+classDiagram
+  class ControlledEntities { <<NEW, unmanaged, replicated, on the device, authored>> Entity[4] — what this device commands (weapons, or a drone) }
+  class ControlledBy { <<NEW, serial pre-pass index>> Of(entity) → the device commanding it }
+  class FireControl { <<§3.13b, grows R-4301>> + Selected 0-3 · Trigger held · LayDir · Zoom }
+  class FireControls { <<§3.13b, changes>> Of(weapon) = mounted in its station, else ControlledBy.Of(weapon) }
+  class RemoteOperatedBehavior { <<NEW, the WEAPON's brain>> paired and selected: lay the turret along LayDir · fire on LaunchSeq (per press) or while Trigger (held) · else hold }
+  class ControlUnitBehavior { <<NEW device, Hrot.AI.Behaviors/Devices/ControlUnit>> POWER · SELECT · ARM · FIRE · ZOOM · VIEW · the stick slews LayDir (rate) }
+  class ControlUnitHudGizmo { <<NEW, HUD family>> panels 20-23 }
+  class DeviceView { <<§3.13c>> + Mode WeaponSight: the camera on the weapon's sight (its TurretPose) }
+  class WeaponSystems { <<existing>> ControllerOf — an uncrewed weapon is its own }
+  class OperatorControlBehavior { <<existing, §3.13b D-94>> a crewed weapon's possessed gunner fires from its fire control }
+  class RemoteControl { <<§3.13c, changes>> Vehicle moves into ControlledEntities[0] }
+  ControlUnitBehavior --> FireControl : self only
+  ControlUnitBehavior --> DeviceView : self — WeaponSight of the selected weapon
+  ControlUnitBehavior ..> ControlledEntities : its weapons
+  ControlledBy ..> ControlledEntities : built in the serial pre-pass
+  FireControls ..> ControlledBy
+  RemoteOperatedBehavior ..> FireControls : my console
+  RemoteOperatedBehavior ..> FireControl : reads, tick-start view
+  RemoteOperatedBehavior ..> WeaponSystems : I am my own controller
+  OperatorControlBehavior ..> FireControls
+  ControlUnitHudGizmo ..> FireControl
+  RemoteControl ..> ControlledEntities : the drone station uses it too
+```
+
+*What the picture shows that prose hid: there is still exactly ONE controller per weapon and the device still holds no weapon channel — an uncrewed weapon's OWN brain
+fires it, a crewed weapon's gunner fires it, both from the same `FireControl`. The pairing is ONE component that the drone station shares (`ControlledEntities`),
+found by ONE index (`ControlledBy`).*
+
+##### The sequence — slew, select, fire
+
+```mermaid
+sequenceDiagram
+  participant K as stick / mouse / keys (station, the console's panel IO)
+  participant C as ControlUnitBehavior (console device)
+  participant W as RemoteOperatedBehavior (the selected weapon's brain)
+  participant M as muscle (turret drives, fire, flight)
+  participant V as station view (DeviceView WeaponSight)
+  K->>C: POWER · SELECT 2 · ARM (sparse input events, §3.13e)
+  K->>C: the stick (or RMB look) — a slew RATE
+  C->>C: LayDir += rate × dt (live frames only) · FireControl {Selected 2, LayDir, Ready}
+  W->>W: ControlledBy ⇒ my console · selected = me ⇒ AimAndFire Point = along LayDir
+  W->>M: the existing weapon task ⇒ the turret slews at ITS rates (lags the command)
+  M-->>V: TurretPose (replicated) ⇒ the camera on the weapon's sight
+  K->>C: FIRE held (a gun) — or pressed (a launcher)
+  C->>C: Trigger = 1 while held · or LaunchSeq + 1
+  W->>M: fire: held while Trigger (automatic) · once per LaunchSeq (FiresPerPress)
+  M->>M: a guided round: GuidedRound.Device = the console (seq echo, D-95) · its guide line = the weapon sight's line
+  Note over C,W: paused: SELECT / ZOOM / VIEW act · the lay and the trigger are frozen (D-78, D-83) · nothing turns or fires
+```
+
+*What the picture shows that prose hid: the console commands a DIRECTION, the weapon's own drives decide how fast it gets there, and the trainee watches through the
+WEAPON's sight — so the lag of a real remote station is trained, not hidden.*
+
+##### Decisions
+
+| # | decision | why |
+|---|---|---|
+| D-147 | ⭐⭐ **one pairing for every "device commands an entity"**: `ControlledEntities { Entity[4] }` on the device (scenario- or preset-authored); `ControlledBy.Of(entity)` an index rebuilt in the brains' serial pre-pass (R-4212). ⭐ The drone station's `RemoteControl.Vehicle` (D-105) moves into it — ONE pairing mechanism | ruling 9; a box with four launchers, an RWS console with one gun, a drone station with one drone |
+| D-148 | ⭐⭐ **`FireControls.Of(weapon)` = a device mounted in a station of the weapon, else `ControlledBy.Of(weapon)`** — the controller (D-94) and the muscle's launch (D-95) read it unchanged | refines D-85 |
+| D-149 | ⭐⭐ **an UNCREWED weapon (`NeedsOperator = false`) commanded by a console runs `RemoteOperated`** — its own brain: when its console's `Selected` is it and `Ready`, it lays its turret along `FireControl.LayDir` (`AimAndFireParams.Point` far along it, the existing path) and fires — while `Trigger` is held for an automatic weapon, once per new `LaunchSeq` for a per-press one (`FiresPerPress`); unselected, unpaired or the console off ⇒ it holds (no autonomous SOP while paired). ⭐ **SUPERSEDES D-79**: the device never becomes a controller | the weapon's own brain acts (§3.13 pattern); one controller per weapon kept |
+| D-150 | ⭐ **a CREWED weapon with a console** (a vehicle RWS operated by a crew seat): the controller is that seat's man (`ControllerOf`); his possessed brain fires and lays from the console exactly as from a mounted sight (D-94) — the console is found by `FireControls.Of` | no second path |
+| D-151 | ⭐⭐ **`FireControl` grows** `Selected` (0–3, the weapon index in `ControlledEntities`), `Trigger` (held level — an automatic weapon), `LayDir` (the commanded direction, world), `Zoom` (the sight step); `LayDir` is integrated from the stick's RATE (or the RMB look, D-123 — for a console the look means the LAY) and written on live frames only | rate slew is the proven RWS control; frozen in pause (D-83) |
+| D-152 | ⭐⭐ **the view is the WEAPON's sight**: the console's `DeviceView { Entity = the selected weapon, Mode = WeaponSight }` puts the station camera on the weapon's turret part looking along its replicated `TurretPose` (the ACTUAL aim, which lags `LayDir`), at the console's zoom; the HUD draws a lay marker where the command points relative to the actual aim | one view rule (D-109); the lag is visible |
+| D-153 | ⭐ **a guided round from a remote launcher** is the console's by the seq echo (D-95); its guide line (D-96) is the line of the sight the operator looks through — the weapon sight's for a remote launcher with a TV sight, the console's own optic for a box with its own sight (a type datum `GuideFrom = WeaponSight \| Self`) | the line the operator holds the crosshair on is the line the round flies |
+| D-154 | ⭐ **the console's procedure**: `OFF →(POWER) STANDBY →(ARM) ARMED`; SELECT steps the weapon (STANDBY or ARMED); ARM needs the selected weapon loaded (D-112's rule); FIRE: per press or held per the weapon's kind; ZOOM steps; VIEW toggles a guided round's view (D-87). In pause SELECT / ZOOM / VIEW act, FIRE and the lay are frozen (D-78) | the proven RWS / box cycle |
+| D-155 | ⭐ **the types**: `RWS console` (a kit / vehicle-station device) + `HMMWV (RWS)` — a crewed vehicle whose RWS station (the 7.62 MG system, `NeedsOperator = false`) is commanded by the console in the gunner's station (preset `ControlledEntities`); the **9K11 box** (D-97 refined: the 9S415 is a SEPARATE cable box, not a mounted station) commanding up to four `Malyutka (suitcase)` launchers (`NeedsOperator = false`), `GuideFrom = Self` (the box's own sight) | the user's two cases with existing parts |
+| D-156 | ⭐ **mockups before the build** (R-4143): 20 RWS — the weapon-sight view, crosshair, lay marker, ammo, SINGLE / BURST, ZOOM, ARMED · 21 RWS firing (held) · 22 the box — four launcher lamps, SELECT, ARMED, a guided flight · 23 paused | R-4138 |
+
+##### Scenarios (R-4277)
+
+| scenario | What | expect rows |
+|---|---|---|
+| `dv-rws-mg` | a trainee in an `HMMWV (RWS)` slews onto a truck (scripted stick), ARMs, holds FIRE 2 s | `shot` by the RWS > 10 · `hit` on the truck · the turret pose within 2° of the lay after 3 s · ⛔ `never` a shot before ARMED |
+| `dv-remote-launcher` | the 9K11 box with launcher 1 fifteen metres away: POWER, SELECT 1, ARM, FIRE, guide | `hit` on the tank by launcher 1's missile · ⛔ `never` a shot by the box |
+| `dv-box-two-launchers` | the box with launchers 1 and 2, SELECT 2, FIRE | launcher 2 fires · launcher 1's rounds unchanged |
+| `dv-rws-paused` | FIRE held through a pause, the stick swung | ⛔ `never` a shot during the pause · the turret pose unchanged |
+| `dv-sentry-unchanged` | an unpaired sentry gun meets an enemy | it fights on its own as today (D-149 only replaces the SOP while paired) |
+
+##### Slice
+
+**SD-S4c** — after SD-S4 (`FireControl`) and SD-S5v (the panel IO): `ControlledEntities` + `ControlledBy` (the drone station moved onto it), `FireControl`'s
+growth, `RemoteOperated`, the `ControlUnit` device and its HUD (panels 20–23), `DeviceView` WeaponSight, the types (D-147–D-156).
+
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
 🔒 User: *"once we feel that it's right and that it's easy to extend, then it's time to start implementing the whole device stuff"*. The cleanup
@@ -1466,6 +1578,7 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the launcher sight unit (READY-TO-BUILD — §3.13b; mockups 7–11 drawn) | `FireControl` + `FireControls.Of` + `GuidedFlight` / `GuidedFlightSystem`; the `AtgmSight` device (procedure D-93, HUD panels 7–9) in a station of a NEW `TOW (tripod, sight unit)` type; the controller fires from the device (D-94); the launch is the device's by seq echo (D-95); the Command branch flies the device's guide line (D-96) | editor |
 | **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
+| **SD-S4c** the control unit (READY-TO-BUILD — §3.13f; mockups 20–23 pending) | `ControlledEntities` + `ControlledBy`, `FireControl` growth (Selected, Trigger, LayDir, Zoom), `RemoteOperated` on an uncrewed weapon, the `ControlUnit` device, `DeviceView` WeaponSight, `HMMWV (RWS)` and the 9K11 box (D-147–D-156) | editor |
 | **SD-S5b** linked devices + stacking (READY-TO-BUILD — §3.13d) | `DeviceLinks`, `DeviceMessageEvent` (binary), `TargetLocation`, the rangefinder's SEND, the pose-chain fix and stacking (D-119, D-120); trackers stay here, unscheduled | editor |
 | **SD-S5v** the virtual panel (READY-TO-BUILD — §3.13e) | `PanelButton` + `HudPanel` (the chip and its hit zone in one call), the `IDevicePanelIo` seam + `VirtualPanelAdapter` (POINT / RMB LOOK / hotkeys / wheel roles) — replaced by the replica's adapter when one is attached, every device HUD's chips through it, the by-index mouse mapping retired (D-122–D-129) | editor |
 | **SD-S5c** the laser target designator (READY-TO-BUILD — §3.13d; mockups 16–19 drawn) | `LaserPointing.Code`, the `Designator` device, its procedure and HUD (D-113–D-115, D-121) | editor |
