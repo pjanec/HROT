@@ -49,7 +49,7 @@ namespace Hrot.AI.Behaviors.Devices.FireControlUnit
     }
 
     /// <summary>
-    /// The unit's press channels (the <c>DeviceInput</c> press counter each one reads) - the BUTTON indexes of TKB type 643's elements (D-142: POWER, ARM, FIRE, VIEW; pinned by
+    /// The unit's press channels (the <c>DeviceInput</c> press counter each one reads) - the BUTTON indexes of TKB type 644's elements (D-142: POWER, ARM, FIRE, VIEW; pinned by
     /// <c>FireControlUnitTests</c>); the numbers are the wire, the names are the type's data.
     /// </summary>
     public static class FireControlUnitChannels

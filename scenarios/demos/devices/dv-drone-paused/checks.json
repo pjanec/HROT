@@ -154,6 +154,16 @@
       ],
       "m": 2,
       "atEnd": true
+    },
+    {
+      "name": "the OSD shows LAND queued in the pause (paused frame 60)",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "queued"
+      ],
+      "atPausedFrame": 60
     }
   ]
 }

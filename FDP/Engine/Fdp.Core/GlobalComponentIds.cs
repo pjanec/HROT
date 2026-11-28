@@ -995,8 +995,8 @@ namespace Fdp.Core
         public const int DeviceLinks = 235;   // NOTE: was 318 = Minefield's (the registry threw "Component ID collision" on every world): 235 as origin/coordinator took it (2026-11-28)
 
         /// <summary><c>DeviceInbox</c> — ⭐ SD-S5b (D-119): the newest two <c>DeviceMessageEvent</c>s addressed to a device, filed by the device tick's serial ingest.
-        /// ⚠ 319 — listed FREE AND used by no test fixture (2026-11-28; 236 collided with a fixture).</summary>
-        public const int DeviceInbox = 236;   // NOTE: was 319 = MinefieldStrikes' (the same collision): 236 as origin/coordinator took it
+        /// ⚠ 236, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceInbox = 236;
 
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>

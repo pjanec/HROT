@@ -75,7 +75,7 @@ namespace Fdp.Toolkits.Tests.Replication
             ["ControlledEntities.Entity1"] = "SD-S2c D-147, as Entity0",
             ["ControlledEntities.Entity2"] = "SD-S2c D-147, as Entity0",
             ["ControlledEntities.Entity3"] = "SD-S2c D-147, as Entity0",
-            ["DeviceLinks.Peer0"] = "SD-S5b D-119 / D-168 the device LINK, named by a person (the scenario's author: the peer a rangefinder sends to) — an EntityLink, resolved by the one load walker (R-184)",
+            ["DeviceLinks.Peer0"] = "SD-S5b D-119 the device link, named by a person (the scenario's author: where a device sends its messages — R-184, an EntityLink like ControlledEntities)",
             ["DeviceLinks.Peer1"] = "SD-S5b D-119, as Peer0",
         };
 

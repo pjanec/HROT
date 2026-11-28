@@ -31,7 +31,7 @@ namespace Hrot.AI.Behaviors.Devices.FireControlUnit
     /// </summary>
     public static class FireControlUnitBehavior
     {
-        /// <summary>The power-up self-test (sim s) - NOTE: mirrors the TKB type 643's <c>DeviceDefDto.TestSeconds</c> (pinned by <c>FireControlUnitTests</c>).</summary>
+        /// <summary>The power-up self-test (sim s) - NOTE: mirrors the TKB type 644's <c>DeviceDefDto.TestSeconds</c> (pinned by <c>FireControlUnitTests</c>).</summary>
         public const float TestSeconds = 3f;
 
         /// <summary>The sight's fixed magnification and the field of view a view bound to it shows - NOTE: mirrors the type's <c>Magnifications</c> (pinned).</summary>

@@ -483,6 +483,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ SD-S5c (devices §3.13d D-113) — a LASER TARGET DESIGNATOR type's duty cycle and default code (<c>Gen.LaserDesignator</c>).</summary>
+        public NedTkbBuilder WithLaserDesignator(long tkbId, Fdp.Toolkit.Tkb.Domain.LaserDesignatorDto designator)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(designator ?? throw new ArgumentNullException(nameof(designator)));
+            return this;
+        }
+
         /// <summary>⭐ SD-S2c (devices §3.13c D-106) — a type flown by RADIO from a ground station: its link's range and failsafe (<c>Gen.RemoteLink</c>).</summary>
         public NedTkbBuilder WithRemoteLink(long tkbId, Fdp.Toolkit.Tkb.Domain.RemoteLinkDto link)
         {

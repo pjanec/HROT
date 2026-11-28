@@ -345,6 +345,23 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_DroneStation);
+            // ⭐⭐ SD-S5c (§3.13d D-113 / D-114) — the LASER TARGET DESIGNATOR: POWER · LASE · CODE · RANGE (the mockup's chips P · L · C · R — keys the operator does
+            //   not need while he looks through a device; the type's own keymap place shadows them only then), 10× (a SOFLAM-class optic), a 60 s lase / 30 s cool
+            //   duty cycle and the default PRF code 1688. It receives a TargetLocation (the rangefinder's SEND, D-119) — the received-target cue.
+            builder.DefineVehicle(TkbEntityTypes.Device_LaserDesignator, "Laser designator")
+                .WithDevice(TkbEntityTypes.Device_LaserDesignator, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDesignator,
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("POWER", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("LASE", "L"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("CODE", "C"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"),
+                    },
+                    Magnifications = { 10f },
+                    Messages = { "TargetLocation" },
+                })
+                .WithLaserDesignator(TkbEntityTypes.Device_LaserDesignator, new Fdp.Toolkit.Tkb.Domain.LaserDesignatorDto { LaseSeconds = 60f, CoolSeconds = 30f, DefaultCode = 1688 })
+                .HiddenFromPalette(TkbEntityTypes.Device_LaserDesignator);
             // SD-S4 (sec 3.13b D-92 / D-93 / D-172) - the launcher SIGHT UNIT (the TOW's TAS): the ONE fire-control unit in its mounted one-weapon profile. Four buttons (the sight
             //   sheet's chips, mockup panels 7-10; the hotkeys are proposals): POWER, ARM, FIRE, VIEW (FireControlUnitChannels); a 10x optic; a 3 s power-up self-test. Its FireControl
             //   and GuidedFlight exist from creation (the weapon's controller and the muscle read / write them across entities)

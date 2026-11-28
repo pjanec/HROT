@@ -117,9 +117,12 @@ namespace Hrot.Map.Common
         /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION (hand-held kit device): POWER · ARM · TAKEOFF · LAND · RTH · CAM UP · CAM DOWN and four
         /// stick axes (Mode 2); it flies the drone its <c>ControlledEntities</c> slot 0 names.</summary>
         public const long Device_DroneStation = 642;
+        /// <summary>⭐ SD-S5c (§3.13d D-113) — a LASER TARGET DESIGNATOR (hand-held kit device, 10×): POWER · LASE · CODE · RANGE; lases a coded band-2 beam for at
+        /// most 60 s, then cools 30 s.</summary>
+        public const long Device_LaserDesignator = 643;
         /// <summary>SD-S4 (sec 3.13b D-92 / D-172) - the launcher SIGHT UNIT (the TOW's TAS): the fire-control unit in its mounted one-weapon profile - POWER - ARM - FIRE - VIEW; the device
         /// station of <see cref="WeaponSystem_TowTripodSight"/>.</summary>
-        public const long Device_AtgmSight = 643;
+        public const long Device_AtgmSight = 644;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

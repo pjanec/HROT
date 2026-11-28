@@ -128,6 +128,26 @@
       ],
       "m": 30,
       "atEnd": true
+    },
+    {
+      "name": "the OSD shows LINK LOST",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "LINK LOST"
+      ],
+      "after": "fly"
+    },
+    {
+      "name": "… and the reason: JAMMED",
+      "on": "hud",
+      "source": "station:1",
+      "text": [
+        "==",
+        "JAMMED"
+      ],
+      "after": "fly"
     }
   ]
 }
