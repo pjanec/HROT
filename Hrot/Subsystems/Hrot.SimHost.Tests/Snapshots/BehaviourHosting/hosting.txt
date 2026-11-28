@@ -66,7 +66,7 @@ Disembark | hostedInput=Hrot.Map.Definitions.Behavior.DisembarkParamsJsonDto | i
 DoorLocksmith | hostedInput=Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto | inputBytes=236
 DriveBy | hostedInput=Hrot.Map.Definitions.Behavior.DriveByParamsJsonDto | inputBytes=48
 DroneOperator | hostedInput=Hrot.AI.Behaviors.Brains.DroneOperatorOrder | inputBytes=72
-DroneRecon | hostedInput=Hrot.AI.Behaviors.Brains.DroneReconOrder | inputBytes=48
+DroneRecon | hostedInput=Hrot.AI.Behaviors.Brains.DroneReconOrder | inputBytes=40
 DroneTeam | hostedInput=Hrot.Map.Definitions.Behavior.DroneTeamParamsJsonDto | inputBytes=28
 Eject | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 Embark | hostedInput=Hrot.Map.Definitions.Behavior.EmbarkParamsJsonDto | inputBytes=36

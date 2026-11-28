@@ -339,6 +339,8 @@ namespace Hrot.CGF
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.RuleEditSystem(_missionControlModule.Ingress));
             // ⭐ N-11 (CE-4473) — the rules' tree is an index the rule brains read: refreshed serially before the phase (BrainPhase). ⭐ CE-3448 — now
             //   contributed by AiBrainReads.Contribute (CgfBehaviorSetup.LoadFromAiAssembly), the loader every host and rail goes through
+            // ⭐ devices SD-S2b (§3.13c D-108) — the drones' ONE battery, drained while airborne (WhenTimeAdvances: frozen in pause), before the brain tick reads it
+            simList.Add(new Fdp.Toolkit.Motion.DroneBatterySystem(gateOnAuthority));
             foreach (var s in _cognitiveRuntimeModule.SimulationSystems) simList.Add(s);
             // ⭐ rules S2 ⑨ (SR-116) — the exercise ended ⇒ ask the cluster to pause, once; after the brain tick that ran EndExercise. [NodeFeature("exercise.pause-on-end")], default ON.
             simList.Add(new Hrot.AI.Behaviors.Brains.Objectives.ExercisePauseOnEndSystem(nodeBus));   // ⭐ the NODE bus — a production host passes HrotNodeContext.EventBus

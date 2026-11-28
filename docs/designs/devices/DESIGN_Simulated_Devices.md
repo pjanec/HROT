@@ -1012,7 +1012,7 @@ none. **Registered** in `HrotSharedComponentRegistry` (every node) · in the **b
 the binding links it to the group's anchor — R-165; ⏭ its wire topic comes with the OSD that reads it on a station node, SD-S2c / S2d) · the system in the **CGF
 pack** before the brain tick (CgfCapabilities.Brain — the CGF node and the editor; `CgfLogicPackTests` 57 → 58 / 65 → 66). **The two AI timers READ it**:
 `DroneReconBehavior.Recon` and `AirAttackNodes.Dive` — `DroneBatteries.Empty(world, self)` ⇒ the same "down where it is" path; ⛔ `DroneReconParams.StartedAt`
-removed (it existed only for the clock; `AirAttackState.StartedAt` stays — the FPV's track sightings are timed from it). Folded into `DESIGN_FPV_Drone.md` (the
+removed (it existed only for the clock; `AirAttackState.StartedAt` stays — the FPV's track sightings are timed from it) ⇒ the recon blackboard is 48 → 40 B and `Snapshots/BehaviourHosting/hosting.txt` moves by that one line (`HROT_RECORD_HOSTING=1`, R-4301). Folded into `DESIGN_FPV_Drone.md` (the
 battery row, §6) and `DESIGN_Air_Operations.md` D-6. Rails: **`DroneBatterySystemTests`** (4: a drone type full / a helicopter none / an authored charge kept · drains
 airborne only by dt ÷ endurance, never below 0 · frozen in pause + the authority gate · 0 B — red-proved: the airborne check dropped ⇒ the landed drone drains),
 `AirAttackNodesTests` (the rig's drone carries the battery and `FlyDrone` steps it — the two battery rails keep their 60 s timing), `DroneOperatorBehaviorTests`,

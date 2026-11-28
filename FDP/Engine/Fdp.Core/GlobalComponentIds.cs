@@ -961,6 +961,10 @@ namespace Fdp.Core
         /// <summary><c>DevicePanel</c> — ⭐ S1c (§3.7 D-28): a device's generic panel outputs (lamps, blinks, 16 values, 4 text lines), written on change. ⚠ 233, FREE (2026-11-27).</summary>
         public const int DevicePanel = 233;
 
+        /// <summary><c>DroneBattery</c> — ⭐ Simulated devices SD-S2b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-108): a drone's ONE battery state (the
+        /// fraction left), drained airborne by <c>DroneBatterySystem</c> (brain group), frozen in pause. ⚠ 234, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DroneBattery = 234;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;

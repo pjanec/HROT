@@ -124,7 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Decoys;
         /// <summary>⭐ <c>CE-2191</c> — the stage the evasion returns to: the orbit, or (any other) a fresh run-in.</summary>
         public byte Resume;
-        /// <summary>⭐ Slice 6e (§9i D-6) — the sim time the attack began (the drone's battery counts from it).</summary>
+        /// <summary>⭐ Slice 6e (§9i D-6) — the sim time the attack began (the FPV's track sightings are timed from it; ⛔ the battery no longer — SD-S2b's <c>DroneBattery</c>).</summary>
         public SimInstant StartedAt;
         /// <summary>⭐ Slice 6e — 1 once the battery ran out: the dive is straight down.</summary>
         public byte BatteryOut;
@@ -686,14 +686,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⭐ Slice 6e (§9i) — the drone's attack: <b>Search</b> (a point: circle it, pick the best remembered target in the area —
         /// <see cref="DroneTargets.Pick"/>), <b>Pursue</b> (the point above the target at the cruise height), <b>Dive</b> (once the
         /// horizontal distance is within height / tan(angle): at the target's middle, full speed, re-aimed every
-        /// <see cref="DiveSteerPeriod"/>). The battery (<c>EnduranceSeconds</c>) ⇒ straight down. The Muscle's impact ends the flight.
+        /// <see cref="DiveSteerPeriod"/>). The battery empty (<c>DroneBattery</c>, SD-S2b) ⇒ straight down. The Muscle's impact ends the flight.
         /// </summary>
         private static NodeStatus Dive(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, double now)
         {
             var flight = world.HasComponent<FlightParams>(self) ? world.GetComponentRO<FlightParams>(self) : default;
             float speed = p.Speed > 0f ? p.Speed : flight.MaxSpeedMps;
             float height = p.AttackHeightAgl > 0f ? p.AttackHeightAgl : DefaultDiveHeightAgl;
-            if (ws.BatteryOut == 0 && flight.EnduranceSeconds > 0f && now - ws.StartedAt >= flight.EnduranceSeconds)
+            // ⭐ devices SD-S2b (§3.13c D-108) — the drone's ONE DroneBattery (drained airborne, frozen in pause), ⛔ no longer a clock from the attack's start
+            if (ws.BatteryOut == 0 && Fdp.Toolkit.Motion.DroneBatteries.Empty(world, self))
             {
                 ws.BatteryOut = 1;   // D-6 — whatever is below
                 ws.Stage = StageDive;

@@ -92,6 +92,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.DroneBattery>();   // ⭐ devices SD-S2b (D-108) — a drone's one battery (DroneBatterySystem, brain group)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)

@@ -111,7 +111,7 @@ namespace Hrot.AI.Behaviors.Brains
 
         /// <summary>An aircraft whose DIS type is SISO's unmanned air category (1.2.*.50).</summary>
         public static bool Unmanned(EntityRepository world, Entity air)
-            => CombatTkb.TryGetTemplate(world, air, out var t) && t.DisType.Kind == 1 && t.DisType.Domain == 2 && t.DisType.Category == 50;
+            => CombatTkb.TryGetTemplate(world, air, out var t) && Fdp.Toolkit.Motion.DroneBatteries.IsUnmannedAir(t.DisType);   // ⭐ SD-S2b — the one unmanned rule
 
         /// <summary>Running while it engages and while it relocates; Success once relocated.</summary>
         [SharedAiAction]

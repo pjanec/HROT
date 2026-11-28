@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (SD-S2a built — the gamepad) · 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
+updated: 2026-11-28 (SD-S2b built — one DroneBattery) · 2026-11-28 (SD-S2a built — the gamepad) · 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
 current-answer: §1 (state) · §2 (the queue) — read §1 first after a compaction
 stale-below: nothing
 related-designs:
@@ -35,6 +35,7 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **designed `2026-11-28`** SD-S5b link + SD-S5c designator + SD-S6b laser-guided bomb (§3.13d) READY-TO-BUILD | ⏳ | ✅ mockups 16–19 drawn (`devices-hud-designator.svg`); + SD-S5v the virtual panel (§3.13e: clickable HUD chips, POINT / RMB LOOK, hotkeys — before SD-S5c); ⚠ the pose chain does not walk a host device (measured) — SD-S5b fixes it first; reciprocal link in DESIGN_Air_Operations (A5/A7) still to add (that file had uncommitted S2b edits when this was written) |
 | **designed `2026-11-28`** SD-S4 + SD-S4b (§3.13b) and SD-S2 (§3.13c) READY-TO-BUILD | ⏳ | ⚠ mockups pending: panels 7–11 (the sight unit — an agent drawing them was stopped by usage-policy safeguards) ✅ 12–15 drawn (`devices-hud-drone.svg`); the build order the user picks |
 | **SD-S2a** the gamepad as keymap value sources (D-102 / D-103): `EditorKey` pad sources, `IInputProvider` pad members (default no pad), `KeymapReader.PadDeadzone` 0.15 + `Inner` (an inner place shadows the outer), the FPS pad rows + the device place `EmbodiedKeys.DeviceHat` (sticks → axes 0–3, A … RB → channels 0–5) | ✅ | the S2a commit — `KeymapReaderTests.SDS2a_*` (5), `PossessionStationTests.SDS2a_…` (red-proved); ⚠ deviation: the device rows in their own place (a conflict otherwise) — design §3.13c S2a AS BUILT, input design §6g |
+| **SD-S2b** ONE `DroneBattery` (D-108): component 234 (brain group, recorded, saved), `DroneBatterySystem` (CGF pack, `WhenTimeAdvances`, airborne = not `FlightGround.OnTheGround`), full at creation for a DIS-unmanned drone type (`FlightTkbTranslator`), the recon / FPV / bomber timers read it (`DroneBatteries.Empty`) | ✅ | the S2b commit — `DroneBatterySystemTests` (4, red-proved), `AirAttackNodesTests` / `DroneOperatorBehaviorTests` / `AirDefenceNodesTests` green (also parallel + read check); drone scenarios: see the design's S2b AS BUILT |
 
 ## 2. Rules learned this run (do not re-learn)
 
@@ -64,4 +65,6 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⭐ S1e: on a world-less terrain (`berlin`) the collider grid stays [−750, 750)² — a body beyond it is met by no round and no laser (CE-2193 warns); place markers inside it.
 - ⭐ S1e: both operated devices' HUD runs are ALWAYS published (each scoped); a re-bind changes what the VIEW keeps — judge it with `"source": "station:1"`.
 - ⭐ S2a: a pad stick that is BOTH a body row and a device row in one place is a keymap conflict — the device's rows live in their own place (`EmbodiedKeys.DeviceHat`) and the station sets `KeymapReader.Inner` while a view shows a device (the inner place shadows the outer).
+- ⭐ S2b: "is it airborne" is `FlightGround.OnTheGround` (the model's `Airborne` OR within 1 m of the ground and still) — ⛔ not `Locomotions.InAir`, which is the CLASS's domain (true for a drone on its feet).
+- ⭐ S2b: `Fdp.Toolkits.Tests` run whole reddens `DeviceTickSystemTests` / `DeviceOperatorTests` / `MissionDirectorSystemTests` / `SquadCoordination F11` / `ThreatEvaluation P1` by order (green alone); the S0 type rails (8), `S0WalkerTests` and `PersonHandsTests.CE3248` are red at `eeb4af028` — not chased.
 - Known reds that predate the devices work (proved at `af786e236` in a clean worktree, `2026-11-28`): `NedTkbBuilderCombatTests.CE3281_EveryBuiltInTypeThatMovesOrFires_IsHeard` and `CE4621_TheMotorcycle…` (expects 2 seats, the bike has 3) — not chased.

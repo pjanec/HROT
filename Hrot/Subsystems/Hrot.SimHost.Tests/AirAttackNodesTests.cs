@@ -1206,6 +1206,8 @@ namespace Hrot.SimHost.Tests
             _w.AddComponent(e, new Health { Current = 10, Max = 10 });
             _w.SetAuthority<SimTransform>(e, true);   // the air system moves only owned bodies
             _w.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
+            // ⭐ devices SD-S2b (D-108) — a drone with an endurance has its ONE battery, full (the flight translator gives a drone type one); FlyDrone drains it
+            if (enduranceSeconds > 0f) _w.AddComponent(e, new Fdp.Toolkit.Motion.DroneBattery { Remaining01 = 1f });
             return e;
         }
 
@@ -1254,6 +1256,7 @@ namespace Hrot.SimHost.Tests
                     ArrivalRadius = move.ArrivalRadius, IntentId = ++_droneIntent,
                 };
             _air.Execute(_w, Dt);
+            if (_w.HasComponent<Fdp.Toolkit.Motion.DroneBattery>(e)) Fdp.Toolkit.Motion.DroneBatterySystem.Drain(_w, e, Dt);   // ⭐ SD-S2b — the brain's battery step
             var status = _w.GetComponentRO<NavigationStatus>(e);
             _w.GetComponentRW<LocomotionChannel>(e).Status = status.Result == NavigationResult.Arrived && status.IntentId == intent.IntentId
                 ? NodeStatus.Success : NodeStatus.Running;
@@ -1541,7 +1544,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐ §9i ② (the search) — with nothing remembered in the area the drone CIRCLES the point at the cruise height (150 m round it), it
-        /// does not hover on it; ⭐ ③ the battery — at <c>EnduranceSeconds</c> it dives straight down where it is.
+        /// does not hover on it; ⭐ ③ the battery — at <c>EnduranceSeconds</c> airborne its <c>DroneBattery</c> is empty (SD-S2b) and it dives straight down where it is.
         /// ✅ Red-proofs (mutants): the circle steered at the point ⇒ it hovers over it ⇒ red; no battery ⇒ it circles on ⇒ red.
         /// </summary>
         [Fact]

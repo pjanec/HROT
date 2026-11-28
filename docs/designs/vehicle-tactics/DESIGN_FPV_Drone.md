@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-16
+updated: 2026-11-28 (devices SD-S2b: the battery is ONE DroneBattery, drained airborne, frozen in pause — §2 decisions, §6) · 2026-11-16
 build-state: BUILT — the Muscle half (§6, backend B11; owned by MuscleGround, R-3005) and the Brain half as AirAttack's Dive profile (Air Operations §9i, 2026-10-16); realistic terminal guidance §5e (MC-4a, 2026-11-16)
 current-answer: §2 classes, §3 sequences, §4 who runs it, §5 rails, §6 as-built — §1 is the measured ground.
 stale-below: nothing.
@@ -125,7 +125,7 @@ possessing operator. The kill is the existing damage chain.*
 | **autonomous**: the behaviour issues `MoveTo` to 3-D points; `RotorcraftModel.Autonomous` turns ≤ `TurnRateDeg`, climbs ≤ `ClimbMps`, speed → min(`TargetSpeed`, `MaxSpeedMps`); arrival within 2 m sets `NavigationStatus`, so `LocomotionMoveTo.Status` works unchanged | MD-D, MD-E (straight legs, v1) |
 | **manual (FPS possession)**: the station's rotorcraft scheme (W/S forward, A/D lateral, mouse yaw, Space / C vertical) → `OperatorControlFrameEvent` → `PossessionSystem` → `OperatorControl` → `ManualDrive { Forward, Lateral, Yaw, Vertical }` → `RotorcraftModel.Manual` | MD-D; the existing possession chain (Motion Domains §3 sequence) |
 | the bridge skips an entity whose locomotion is not Ground-domain (no ground path request for a flyer) | §1 |
-| **the battery is the behaviour's**: `FlightStartedAt`; at `EnduranceSeconds` it dives on whatever is below, or crashes; under possession the operator has the same budget (the behaviour is paused, its clock is not) | R-136: no runtime state component for a timer |
+| ⛔ SUPERSEDED `2026-11-28` by devices SD-S2b (D-108): **the battery is ONE `DroneBattery { Remaining01 }`** on every drone type (DIS 1.2.*.50 with an endurance), drained by `DroneBatterySystem` only while airborne, `dt ÷ EnduranceSeconds`, frozen in pause; `AirAttackNodes.Dive` and `DroneReconBehavior` read it (empty ⇒ down where it is), so the operator's ground station and the OSD read the same state. ~~the battery is the behaviour's: `FlightStartedAt`; at `EnduranceSeconds` it dives …~~ | one owner per state (ruling 9); the user's *"drone battery must freeze"* |
 | **impact**: each frame the swept segment `p → p + v·dt` against terrain (`IWorldQuery.SightBlocked`) and colliders within 10 m (circle + height band, M1); a contact publishes `DetonationNotification { Shooter = drone, Target, Hit, Penetration / Damage of the warhead mount, Ammo = 6016, Travel = v }` and a lethal `DamageAssessedEvent` on the drone | whoever flies it — AI or an operator; the rest is the existing chain (Top face by the dive, fragments, the wreck) |
 | the overhead fix: `VisionBroadphase` skips only the observer itself (3-D epsilon); a flyer is audible while airborne at any speed | §1 |
 | target choice: `DroneTargetDecision` = contact freshness × `WeaponEffectivenessVsTarget` (its warhead on the target's roof) × `IsVehicle` (vehicle 1, person 0.3) | R-263 "the existing sensor + threat ranking" |
@@ -295,7 +295,7 @@ the bridge skipping a non-ground mover. Deviations, argued:
 | a collider r 0.3, h 0.3 | ✅ stamped by `FlightTkbTranslator` from `Gen.Flight`'s body size | no ground physics gives a flyer one |
 | impact: terrain via `SightBlocked`, colliders within 10 m | ✅ + the ground under it (`GroundHeightAt`); a body's band grown by the contact radius; once met, `Airborne = 0` (spent: one detonation), the model then holds it still | a drone at speed would cross a hull in one frame; `Airborne` is the "spent" flag both systems read |
 | a lethal `DamageAssessedEvent` on the drone | ✅ 10 × its max health | the existing chain kills it on its `Health` owner |
-| the battery | not in the Muscle (R-136: the behaviour's clock) | as designed |
+| the battery | not in the Muscle — ⭐ since SD-S2b (`2026-11-28`) a brain-group component, `DroneBattery`, its one writer `DroneBatterySystem` (devices §3.13c D-108) | ⛔ SUPERSEDED: the behaviour's clock |
 
 Rails (§5): ✅ `RotorcraftModelTests.M7_ARotorcraft_FliesToA3DPoint_AndReportsArrival`, `M7_…_UnderManualDrive`, `M7_ADeadRotorcraft_Falls`,
 `CE2168_OnlyAirBodies_…` · `DroneImpactSystemTests.M7_ADive_OnATank_HitsItsRoof_AndKillsTheDrone`, `M7_ADroneFlyingPastOrOver_MeetsNothing` ·
