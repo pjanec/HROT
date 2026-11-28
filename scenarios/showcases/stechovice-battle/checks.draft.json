@@ -1,0 +1,117 @@
+{
+ "$doc": "docs/DESIGN_Scenario_Regression.md section 3 - the Stechovice show beats; see scenario.json description (What / Judge).",
+ "runFor": 300,
+ "golden": false,
+ "expect": [
+  {
+   "name": "Riverbank: the Blue platoon fires across the river",
+   "on": "shot",
+   "by": "*Riverbank Blue "
+  },
+  {
+   "name": "Riverbank: the Red platoon fires back",
+   "on": "shot",
+   "by": "*Riverbank Red "
+  },
+  {
+   "name": "Riverbank: a Red man is hit",
+   "on": "shot",
+   "by": "*Riverbank Blue ",
+   "hit": "*Riverbank Red "
+  },
+  {
+   "name": "Riverbank: a Blue man is hit",
+   "on": "shot",
+   "by": "*Riverbank Red ",
+   "hit": "*Riverbank Blue "
+  },
+  {
+   "name": "Riverbank: a Red man falls",
+   "on": "field",
+   "who": "*Riverbank Red ",
+   "dead": true,
+   "path": "Health.Current",
+   "op": "<=",
+   "value": 0
+  },
+  {
+   "name": "Riverbank: a Blue man falls",
+   "on": "field",
+   "who": "*Riverbank Blue ",
+   "dead": true,
+   "path": "Health.Current",
+   "op": "<=",
+   "value": 0
+  },
+  {
+   "name": "Village: the Blue attackers fire",
+   "on": "shot",
+   "by": "*Village Blue "
+  },
+  {
+   "name": "Village: the Red defenders fire",
+   "on": "shot",
+   "by": "*Village Red "
+  },
+  {
+   "name": "Village: a Red man falls",
+   "on": "field",
+   "who": "*Village Red ",
+   "dead": true,
+   "path": "Health.Current",
+   "op": "<=",
+   "value": 0
+  },
+  {
+   "name": "Village: a Blue man falls",
+   "on": "field",
+   "who": "*Village Blue ",
+   "dead": true,
+   "path": "Health.Current",
+   "op": "<=",
+   "value": 0
+  },
+  {
+   "name": "Village: Blue enters the village area",
+   "on": "close",
+   "who": "*Village Blue Squad",
+   "point": [
+    1686,
+    2268
+   ],
+   "m": 120
+  },
+  {
+   "name": "Air: the Apache flies over the village",
+   "on": "close",
+   "who": "Blue Apache",
+   "point": [
+    1686,
+    2268
+   ],
+   "m": 500
+  },
+  {
+   "name": "Air: the A-10 flies over the riverbank",
+   "on": "close",
+   "who": "Blue A-10",
+   "point": [
+    821,
+    1378
+   ],
+   "m": 700
+  },
+  {
+   "name": "Air defence: the ZU-23 fires at an aircraft",
+   "on": "shot",
+   "by": "Red ZU-23",
+   "at": "Blue A-10"
+  },
+  {
+   "name": "Air defence: the SAM fires at an aircraft",
+   "on": "shot",
+   "by": "Red Radar SAM",
+   "at": "Blue Apache"
+  }
+ ]
+}

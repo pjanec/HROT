@@ -71,6 +71,8 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
         ForbiddenByOrder,
         /// <summary>⭐ <c>CE-4668</c> — the unit is dead (Health 0): it runs nothing (OVERVIEW §8a).</summary>
         Dead,
+        /// <summary>⭐ Simulated devices S1e-1 (R7-4) — the target is a DEVICE: only its own device tick starts or clears its logic.</summary>
+        ADevice,
     }
 
     /// <summary>⭐ CE-4306 (edit framework F5) — the user's words for a <see cref="BrainRefusal"/>: the ONE text an order's refusal outcome carries.</summary>
@@ -88,6 +90,7 @@ namespace Fdp.Toolkit.Behavior.Diagnostics
             BrainRefusal.ParseFailed => "its parameters did not parse",
             BrainRefusal.ForbiddenByOrder => "its order forbids it",
             BrainRefusal.Dead => "the unit is dead",
+            BrainRefusal.ADevice => "it is a device (its logic is its own)",
             _ => "refused",
         };
     }

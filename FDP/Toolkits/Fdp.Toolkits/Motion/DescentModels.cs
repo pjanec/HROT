@@ -250,7 +250,7 @@ namespace Fdp.Toolkit.Motion
                 : SlideMps * MathF.Min(1f, (float)(now - d.PhaseSince) / EaseSeconds + 0.1f);
             float z = MathF.Max(surface, pos.Z - v * dt);
             var next = new Vector3(anchor.X, anchor.Y, z);
-            f.Velocity.Linear = (next - pos) / MathF.Max(dt, 1e-4f);
+            f.Velocity.Linear = StepVelocity.Of(pos, next, dt, f.Velocity.Linear);   // ⭐ CE-11057 — a too-short frame keeps the velocity
             f.Transform.Position = next;
             if (z <= surface + 1e-3f) { f.Velocity.Linear = Vector3.Zero; DescentRules.SetPhase(ref d, DescentPhase.Landed, now); }
         }

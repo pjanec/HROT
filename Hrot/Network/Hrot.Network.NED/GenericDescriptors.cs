@@ -120,6 +120,9 @@ namespace Hrot.NED.Descriptors
         // descriptor if the entity type allows for both.
         public ulong Flags;
 
+        // ⭐ CE-11011 (RR-11, R-11005) — a LIGHTWEIGHT round's launch time (synced sim seconds); 0 for every other entity and from an older sender.
+        public double LaunchedAt;
+
         // IMPORTANT NOTE
         // The EntityMaster does NOT have OwnerId field. The owner id determined from sample metadata (sender id)
         // provided by the dds csharp bindings. Usually the last writer is the owner, according to the NED SST rules.

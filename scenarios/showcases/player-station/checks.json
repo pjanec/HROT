@@ -1,0 +1,70 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u2014 the player-station range (scripts/gen-showcase-player-station.py): within 60 s the welcome trigger fires, 'Hold the house' is live, the free Playable riflemen hold their post as AI, the flamer spends fuel, both sides fire and lose men, Blue's tickets fall. Possession is proven over HTTP (POST/DELETE /entities/{id}/possess), not here.",
+  "runFor": 60,
+  "golden": false,
+  "expect": [
+    {
+      "name": "the welcome message is sent to Blue",
+      "on": "field",
+      "who": "Welcome",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "before": 5
+    },
+    {
+      "name": "the house objective is live for Blue",
+      "on": "field",
+      "who": "Hold the house",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active",
+      "before": 5
+    },
+    {
+      "name": "a free Playable rifleman holds his post as AI",
+      "on": "task",
+      "who": "Rifleman 1",
+      "is": "CombatPosture",
+      "before": 5
+    },
+    {
+      "name": "the flamer spends fuel",
+      "on": "field",
+      "who": "Flamer",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 90,
+      "before": 10
+    },
+    {
+      "name": "Red fires at Blue",
+      "on": "shot",
+      "by": "*Red 1-",
+      "n": 3
+    },
+    {
+      "name": "Blue fires at Red",
+      "on": "shot",
+      "by": "*Blue 1-",
+      "n": 1
+    },
+    {
+      "name": "a Red man goes down",
+      "on": "field",
+      "who": "*Red 1-",
+      "path": "Health.Current",
+      "op": "==",
+      "value": 0
+    },
+    {
+      "name": "Blue's tickets fall with its losses",
+      "on": "field",
+      "who": "Blue tickets",
+      "path": "ObjectiveStatus.Value",
+      "op": "<",
+      "value": 20,
+      "after": 5
+    }
+  ]
+}

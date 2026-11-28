@@ -357,6 +357,7 @@ public sealed class RecastNavmeshBaker
             finally
             {
                 int done = Interlocked.Increment(ref tilesDone);
+                Fdp.Core.LoadProgress.ReportDetail("navmesh", done, tileCount);   // ⭐ CE-11038 — the step's text moves while the tiles come (a warm load is ~34 s on 59 834 tiles)
                 if (Progress != null && (done % 256 == 0 || done == tileCount)) Progress(done, tileCount);
             }
         });

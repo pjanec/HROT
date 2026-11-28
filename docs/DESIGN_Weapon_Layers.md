@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-25 (§5k barrel heat — CE-1358) · 2026-10-22 (§5f CE-3296 — a short throw is tossed, a throw nothing clears is refused) · 2026-10-20 (§5j fire pacing — CE-2323, R-2063)
 build-state: BUILDING (WL-7 §5i the body turns to the shot BUILT 2026-10-14 — backend, W-14 / R-3003; WL-1a §5a, WL-1b §5b, WL-2a §5c, WL-2b §5d, WL-3 §5e built; WL-4 §5f building — backend; WL-6 §5h the weapon posture BUILT 2026-10-11 by the ui lane, W-13 / R-272) — ⭐ HANDED to the backend / behaviors lane 2026-10-11 (blueprints/batches/HANDOFF_Weapon_Layers_To_Backend_Or_Behaviors.md); the ui lane builds no more of it — W-1..W-9 approved (U-W2), §6 ambient fire approved as revised (U-W5), W-10 turret dead reckoning noted (U-W5: design only, no implementation yet); W-11 approved (U-W6): the task lives on the turret part
-current-answer: §5k-1 small arms overheat by rounds (CE-4144, BUILT) · §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
+current-answer: §5l bursts (CE-11033, READY-TO-BUILD) · §5k-1 small arms overheat by rounds (CE-4144, BUILT) · §5k barrel heat (CE-1358) · W-14 + §5i the body turns to the shot (R-3003) · W-13 + §5h the weapon posture (R-272) · §1 the three layers (module diagram) · §2 classes · §3 sequences · §4 decisions W-1..W-9 (APPROVED), W-11 (APPROVED, supersedes W-2 per-mount), W-12 APPROVED · §5f WL-4 (backend, BUILT — the grenade at a hidden target, end to end; AQ89) · §5g WL-5 (W-12b/c, BUILT) · §5 slices · §6 ambient fire
 stale-below: nothing yet
 known-rot: none
 known-conflict: DESIGN_Ownership_Groups_And_Grants.md F-6 says weapon-mount parts are never created — stale, CgfComponentRegistry.cs:38
@@ -711,6 +711,8 @@ so the muscle reports `NoTarget` instead of aiming at the origin.
 
 ### 5e. WL-3 — Engage: the brain grants rounds, the muscle fires them *(✅ built 2026-10-11 — as drawn, plus the notes below)*
 
+⭐ **`2026-11-26` (CE-4698, backend): a hull OUT OF THE FIGHT (destroyed, knocked out, incapacitated) or with a firepower kill releases none of its granted rounds** (`WeaponTaskDispatcherSystem.Engage`) — the turret's task outlives the brain. 📐 `ua-tank-ammo`: the T-72, destroyed at 30.6 s, kept firing its granted rounds at 35.4–55.5 s and knocked the M1 out. Rail `WeaponTaskDispatcherTests.CE4698_ADestroyedHull_FiresNoneOfItsGrantedRounds`.
+
 ```mermaid
 sequenceDiagram
   participant X as AimAndFireExecutor (Brain, weapon brain)
@@ -1243,6 +1245,86 @@ for cooldown, this degrades the gameplay experience, must be set with much highe
 *Rejected:* raising `AutomaticBurstSeconds` for everyone — it would also lengthen the MG's burst, which the user asked for as it is; per-rifle
 TKB values — every new rifle would have to remember them (the silent-default trap); a rate-based rule with a higher constant — a slow rifle
 would still overheat in fewer shots than a fast one, the opposite of reality.
+
+### 5l. Bursts — the AI fires short bursts by situation, and says so *(ui, `2026-11-22`; `CE-11033`, R-11012; build-state: BUILT, in-process path - see as-built below)*
+
+🔒 User, `2026-11-22`: *"I think we should send the burst information to the DPS instead of a single shot. Whenever Hrot actually fires a burst
+and knows that it will fire a burst, that meaning from the AI giving commands to fire a short burst, cannot apply to player, because we never
+know how long burst the player is going to do."* · *"you can take the burst fire as well."*
+
+**Today (measured):** every round is fired one at a time; the gap after a round is the behaviour's asked `AimAndFireParams.CooldownSeconds`, or
+0 ⇒ the mount's cyclic rate (`AimAndFireExecutor.CooldownFor`, `:337`; an M4 at 700 rpm = 0.086 s), scaled per man by `FirePacing.Gap`
+(§5j). A rifle in AI hands asks a deliberate interval ⇒ single aimed shots; a machine gun at cyclic is cut into bursts by barrel heat (§5k).
+No burst length exists for small arms, and nothing tells a renderer that rounds belong together.
+
+```mermaid
+classDiagram
+    class FireBursts {
+        <<new static, Fdp.Toolkits Combat - the ONE rule>>
+        +Choose(world, shooter, target, mount, blind) BurstPlan
+    }
+    class BurstPlan { <<readonly struct>> +byte Rounds +float PauseSeconds }
+    class BurstState {
+        <<new, in the action's channel State beside RoundsFired>>
+        +uint Id
+        +byte Rounds
+        +byte Fired
+    }
+    class WeaponFireIntent { <<existing event, appended>> +uint BurstId +byte BurstRounds +byte BurstIndex }
+    class WeaponFireNotification { <<existing recorded event, appended>> +uint BurstId +byte BurstRounds +byte BurstIndex }
+    class AimAndFireExecutor { <<existing>> per-shot path: plan a burst, fire Rounds at cyclic, then pause }
+    class FirePacing { <<existing>> jitter of every gap }
+    class BarrelHeat { <<existing>> the latch still gates every round }
+    AimAndFireExecutor ..> FireBursts : asks at each burst start
+    AimAndFireExecutor ..> BurstState : its own action's state
+    AimAndFireExecutor ..> WeaponFireIntent : stamps the burst on each round
+    WeaponFireIntent ..> WeaponFireNotification : the muscle copies it
+    AimAndFireExecutor ..> FirePacing
+    AimAndFireExecutor ..> BarrelHeat
+    FireBursts --> BurstPlan
+```
+
+```mermaid
+sequenceDiagram
+    participant E as AimAndFireExecutor (the shooter's brain)
+    participant R as FireBursts.Choose
+    participant S as BurstState (the action's own)
+    participant F as WeaponFireIntent then Notification (per round)
+    E->>R: a new burst (range, target seen and moving, blind, mount)
+    R-->>E: Rounds N, pause P
+    E->>S: Id + 1, Rounds N, Fired 0
+    loop N rounds
+        E->>F: one round, BurstId, BurstRounds N, BurstIndex Fired
+        E->>S: Fired + 1
+        E->>E: wait the cyclic gap x FirePacing
+    end
+    E->>E: wait P x FirePacing, then the next burst
+```
+
+| rule | why |
+|---|---|
+| ⭐ **`FireBursts.Choose` is the one rule** (deterministic: `SimRng` per shooter, no wall clock): a SmallArms rifle — seen target beyond 150 m ⇒ 1 round, the asked interval (today); within 50 m, or the target moving across ⇒ 2–3; blind / suppressing ⇒ 3–5, a longer pause; else 1–2. A machine gun keeps §5k (heat-latched, as the user asked). Any single-shot category ⇒ 1 | one place to tune; the numbers are first values, stated so a scenario can judge them |
+| ⭐ **the burst rides on each round**: `WeaponFireIntent` and `WeaponFireNotification` gain `BurstId` (0 = no planned burst), `BurstRounds`, `BurstIndex` (appended); the muscle copies them from the intent; the brain keeps the burst in its own action state | a renderer (the gateway) reads which rounds belong together from the round itself. 🔒 R-11013 (user, `2026-11-22`): *"We can break the recordings. We do not need to hack around it."* — old recordings with the earlier `WeaponFireNotification` layout no longer load (`SchemaValidator.cs:141-147`); ⛔ SUPERSEDED: a separate `FireBurst` component on the shooter (written to keep the event's layout) |
+| ⭐ **player fire has BurstId 0** (operator fire, `AimAndFireExecutor` operator path) | the user: the player's burst length is never known |
+| barrel heat and fire pacing apply to every round, unchanged | a burst cannot overshoot the latch |
+
+**Acceptance (rails + a feature scenario, R-4277):** the rule's table per row; N rounds at the cyclic gap then the pause; each round carries BurstId / BurstRounds / BurstIndex;
+an operator's rounds carry 0; 1 / 4 / 8 threads give the same rounds (`stepped-hash.py`); `HROT_PARALLEL_SIM=1 HROT_READ_CHECK=1` on the rails;
+a scenario `rifle-bursts` (a fire team engages at 40 m and at 200 m: bursts near, singles far) with `checks.json` expect rows.
+
+**As-built (`CE-11033`, `2026-11-22`; build-state: BUILT for the in-process path):**
+
+| design said | as built — and why |
+|---|---|
+| `BurstState {uint Id; byte Rounds; byte Fired}` in the action's channel State | ⚠ the 32-byte State was **full** (Entity 8 + `AimState` 16 + `RoundsFired` 4 + `Accounted` 4). `FireBursts.BurstState {byte Seq; byte Rounds; byte Fired; byte PauseTicks}` (4 bytes) **overlays `Accounted`** (bytes 28–31), which only the turret path reads and resets on a fresh epoch; the per-shot path, where bursts live, never reads it; `OnEnter` zeroes it. `BurstId` on the wire = `(ActionInstanceId << 8) \| Seq` — unique per shooter, never 0 for a planned burst. The shared bytes carry a validity bit (`PauseTicks` bit 7; the turret's never-negative int has it 0), so what the turret path left there starts a clean burst, and a burst state left there is not read as a turret count (`accounted < 0` ⇒ `status.RoundsFired`); rails `CE11033_WhatTheTurretPathLeft…` / `CE11033_ABurstStateLeft…`. A burst id can repeat inside one action only across such a switch |
+| `Choose(world, shooter, target, mount, blind)` | + `uint burstId` (the seed). **`Rounds` 0 = no plan** (MachineGun / Autocannon keep §5k). A plan of **1 round stamps nothing** (`BurstId` 0 = "single aimed shot", as the steer says); only 2+ rounds carry a burst. Bursts only for a mount whose cyclic gap is ≤ 0.5 s (so the pause, jittered, always outlasts a jittered cyclic gap) |
+| the pause | ⭐ **SUPERSEDED `2026-11-22` (R-11016): the SAME AVERAGE RATE OF FIRE** — with an asked interval, the pause after a burst of N rounds is `N × asked − (N − 1) × cyclic` (`FireBursts.PauseAfter`), so N rounds take N asked intervals and a man fires as many rounds a minute as before, only bunched; the rule's own pause stands only when nothing is asked (0 = the mount's rate). Rails `CE11033_Bursts_KeepTheAverageRateOfFire`, `CE11033_ThePauseAfterABurst_MakesItTakeNAskedIntervals`. 🔒 User: *"If the scenario cannot stand different rate of fire, with the average being the same, then the scenario is likely wrong, or the expectations of the scenario are wrong."* ⛔ HISTORY, the first build: `max(plan pause, the asked interval)` — the behaviour's asked `CooldownSeconds` stayed the floor, so a burst never fired faster per volley than today's single rounds; the plan pause is cyclic + 0.6–1.2 s (blind: + 1.5–2.5 s), kept in 1/20 s |
+| the rifle's cyclic rate | ⚠ the `InfantrySoldier` rifle (`UrbanCombatTkbCatalog.Rifle()`) carried **no `RateOfFire`** (asked 0 ⇒ a 0 s gap, "every frame"): it now states **700** (the M4 class, as `NedTkbCatalog.M4Carbine`). The pistol keeps none ⇒ no bursts |
+| stamp reaches the notification | `WeaponFireIntent` and `WeaponFireNotification` gained `BurstId` (uint), `BurstRounds`, `BurstIndex` (bytes; +6 bytes: 85 / 87); `FireProcessingSystem` copies them (fired round, refusal, `ShotRecord`); `ShotLog` and `/combat/shots` rows carry `burstId` / `burstRounds` / `burstIndex` (what `checks.json` judges) |
+| the wire (R-11013) | ✅ built: `WeaponFireRequest` and `WeaponFire` (DDS) gained appended `BurstId` / `BurstRounds` / `BurstIndex`; `WeaponFireIntentEgressTranslator` → `WeaponFireRequestIngressTranslator` and `WeaponFireNotificationEgressTranslator` → `WeaponFireIngressTranslator` (Player) carry them; one round-trip rail per translator (`CE11033_*`, red-proved). A split brain / muscle topology and every remote reader get the stamp |
+| a rifleman's sight is 150 m | so *"a SEEN target beyond 150 m ⇒ single round"* cannot occur for riflemen; the scenario `rifle-bursts` shows Near (40 m, 2–3) · Mid (120 m, 1–2) · Supp (200 m, memory only, blind ⇒ 3–5); the far-single row is proven by the rules rail |
+
+Rails: `AimAndFireExecutorTests.CE11033_*` (rules table, burst structure, far singles, operator, accounting, determinism, 0 B), `FireProcessingSystemTests.CE11033_*` (the copy). Scenario: `scenarios/demos/weapons-and-fires/rifle-bursts` (generator `scripts/gen-rifle-bursts-scenario.py`).
 
 ## 6. Ambient fire — the impression of distant combat, with no weapon model *(U-W3, revised by U-W4, ✅ approved U-W5: "Ok.")*
 

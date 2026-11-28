@@ -37,6 +37,6 @@ namespace Fdp.TestShared
 
         /// <summary>A primitive that is drawn (not a meta primitive, anchor or pick target).</summary>
         public static bool IsDrawing(DebugPrimitive p)
-            => !DebugPrimitiveBuffer.IsProtected(p.Shape) && p.Shape != DebugPrimitiveShape.SpatialAnchor && !DebugPrimitiveBuffer.IsPickTarget(in p);
+            => PrimitiveKind.Of(in p) == PrimitiveClass.Geometry;
     }
 }

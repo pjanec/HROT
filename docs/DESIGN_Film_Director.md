@@ -7,6 +7,7 @@ stale-below: none
 known-rot: §3c "Kept as the fallback: an in-memory bookmark" and its "basis … a full LIVE run" questions — SUPERSEDED by §3c's R-4088 block (an instant replay is a review) · §2's Scout, CaptureSink, CinemaMode, LayerOverride and SoundTrack.Log boxes are SUPERSEDED by §8.3 (as built). §3d and D-3 (fifth pass, LIVE cues on runs that differ — R-4064) are SUPERSEDED for stepped runs by §0 (R-3038); §2/§6's scout-baked anchors are correct again. D-1's "at most 2 per frame" is superseded by §0's one-step-per-frame rule.
 known-conflict: none — the determinism question ("I still believe we could make this deterministic") is RULED by R-3038; the mechanism is DESIGN_Paused_And_Stepped_Execution.md (CE-3293).
 related-designs:
+  - designs/IG/DESIGN_Linked_Client_Director.md — OWNS the director's LINKED CLIENT (a node extension as the frame sink and sound source, DD-022's HROT half; CE-11017, Q113)
   - designs/sensor-view/DESIGN_Sensor_View.md — the sensor views draw the scene into a texture like the film; a film frame through one is CE-1988
   - docs/UX/DESIGN_Edit_Mode_Undo.md — the take editor's undo MOVED from GizmoUndoStack onto the one EditHistory (U4, built 2026-11-08, §1.5)
   - DESIGN_Film_Production.md — OWNS the INTENT of the whole film process: films are cut and rendered from RECORDINGS; this design's stepped live run stays for live preview (R-4091)

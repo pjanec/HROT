@@ -152,5 +152,18 @@ namespace Hrot.SimHost.Tests
 
             Assert.Null(ex);
         }
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013) — the request's burst stamp becomes the muscle's intent stamp. ✅ Red-proof: the mapped line removed ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void CE11033_TheBurstStamp_SurvivesTheRequestIngress()
+        {
+            var translator = BuildTranslator();
+            var a = _world.CreateEntity(); var b = _world.CreateEntity();
+            _entityMap.Register(1, a); _entityMap.Register(2, b);
+            var request = new WeaponFireRequest { ShooterEntityId = 1, TargetEntityId = 2, BurstId = 0xABCD_0102u, BurstRounds = 3, BurstIndex = 2 };
+            var events = ProcessAndFlush(translator, in request);
+            Assert.Equal(1, events.Length);
+            Assert.Equal((0xABCD_0102u, (byte)3, (byte)2), (events[0].BurstId, events[0].BurstRounds, events[0].BurstIndex));
+        }
     }
 }

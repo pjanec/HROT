@@ -43,11 +43,11 @@ namespace Hrot.SimHost.Tests
         public void SavedBrainSlot_Params_IsWrittenAsAnObject_AndReadsBackTheSameText(string options)
         {
             var o = Of(options);
-            string json = JsonSerializer.Serialize(new SavedBrainSlot { Name = "ClearBuilding", Params = Params }, o);
+            string json = JsonSerializer.Serialize(new IntentSlot { Name = "ClearBuilding", Params = Params }, o);
             Assert.IsType<JsonObject>(PropertyOf(JsonNode.Parse(json)!, "Params"));
-            Assert.Equal(Params, JsonSerializer.Deserialize<SavedBrainSlot>(json, o)!.Params);
+            Assert.Equal(Params, JsonSerializer.Deserialize<IntentSlot>(json, o)!.Params);
             string old = "{\"Name\":\"ClearBuilding\",\"Params\":" + JsonSerializer.Serialize(Params) + "}";
-            Assert.Equal(Params, JsonSerializer.Deserialize<SavedBrainSlot>(old, o)!.Params);
+            Assert.Equal(Params, JsonSerializer.Deserialize<IntentSlot>(old, o)!.Params);
         }
 
         [Theory, MemberData(nameof(Options))]
@@ -127,7 +127,7 @@ namespace Hrot.SimHost.Tests
                 var e = repo.CreateEntity();
                 var slot = new JsonObject { ["Name"] = "ClearBuilding", ["Params"] = paramsNode, ["Origin"] = "Superior" };
                 new BrainSnapshotTranslator(registry).Inject(repo, e, new Dictionary<string, object> { [BrainSnapshotTranslator.BehaviorKey] = slot }, new NullGuidResolver());
-                return ((ISimulationView)repo).GetManagedComponentRO<InitialBrainIntent>(e).Behavior?.Params;
+                return ((ISimulationView)repo).GetManagedComponentRO<UnitIntent>(e).Behavior?.Params;
             }
             Assert.Equal(Params, Load(JsonValue.Create(Params)!));
             Assert.Equal(Normalised(Params), Normalised(Load(JsonNode.Parse(Params)!)!));

@@ -219,5 +219,19 @@ namespace Hrot.SimHost.Tests
             Assert.Null(ex);
             Assert.Empty(writer.Written);
         }
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013) — the AI's burst stamp crosses the brain → muscle wire. ✅ Red-proof: the mapped line removed ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void CE11033_TheBurstStamp_CrossesTheRequestWire()
+        {
+            var (translator, writer) = BuildTranslator();
+            var shooter = SpawnShooter(netId: 1, authoritative: true);
+            var target  = SpawnTarget(netId: 2);
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, BurstId = 0xABCD_0102u, BurstRounds = 3, BurstIndex = 2 });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            var msg = Assert.Single(writer.Written);
+            Assert.Equal((0xABCD_0102u, (byte)3, (byte)2), (msg.BurstId, msg.BurstRounds, msg.BurstIndex));
+        }
     }
 }

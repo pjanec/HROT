@@ -1,12 +1,13 @@
 <!--STATUS
 state: LIVE
 build-state: DESIGN — top-level; §5 the BUILD design for K1 (ui, 2026-11-07) — K1 BUILT, as-built in §5a; K2 · K3 · K7 BUILT (§6, §6c, §6d, ui 2026-11-08); K4 BUILT (§6g, ui 2026-11-08) — K1–K7 all built, the overrides file / rebind UI (Q6) open; ✅ approved by the user 2026-11-06 with the dumb-terminal split and hard-coded defaults (R-4132); the building lanes detail it (R-4123)
-updated: 2026-11-08 (K4 — §6g, ui Z-7: Hold / Axis rows, the FPS station, the timeline, the Player's map keys, the debug F-keys) · 2026-11-08 (K5 + K6 — §6e / §6f, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
+updated: 2026-11-28 (SD-S2a — the gamepad as value sources, one deadzone, the reader's inner place; §6g as built) · 2026-11-08 (K4 — §6g, ui Z-7: Hold / Axis rows, the FPS station, the timeline, the Player's map keys, the debug F-keys) · 2026-11-08 (K5 + K6 — §6e / §6f, ui Z-6) · 2026-11-08 (K2 rest + K3 + K7 BUILT — §6 / §6c / §6d, ui Z-5) · 2026-11-06 (§2.4 the map is a dumb terminal: map keys resolved on the backend, ImGui routing for the ImGui side only; hard-coded defaults complete, the overrides file optional — R-4132) · 2026-11-06 (first version — coordinator; editing-UX design queue item 4b: E14)
 current-answer: §2 the model · §3 stages · §4 questions with leans · §5 the K1 build design (homes, the chord, the id, the per-frame call) · §6 / §6c / §6d the map: hat + camera scopes, one-level Esc, the mouse gestures (as built) · §6g held inputs: Hold / Axis rows (as built)
 stale-below: nothing
 known-rot: the node called IG here is the Player node since CE-3371 (backend, 2026-11-06): Hrot.IG → Hrot.Player, IgApplication → PlayerApplication (line numbers cited before the rename may have moved)
 known-conflict: UX_Feature_Tool_Model.md:302 "No keyboard shortcut activates any tool" — kept for TOOLS armed by a key? §4 Q5 decides (lean: a key may run the ACTION that arms a tool)
 related-designs:
+  - ../designs/devices/DESIGN_Simulated_Devices.md — SIMULATED DEVICES: a trainee's equipment as entities (carried in this station / scope / view), a generic I/O model with adapters, the logic as a behaviour on the brain with its state in [UnitMemory], its HUD drawn by one view-HUD mechanism (§3v, §3w)
   - DESIGN_Map_Interaction.md — E8: the drawing keys (Enter finish, Backspace, PgUp / PgDn level) as the armed tool's own keys on the backend
   - ../designs/gizmos-1/gizmo-input-focus-design.md — OWNS the dumb terminal (raw events, backend focus); the map scopes of the keymap are resolved on its backend side
   - DESIGN_Action_Catalogue.md — every key binds to an ACTION ID from the catalogue; the action declares its default key and scope (design 1, R-4125)
@@ -674,3 +675,14 @@ window's kind only; the Embodied / Timeline / Map-view / debug rows carry kinds 
 - **Shift+wheel over the timeline's overview** only pans now; before, it panned AND zoomed (the plain-wheel row yields to the Shift row).
 - **The Player's Ctrl+Z / Ctrl+Y** is NOT bound — §6g STOPPED. ⏭ needs the user: delete the dead path (`PlayerApplication._gizmoUndoStack`, `HandleGizmoUndoInput`) — lean yes: nothing records onto it and R-4120 / Undo Q6 say there is no undo there.
 - **The overrides file / rebind UI** (Q6) is still not built; `Keymap.Unbind` + `Declare` is the primitive it will use.
+
+⭐ **SD-S2a AS BUILT (`2026-11-28`, devices §3.13c D-102 / D-103) — the GAMEPAD is value sources of this keymap, not a new input path.** `EditorKey` grows
+`PadLeftX/Y · PadRightX/Y · PadTriggerL/R` (VALUE sources, like the mouse's) and the buttons `PadA B X Y · PadLB/RB · PadBack/Start · PadLeftStick/RightStick ·
+PadDpad*` (keys: Press / Hold; a trigger is both). `IInputProvider` grows `GamepadAvailable / GamepadAxis / GamepadButtonDown / GamepadButtonPressed` with
+default "no pad" bodies (every fake compiles); `RaylibInputProvider` reads pad 0; `ProviderChordInput` maps them (a trigger 0 … 1; nothing with no pad).
+`KeymapReader` applies **ONE deadzone** (`PadDeadzone` 0.15, rescaled so the edge reads 0) to every pad axis, and grows `Inner` — **an inner place of the
+scope chain shadows this reader's rows on the same input, any trigger** (the device place over the body's rows: the stick flies the device and does not also
+walk him). Rows: the Embodied hat gains pad rows (stick move / look, LT zoom, RT trigger + fire, A use + climb, B descend, Back = view next …), and the new
+**device place** (`EmbodiedKeys.DeviceHat`, *Embodied device hat*): sticks → the bound device's `DeviceControl.Axes` 0–3, A B X Y LB RB → channels 0–5.
+The Keyboard shortcuts window lists them in words (*Pad left stick Y (axis −1)*). Rails: `KeymapReaderTests.SDS2a_*` (5), `PossessionStationTests.K4_…` +
+`SDS2a_ThePad_…` (red-proved: the inner place not set ⇒ red).

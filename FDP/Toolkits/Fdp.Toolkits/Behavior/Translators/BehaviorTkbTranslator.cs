@@ -56,6 +56,16 @@ namespace Fdp.Toolkit.Behavior.Translators
             var dto = template.GetDescriptor<BehaviorProfileDto>();
             if (dto == null) return;
 
+            // ⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.1 R7-4) — a DEVICE type is not a unit: it gets its BRAIN only (BehaviorState with
+            //   the type's tier — the device tick runs its logic on it, R5-8), ⛔ none of the tactical block (EntityInfo, capabilities, ROE, channels,
+            //   mission queue, SOP, the journal) and ⛔ no default behaviour — the device tick starts DeviceInfo.Behavior (a default would be a second start).
+            if (Fdp.Toolkit.Behavior.Devices.DeviceTkbTranslator.IsDeviceType(template))
+            {
+                if (repo.IsComponentTypeRegistered<BehaviorState>() && !repo.HasComponent<BehaviorState>(entity))
+                    repo.AddComponent(entity, new BehaviorState { BrainTier = dto.BrainTier, InstanceId = 1 });
+                return;
+            }
+
             // ── Sim tier ──────────────────────────────────────────────────────────
             if (repo.IsComponentTypeRegistered<SimTier>() && !repo.HasComponent<SimTier>(entity))
                 repo.AddComponent(entity, new SimTier { Value = dto.SimTier });

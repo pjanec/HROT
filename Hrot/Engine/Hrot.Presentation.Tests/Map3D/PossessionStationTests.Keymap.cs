@@ -4,6 +4,7 @@ using System.Numerics;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Possession;
 using Fdp.Toolkit.Input;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using Hrot.UI.Common.Map3D;
 using NodeEditor.Core.Action;
 using NodeEditor.Primitives;
@@ -17,7 +18,7 @@ public sealed partial class PossessionStationTests
     private static (EntityRepository World, PossessionStation Station, Fdp.Toolkit.Vis3D.MapViewSwitch View, FpsCameraDriver Driver, Keymap Keymap) K4Station()
     {
         var (w, unit, _) = World();
-        w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+        w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         var (_, sw, _) = Map();
         var keymap = new Keymap();
         var station = new PossessionStation(sw, () => w) { Keymap = keymap, OverShoulder = false };
@@ -65,6 +66,37 @@ public sealed partial class PossessionStationTests
         Assert.NotNull(Find(EmbodiedKeys.LookX, KeyTrigger.Axis, EditorKey.MouseDeltaX));
         Assert.NotNull(Find(EmbodiedKeys.TeamNext, KeyTrigger.Press, EditorKey.J));
         Assert.Equal(KeyModifiers.Shift, Find(EmbodiedKeys.TeamPrevious, KeyTrigger.Press, EditorKey.J)!.Value.Chord.Modifiers);
+        // ⭐ S1d-3 (devices Q-5's lean) — B / Shift+B cycle the view's source; through a device LMB (the Fire row) and RMB are its buttons, the middle
+        //   button designates; ⛔ CE-1219's B hold is gone (D-75)
+        Assert.NotNull(Find(EmbodiedKeys.ViewNext, KeyTrigger.Press, EditorKey.B));
+        Assert.Equal(KeyModifiers.Shift, Find(EmbodiedKeys.ViewPrevious, KeyTrigger.Press, EditorKey.B)!.Value.Chord.Modifiers);
+        // ⛔ SD-S5v (D-125) — the by-index mouse rows are retired: RMB is only the Zoom hold (through a device: LOOK), no press row on it
+        Assert.DoesNotContain(Enumerable.Range(0, map.Count), i => map[i].Chord.Key == EditorKey.MouseRight && map[i].Trigger == KeyTrigger.Press && map[i].WindowKind == EmbodiedKeys.Hat);
+        Assert.NotNull(Find(EmbodiedKeys.Designate, KeyTrigger.Press, EditorKey.MouseMiddle));
+        Assert.DoesNotContain(Enumerable.Range(0, map.Count), i => map[i].Chord.Key == EditorKey.B && map[i].Trigger == KeyTrigger.Hold);
+        // ⭐ SD-S2a (devices §3.13c D-103) — the pad: the left stick moves, the right stick looks, LT aims, RT fires, A uses / climbs; and the DEVICE place
+        //   (its own qualifier, so the same stick is no conflict): the sticks are the device's axes 0–3, A B X Y LB RB its channels 0–5
+        Assert.Equal(-1f, Find(EmbodiedKeys.MoveForward, KeyTrigger.Axis, EditorKey.PadLeftY)!.Value.Scale);
+        Assert.Equal(-1f, Find(EmbodiedKeys.MoveSide, KeyTrigger.Axis, EditorKey.PadLeftX)!.Value.Scale);
+        Assert.Equal(EmbodiedKeys.PadLookPixelsPerFrame, Find(EmbodiedKeys.LookX, KeyTrigger.Axis, EditorKey.PadRightX)!.Value.Scale);
+        Assert.NotNull(Find(EmbodiedKeys.LookY, KeyTrigger.Axis, EditorKey.PadRightY));
+        Assert.NotNull(Find(EmbodiedKeys.Zoom, KeyTrigger.Hold, EditorKey.PadTriggerL));
+        Assert.NotNull(Find(EmbodiedKeys.Trigger, KeyTrigger.Hold, EditorKey.PadTriggerR));
+        Assert.NotNull(Find(EmbodiedKeys.Fire, KeyTrigger.Press, EditorKey.PadTriggerR));
+        Assert.NotNull(Find(EmbodiedKeys.Use, KeyTrigger.Press, EditorKey.PadA));
+        Assert.NotNull(Find(EmbodiedKeys.Climb, KeyTrigger.Axis, EditorKey.PadA));
+        Assert.NotNull(Find(EmbodiedKeys.ViewNext, KeyTrigger.Press, EditorKey.PadBack));
+        KeymapEntry? FindDevice(ActionRef a, KeyTrigger t, EditorKey key) => Enumerable.Range(0, map.Count).Select(i => map[i])
+            .Where(e => e.Scope == InputScope.Hat && e.WindowKind == EmbodiedKeys.DeviceHat && e.Action.Equals(a) && e.Trigger == t && e.Chord.Key == key).Cast<KeymapEntry?>().FirstOrDefault();
+        var axisKeys = new[] { EditorKey.PadLeftX, EditorKey.PadLeftY, EditorKey.PadRightX, EditorKey.PadRightY };
+        for (int i = 0; i < 4; i++) Assert.NotNull(FindDevice(EmbodiedKeys.DeviceAxis(i), KeyTrigger.Axis, axisKeys[i]));
+        var channelKeys = new[] { EditorKey.PadA, EditorKey.PadB, EditorKey.PadX, EditorKey.PadY, EditorKey.PadLB, EditorKey.PadRB };
+        for (int i = 0; i < EmbodiedKeys.PadDeviceChannels; i++) Assert.NotNull(FindDevice(EmbodiedKeys.DeviceChannel(i), KeyTrigger.Press, channelKeys[i]));
+        Assert.Equal("W", new KeymapReader(map, InputScope.Hat, EmbodiedKeys.Hat).ChordOf(EmbodiedKeys.MoveForward));   // a HUD hint still names the key
+        // the pad's rows are listed in the Keyboard shortcuts window like the rest, in words
+        var listed = new Fdp.Presentation.Input.ShortcutRows(map).Rows("");
+        Assert.Contains(listed, r => r.Binding == "Pad left stick Y (axis \u22121)" && r.Action == "Move forward / back");
+        Assert.Contains(listed, r => r.Binding == "Pad A" && r.Action == "Device button 1" && r.Scope == EmbodiedKeys.DeviceHat + " hat");
 
         // every row is labelled for the Keyboard shortcuts window (a label that is just the id means the declarer forgot it)
         for (int i = 0; i < map.Count; i++)
@@ -207,6 +239,76 @@ public sealed partial class PossessionStationTests
             }
             Assert.Equal(0L, steady);
             Assert.True(sink > 0f);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ SD-S2a (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-102 / D-103) — the PAD drives the station through the keymap: with no device shown the left stick walks him;
+    /// with a view bound to a device the sticks are the DEVICE's axes (the device frame's <c>Axes</c>, through the one deadzone) and A … RB its channels 0–5, and the same stick no longer
+    /// walks him (the device place shadows the body's row) — the keyboard's W still does. Back cycles the view like B.
+    /// 🔴 Red-proof (compiles): <c>_keys.Inner</c> never set in <c>Bind</c> ⇒ the stick walks him while it flies the device ⇒ red.
+    /// </summary>
+    [Fact]
+    public void SDS2a_ThePad_WalksHim_AndThroughABoundDeviceIsItsAxesAndChannels()
+    {
+        var (w, unit, map) = World();
+        using (w)
+        {
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>();
+            var probe = new DeviceInputProbe();   // ⭐ SD-S5v — the device's merged input
+            var d = w.CreateEntity();
+            w.AddComponent(d, new SimTransform { Position = new Vector3(100f, 50f, 1.5f), Rotation = Quaternion.Identity });
+            w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 78, Behavior = new FixedString64(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars) });
+            w.AddComponent(d, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = 7001 });
+            w.AddComponent(d, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Operated, Epoch = 1 });
+            w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DevicePose { Orientation = Quaternion.Identity, FovDegrees = 5f });
+            map.Register(7001, d);
+            var (_, sw, _) = Map();
+            var station = new PossessionStation(sw, () => w) { Keymap = new Keymap(), OverShoulder = false };
+            station.Update(0.016f);
+            sw.Camera3D.Update(0.016f);
+            (OperatorControlFrameEvent Body, Fdp.Toolkit.Behavior.Devices.DeviceControl Device) Frame(Input input)
+            {
+                station.Update(0.016f);
+                sw.Camera3D.HandleInput(input);
+                w.Bus.SwapBuffers();
+                var body = Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+                probe.Read(w);
+                return (body, probe.Of(d));
+            }
+            Input Pad(float leftY = 0f, float rightX = 0f, params MapGamepadButton[] pressed)
+            {
+                var i = new Input { PadConnected = true };
+                i.PadAxes[(int)Fdp.Toolkit.Vis2D.Abstractions.MapGamepadAxis.LeftY] = leftY;
+                i.PadAxes[(int)Fdp.Toolkit.Vis2D.Abstractions.MapGamepadAxis.RightX] = rightX;
+                foreach (var b in pressed) i.PadPressed.Add(b);
+                return i;
+            }
+
+            var eye = Frame(Pad(leftY: -1f));                                                  // no device shown: the stick walks him
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(1f, eye.Body.Forward, 4);
+            Assert.Equal(0f, eye.Device.Axes[1]);
+
+            Frame(Pad(pressed: MapGamepadButton.MiddleLeft));                                  // Back: the view's next source, the device
+            Assert.Equal(d, station.BoundDevice);
+
+            var fly = Frame(Pad(-1f, 0.5f, MapGamepadButton.RightFaceDown, MapGamepadButton.RightTrigger1));   // stick up, right stick half, A and RB
+            Assert.Equal(0f, fly.Body.Forward);                                               // the device's now — he does not walk
+            Assert.Equal(1f, fly.Device.Axes[1], 4);                                          // axis 1 = the left stick, up +
+            Assert.Equal((0.5f - KeymapReader.PadDeadzone) / (1f - KeymapReader.PadDeadzone), fly.Device.Axes[2], 4);   // axis 2 = the right stick X, the one deadzone
+            Assert.Equal(1, fly.Device.Presses[0]);                                           // A = channel 0
+            Assert.Equal(1, fly.Device.Presses[5]);                                           // RB = channel 5
+            Assert.Equal(0, fly.Device.Presses[1]);
+
+            var keys = new Input { PadConnected = true, Keys = { (int)Raylib_cs.KeyboardKey.W } };
+            Assert.Equal(1f, Frame(keys).Body.Forward);                                       // the keyboard's W is not the device's: it still walks him
+            var rest = Frame(Pad());
+            Assert.Equal(0f, rest.Device.Axes[1]);                                            // the stick let go: the device's axis at rest
         }
     }
 }

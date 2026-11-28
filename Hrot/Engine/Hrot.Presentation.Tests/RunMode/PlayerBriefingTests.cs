@@ -93,6 +93,20 @@ public sealed class PlayerBriefingTests : IDisposable
         Assert.Equal(new[] { "Hold the bridge (required)", "No civilian harm", "Report contact within 30 s" }, b.Content.Objectives);   // ⛔ not "Destroy the bridge"
     }
 
+    /// <summary>⭐ C3 CC-13 (docs/DESIGN_Capability_Components.md §4.3) — a player's replicated world holds EVERY station's holds; the briefing names
+    /// THIS station's own body, never the first hold in the world. 🔴 Before C3 it took the first <c>PossessedBy</c> it met — here another player's
+    /// hostile man, created first.</summary>
+    [Fact]
+    public void TheBriefing_NamesThisStationsOwnBody_NotAnotherPlayersUnitThatIsHeldFirst()
+    {
+        var theirs = Man(9, "Enemy 3-2", ForceId.Hostile);
+        _w.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.StationId)5, Mode = PossessionMode.Fps, Epoch = 7 });   // another station, held first
+        Scene();   // my man, held by this station (0)
+        var b = new PlayerBriefing();
+        b.Refresh(_w);
+        Assert.Equal("You are: Blue · Alpha 1-1 · marksman", b.Content.YouAre);
+    }
+
     [Fact]
     public void TheBriefing_WithNobodyHeldYet_SaysSoAndListsNoObjectives_AndAnEmptyDescriptionIsHonest()
     {

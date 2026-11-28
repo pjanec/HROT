@@ -62,7 +62,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             public BehaviorState Task => World.GetComponentRO<BehaviorState>(Unit);
 
-            public void Publish(InitialBrainIntent intent) => World.SetManagedComponent(Unit, new ReplicatedBrainIntent { Intent = intent });
+            public void Publish(UnitIntent intent) => World.SetManagedComponent(Unit, new ReplicatedBrainIntent { Intent = intent });
 
             public void Gain(long key, bool gained = true)
             {
@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             }
         }
 
-        private static SavedBrainSlot Slot(string name, BehaviorOrigin origin, string json = "{}")
+        private static IntentSlot Slot(string name, BehaviorOrigin origin, string json = "{}")
             => new() { Name = name, Params = json, Origin = origin };
 
         [Fact]
@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var f = new Fixture();
             Assert.True(f.Ingress.AssignNow(f.World, f.Unit, "HoT_Stale", "{}", BehaviorOrigin.Operator));   // a stale Operator order
-            f.Publish(new InitialBrainIntent
+            f.Publish(new UnitIntent
             {
                 Behavior = Slot("HoT_Order", BehaviorOrigin.Superior, "{\"Speed\":3}"),
                 Sop      = Slot("HoT_Sop", BehaviorOrigin.Sop),
@@ -116,7 +116,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var f = new Fixture();
             Assert.True(f.Ingress.AssignNow(f.World, f.Unit, "HoT_Default", "{}", BehaviorOrigin.Sop));        // the template default
             uint run = f.Task.InstanceId;
-            f.Publish(new InitialBrainIntent { Behavior = Slot("HoT_Default", BehaviorOrigin.Sop) });
+            f.Publish(new UnitIntent { Behavior = Slot("HoT_Default", BehaviorOrigin.Sop) });
 
             f.Gain(IntentKey);
 
@@ -132,7 +132,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             f.React("HoT_Cover");
             Assert.Equal(BehaviorOrigin.Reaction, f.Task.Origin);
             Assert.NotNull(BehaviorIngressSystem.PausedTaskOf(f.World, f.Unit));
-            f.Publish(new InitialBrainIntent { Behavior = Slot("HoT_Order", BehaviorOrigin.Operator) });
+            f.Publish(new UnitIntent { Behavior = Slot("HoT_Order", BehaviorOrigin.Operator) });
 
             f.Gain(IntentKey);
 
@@ -147,7 +147,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var f = new Fixture();
             Assert.True(f.Ingress.AssignNow(f.World, f.Unit, "HoT_Stale", "{}", BehaviorOrigin.Operator));
-            f.Publish(new InitialBrainIntent());
+            f.Publish(new UnitIntent());
             f.Gain(IntentKey);
             Assert.Equal(BehaviorIds.None, f.Task.ActiveBehaviorHash);
         }
@@ -159,7 +159,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.True(f.Ingress.AssignNow(f.World, f.Unit, "HoT_Stale", "{}", BehaviorOrigin.Operator));
             uint run = f.Task.InstanceId;
             f.Gain(IntentKey);                                                      // no replica yet
-            f.Publish(new InitialBrainIntent { Behavior = Slot("HoT_Order", BehaviorOrigin.Superior) });
+            f.Publish(new UnitIntent { Behavior = Slot("HoT_Order", BehaviorOrigin.Superior) });
             f.Gain(OtherKey);                                                       // not the intent's descriptor
             f.Gain(IntentKey, gained: false);                                       // a loss
             Assert.Equal(0, f.HandOver.HandOverCount);

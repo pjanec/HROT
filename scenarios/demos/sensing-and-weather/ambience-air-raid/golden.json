@@ -1,0 +1,1013 @@
+{
+  "$doc": "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify ambience-air-raid --verify-capture (or POST /director/verify {scenario, capture: true})",
+  "scenario": "ambience-air-raid",
+  "meaning": 2,
+  "steps": 6001,
+  "times": {
+    "(1) it is the battle.distant kind": 0,
+    "(1) the Distant War sounds from the start": 0,
+    "(3) it ends 60 s after it began (an end between 89.5 s and 92 s of sim time)": 30.25,
+    "(3) the siren appears once the trigger runs (30 s)": 30.25,
+    "(3) the siren is the alarm.airraid kind": 30.25,
+    "(3) the siren stands at the town and is heard within 800 m": 30.25,
+    "(4) the siren still sounds at 80 s": 79,
+    "(6) the Distant War still sounds at the end": 100
+  },
+  "shots": [],
+  "blasts": [],
+  "snapshots": [
+    {
+      "t": 0,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "976fb61b0c8e7976",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "fec792414e646ab2",
+            "BrainDiagnostics": "940aa03bb6a81367",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 10,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "76a40d70a7845c93",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "754ca42143400955",
+            "BrainDiagnostics": "dbbb3f5aa8b5019b",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "2d4c4a7def028278",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 20,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "51dc22e18eb81033",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "81001865ee0d2a96",
+            "BrainDiagnostics": "9fd2864bb8e3bc80",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "2d4c4a7def028278",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 30,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "1f09a0068059c832",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard1024": "74487e8a7cd0129b",
+            "BrainDiagnostics": "747ac4c0bab026dd",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "4c25c95749e7fc2f",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 40,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Ambience alarm.airraid": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 1,
+            "Ambience.Kind": "alarm.airraid",
+            "Ambience.Until": 90,
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 300
+          },
+          "components": {
+            "Ambience": "8df288062e54557a",
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "7e7a22f7c3b733d7",
+            "EntityInfo": "816b3c5d56300b62",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "ScenarioIgnoreTag": "08f44b07b5901a25",
+            "SimTransform": "a7a72179fe93c6d1",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 50,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Ambience alarm.airraid": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 1,
+            "Ambience.Kind": "alarm.airraid",
+            "Ambience.Until": 90,
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 300
+          },
+          "components": {
+            "Ambience": "8df288062e54557a",
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "7e7a22f7c3b733d7",
+            "EntityInfo": "816b3c5d56300b62",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "ScenarioIgnoreTag": "08f44b07b5901a25",
+            "SimTransform": "a7a72179fe93c6d1",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 60,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Ambience alarm.airraid": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 1,
+            "Ambience.Kind": "alarm.airraid",
+            "Ambience.Until": 90,
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 300
+          },
+          "components": {
+            "Ambience": "8df288062e54557a",
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "7e7a22f7c3b733d7",
+            "EntityInfo": "816b3c5d56300b62",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "ScenarioIgnoreTag": "08f44b07b5901a25",
+            "SimTransform": "a7a72179fe93c6d1",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 70,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Ambience alarm.airraid": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 1,
+            "Ambience.Kind": "alarm.airraid",
+            "Ambience.Until": 90,
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 300
+          },
+          "components": {
+            "Ambience": "8df288062e54557a",
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "7e7a22f7c3b733d7",
+            "EntityInfo": "816b3c5d56300b62",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "ScenarioIgnoreTag": "08f44b07b5901a25",
+            "SimTransform": "a7a72179fe93c6d1",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 80,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Ambience alarm.airraid": {
+          "position": [
+            300,
+            300,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 1,
+            "Ambience.Kind": "alarm.airraid",
+            "Ambience.Until": 90,
+            "EntityInfo.ForceId": "Neutral",
+            "SimTransform.Position.0": 300
+          },
+          "components": {
+            "Ambience": "8df288062e54557a",
+            "CullingState": "9c97051fd4b28240",
+            "EntityGuid": "7e7a22f7c3b733d7",
+            "EntityInfo": "816b3c5d56300b62",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "4997873e8efea0cc",
+            "ResolvedStyle": "43049f24a266e8cb",
+            "ScenarioIgnoreTag": "08f44b07b5901a25",
+            "SimTransform": "a7a72179fe93c6d1",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 90,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    },
+    {
+      "t": 100,
+      "units": {
+        "Air raid at 30 s": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Neutral",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            }
+          },
+          "components": {
+            "ActionArgs": "46d62b7de6a92136",
+            "ActionStatus": "88f697cab6962087",
+            "ActorCapabilityState": "5ff7c7c89fc3fcff",
+            "Behavior": "35ca2761e9f8ca64",
+            "BehaviorStartRecord": "59965f359215bde7",
+            "BehaviorState": "e63d3da9ccac3ff0",
+            "BlueprintAssignments": "650ca72095fa253b",
+            "BlueprintBlackboard1024": "74451155f204d02b",
+            "BrainDiagnostics": "bf861ef3d50e6d02",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "d19f4e8d18a4202b",
+            "EntityGuid": "dd064a5ac99dcabe",
+            "EntityInfo": "0c0ea07efb76f120",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavigationApplied": "a1c6317adb426f09",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "ObjectiveLinks": "30b51633c0d05461",
+            "ObjectiveStatus": "641e399995d06a48",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PreviousCapabilities": "5ff7c7c89fc3fcff",
+            "Roe": "b23a785496f51560",
+            "RuleControl": "7f766deabf61f23b",
+            "RuleEdit": "ef3dc1dd2bf4e7b6",
+            "SimTier": "365b00ecaf6d39dc",
+            "TkbIdentity": "77bb032b2442026f",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78"
+          }
+        },
+        "Distant War": {
+          "position": null,
+          "health": null,
+          "visible": {
+            "Ambience.Intensity": 0.6,
+            "Ambience.Kind": "battle.distant",
+            "Ambience.Until": 0,
+            "EntityInfo.ForceId": "Neutral"
+          },
+          "components": {
+            "Ambience": "67690fa5eb07a825",
+            "EntityGuid": "e5af6f5ace853747",
+            "EntityInfo": "8a76a60b18a8f668",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "TkbIdentity": "658eb52b19b97ed1"
+          }
+        }
+      }
+    }
+  ],
+  "verdicts": {
+    "(1) the Distant War sounds from the start": 0,
+    "(1) it is the battle.distant kind": 0,
+    "(1) it has no position (heard everywhere)": null,
+    "(2) no siren before 30 s": null,
+    "(3) the siren appears once the trigger runs (30 s)": 30.25,
+    "(3) the siren is the alarm.airraid kind": 30.25,
+    "(3) the siren stands at the town and is heard within 800 m": 30.25,
+    "(3) it ends 60 s after it began (an end between 89.5 s and 92 s of sim time)": 30.25,
+    "(4) the siren still sounds at 80 s": 79,
+    "(5) the siren is gone by 95 s": null,
+    "(6) the Distant War still sounds at the end": 100
+  }
+}

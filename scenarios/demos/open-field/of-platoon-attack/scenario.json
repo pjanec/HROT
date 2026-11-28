@@ -1,0 +1,1734 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: CE-2493 open-field suite OF2 - on basic-desert's open field (scattered walls, cars, sandbags, tree clumps, a south ditch), 'Blue Platoon' (3 squads of 5) at x ~80 attacks (PlatoonAttack, AttackPosition round (266,512)) a 6-man 'Red Squad' defending the line at x 260-275 (foxholes + sandbags, SquadDefend) ~185 m east. Judge: the platoon attack (ATP 3-21.8): a squad SUPPORTS by fire from cover while another MANOEUVRES (bounds / fire and movement, the south ditch is the covered flank), the assault goes through, the line is taken (Red beaten, a Blue man on it) within 420 s. Fail: every Blue man still a minute while Red still fights (the ditch war), no squad supporting or none manoeuvring, or the line not taken. Check: scripts/scenario-regression.sh of-platoon-attack"
+  },
+  "entities": {
+    "c2490002-0000-4000-8000-000000000901": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 2,
+        "Template": "brick",
+        "HeadingDeg": 0,
+        "Pad": 1.0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          128,
+          492,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field wall 1",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 14,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000902": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 2,
+        "Template": "brick",
+        "HeadingDeg": 0,
+        "Pad": 1.0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          172,
+          532,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field wall 2",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 12,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000903": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 2,
+        "Template": "brick",
+        "HeadingDeg": 0,
+        "Pad": 1.0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          206,
+          480,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field wall 3",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 13,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000904": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 2,
+        "Template": "brick",
+        "HeadingDeg": 0,
+        "Pad": 1.0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          150,
+          560,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field wall 4",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 10,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000905": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 2,
+        "Template": "brick",
+        "HeadingDeg": 0,
+        "Pad": 1.0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          226,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field wall 5",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 8,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000906": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "car",
+        "HeadingDeg": 90,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          150,
+          518,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field car 1",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000907": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "car",
+        "HeadingDeg": 30,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          196,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field car 2",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000908": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "car",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          232,
+          546,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field car 3",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000909": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "car",
+        "HeadingDeg": 70,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          118,
+          455,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field car 4",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000910": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "sandbag-wall",
+        "HeadingDeg": 90,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          120,
+          506,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field sandbags 1",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000911": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "sandbag-wall",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          186,
+          462,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field sandbags 2",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000912": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "sandbag-wall",
+        "HeadingDeg": 90,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          238,
+          492,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Field sandbags 3",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000913": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 15,
+        "Template": "",
+        "HeadingDeg": 0,
+        "Pad": 6,
+        "Seed": 24930001
+      },
+      "SimTransform": {
+        "Position": [
+          165,
+          568,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Tree clump north",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -8,
+            "Y": -6
+          },
+          {
+            "X": 8,
+            "Y": -6
+          },
+          {
+            "X": 8,
+            "Y": 6
+          },
+          {
+            "X": -8,
+            "Y": 6
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000914": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 15,
+        "Template": "",
+        "HeadingDeg": 0,
+        "Pad": 5,
+        "Seed": 24930002
+      },
+      "SimTransform": {
+        "Position": [
+          222,
+          458,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Tree clump south",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": -7,
+            "Y": -5
+          },
+          {
+            "X": 7,
+            "Y": -5
+          },
+          {
+            "X": 7,
+            "Y": 5
+          },
+          {
+            "X": -7,
+            "Y": 5
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000915": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "ditch",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930003
+      },
+      "SimTransform": {
+        "Position": [
+          110,
+          448,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "South ditch",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          },
+          {
+            "X": 60,
+            "Y": 0
+          },
+          {
+            "X": 120,
+            "Y": 4
+          },
+          {
+            "X": 150,
+            "Y": 10
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000916": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "foxhole",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930010
+      },
+      "SimTransform": {
+        "Position": [
+          262,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Foxhole 1",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000917": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "foxhole",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930011
+      },
+      "SimTransform": {
+        "Position": [
+          266,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Foxhole 2",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000918": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "foxhole",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930012
+      },
+      "SimTransform": {
+        "Position": [
+          262,
+          524,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Foxhole 3",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000919": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "sandbag-wall",
+        "HeadingDeg": 90,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          257,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Line sandbags 1",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000920": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "sandbag-wall",
+        "HeadingDeg": 90,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          260,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Line sandbags 2",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000921": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 8,
+        "Template": "sandbag-wall",
+        "HeadingDeg": 90,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          257,
+          524,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Line sandbags 3",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000960": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "foxhole",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930020
+      },
+      "SimTransform": {
+        "Position": [
+          270,
+          494,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Foxhole 4",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000961": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "foxhole",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930021
+      },
+      "SimTransform": {
+        "Position": [
+          270,
+          530,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Foxhole 5",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000962": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 13,
+        "Template": "foxhole",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 24930022
+      },
+      "SimTransform": {
+        "Position": [
+          274,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Foxhole 6",
+        "ForceId": "Neutral"
+      },
+      "EditablePolyline": {
+        "Points": [
+          {
+            "X": 0,
+            "Y": 0
+          }
+        ],
+        "Version": 0
+      }
+    },
+    "c2490002-0000-4000-8000-000000000050": {
+      "SimTransform": {
+        "Position": [
+          82,
+          510,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Blue Platoon",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "PlatoonAttack",
+        "Params": {
+          "Position": [
+            266,
+            512,
+            0
+          ],
+          "SearchRadius": 20,
+          "Preset": "AttackPosition",
+          "Speed": 2
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          82,
+          470,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000050",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          82,
+          470,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          78,
+          474,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000103": {
+      "SimTransform": {
+        "Position": [
+          74,
+          478,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Grenadier 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000104": {
+      "SimTransform": {
+        "Position": [
+          78,
+          466,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000105": {
+      "SimTransform": {
+        "Position": [
+          74,
+          462,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 1 Grenadier 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000120": {
+      "SimTransform": {
+        "Position": [
+          82,
+          510,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000050",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000121": {
+      "SimTransform": {
+        "Position": [
+          82,
+          510,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000120",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000122": {
+      "SimTransform": {
+        "Position": [
+          78,
+          514,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000123": {
+      "SimTransform": {
+        "Position": [
+          74,
+          518,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Grenadier 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000124": {
+      "SimTransform": {
+        "Position": [
+          78,
+          506,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000125": {
+      "SimTransform": {
+        "Position": [
+          74,
+          502,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 2 Grenadier 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000120",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000140": {
+      "SimTransform": {
+        "Position": [
+          82,
+          550,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000050",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000141": {
+      "SimTransform": {
+        "Position": [
+          82,
+          550,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Leader",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000140",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000142": {
+      "SimTransform": {
+        "Position": [
+          78,
+          554,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Rifleman 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000140",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000143": {
+      "SimTransform": {
+        "Position": [
+          74,
+          558,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Grenadier 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000140",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000144": {
+      "SimTransform": {
+        "Position": [
+          78,
+          546,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Rifleman 3",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000140",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000145": {
+      "SimTransform": {
+        "Position": [
+          74,
+          542,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad 3 Grenadier 4",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000140",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          266,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Red Squad",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": {
+          "Position": [
+            266,
+            512,
+            0
+          ],
+          "SearchRadius": 25,
+          "Speed": 2
+        },
+        "Origin": "Superior"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000201": {
+      "SimTransform": {
+        "Position": [
+          266,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Leader",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000200",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000202": {
+      "SimTransform": {
+        "Position": [
+          262,
+          500,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Rifleman 1",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000200",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000203": {
+      "SimTransform": {
+        "Position": [
+          262,
+          524,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Rifleman 2",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000200",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000204": {
+      "SimTransform": {
+        "Position": [
+          270,
+          494,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Rifleman 3",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000200",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000205": {
+      "SimTransform": {
+        "Position": [
+          270,
+          530,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2004
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Grenadier 4",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000200",
+        "Designation": "Wingman"
+      }
+    },
+    "c2490002-0000-4000-8000-000000000206": {
+      "SimTransform": {
+        "Position": [
+          274,
+          512,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          1,
+          0
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Squad Rifleman 5",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2490002-0000-4000-8000-000000000200",
+        "Designation": "Wingman"
+      }
+    }
+  }
+}

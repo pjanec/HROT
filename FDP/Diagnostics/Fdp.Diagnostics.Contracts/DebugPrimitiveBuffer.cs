@@ -65,10 +65,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
 
         /// <summary>⭐ CE-1071 — the meta primitives a frame cannot lose: the layer mask, the menus, a tool's input capture and a
         /// panel. Never refused by layer, never dropped on overflow (they evict a plain primitive).</summary>
-        public static bool IsProtected(DebugPrimitiveShape shape)
-            => shape is DebugPrimitiveShape.LayerControlMask or DebugPrimitiveShape.InputCaptureBinding
-                     or DebugPrimitiveShape.ContextMenuBinding or DebugPrimitiveShape.MainMenuBinding
-                     or DebugPrimitiveShape.StructInspector;
+        public static bool IsProtected(DebugPrimitiveShape shape) => PrimitiveKind.IsProtected(shape);   // ⭐ CC-14 — the one classifier (anchors included, CC-16)
 
         /// <summary>⭐ CE-1160 — a PICK TARGET: an invisible <see cref="DebugPrimitiveShape.Box2D"/> carrying an anchor id, emitted purely so
         /// the terminal's hit-test can find the entity (<c>EntityPresentationGizmoShared.EmitPickBox</c>, <c>DebugPrimitive.MakePickSegment</c>).
@@ -76,12 +73,11 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         /// menu."</i> 🔴 It sits on layer 0 (so a tool handle on a higher layer still wins the pick), and CE-1071 refused hidden layers at
         /// emit ⇒ turning <c>Entities</c> off removed every pick box: no hover, no selection, no entity menu. Never refused by layer and
         /// never evicted for a protected primitive (like an anchor); it is drawn by nobody, so the mask has nothing to hide.</summary>
-        public static bool IsPickTarget(in DebugPrimitive p)
-            => p.Shape == DebugPrimitiveShape.Box2D && p.BoxAnchorId != 0 && p.Color.A == 0 && p.FillColor.A == 0;
+        public static bool IsPickTarget(in DebugPrimitive p) => PrimitiveKind.IsPickTarget(in p);   // ⭐ CC-14 — moved down; this forwards
 
         private bool RefusedByLayer(in DebugPrimitive p)
         {
-            if (!_layersKnown || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor || IsPickTarget(in p)) return false;
+            if (!_layersKnown || PrimitiveKind.IsLayerExempt(in p)) return false;
             if (_activeLayers.IsSet(p.DebugLayer)) return false;
             Interlocked.Increment(ref _suppressedCount);
             return true;
@@ -95,8 +91,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             {
                 for (int i = Math.Min(_evictFrom, _primitives.Length - 1); i >= 0; i--)
                 {
-                    var shape = _primitives[i].Shape;
-                    if (IsProtected(shape) || shape == DebugPrimitiveShape.SpatialAnchor || IsPickTarget(in _primitives[i])) continue;
+                    if (PrimitiveKind.IsLayerExempt(in _primitives[i])) continue;
                     _primitives[i] = p;
                     _evictFrom = i - 1;
                     Interlocked.Increment(ref _droppedCount);
@@ -209,6 +204,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             _droppedCount = 0;
             _suppressedCount = 0;
             _evictFrom    = int.MaxValue;
+            _scopeSlot    = NoScope;
+            EmptyScopesDropped = 0;
+            _foreignInScope = 0;
         }
 
         /// <summary>
@@ -223,13 +221,104 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             //   gizmo emitting without an identity.
             DebugPrimitive.AssertHasIdentity(in primitive);
             if (RefusedByLayer(in primitive)) return;   // ⭐ CE-1071
+            if (Volatile.Read(ref _scopeSlot) >= 0 && Environment.CurrentManagedThreadId != _scopeThread)
+                Interlocked.Increment(ref _foreignInScope);   // ⭐ S1d-1 (R7-13) — a foreign primitive inside a HUD run
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = primitive;
-            else if (IsProtected(primitive.Shape))
+            else if (PrimitiveKind.IsProtected(in primitive))
                 StoreProtectedWhenFull(in primitive);   // ⭐ CE-1071
             else
                 Interlocked.Increment(ref _droppedCount);
+        }
+
+        // ⭐⭐⭐ Simulated devices S1d-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-41 / R4-5 / R5-7 / R6-5 / R6-9) — A HUD SCOPE:
+        //   the SYSTEM that runs a HUD projector opens a scope for the projector's source, the projector draws, the system closes it — and the
+        //   primitives in between are the source's HUD run, drawn ONLY by a view bound to that source (HudScopes.Keep). One scope open at a time,
+        //   one writer while it is open (R7-13: the projectors run serially; the threaded node's contiguity is railed).
+        private const int NoScope = -1, UnstoredScope = -2;
+        private int _scopeSlot = NoScope;
+        private int _scopeThread;
+        private int _foreignInScope;
+
+        /// <summary>⭐ S1d-1 (R7-13) — primitives appended by ANOTHER thread while a scope was open, this frame: each one is a foreign primitive
+        /// inside a HUD run (the scope assumes one writer). 0 is the invariant; a non-zero value means the scope must be written per producer
+        /// and merged. The check is one compare per append.</summary>
+        public int ForeignAppendsInScope => Volatile.Read(ref _foreignInScope);
+
+        /// <summary>⭐ S1d-1 — scopes this frame that were dropped empty (a rail reads it).</summary>
+        public int EmptyScopesDropped { get; private set; }
+
+        /// <summary>
+        /// ⭐ S1d-1 (D-41) — opens a HUD scope for <paramref name="sourceNetworkId"/>: every primitive appended until <see cref="EndScope"/> is that
+        /// source's HUD run. Returns the scope's slot, or −1 when the buffer is FULL (the scope is not stored — the run it would own cannot be
+        /// stored either; counted in <see cref="DroppedCount"/>). An unclosed earlier scope is closed first. ⛔ Never refused by layer (a scope is
+        /// protected). 0 B.
+        /// </summary>
+        public int BeginScope(long sourceNetworkId)
+        {
+            if (_scopeSlot != NoScope) EndScope();
+            int slot = Interlocked.Increment(ref _count) - 1;
+            if ((uint)slot < (uint)_primitives.Length)
+            {
+                _primitives[slot] = HudScopes.Make(sourceNetworkId);
+                _scopeThread = Environment.CurrentManagedThreadId;
+                Volatile.Write(ref _scopeSlot, slot);
+                return slot;
+            }
+            Interlocked.Decrement(ref _count);   // nothing was stored: give the cursor back (the overflow count stays honest)
+            Interlocked.Increment(ref _droppedCount);
+            _scopeSlot = UnstoredScope;
+            return -1;
+        }
+
+        /// <summary>
+        /// ⭐ S1d-1 (D-41, R5-7) — closes the open scope: its <see cref="DebugPrimitive.HudScopeCount"/> is stamped at the scope's ACTUAL slot — the
+        /// primitives STORED after it (a run that overflowed keeps the part that fit, still scoped: ⛔ a count of 0 there would release that part to
+        /// every reader). An EMPTY scope is dropped (the cursor rolled back when it is the last primitive; else it stays as a count-0 meta shape every
+        /// drawer skips). A slot inside the run that a protected primitive took on overflow (<c>StoreProtectedWhenFull</c>) is a meta shape — skipped
+        /// by every drawer, already counted in <see cref="DroppedCount"/>. Returns the run's length. 0 B.
+        /// </summary>
+        public int EndScope()
+        {
+            int slot = _scopeSlot;
+            Volatile.Write(ref _scopeSlot, NoScope);
+            if (slot < 0) return 0;
+            int stored = Math.Min(Volatile.Read(ref _count), _primitives.Length);
+            int run = stored - (slot + 1);
+            if (run <= 0)
+            {
+                if (Volatile.Read(ref _count) == slot + 1) Interlocked.Decrement(ref _count);
+                else _primitives[slot].HudScopeCount = 0;
+                EmptyScopesDropped++;
+                return 0;
+            }
+            _primitives[slot].HudScopeCount = run;
+            return run;
+        }
+
+        /// <summary>
+        /// ⭐ S1d-1 (D-41 "a re-appended reused picture's scopes are re-stamped") — re-appends a HELD picture (CE-1480 G5 / CE-2402): each scope in it
+        /// is re-opened and re-closed around its run, so its count is true for THIS frame's slots (a picture that no longer fits keeps a scope that
+        /// owns only what was stored). 0 B.
+        /// </summary>
+        public void AppendHeld(ReadOnlySpan<DebugPrimitive> held)
+        {
+            int closeAt = -1;
+            for (int k = 0; k < held.Length; k++)
+            {
+                if (HudScopes.IsScope(in held[k]))
+                {
+                    if (closeAt >= 0) { EndScope(); closeAt = -1; }
+                    BeginScope(held[k].HudScopeSource);
+                    closeAt = HudScopes.After(held, k);
+                    if (closeAt == k + 1) { EndScope(); closeAt = -1; }
+                    continue;
+                }
+                AppendRaw(in held[k]);
+                if (k + 1 == closeAt) { EndScope(); closeAt = -1; }
+            }
+            if (closeAt >= 0) EndScope();
         }
 
         // IDebugDrawBuilder.EmitRaw -- forwards to AppendRaw so the interaction manager
@@ -273,7 +362,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             for (int i = fromIndex; i < to; i++)
             {
                 ref var p = ref _primitives[i];
-                if (p.DebugLayer != 0 || IsProtected(p.Shape) || p.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
+                if (p.DebugLayer != 0 || PrimitiveKind.IsLayerExempt(in p)) continue;   // ⭐ CC-16 — a pick target keeps its layer too
                 p.DebugLayer = layer;
             }
         }
@@ -306,6 +395,9 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
             _droppedCount = 0;
             _suppressedCount = 0;
             _evictFrom    = int.MaxValue;
+            _scopeSlot    = NoScope;
+            EmptyScopesDropped = 0;
+            _foreignInScope = 0;
 
             // Re-inject surviving persistent primitives into the start of the transient buffer.
             for (int i = 0; i < _persistentCount; i++)
@@ -634,10 +726,12 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             DebugPrimitive.AssertHasIdentity(in p);
             if (RefusedByLayer(in p)) return;   // ⭐ CE-1071 — a hidden layer is not stored, and not persisted either
+            if (Volatile.Read(ref _scopeSlot) >= 0 && Environment.CurrentManagedThreadId != _scopeThread)
+                Interlocked.Increment(ref _foreignInScope);   // ⭐ S1d-1 (R7-13) — a foreign primitive inside a HUD run
             int slot = Interlocked.Increment(ref _count) - 1;
             if ((uint)slot < (uint)_primitives.Length)
                 _primitives[slot] = p;
-            else if (IsProtected(p.Shape))
+            else if (PrimitiveKind.IsProtected(in p))
                 StoreProtectedWhenFull(in p);   // ⭐ CE-1071
             else
                 Interlocked.Increment(ref _droppedCount);

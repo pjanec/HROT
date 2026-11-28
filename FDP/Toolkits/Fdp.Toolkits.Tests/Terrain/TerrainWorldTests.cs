@@ -113,6 +113,37 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.All(results, r => Assert.Same(results[0], r));
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-5056</c> (Terrain World §6: an OVERHEAD piece does not take the ground away) — the ground grid keeps the ground under a solid prism that starts
+        /// above step reach (a pitched roof's cap at the eaves: the importer writes it as a building block with a <c>baseZ</c>), and still cuts it under one
+        /// standing on the ground. 📐 Village-street: every capped house lost the ground under it AND a strip outside its walls (coarse cells), so its doors
+        /// opened onto a hole in the navmesh — 25 doors with no path in. 🔒 Red-proof: drop the <c>Overhead</c> test in <c>GroundBins</c> ⇒ the first half is red.
+        /// </summary>
+        [Fact]
+        public void CE5056_AnOverheadBlock_KeepsTheGroundUnderIt_ABlockOnTheGroundCutsIt()
+        {
+            var w = TerrainWorldParser.Parse("""
+                {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,40],"groundZ":0},"features":[
+                  {"type":"Feature","properties":{"kind":"building","height":2,"baseZ":8,"floors":0,"label":"cap"},
+                   "geometry":{"type":"Polygon","coordinates":[[[10,10],[20,10],[20,20],[10,20],[10,10]]]}},
+                  {"type":"Feature","properties":{"kind":"building","height":3,"floors":1,"label":"block"},
+                   "geometry":{"type":"Polygon","coordinates":[[[40,10],[50,10],[50,20],[40,20],[40,10]]]}}]}
+                """);
+            TerrainWorldMesh.Build(w, out var v, out var idx, cellSize: 2f);
+            int GroundTrianglesIn(float x0, float y0, float x1, float y1)
+            {
+                int n = 0;
+                for (int t = 0; t + 2 < idx.Length; t += 3)
+                {
+                    var c = (v[idx[t]] + v[idx[t + 1]] + v[idx[t + 2]]) / 3f;
+                    if (MathF.Abs(c.Z) < 0.01f && c.X > x0 && c.X < x1 && c.Y > y0 && c.Y < y1) n++;
+                }
+                return n;
+            }
+            Assert.True(GroundTrianglesIn(11, 11, 19, 19) >= 2 * 16, "the ground under the overhead cap must stay");   // 4 x 4 cells of 2 m, two triangles each
+            Assert.Equal(0, GroundTrianglesIn(41, 41 - 30, 49, 49 - 30));                                              // under the block standing on the ground: cut
+        }
+
         private static Vector3 Normal(Vector3[] v, int[] idx, int t)
             => Vector3.Cross(v[idx[t + 1]] - v[idx[t]], v[idx[t + 2]] - v[idx[t]]);
 
@@ -259,7 +290,7 @@ namespace Fdp.Toolkit.Terrain.Tests
         {
             var world = TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,800,800]},"features":[]}""");
             var alone = TerrainGridCoverage.ColliderGrid(world);
-            Assert.True(alone.OriginY + 300 * alone.CellSize < 1000f, "the terrain alone: the collider grid ends near 850 (the live run's)");
+            Assert.True(alone.OriginY + 300 * alone.CellSize < 1200f, "the terrain alone: the collider grid ends near the terrain + its margin (850 in the live run; 1050 with CE-4694's 250 m margin) — far short of the net's 4400");
             world.AttachBeyond(new BeyondGround((_, _) => 0f, new[] { new Vector2(-1500f, -1500f), new Vector2(3000f, -1500f), new Vector2(3000f, 4400f), new Vector2(-1500f, 4400f) }));
             foreach (var (g, cells) in new[] { (TerrainGridCoverage.ColliderGrid(world), SpatialHashConstantsWidth()), (TerrainGridCoverage.PerceptionGrid(world), 200) })
             {

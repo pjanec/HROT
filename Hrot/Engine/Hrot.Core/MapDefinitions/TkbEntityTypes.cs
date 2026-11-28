@@ -24,6 +24,9 @@ namespace Hrot.Map.Common
         public const long Technical_Zu23 = 110;
         /// <summary>⭐ 2026-10-31 — the HMMWV (102) with NO crew: the M2 in its roof ring, the gunner and driver seats empty (a player takes them).</summary>
         public const long Truck_HMMWV_NoCrew = 111;
+        /// <summary>⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.2 D-1″) — the OBSERVER HMMWV: the no-crew HMMWV plus a COMMANDER seat (6) and the device
+        /// STATION (7) it operates, which starts with a laser rangefinder (<see cref="Device_LaserRangefinder"/>). 120 measured free on every lane 2026-11-28.</summary>
+        public const long Truck_HMMWV_Observer = 120;
         /// <summary>⭐ <c>CE-6006</c> (showcase world, DESIGN_City_Battle_Showcase §6 / D-6) — the BULLDOZER: a D9-class armoured engineering dozer, tracked, no weapon. ⛔ A permanent wire value: never reuse or renumber it.</summary>
         public const long Engineer_Bulldozer = 112;
         /// <summary>⭐ <c>CE-7014</c> (City Battle §11 R-2) — the HMMWV (102) carrying a DRONE JAMMER (a 400 m bubble, <c>JammerDto</c>): an enemy drone inside
@@ -44,6 +47,13 @@ namespace Hrot.Map.Common
         /// turret flamethrower in place of the gun, the coax and the smoke dischargers kept. DIS 1.1.225.1.20 (a tank; 20 HROT-local). ⛔ A permanent wire
         /// value (117 measured free on every lane 2026-11-19).</summary>
         public const long Tank_FlameM67 = 117;
+        /// <summary>⭐ <c>CE-4693</c> (BL-S3; docs/designs/engineering/DESIGN_Bridge_Laying.md §12) — the ASSAULT BRIDGE LAYER: an M1-chassis bridge launcher (the M104 Wolverine's
+        /// figures) carrying one assault span (8825). DIS 1.1.*.9.3 (beside the dozer 9.1 and the mine clearer 9.2), class <c>"AssaultBridgeLayer"</c>.
+        /// ⛔ A permanent wire value (118 measured free on every lane 2026-11-25).</summary>
+        public const long Engineer_AssaultBridgeLayer = 118;
+        /// <summary>⭐ <c>CE-4693</c> (BL-S4) — the FLOATING-BRIDGE ENGINEER: a wheeled bridge transporter laying a floating span (8826) as long as its river.
+        /// DIS 1.1.*.7.1 (a large wheeled utility vehicle), class <c>"FloatingBridgeEngineer"</c>. ⛔ A permanent wire value (119 measured free on every lane 2026-11-25).</summary>
+        public const long Engineer_FloatingBridge = 119;
 
         // ⛔ PERMANENT WIRE VALUES. ⭐ CE-4623 AB-1 (docs/designs/animals/DESIGN_Animals.md §4a, R-4269) — the ANIMALS: 700…711 the species
         //   (TKB order = AnimalSpecies, the sound block's species index), 712 the domestic animal AREA. 700–799 measured free on every lane 2026-11-16.
@@ -95,6 +105,19 @@ namespace Hrot.Map.Common
         /// <summary>⭐ CE-3233 (B-11b, AW-12; §7.13 ST-8) — an EXPLOSIVE CHARGE: worn in a hidden station, placed, or in a car's cargo
         /// station; never fired, only set off where it stands.</summary>
         public const long WeaponSystem_ExplosiveCharge = 618;
+
+        // ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4) — DEVICES (640–659, measured free on every lane
+        //   2026-11-28): items a trainee operates whose logic is a behaviour on their own brain (Gen.Device). ⛔ PERMANENT WIRE VALUES.
+        /// <summary>⭐ S1e-1 — a hand-held LASER RANGEFINDER (7×, RANGE / MODE / MENU / SELECT): carried in a kit station or mounted in a device station.</summary>
+        public const long Device_LaserRangefinder = 640;
+        /// <summary>⭐ S1e-1 — BINOCULARS as a device (5× / 7× / 10×, ZOOM IN / ZOOM OUT) — the trainee's optic (D-75 replaced CE-1219's station binoculars).</summary>
+        public const long Device_Binoculars = 641;
+        /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION (hand-held kit device): POWER · ARM · TAKEOFF · LAND · RTH · CAM UP · CAM DOWN and four
+        /// stick axes (Mode 2); it flies the drone its <c>ControlledEntities</c> slot 0 names.</summary>
+        public const long Device_DroneStation = 642;
+        /// <summary>⭐ SD-S5c (§3.13d D-113) — a LASER TARGET DESIGNATOR (hand-held kit device, 10×): POWER · LASE · CODE · RANGE; lases a coded band-2 beam for at
+        /// most 60 s, then cools 30 s.</summary>
+        public const long Device_LaserDesignator = 643;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;
@@ -170,6 +193,10 @@ namespace Hrot.Map.Common
         //   floor, ceiling, the shot cap, the stalemate). A map graphic, no body. ⛔ PERMANENT WIRE VALUE; 8840 measured free on every origin
         //   branch's TkbEntityTypes.cs and nowhere else in the tree (`git grep 8840`), 2026-11-17.
         public const long AirArena               = 8840;
+        // ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md AM-2) — an AMBIENCE LAYER: an entity carrying Ambience { Kind, Intensity, Radius, Until } — positionless (no SimTransform)
+        //   = heard everywhere, with a SimTransform = heard within its Radius. Created by the scenario (an authored layer) or by the SetAmbience action. ⛔ PERMANENT WIRE VALUE;
+        //   8841 measured free on every origin branch's TkbEntityTypes.cs and nowhere else in the tree (`git grep 8841`), 2026-11-22.
+        public const long AmbienceLayer          = 8841;
         // ⭐ CE-5010 (docs/DESIGN_Terrain_Editor_UX.md §5 TE-5, R-4264) — the three clutter-only boxes become obstacle types too, so a row of barrels / jersey barriers / booths is real obstacle ENTITIES.
         //   ⛔ PERMANENT WIRE VALUES; 8820–8822 measured free (no use in any origin branch's TkbEntityTypes.cs, nor anywhere in the tree), 2026-11-16.
         public const long Obstacle_Barrel        = 8820;
@@ -179,6 +206,10 @@ namespace Hrot.Map.Common
         //   ⛔ PERMANENT WIRE VALUES; 8823–8824 measured free on every origin branch's TkbEntityTypes.cs and nowhere else in the tree, 2026-11-18.
         public const long Obstacle_BarrelWater   = 8823;
         public const long Obstacle_BarrelSand    = 8824;
+        /// <summary>⭐ <c>CE-4692</c> BL-1 — a LAID BRIDGE (a walkable-deck static obstacle, docs/designs/engineering/DESIGN_Bridge_Laying.md): the ASSAULT span a bridge-layer
+        /// vehicle launches, and the FLOATING span (pontoon bays). ⚠ Placeholder figures until Q-6 (BL-S3) fills them from open sources.</summary>
+        public const long Obstacle_AssaultBridge  = 8825;
+        public const long Obstacle_FloatingBridge = 8826;
 
         /// <summary>The starter obstacle types (O4; ⭐ CE-5010 adds the barrel, the jersey barrier and the guard booth — seven).</summary>
         public static readonly long[] Obstacles = { Obstacle_Car, Obstacle_SandbagWall, Obstacle_ConcreteBlock, Obstacle_Crate, Obstacle_Barrel, Obstacle_JerseyBarrier, Obstacle_GuardBooth, Obstacle_BarrelWater, Obstacle_BarrelSand };
@@ -273,6 +304,12 @@ namespace Hrot.Map.Common
         /// breath on its neck turret, a rider and a firing pillion (411 — the aircraft block, free on every lane <c>2026-11-19</c>; defined by
         /// <c>FunTkbCatalog</c>, R-4281).</summary>
         public const long Dragon = 411;
+
+        /// <summary>⭐⭐ <c>CE-3490</c> BA-9 (docs/designs/air-attack/DESIGN_Breath_Attack.md §7, user 2026-11-19: "Sure i want flame heli") — the FLAME HELICOPTER:
+        /// the AH-64 airframe with a flame projector on its chin turret (the flame tank's fuel, 60 m) in place of the M134, its Hydra-70 pod kept — it breathes on
+        /// what burns (the breath attack) and rockets what does not. DIS 1.2.225.20.0.1 (the AH-64's, specific 1). ⛔ A permanent wire value (412 measured
+        /// free on every lane 2026-11-19).</summary>
+        public const long Heli_AH64Flame = 412;
 
         // Composite Units
         public const long Unit_TankPlatoon = 301;

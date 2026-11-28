@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
 using Fdp.Presentation.Forms;
@@ -255,6 +256,89 @@ public sealed class TheUnitFormDrawsTests
         Assert.True(summary.AppliesTo(DetailsContext.Empty("Scenario") with { Entities = new[] { bare } }));
     }
 
+    /// <summary>
+    /// ⭐ CE-6501 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13) — a bridge engineer's Unit form: the <b>Bridge</b> row says what it does with its span
+    /// (<c>BridgeLayerLook</c>: carried with the count, laying, no span), and the <b>Refused</b> row appears only while its replicated refusal is set, in
+    /// <c>BridgeLaying.Say</c>'s words; a man has neither row. 🔒 Red-proof (compiles): <c>BridgeFacts.IsRefused</c> answering true always ⇒ the clean engineer shows a Refused row ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE6501_ABridgeEngineer_ShowsItsSpan_AndItsRefusalOnlyWhileRefused()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BridgeCarried>(); world.RegisterComponent<Health>();
+        var engineer = world.CreateEntity();
+        world.AddComponent(engineer, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 1, BridgeType = 8825 });
+        var man = world.CreateEntity();
+        world.AddComponent(man, new Health { Current = 100, Max = 100 });
+        FormField Row(string label) => HrotForms.Unit.Fields.First(f => f.Label == label);
+
+        Assert.True(Row("Bridge").Has!(world, engineer));
+        Assert.Equal("Carried — 1 span", Row("Bridge").ReadText!(world, engineer).ToString());
+        Assert.False(Row("Refused").Has!(world, engineer));
+        Assert.False(Row("Bridge").Has!(world, man));
+
+        world.SetComponent(engineer, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 1, BridgeType = 8825, Refusal = Fdp.Toolkit.Terrain.BridgeRefusal.NoWater, GapM = 0f });
+        Assert.True(Row("Refused").Has!(world, engineer));
+        Assert.Equal("there is no water between the two banks", Row("Refused").ReadText!(world, engineer).ToString());
+
+        world.SetComponent(engineer, new Fdp.Toolkit.Terrain.BridgeCarried { Count = 0, BridgeType = 8825 });
+        Assert.Equal("No span on board (laid)", Row("Bridge").ReadText!(world, engineer).ToString());
+        Assert.False(Row("Refused").Has!(world, engineer));
+    }
+
+    /// <summary>
+    /// ⭐ CE-11061 (docs/DESIGN_Injury_States.md §9, mockup UX/revive-visual.svg) — the Strength row's trailing REVIVE in a real frame: offered for a dead man and
+    /// a hurt one, not for a man at full health; a click submits ONE <c>Revive</c> op for him (and never a Health write — R-11021: the number sets only the
+    /// number); the steady frame allocates nothing. 🔴 Red-proof (compiles): <c>ReviveOffered</c> answering false ⇒ red. Renders <c>unit-form-revive.png</c>.
+    /// </summary>
+    [SkippableFact]
+    public void CE11061_TheStrengthRow_OffersReviveWhileHeIsHurt_AndAClickSubmitsOneRevive()
+    {
+        Skip.IfNot(UiFrameHarness.IsAvailable(), UiFrameHarness.UnavailableReason);
+        ComponentTypeRegistry.Clear();
+        using var world = new EntityRepository();
+        world.RegisterComponent<EntityInfo>(); world.RegisterComponent<Health>(); world.RegisterComponent<NetworkIdentity>();
+        var dead = world.CreateEntity();
+        world.AddComponent(dead, new EntityInfo { Name = new FixedString64("Pvt. Novak"), ForceId = ForceId.Friend });
+        world.AddComponent(dead, new Health { Current = 0, Max = 100 });
+        var whole = world.CreateEntity();
+        world.AddComponent(whole, new EntityInfo { Name = new FixedString64("Pvt. Lee"), ForceId = ForceId.Friend });
+        world.AddComponent(whole, new Health { Current = 100, Max = 100 });
+
+        HrotForms.EnsureRegistered();
+        int strength = FieldIdx("Strength");
+        var ops = new List<Fdp.Toolkit.Replication.Edits.EditOp>();
+        var view = new FormView { Submit = (w, op) => { ops.Add(op); return new Fdp.Toolkit.Replication.Edits.EditTicket(Guid.NewGuid(), Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested); } };
+        var sel = new[] { dead };
+        using var frame = UiFrameHarness.Begin(700, 420);
+        Action draw = () =>
+        {
+            ImGui.SetNextWindowPos(new System.Numerics.Vector2(10, 10)); ImGui.SetNextWindowSize(new System.Numerics.Vector2(460, 360));
+            ImGui.Begin("Details##unit-revive");
+            view.Draw(HrotForms.Unit, world, sel, editable: true);
+            ImGui.End();
+        };
+        for (int i = 0; i < 5; i++) frame.Step(draw);
+        Assert.Contains("Strength = 0 / 100", view.Rows);
+        Assert.True(view.ActionOfferedForTest(strength, world, sel));
+        Assert.False(view.ActionOfferedForTest(strength, world, new[] { whole }));
+        Assert.True(Hrot.Presentation.Forms.HrotForms.ReviveOffered(world, dead));
+        world.SetComponent(dead, new Health { Current = 60, Max = 100 });
+        Assert.True(Hrot.Presentation.Forms.HrotForms.ReviveOffered(world, dead));   // wounded: offered too (RV-2)
+        world.SetComponent(dead, new Health { Current = 0, Max = 100 });
+        if (Environment.GetEnvironmentVariable("HROT_RAIL_SHOTS") is { Length: > 0 } dir) frame.Screenshot(System.IO.Path.Combine(dir, "unit-form-revive.png"));
+
+        long before = GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 3; i++) frame.Step(draw);
+        Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);   // the button costs nothing per frame
+
+        view.RunActionForTest(strength, world, sel);
+        var op = Assert.Single(ops);
+        Assert.Equal((Fdp.Toolkit.Replication.Edits.EditKind.Revive, dead), (op.Kind, op.Target));
+        frame.Step(draw);
+        Assert.Equal(FormMark.Pending, view.MarkOf(strength));   // the row waits for the owner's answer
+    }
+
     /// <summary>⭐ U-24 / S5 (DESIGN_Initial_State §3) — the Unit form's <b>Carried by</b> list in a real frame: a man a SOLDIER drags reads <c>["Dragged", "&lt;carrier&gt;"]</c> and <i>Aboard</i> (vehicles) shows nothing for him; a pick of something that is no
     /// soldier is refused with the reason; the 4-argument <c>EmbarkOrders.Embark</c> publishes the command with the carry mode. ⏳ Changing the mode of a man already aboard is not offered: <c>Embarkation.TryEmbark</c> answers
     /// <i>AlreadyAboard</i> without touching the mode (set at boarding only), so a "Carried as" field would need a backend op — recorded, not built. 🔴 Red-proof (compiles): <c>FillAboard</c> not skipping a person carrier ⇒ a second row ⇒ red.</summary>
@@ -319,7 +403,7 @@ public sealed class TheUnitFormDrawsTests
         using var world = new EntityRepository();
         world.RegisterComponent<EntityInfo>(); world.RegisterComponent<NetworkIdentity>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(); world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
-        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         world.RegisterEvent<Fdp.Toolkit.Behavior.Events.EmbarkEntityCommand>();
         byte carried = (byte)Fdp.Toolkit.Tkb.Domain.MountKinds.Carried;
         Entity Weapon(string name, int net)
@@ -327,7 +411,7 @@ public sealed class TheUnitFormDrawsTests
             var wpn = world.CreateEntity();
             world.AddComponent(wpn, new EntityInfo { Name = new FixedString64(name) });
             world.AddComponent(wpn, new NetworkIdentity(net));
-            world.AddComponent(wpn, new Fdp.Toolkit.Combat.WeaponSystemParams { MountKinds = carried });
+            world.AddComponent(wpn, new Fdp.Toolkit.Combat.WeaponSystemParams()); world.AddComponent(wpn, new Fdp.Toolkit.Combat.Mountable { MountKinds = carried });
             return wpn;
         }
         var crate = world.CreateEntity();

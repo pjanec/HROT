@@ -100,6 +100,11 @@ public sealed class EffectRulesTests
         var onTank = Assert.Single(specs, s => s.EffectType == EffectTkbCatalog.ExplosionSmall);
         Assert.Equal(EffectSurface.Vehicle, onTank.Surface);
         Assert.DoesNotContain(specs, s => s.EffectType == EffectTkbCatalog.DecalSmall);   // VE-M: no mark on a body
+        // ⭐ CE-11010 (RR-10) — each effect a HIT made says what it struck (the explosion on the tank names the tank; the ground burst names none); a shot's flash says nothing
+        Assert.Equal((tank, (byte)EffectSurface.Vehicle, 25f), (onTank.Cause!.Value.Target, onTank.Cause.Value.Surface, onTank.Cause.Value.Damage));
+        Assert.Equal((Entity.Null, (byte)EffectSurface.Ground, 1100f), (big.Cause!.Value.Target, big.Cause.Value.Surface, big.Cause.Value.Damage));
+        Assert.Equal(Entity.Null, mark.Cause!.Value.Target);
+        Assert.Null(flash.Cause);
         // ⭐ the order the map makes them: the shot's flash, then each detonation's explosion and its mark
         Assert.Equal([EffectTkbCatalog.MuzzleFlashLarge, EffectTkbCatalog.ExplosionLarge, EffectTkbCatalog.DecalLarge, EffectTkbCatalog.ExplosionSmall],
                      specs.Select(s => s.EffectType).ToArray());
@@ -147,5 +152,21 @@ public sealed class EffectRulesTests
         for (int i = 0; i < 100; i++) EffectRules.ForFrame(world, tkb, specs);
         Assert.Equal(0L, GC.GetAllocatedBytesForCurrentThread() - before);
         Assert.Empty(specs);
+    }
+
+    /// <summary>⭐ CE-11009 (RR-9) — a terrain material's name folds to the impact's material through its thermal class (the shared library), unknown names to
+    /// Unknown; an impact's material rides on every effect it makes (RR-10). 🔒 Red-proved: the impact's Cause without the material ⇒ red.</summary>
+    [Fact]
+    public void RR9_AnImpactsMaterial_IsTheTerrainMaterialsThermalClass_AndRidesOnItsEffects()
+    {
+        Assert.Equal(Fdp.Toolkit.Combat.ImpactMaterial.Concrete, Fdp.Toolkit.Combat.ImpactMaterials.Of("concrete"));
+        Assert.Equal(Fdp.Toolkit.Combat.ImpactMaterial.Unknown, Fdp.Toolkit.Combat.ImpactMaterials.Of("no-such-material"));
+        Assert.Equal(Fdp.Toolkit.Combat.ImpactMaterial.Vegetation, Fdp.Toolkit.Combat.ImpactMaterials.OfThermalClass("dense-vegetation"));
+
+        var (world, tkb) = World();
+        var hit = new RoundImpactNotification { X = 5, Y = 5, Z = 0, NormalZ = 1, TravelX = 1, Kind = 2, Material = (byte)Fdp.Toolkit.Combat.ImpactMaterial.Brick };
+        var specs = new List<EffectSpec>();
+        Assert.True(EffectRules.ForImpact(in hit, world, tkb, specs) > 0);
+        Assert.All(specs, sp => Assert.Equal((byte)Fdp.Toolkit.Combat.ImpactMaterial.Brick, sp.Cause!.Value.Material));
     }
 }

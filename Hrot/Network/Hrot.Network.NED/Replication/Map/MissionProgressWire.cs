@@ -24,6 +24,7 @@ namespace Hrot.Map.Common.Replication
                 case MissionPhaseOutcome.Done:   return eTaskState.TASK_DONE;
                 case MissionPhaseOutcome.Failed: return eTaskState.TASK_FAILED;
             }
+            if (index == queue.CurrentTask && queue.Halted == MissionPlanQueue.HaltedHeldByOrder) return eTaskState.TASK_HELD;   // ⭐ CE-3494
             return index == queue.CurrentTask && queue.Halted == 0 ? eTaskState.TASK_ACTIVE : eTaskState.TASK_PLANNED;
         }
 
@@ -41,7 +42,7 @@ namespace Hrot.Map.Common.Replication
         public static void Decode(IReadOnlyList<eTaskState> states, ref MissionPlanQueue queue)
         {
             int count = queue.TaskCount;
-            int active = -1, haltedOn = -1;
+            int active = -1, haltedOn = -1, held = -1;
             for (int i = 0; i < count && i < states.Count; i++)
             {
                 switch (states[i])
@@ -51,13 +52,15 @@ namespace Hrot.Map.Common.Replication
                     default:                     queue.Outcomes[i] = MissionPhaseOutcome.None;   break;
                 }
                 if (states[i] == eTaskState.TASK_ACTIVE && active < 0) active = i;
+                if (states[i] == eTaskState.TASK_HELD && held < 0) held = i;   // ⭐ CE-3494 — a held plan, not a finished one
                 if (states[i] == eTaskState.TASK_FAILED && i + 1 < count && i + 1 < states.Count
                     && states[i + 1] == eTaskState.TASK_PLANNED)
                     haltedOn = i;
             }
 
-            if (active >= 0)        { queue.CurrentTask = (byte)active;   queue.Halted = 0; }
-            else if (haltedOn >= 0) { queue.CurrentTask = (byte)haltedOn; queue.Halted = 1; }
+            if (held >= 0)          { queue.CurrentTask = (byte)held;     queue.Halted = MissionPlanQueue.HaltedHeldByOrder; }
+            else if (active >= 0)   { queue.CurrentTask = (byte)active;   queue.Halted = 0; }
+            else if (haltedOn >= 0) { queue.CurrentTask = (byte)haltedOn; queue.Halted = MissionPlanQueue.HaltedFaulted; }
             else                    { queue.CurrentTask = (byte)count;    queue.Halted = 0; }
         }
 

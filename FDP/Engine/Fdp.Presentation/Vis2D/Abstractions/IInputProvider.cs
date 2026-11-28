@@ -31,5 +31,24 @@ namespace Fdp.Toolkit.Vis2D.Abstractions
         /// false gives it back. Default: nothing (a headless or test provider has no cursor).
         /// </summary>
         void SetCursorLocked(bool locked) { }
+
+        /// <summary>⭐ SD-S5v (devices §3.13e D-123) — puts the cursor at <paramref name="position"/> (the view's pixels): a RMB-look that captured the cursor
+        /// gives it back where it was. Default: nothing.</summary>
+        void SetMousePosition(Vector2 position) { }
+
+        // ── ⭐ SD-S2a (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-102) — the gamepad (pad 0). Default bodies: no pad, so a headless or test
+        //    provider keeps compiling and reads nothing. ⛔ No deadzone here — the keymap reader applies ONE (KeymapReader.PadDeadzone) to every pad axis.
+
+        /// <summary>Whether a gamepad is connected (pad 0). Default: no pad.</summary>
+        bool GamepadAvailable => false;
+
+        /// <summary>The pad's <paramref name="axis"/> this frame, raw (−1 … +1). Default: 0.</summary>
+        float GamepadAxis(MapGamepadAxis axis) => 0f;
+
+        /// <summary>Whether the pad's <paramref name="button"/> is held. Default: false.</summary>
+        bool GamepadButtonDown(MapGamepadButton button) => false;
+
+        /// <summary>Whether the pad's <paramref name="button"/> went down this frame. Default: false.</summary>
+        bool GamepadButtonPressed(MapGamepadButton button) => false;
     }
 }

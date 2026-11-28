@@ -40,6 +40,12 @@ public struct EffectSpec
     public float Lifetime;
     /// <summary>Metres across (the type's <c>Size</c>).</summary>
     public float Size;
+    /// <summary>⭐ CE-11010 (RR-10) — for an effect a HIT made (an impact's puff and mark, a detonation's blast and mark): what it struck. Null for a shot's
+    /// flash or blast. The map writes it on the effect entity, so a replay keeps it.</summary>
+    public EffectCause? Cause;
+    /// <summary>⭐ CE-11015 — when it began (sim seconds): the event's time for a spec made live, the recorded <c>Lifespan</c> start for one rebuilt from an
+    /// effect entity (<see cref="EffectRules.SpecOf"/>). 0 when the maker did not say.</summary>
+    public double StartedAt;
 }
 
 /// <summary>
@@ -113,8 +119,9 @@ public static class EffectRules
         var size = SizeOf(tkb, fired, damage);
         var dis = DisOf(tkb, fired);
         var at = world.GetComponentRO<SimTransform>(fire.Shooter).Position;
-        var toward = fire.Target != Entity.Null && world.IsAlive(fire.Target) && world.HasComponent<SimTransform>(fire.Target)
-            ? world.GetComponentRO<SimTransform>(fire.Target).Position : Fdp.Core.WorldPoint.Zero;
+        // ⭐ CE-11016 — where the shot points is the ONE rule the burst stream uses (target, else the aim posture, else the round's own launch, inside the 45° cone):
+        //   so a stream rebuilt from the recorded flash (FireStreams.StreamOfFlash) points where the live one did
+        var toward = FireStreams.TowardOf(in fire, world);
         var anchor = new EffectAnchor { Shooter = fire.Shooter, WeaponIndex = fire.WeaponIndex, Toward = toward };
         int n = 0;
         if (mount?.Category != WeaponCategory.Bomb && !Munitions.IsSilent(world, fire.AmmoGuid))
@@ -145,6 +152,21 @@ public static class EffectRules
     /// </summary>
     public static int ForImpact(in RoundImpactNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
     {
+        int start = into.Count, n = ImpactCore(in hit, world, tkb, into);
+        float damage = n > 0 ? ImpactDamage(world, tkb, in hit) : 0f;
+        for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10) — what it struck, on every effect it made
+        {
+            var spec = into[i];
+            // ⭐ CE-11024 — kind and shooter; ⭐ CE-11030 — ONE of the round's effects (the first: its puff) is THE impact (Impact != 0), the others (its mark) carry 0, and every one carries the face's normal
+            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Material = hit.Material, Target = Entity.Null, Damage = damage, Ammo = hit.Ammo,
+                                           Impact = i == start ? (byte)(hit.Kind + 1) : (byte)0, Shooter = hit.Shooter, Normal = new Vector3(hit.NormalX, hit.NormalY, hit.NormalZ) };
+            into[i] = spec;
+        }
+        return n;
+    }
+
+    private static int ImpactCore(in RoundImpactNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
+    {
         float damage = ImpactDamage(world, tkb, hit);
         var set = EffectTkbCatalog.EffectsFor(tkb, hit.Ammo, damage);
         var size = SizeOf(tkb, hit.Ammo, damage);
@@ -162,6 +184,18 @@ public static class EffectRules
     /// a person (VE-M), none for a burst in the air (CE-1113); a thrown inert item only LANDS: a little dust (CE-1194).
     /// </summary>
     public static int ForDetonation(in DetonationNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
+    {
+        int start = into.Count, n = DetonationCore(in hit, world, tkb, into);
+        for (int i = start; i < into.Count; i++)   // ⭐ CE-11010 (RR-10, D-6) — a replayed explosion tells a unit from the ground
+        {
+            var spec = into[i];
+            spec.Cause = new EffectCause { Surface = (byte)spec.Surface, Target = hit.Target, Damage = hit.Damage, Ammo = hit.Ammo, Shooter = hit.Shooter };   // ⭐ CE-11024
+            into[i] = spec;
+        }
+        return n;
+    }
+
+    private static int DetonationCore(in DetonationNotification hit, EntityRepository world, ITkbDatabase? tkb, List<EffectSpec> into)
     {
         var point = new Vector3(hit.HitX, hit.HitY, hit.HitZ);
         var dis = DisOf(tkb, hit.Ammo);
@@ -257,5 +291,44 @@ public static class EffectRules
             At = at, Rotation = rotation, Anchor = anchor, Lifetime = look.Duration, Size = look.Size,
         });
         return 1;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-11015 — the SAME <see cref="EffectSpec"/> rebuilt from an effect ENTITY (what the map spawns and a recording keeps): its type and look from the
+    /// TKB, where from <c>SimTransform</c>, when and how long from <c>Lifespan</c>, the gun it rides from <c>EffectAnchor</c>, what a hit struck from
+    /// <c>EffectCause</c> (and from that the munition's DIS type and the size class). So a renderer reads effects from STATE — live and in a replay, and right
+    /// after a seek — with no events: 🔒 user, 2026-11-20: <i>"isn't it better kept in component states only which are working after replay seek"</i>.
+    /// False for an entity that is not an effect the TKB draws. 0 B.
+    /// </summary>
+    public static bool SpecOf(EntityRepository world, Entity e, ITkbDatabase? tkb, out EffectSpec spec)
+    {
+        spec = default;
+        if (!world.IsAlive(e) || !world.HasComponent<TkbIdentity>(e) || !world.HasComponent<SimTransform>(e)) return false;
+        long type = world.GetComponentRO<TkbIdentity>(e).TkbType;
+        if (EffectTkbCatalog.VisualOf(tkb, type) is not { } look) return false;
+        ref readonly var tf = ref world.GetComponentRO<SimTransform>(e);
+        spec.Kind = look.Kind; spec.EffectType = type; spec.At = tf.Position; spec.Rotation = tf.Rotation;
+        spec.Lifetime = look.Duration; spec.Size = look.Size;
+        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Time.Lifespan>() && world.HasComponent<Fdp.Toolkit.Time.Lifespan>(e))
+        {
+            var life = world.GetComponentRO<Fdp.Toolkit.Time.Lifespan>(e);
+            spec.StartedAt = life.BornAtSimSeconds.Seconds;
+            spec.Lifetime = life.Seconds.Seconds;
+        }
+        if (world.IsComponentTypeRegistered<EffectAnchor>() && world.HasComponent<EffectAnchor>(e))
+        {
+            var anchor = world.GetComponentRO<EffectAnchor>(e);
+            spec.Anchor = anchor;
+            if (anchor.Kind == EffectAnchorKind.Muzzle) spec.Surface = EffectSurface.Air;   // a flash at a muzzle (a wreck's flames sit on its body)
+        }
+        if (world.IsComponentTypeRegistered<EffectCause>() && world.HasComponent<EffectCause>(e))
+        {
+            var cause = world.GetComponentRO<EffectCause>(e);
+            spec.Cause = cause;
+            spec.Surface = (EffectSurface)cause.Surface;
+            spec.MunitionDis = DisOf(tkb, cause.Ammo);
+            spec.SizeClass = SizeOf(tkb, cause.Ammo, cause.Damage);
+        }
+        return true;
     }
 }

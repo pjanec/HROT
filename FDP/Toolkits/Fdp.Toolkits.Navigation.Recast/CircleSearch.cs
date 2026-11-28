@@ -28,8 +28,7 @@ internal sealed class CircleSearch
     private readonly RcVec3f[] _pos;    // node → where the search entered it (the portal's midpoint; the start's own point)
     private readonly bool[] _closed;
     private readonly Dictionary<long, int> _node;   // polygon ref → node (cleared, never reallocated once grown)
-    private (float Cost, int Node)[] _heap;
-    private int _heapCount;
+    private readonly CostHeap _heap;   // the engine's one open list (Fdp.Toolkit.Navigation.CostHeap — shared with the road router)
     private readonly Dictionary<long, int> _goals = new();
     public int Count;
 
@@ -44,7 +43,7 @@ internal sealed class CircleSearch
         _pos = new RcVec3f[capacity];
         _closed = new bool[capacity];
         _node = new Dictionary<long, int>(capacity);
-        _heap = new (float, int)[capacity];
+        _heap = new CostHeap(capacity);
     }
 
     /// <summary>The node of <paramref name="polyRef"/>, or −1 when the search never reached it.</summary>
@@ -62,7 +61,7 @@ internal sealed class CircleSearch
     {
         _node.Clear();
         _goals.Clear();
-        _heapCount = 0;
+        _heap.Clear();
         Count = 0;
         int goalsLeft = 0;
         for (int g = 0; g < goals.Length; g++)
@@ -70,11 +69,11 @@ internal sealed class CircleSearch
         float r2 = radius * radius;
 
         int start = NewNode(startRef, -1, 0f, center);
-        Push(0f, start);
+        _heap.Push(0f, start);
         bool full = false;
-        while (_heapCount > 0)
+        while (_heap.Count > 0)
         {
-            var (c, best) = Pop();
+            var (c, best) = _heap.Pop();
             if (_closed[best] || c > _total[best]) continue;   // a stale entry (the lazy decrease-key)
             _closed[best] = true;
             if (_goals.ContainsKey(Refs[best]) && --goalsLeft == 0) break;
@@ -113,7 +112,7 @@ internal sealed class CircleSearch
                     if (Count >= Capacity) { full = true; continue; }
                     nb = NewNode(neighbourRef, best, total, entry);
                 }
-                Push(total, nb);
+                _heap.Push(total, nb);
             }
         }
         return !full;
@@ -133,18 +132,18 @@ internal sealed class CircleSearch
                         int maxIterations, out bool reached, out bool capped)
     {
         _node.Clear();
-        _heapCount = 0;
+        _heap.Clear();
         Count = 0;
         reached = false; capped = false;
         float h0 = RcVec3f.Distance(startPos, endPos) * HScale;
         int start = NewNode(startRef, -1, 0f, startPos);
         _h[start] = h0; _total[start] = h0;
-        Push(h0, start);
+        _heap.Push(h0, start);
         int lastBest = start;
         int iterations = 0;
-        while (_heapCount > 0)
+        while (_heap.Count > 0)
         {
-            var (c, best) = Pop();
+            var (c, best) = _heap.Pop();
             if (_closed[best] || c > _total[best]) continue;
             _closed[best] = true;
             if (Refs[best] == endRef) { reached = true; return best; }
@@ -198,7 +197,7 @@ internal sealed class CircleSearch
                     nb = NewNode(neighbourRef, best, cost, entry);
                 }
                 Parent[nb] = best; Cost[nb] = cost; _h[nb] = heuristic; _total[nb] = total;
-                Push(total, nb);
+                _heap.Push(total, nb);
                 if (heuristic < _h[lastBest] || (heuristic == _h[lastBest] && cost < Cost[lastBest])) lastBest = nb;
             }
         }
@@ -242,38 +241,5 @@ internal sealed class CircleSearch
             va = new RcVec3f(a.X + d.X * tmin, a.Y + d.Y * tmin, a.Z + d.Z * tmin);
             vb = new RcVec3f(a.X + d.X * tmax, a.Y + d.Y * tmax, a.Z + d.Z * tmax);
         }
-    }
-
-    private void Push(float cost, int node)
-    {
-        if (_heapCount == _heap.Length) Array.Resize(ref _heap, _heap.Length * 2);   // grows once on a big search, then reused
-        int i = _heapCount++;
-        while (i > 0)
-        {
-            int p = (i - 1) >> 1;
-            if (_heap[p].Cost <= cost) break;
-            _heap[i] = _heap[p];
-            i = p;
-        }
-        _heap[i] = (cost, node);
-    }
-
-    private (float, int) Pop()
-    {
-        var top = _heap[0];
-        var last = _heap[--_heapCount];
-        int i = 0;
-        while (true)
-        {
-            int l = 2 * i + 1;
-            if (l >= _heapCount) break;
-            int r = l + 1;
-            int m = r < _heapCount && _heap[r].Cost < _heap[l].Cost ? r : l;
-            if (_heap[m].Cost >= last.Cost) break;
-            _heap[i] = _heap[m];
-            i = m;
-        }
-        if (_heapCount > 0) _heap[i] = last;
-        return top;
     }
 }

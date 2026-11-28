@@ -41,6 +41,7 @@ namespace Hrot.Editor.DebugApi
                     ["muzzle"] = V(s.Muzzle), ["aim"] = V(s.Aim),
                     ["range"] = System.MathF.Round(System.Numerics.Vector3.Distance(s.Muzzle, s.Aim), 1),   // ⭐ CE-10002 (RV-15) — the shot's range: muzzle to the aim at launch (m)
                     ["ordinal"] = s.Ordinal, ["sigmaRad"] = s.Sigma, ["deflectionRad"] = s.Deflection,
+                    ["burstId"] = s.BurstId, ["burstRounds"] = (int)s.BurstRounds, ["burstIndex"] = (int)s.BurstIndex,   // ⭐ CE-11033 (§5l)
                     ["penetration"] = s.Penetration, ["penetrationSource"] = s.PenetrationSource, ["damage"] = s.Damage,
                     ["outcome"] = s.Outcome.ToString(), ["end"] = s.EndPoint is { } p ? V(p) : null,
                     ["hit"] = s.Outcome == ShotOutcome.Hit ? Id(s.HitEntity) : null,

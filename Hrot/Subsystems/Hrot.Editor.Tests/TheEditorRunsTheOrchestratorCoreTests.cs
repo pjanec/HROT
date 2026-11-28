@@ -244,7 +244,6 @@ public sealed class TheEditorRunsTheOrchestratorCoreTests
         "Hrot.Common.EntityCreation.SeatPresetSystem",
         "Hrot.Common.Macros.MacroExpansionSystem",   // ⭐ macros S3a ④ — EntityCreation.RegisterOn, every pack (DESIGN_Scenario_Macros §15.1)
         "Hrot.SimHost.Systems.GenesisMaterializationSystem",
-        "Hrot.SimHost.Systems.InitialBrainMaterializationSystem",
         "Hrot.SimHost.Systems.BlueprintMaterializationSystem",
         "Fdp.Toolkit.Blueprints.Systems.BlueprintEventIngressSystem",
         "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",

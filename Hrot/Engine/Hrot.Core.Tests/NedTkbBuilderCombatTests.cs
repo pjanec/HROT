@@ -274,6 +274,8 @@ namespace Hrot.Map.Common.Tests
                 {
                     var seat = c.Seats[i];
                     if (seat.Role != Fdp.Toolkit.Behavior.Components.SeatRole.Station || seat.Stowed || seat.Concealed) continue;
+                    // ⭐ Simulated devices S1e-1 — a DEVICE station (Accepts Device only) holds no weapon: the observer HMMWV's rangefinder rides in the cab
+                    if (seat.Accepts == MountKinds.Device) continue;
                     bool exposed = seat.Exposed ?? c.Exposure == Fdp.Toolkit.Behavior.Components.PassengerExposure.Open;
                     if (!exposed) bad.Add($"{t.Name} ({t.TkbType}) seat {i}");
                 }
@@ -606,6 +608,30 @@ namespace Hrot.Map.Common.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-3490</c> BA-9 — the FLAME HELICOPTER (412) is the AH-64 airframe with a flame projector on its chin turret: the same flight, body,
+        /// turret, Hydra pod and dispenser as 406 (one definition), its mount 0 a flamethrower firing the flame tank's fuel (60 m), from a nozzle; DIS the
+        /// AH-64's with specific 1. 🔴 Red-proof: the chin mount not passed through (the M134 kept) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheFlameHelicopter_IsTheAh64Airframe_WithAFlameProjectorOnItsChin()
+        {
+            var db = BuildDatabase();
+            var gun = db.GetByType(TkbEntityTypes.Heli_AH64)!;
+            var flame = db.GetByType(TkbEntityTypes.Heli_AH64Flame)!;
+            Assert.Equal((gun.DisType.Kind, gun.DisType.Domain, gun.DisType.Country, gun.DisType.Category), (flame.DisType.Kind, flame.DisType.Domain, flame.DisType.Country, flame.DisType.Category));
+            Assert.Equal((byte)1, flame.DisType.Specific);
+            Assert.Equal(gun.GetDescriptor<FlightParamsDto>()!.MaxSpeedMps, flame.GetDescriptor<FlightParamsDto>()!.MaxSpeedMps);
+            Assert.Equal(LocomotionClass.Rotorcraft, flame.GetDescriptor<LocomotionDto>()!.Class);
+            var mounts = flame.GetDescriptor<WeaponSuiteDto>()!.Mounts;
+            Assert.Equal(gun.GetDescriptor<WeaponSuiteDto>()!.Mounts.Count, mounts.Count);
+            Assert.Equal((WeaponCategory.Flamethrower, 0), (mounts[0].Category, mounts[0].TurretIndex));
+            Assert.Equal((ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel, mounts[0].AmmoGuid);
+            Assert.True(mounts[0].MuzzleOffsetX > 0f, "the jet leaves the nozzle, not the crew's eye");
+            Assert.Equal((WeaponCategory.Rocket, (ulong)Hrot.Core.Tkb.MunitionTkbCatalog.TkbHydra70Rocket), (mounts[1].Category, mounts[1].AmmoGuid));
+            Assert.Equal(WeaponCategory.MachineGun, gun.GetDescriptor<WeaponSuiteDto>()!.Mounts[0].Category);   // the gun ship keeps its M134
+        }
+
+        /// <summary>
         /// ⭐ Air Ops slice 6a F2 — the B7 rail for the new type, on ITS catalogue numbers: the attack helicopter on its gear takes a route
         /// off the ground, flies it at its hover height and sets down on its gear at the last Ground waypoint.
         /// </summary>
@@ -740,6 +766,23 @@ namespace Hrot.Map.Common.Tests
             Assert.NotNull(brain);
             Assert.Equal("BasicPlatoonSop", brain!.DefaultSop);   // ⭐ CE-2294 CC-D
             Assert.Equal("BasicSquadSop", squad.GetDescriptor<BehaviorProfileDto>()!.DefaultSop);   // ⭐ CE-2358 (AQ102 G) — every squad type, by default
+        }
+
+        /// <summary>⭐ <c>CE-8318</c> — an ARMED ground vehicle with no SOP authored fights by default: the tanks, the IFV, the crewed HMMWV, every
+        /// armed technical and the radar SAM name <c>BasicVehicleSop</c> (the set the stechovice showcase authors by hand). ⛔ What has no gun, or no
+        /// crew, stays inert (the bare pickup, the crewless HMMWV); ⛔ and no aircraft — the vehicle SOP's moves are ground moves.
+        /// 📐 village-street-fight: the M1 and the T-72 never fired in 300 s. 🔴 Red-proof: drop the default from the tanks.</summary>
+        [Fact]
+        public void CE8318_AnArmedVehicle_FightsByDefault_TheUnarmedAndTheAircraftDoNot()
+        {
+            var db = BuildDatabase();
+            string? SopOf(long type) => db.GetByType(type)?.GetDescriptor<BehaviorProfileDto>()?.DefaultSop;
+            foreach (long t in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.IFV_Bradley, TkbEntityTypes.Tank_T72, TkbEntityTypes.Truck_HMMWV,
+                                       TkbEntityTypes.Technical_Hmg, TkbEntityTypes.Technical_Atgm, TkbEntityTypes.Technical_Dshk,
+                                       TkbEntityTypes.Technical_Minigun, TkbEntityTypes.Technical_Zu23, TkbEntityTypes.AirDefence_RadarSam })
+                Assert.True(SopOf(t) == "BasicVehicleSop", $"type {t}: {SopOf(t) ?? "none"}");
+            foreach (long t in new[] { TkbEntityTypes.Pickup_Toyota, TkbEntityTypes.Truck_HMMWV_NoCrew, TkbEntityTypes.Heli_AH64, TkbEntityTypes.Heli_UH60 })
+                Assert.True(string.IsNullOrEmpty(SopOf(t)), $"type {t}: {SopOf(t)}");
         }
 
         /// <summary>⭐ <c>CE-7028</c> — the RECON drone: a rotorcraft with feet, NO weapon (the operator sends it to watch), a 30-minute battery, a

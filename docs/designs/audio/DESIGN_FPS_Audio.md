@@ -7,6 +7,7 @@ stale-below: nothing — what the build changed is in §8 with the earlier wordi
 known-rot: AU-3 (sound only while possessed) is amended twice — §8 D11 (3-D camera sound, CE-1137) and R-4059 (2026-10-21: sound in every non-FPS view behind a menu switch, FPS always; the 2-D ear and the films' sound track are designed in docs/DESIGN_Film_Director.md §4c). §8 lists where the build refined §2 / §6 / AU-8.
 known-conflict: none.
 related-designs:
+  - docs/designs/audio/DESIGN_Ambience.md — AUTHORED ambience layers (kinds, not clips) any renderer reads; slice 3 lets this file's beds follow them
   - ../weapons/DESIGN_Flame_Weapons.md — §8 OWNS the flamethrower's roar (a held loop while the jet is lit, class Flame, CE-4635); §10 here records how the mover loops carry it
   - docs/blueprints/Architect_Question_105_Squad_Callouts.md — OWNS which calls exist and when a man shouts (R-2080, A–E); this file plays them (F, §9)
   - docs/DESIGN_Civilians_And_Crowd_Control.md — OWNS the speech data (§7.18: Utterance, Utterances.Say) that §9 reads

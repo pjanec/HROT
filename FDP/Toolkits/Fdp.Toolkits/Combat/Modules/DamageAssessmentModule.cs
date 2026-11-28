@@ -35,6 +35,7 @@ namespace Fdp.Toolkit.Combat.Modules
                                      new Fdp.Toolkit.Terrain.GroundDamageSystem(),   // ⭐ CE-4591 (P-4) — the craters it decided, written into the cell's ground-damage entity
                                      new Fdp.Toolkit.Terrain.CraterRegroundSystem(),   // ⭐ CE-4591 (G-11) — an owned man standing where a crater opened takes the new ground
                                      new Fdp.Toolkit.Terrain.DozerCutSystem(),   // ⭐ CE-4601 (B-4) — a bulldozer's blade cuts the wall / fells the trunk its order marked (before the writers)
+                                     new Fdp.Toolkit.Terrain.BridgeWorkSystem(),   // ⭐ CE-4693 (BL-S3 ⑥) — a bridge engineer at its stand lays / recovers the bridge its brain ordered (the dozer's node)
                                      new Fdp.Toolkit.Terrain.TreeDamageSystem(),
                                      new Fdp.Toolkit.Terrain.GroundFireSystem(),   // ⭐ CE-3487 (flame FL-3, TD-6) — the ground fire NapalmSystem laid, written into the cell's fire record; a spot gone out leaves a scorch
                                      new Fdp.Toolkit.Terrain.GroundHeatMarkSystem(),   // ⭐ CE-4664 (TD-14) — the warm stands HeatSourceSystem (CE-4658) reports here, written into the cell's heat-marks entity

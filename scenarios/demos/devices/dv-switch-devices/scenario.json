@@ -1,0 +1,111 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S1 (§5a, D-38 / D-63). The Observer carries binoculars (kit 1) and a laser rangefinder (kit 2). A scripted trainee possesses him, binds his view to the BINOCULARS and presses ZOOM IN, then re-binds the view to the RANGEFINDER and presses MODE, then back to the plain eye. Judge: (1) the view shows the binoculars' HUD while bound to them and the rangefinder's after the re-bind - never the other's; (2) ZOOM IN steps the binoculars only, MODE steps the rangefinder only: a press reaches only the device the view shows; (3) while the view shows the binoculars he RAISES them (the held item - WeaponPosture.HeldItem Binoculars); the optic stays raised while the view shows his rangefinder (D-63: every hand-held device he views is raised the same way) and goes down when the view returns to the eye. Fail: a HUD in the wrong view, a press on the wrong device, or the binoculars not raised. Check: scripts/scenario-regression.sh dv-switch-devices"
+  },
+  "entities": {
+    "d5e10004-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 2,
+        "Passengers": [
+          "d5e10004-0000-4000-8000-000000000010",
+          "d5e10004-0000-4000-8000-000000000011"
+        ],
+        "Seats": [
+          4,
+          5
+        ]
+      }
+    },
+    "d5e10004-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 641
+      },
+      "EntityInfo": {
+        "Name": "Binoculars",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10004-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "d5e10004-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10004-0000-4000-8000-000000000001",
+        "Seat": 5
+      }
+    }
+  }
+}

@@ -180,7 +180,10 @@ namespace Hrot.ScenarioEditor.Map
             var frame = _buffer.GetFrame();
             int count = 0;
             for (int i = 0; i < frame.Length; i++)
+            {
+                if (HudScopes.IsScope(in frame[i])) { i = HudScopes.After(frame, i) - 1; continue; }   // ⭐ S1d-1 (R3-4) — a HUD run is no entity on the map
                 if (frame[i].Shape == DebugPrimitiveShape.SemanticShape) count++;
+            }
             return count;
         }
     }

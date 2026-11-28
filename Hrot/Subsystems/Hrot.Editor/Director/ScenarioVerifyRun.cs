@@ -168,6 +168,11 @@ namespace Hrot.Editor.Director
 
         public bool HoldsStep(double rel, long retired, long issued)
         {
+            // ⭐ CE-4679 — a commander seat's think-pause: a stepped run is held by its stepper (the seat never pauses a stepped clock), so no step
+            //   until the mind has answered — the scripted mind answers inside its frame and never holds
+            if (_verifyWorld?.CommanderHoldsClock() == true) return true;
+            // ⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — a check's `do: pause`: the sim time is held for its frames while the run's frames go on
+            if (_verification?.HoldStep() == true) return true;
             // ⭐ CE-4045 H5 — at the review's time: no step more; once the master has taken every step asked for, look back
             if (Options.Review is { Straight: false } rc && !_reviewDone && rel + 1e-9 >= rc.At)
             {

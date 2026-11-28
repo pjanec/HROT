@@ -519,15 +519,15 @@ public class MissionControlExecutionSystemTests
         Assert.Equal(0, queue.TaskCount);
     }
 
-    // ── CE-3167: an immediate order clears the plan through IIntentClearProvider ─────────────────
+    // ── CE-3494 (R-3115): an operator's order HOLDS the plan through IIntentClearProvider (was CE-3167's clear) ─────────────────
 
     /// <summary>
-    /// ⭐ CE-3167 (Entity Commanding §2.5d) — the system is the mission plan's clear provider: ClearFor empties the queue and the
-    /// plan exactly as CMD_ABORT_ALL does, but publishes NO ClearBehaviorEvent (the order's assign replaces the behaviour), and a
-    /// second call on the cleared unit changes nothing.
+    /// ⭐⭐ CE-3494 (R-3115) — the provider HOLDS the plan: <c>Halted = HeldByOrder</c>, the plan and its progress kept, no ClearBehaviorEvent
+    /// (the order runs); a second call changes nothing. Resume (<c>CMD_JUMP_TO_TASK</c> to the current task) clears the hold and publishes
+    /// the Operator clear that ends the order. 🔴 Red-proof: the old EmptyPlan in ClearFor ⇒ the TaskCount / plan assertions.
     /// </summary>
     [Fact]
-    public void CE3167_ClearFor_EmptiesThePlan_WithoutClearingTheBehaviour_AndIsIdempotent()
+    public void CE3494_ClearFor_HoldsThePlan_KeepsItsProgress_AndResumeEndsTheOrder()
     {
         var entityMap = new NetworkEntityMap();
         using var repo = CreateWorld();
@@ -535,24 +535,67 @@ public class MissionControlExecutionSystemTests
         var entity = repo.CreateEntity();
         entityMap.Register(1, entity);
         var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+        Guid first = Guid.NewGuid(), second = Guid.NewGuid();
         system.TestHook_ProcessIntent(repo, new MissionControlIntent
         {
             RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
-            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(Guid.NewGuid(), Guid.NewGuid()) },
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(first, second) },
         });
-        Assert.Equal(2, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);
+        repo.GetComponentRW<MissionPlanQueue>(entity).CurrentTask = 1;   // the plan has moved on
         repo.Bus.SwapBuffers();
 
         IIntentClearProvider provider = system;
         provider.ClearFor(entity, repo);
 
-        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);
-        Assert.False(repo.HasManagedComponent<ActiveMissionPlan>(entity));
+        var held = repo.GetComponentRO<MissionPlanQueue>(entity);
+        Assert.Equal(2, held.TaskCount);                                       // the plan is KEPT
+        Assert.Equal(1, held.CurrentTask);                                     // with its progress
+        Assert.Equal(MissionPlanQueue.HaltedHeldByOrder, held.Halted);
+        Assert.True(repo.HasManagedComponent<ActiveMissionPlan>(entity));
         repo.Bus.SwapBuffers();
         Assert.Empty(repo.Bus.Read<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>().ToArray());
 
-        provider.ClearFor(entity, repo);   // idempotent: no plan, nothing to do
-        Assert.Equal(0, repo.GetComponentRO<MissionPlanQueue>(entity).TaskCount);
+        long version = repo.GetComponentRO<MissionPlanQueue>(entity).Version;
+        provider.ClearFor(entity, repo);                                       // idempotent
+        Assert.Equal(version, repo.GetComponentRO<MissionPlanQueue>(entity).Version);
+
+        // Resume: jump to the CURRENT task
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_JUMP_TO_TASK, TargetTaskId = second },
+        });
+        var resumed = repo.GetComponentRO<MissionPlanQueue>(entity);
+        Assert.Equal(0, resumed.Halted);
+        Assert.Equal(1, resumed.CurrentTask);
+        repo.Bus.SwapBuffers();
+        var clear = Assert.Single(repo.Bus.Read<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>().ToArray());
+        Assert.Equal(Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator, clear.Origin);
+    }
+
+    /// <summary>⭐ CE-3494 (R-3115) — a live plan edit keeps the hold while any task remains (only the user resumes).</summary>
+    [Fact]
+    public void CE3494_ALiveEditOfAHeldPlan_StaysHeld()
+    {
+        var entityMap = new NetworkEntityMap();
+        using var repo = CreateWorld();
+        repo.RegisterEvent<Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent>();
+        var entity = repo.CreateEntity();
+        entityMap.Register(1, entity);
+        var system = new Hrot.Common.Systems.MissionControlExecutionSystem(entityMap, CreateBehaviorRegistry(), new TacticalIntentMapperRegistry());
+        Guid first = Guid.NewGuid(), second = Guid.NewGuid();
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(first, second) },
+        });
+        ((IIntentClearProvider)system).ClearFor(entity, repo);
+        system.TestHook_ProcessIntent(repo, new MissionControlIntent
+        {
+            RequestId = Guid.NewGuid(), TargetEntityId = 1, BaseVersion = 0,
+            Payload = new MissionCommandPayload { CommandType = eMissionCommandType.CMD_REPLACE_MISSION, FullMissionData = MakePlan(first, second, Guid.NewGuid()) },
+        });
+        Assert.Equal(MissionPlanQueue.HaltedHeldByOrder, repo.GetComponentRO<MissionPlanQueue>(entity).Halted);
     }
 
     // ── ⭐ Edit framework F6 (CE-4277): only the BRAIN's owner applies a commit; a commit for a unit owned elsewhere goes there ─────────────────

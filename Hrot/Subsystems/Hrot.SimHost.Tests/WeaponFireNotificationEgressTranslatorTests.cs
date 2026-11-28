@@ -201,5 +201,19 @@ namespace Hrot.SimHost.Tests
 
             Assert.Empty(writer.Written);
         }
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013) — the burst stamp of the fired round goes out on the <c>WeaponFire</c> message. ✅ Red-proof: the mapped line removed ⇒ 0 ⇒ red.</summary>
+        [Fact]
+        public void CE11033_TheBurstStamp_GoesOutOnTheWeaponFireMessage()
+        {
+            var (translator, writer) = BuildTranslator();
+            var shooter = SpawnEntity(networkId: 1);
+            var target  = SpawnEntity(networkId: 2);
+            _world.Bus.Publish(new WeaponFireNotification { Shooter = shooter, Target = target, BurstId = 0xABCD_0102u, BurstRounds = 3, BurstIndex = 2 });
+            _world.Bus.SwapBuffers();
+            translator.ScanAndPublish(_world);
+            var msg = Assert.Single(writer.Written);
+            Assert.Equal((0xABCD_0102u, (byte)3, (byte)2), (msg.BurstId, msg.BurstRounds, msg.BurstIndex));
+        }
     }
 }

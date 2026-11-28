@@ -214,7 +214,7 @@ namespace Hrot.Map.Definitions.Tkb
                     FiringAudibleRange = 1000f, FiringClass = SoundSourceClass.HeavyWeapon,
                 } })
                 .WithFaction(type, 2)
-                .WithBehavior(type)
+                .WithBehavior(type, weapon != 0 ? Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop : null)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired) — a bare pickup stays inert
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Category = 6 });   // 1.1.*.6 small wheeled utility vehicle
         }
 
@@ -253,6 +253,119 @@ namespace Hrot.Map.Definitions.Tkb
             });
             return dto;
         }
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.2 D-1″, §3.3 R4-2) — the observer variant's seats: the HMMWV's (0–5, their indices
+        /// kept), then a COMMANDER seat (6, front right, seated) and the DEVICE STATION (7) he operates (<c>OperatedBy = 6</c>, accepts only a device), at
+        /// his eye through the windscreen, starting with a laser rangefinder. ⭐ A station, not a crew seat: the device is a full entity mounted there
+        /// (the HMMWV roof-M2 shape), its operator is whoever sits in seat 6 (<c>DeviceOperators</c> ③).
+        /// </summary>
+        private static Fdp.Toolkit.Tkb.Domain.CarrierDefDto ObserverSeats(Fdp.Toolkit.Tkb.Domain.CarrierDefDto dto)
+        {
+            dto.Seats.Add(new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Commander,
+                X = 0.35f, Y = -0.45f, Z = 0.55f, Pose = Fdp.Toolkit.Tkb.Domain.SeatPose.Sit,
+            });
+            dto.Seats.Add(new SeatDto
+            {
+                Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Device, OperatedBy = 6,
+                X = 0.6f, Y = -0.45f, Z = 1.45f, StartWith = TkbEntityTypes.Device_LaserRangefinder,
+            });
+            return dto;
+        }
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4 / D-26) — the DEVICE types: a hand-held laser
+        /// rangefinder and binoculars (<c>Gen.Device</c>). Each names the behaviour the device tick runs and its input ELEMENTS by NAME (D-142 — the wire is the
+        /// index — <c>RangefinderChannels</c> / <c>BinocularsChannels</c>, pinned to these names by <c>DeviceTkbTypesTests</c>) and its optic.
+        /// Hidden from the Add Entity picker (placed by a scenario or a station preset; issued at run time from SD-S5); no map symbol (drawn where it
+        /// lies from SD-S5, D-64).
+        /// </summary>
+        private static void RegisterDevices(NedTkbBuilder builder)
+        {
+            builder.DefineVehicle(TkbEntityTypes.Device_LaserRangefinder, "Laser rangefinder")
+                .WithDevice(TkbEntityTypes.Device_LaserRangefinder, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder,
+                    // ⭐ SD-S5v (D-142 / D-124) — the descriptor: four buttons, each with its virtual-panel hotkey (keys the operator does not need
+                    //   while he looks through a device: R next round, O the shoulder view; P and Enter are free)
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE", "O"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MENU", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SELECT", "Enter"),
+                        // ⭐ SD-S5b (D-119) — SEND the last range to the link; Y: no body key (the embodied keymap leaves Y and P unbound), so it shadows nothing
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SEND", "Y"),
+                    },
+                    Magnifications = { 7f },
+                    Messages = { "TargetLocation" },
+                })
+                // ⭐⭐ SD-S5b (D-120 / D-61) — the STACKING STATION: one Gen.Carrier seat accepting only a DEVICE, on top of the rangefinder (x forward, z up — a
+                //   device stacked here sits 8 cm above it and points as the rangefinder does, DevicePoses). The kit stations' one mechanism: boarding, the carry,
+                //   the operator walk (a stacked device is operated by the rangefinder's operator). Open (it is seen), and it never dies with its host.
+                .WithCarrier(TkbEntityTypes.Device_LaserRangefinder, new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
+                {
+                    Seats = { new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Device, Z = StackStationZ } },
+                    Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open,
+                    DiesWithCarrier = false,
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_LaserRangefinder);
+            builder.DefineVehicle(TkbEntityTypes.Device_Binoculars, "Binoculars")
+                .WithDevice(TkbEntityTypes.Device_Binoculars, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars,
+                    // ⭐ SD-S5v (D-124 / D-125) — the WHEEL zooms (a notch up = ZOOM IN, down = ZOOM OUT; ⛔ S1d-3's wheel-by-index retired); + / − too
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ZOOM IN", "Equals", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Up),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ZOOM OUT", "Minus", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Down),
+                    },
+                    Magnifications = { 5f, 7f, 10f },
+                    DefaultStep = 1,
+                    Messages = { "TargetLocation" },
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_Binoculars);
+            // ⭐⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION: seven buttons (the pad's A … RB are buttons 0–5) and the four stick axes in Mode 2 —
+            //   axis 0 / 1 the left stick X / up (YAW / THROTTLE), 2 / 3 the right stick X / up (ROLL / PITCH), the pad's own order (EmbodiedKeys.DeviceAxis).
+            //   ⛔ M / B / J / Esc are never shadowed; the wheel tilts the gimbal. It flies the drone its ControlledEntities slot 0 names (DroneStationChannels)
+            builder.DefineVehicle(TkbEntityTypes.Device_DroneStation, "Drone station")
+                .WithDevice(TkbEntityTypes.Device_DroneStation, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDroneStation,
+                    RemoteStation = true,   // its RemoteControl from creation (the drone's brain reads it)
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("POWER", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ARM", "Enter"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("TAKEOFF", "T"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("LAND", "L"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RTH", "H"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("CAM UP", "Equals", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Up),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("CAM DOWN", "Minus", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Down),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("YAW"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("THROTTLE"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("ROLL"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("PITCH"),
+                    },
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_DroneStation);
+            // ⭐⭐ SD-S5c (§3.13d D-113 / D-114) — the LASER TARGET DESIGNATOR: POWER · LASE · CODE · RANGE (the mockup's chips P · L · C · R — keys the operator does
+            //   not need while he looks through a device; the type's own keymap place shadows them only then), 10× (a SOFLAM-class optic), a 60 s lase / 30 s cool
+            //   duty cycle and the default PRF code 1688. It receives a TargetLocation (the rangefinder's SEND, D-119) — the received-target cue.
+            builder.DefineVehicle(TkbEntityTypes.Device_LaserDesignator, "Laser designator")
+                .WithDevice(TkbEntityTypes.Device_LaserDesignator, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDesignator,
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("POWER", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("LASE", "L"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("CODE", "C"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"),
+                    },
+                    Magnifications = { 10f },
+                    Messages = { "TargetLocation" },
+                })
+                .WithLaserDesignator(TkbEntityTypes.Device_LaserDesignator, new Fdp.Toolkit.Tkb.Domain.LaserDesignatorDto { LaseSeconds = 60f, CoolSeconds = 30f, DefaultCode = 1688 })
+                .HiddenFromPalette(TkbEntityTypes.Device_LaserDesignator);
+        }
+
+        /// <summary>⭐ SD-S5b (D-120) — the rangefinder's stacking station: a device stacked on it sits this high above it (m).</summary>
+        public const float StackStationZ = 0.08f;
 
         /// <summary>⭐ ui handoff P1 — the HMMWV roof ring's weapon pivot height (m): the roof at 1.83 m + the ring.</summary>
         private const float HmmwvRingPivotZ = 2.3f;
@@ -715,7 +828,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(type, new TurretDto { PivotX = -1.5f, PivotZ = 2.6f, TrunnionX = 0.4f,
                     ElevationMinDeg = 0f, ElevationMaxDeg = 85f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 40f })
                 .WithFaction(type, 2)
-                .WithBehavior(type)
+                .WithBehavior(type, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — the radar SAM engages aircraft by default
                 .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine, LauncherReport))
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 28, Subcategory = 1 });
         }
@@ -723,7 +836,7 @@ namespace Hrot.Map.Definitions.Tkb
         /// <summary>⭐ <c>CE-4617</c> (RV-17) — the radar SAM's mast: its radar's (and so its sight's) height above the ground, m.</summary>
         public const float RadarSamMastM = 6f;
 
-        private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed)
+        private static void Hmmwv(NedTkbBuilder builder, long type, string name, bool crewed, bool observer = false)
         {
             builder
                 .DefineVehicle(type, name)
@@ -758,8 +871,8 @@ namespace Hrot.Map.Definitions.Tkb
                     c.SensorRange = 2000;
                 })
                 .WithFaction(type, 1)
-                .WithCarrier(type, HmmwvSeats(crewed))   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
-                .WithBehavior(type)
+                .WithCarrier(type, observer ? ObserverSeats(HmmwvSeats(crewed)) : HmmwvSeats(crewed))   // ⭐ CE-2151 three passengers; ⭐ ui P1 + the roof ring; ⭐ 2026-10-31 a driver seat a player can take
+                .WithBehavior(type, crewed ? Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop : null)   // ⭐ CE-8318 — the crewed HMMWV (its roof M2 manned) fights by default
                 .WithSignatures(type, Heard(WheeledEngineRange, SoundSourceClass.WheeledEngine))   // ⭐ CE-3281 — its M2 reports as its own weapon system
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6 });   // CE-1017 S0: 6 = small wheeled utility vehicle (SISO-REF-010); 3 read "armored utility vehicle"
         }
@@ -926,6 +1039,64 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1, Subcategory = 20 });
         }
 
+        /// <summary>⭐ <c>CE-4693</c> (Bridge Laying §12d, Q-6) — the assault bridge's figures (the M104 Wolverine): a 26 m bridge over a 24 m gap, 4 m wide, MLC 70
+        /// (man.fas.org/dod-101/sys/land/wolverine.htm; en.wikipedia.org/wiki/M104_Wolverine); launched in ≤ 5 min, recovered in ≤ 10 min (slashgear.com — ONE source).</summary>
+        public const string AssaultBridgeSource = "M104 Wolverine: 26 m bridge for a 24 m gap, 4 m wide, MLC 70 (man.fas.org/dod-101/sys/land/wolverine.htm; en.wikipedia.org/wiki/M104_Wolverine); launch <= 5 min, recovery <= 10 min (slashgear.com/1600839/army-m104-wolverine-bridgelayer, one source)";
+        /// <summary>⭐ <c>CE-4693</c> — the floating bridge: an Improved Ribbon Bridge bay is 6.9 m (22 ft 8.5 in) and unfolds to 8.1 m (militarymachine.com/improved-ribbon-bridge, an
+        /// enthusiast source); ⚠ the 4.5 m roadway, the 100 m longest gap and the 20-minute build / recover are ESTIMATES — no open source was found.</summary>
+        public const string FloatingBridgeSource = "Improved Ribbon Bridge: bay 6.9 m, unfolded 8.1 m (militarymachine.com/improved-ribbon-bridge); ESTIMATE: roadway 4.5 m, longest gap 100 m, build / recover 20 min (no open source found)";
+
+        private static void DefineBridgeLayers(NedTkbBuilder builder)
+        {
+            // the assault bridge layer: an M1-chassis launcher carrying ONE 26 m span (the Wolverine)
+            const long assault = TkbEntityTypes.Engineer_AssaultBridgeLayer;
+            builder
+                .DefineVehicle(assault, "Assault Bridge Layer")
+                .WithVisual(assault, v => { v.SymbolCode = "SFGPEVEB-------"; v.ColorHex = "#6B6B3A"; v.Scale = 1.2f; v.ShowLabel = true; })   // 2525B ground equipment · vehicle · engineer · bridge
+                .WithPhysics(assault, p =>
+                {
+                    p.Mass = 68_700;   // with the bridge (deagel.com)
+                    p.Length = 13.4f;  // the folded span on the hull
+                    p.Width = 4.0f;
+                    p.Height = 4.0f;
+                    p.MaxSpeed = 18.0f; p.MaxSpeedRev = 6.0f; p.Acceleration = 1.5f; p.TurnRate = 25f;
+                    p.Mobility = TerrainMobility.Tracked;
+                })
+                .WithCombat(assault, c => { c.ArmorFront = 400; c.ArmorSide = 60; c.ArmorRear = 40; c.ArmorTop = 30; c.MaxHealth = 2500; c.BlastSusceptibility = 0.1f; c.EyeHeight = 3.0f; c.SensorRange = 500; })
+                .WithFaction(assault, 1)
+                .WithBehavior(assault)
+                .WithSignatures(assault, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                .WithBridgeLayer(assault, new Fdp.Toolkit.Tkb.Domain.BridgeLayerDto
+                {
+                    BridgeType = TkbEntityTypes.Obstacle_AssaultBridge, Carried = 1, SpanMaxM = 24f, BuildSeconds = 300f, RecoverSeconds = 600f, Source = AssaultBridgeSource,
+                })
+                // Large Tracked Utility Vehicle (1.1.*.9) · subcategory 3 = the assault bridge layer (HROT, EntityClassTable "AssaultBridgeLayer")
+                .WithDisType(assault, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 9, Subcategory = 3 });
+
+            // the floating-bridge engineer: a wheeled transporter laying a floating span as long as its river (BL-S4)
+            const long floating = TkbEntityTypes.Engineer_FloatingBridge;
+            builder
+                .DefineVehicle(floating, "Floating Bridge Engineer")
+                .WithVisual(floating, v => { v.SymbolCode = "SFGPEVEB-------"; v.ColorHex = "#5E6B3A"; v.Scale = 1.1f; v.ShowLabel = true; })
+                .WithPhysics(floating, p =>
+                {
+                    p.Mass = 30_000;
+                    p.Length = 11.0f; p.Width = 2.6f; p.Height = 3.5f;
+                    p.MaxSpeed = 22.0f; p.MaxSpeedRev = 4.0f; p.Acceleration = 1.2f; p.TurnRate = 30f;
+                    p.Mobility = TerrainMobility.Wheeled;
+                })
+                .WithCombat(floating, c => { c.ArmorFront = 10; c.ArmorSide = 8; c.ArmorRear = 8; c.ArmorTop = 5; c.MaxHealth = 600; c.BlastSusceptibility = 0.4f; c.EyeHeight = 2.6f; c.SensorRange = 400; })
+                .WithFaction(floating, 1)
+                .WithBehavior(floating)
+                .WithSignatures(floating, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine))
+                .WithBridgeLayer(floating, new Fdp.Toolkit.Tkb.Domain.BridgeLayerDto
+                {
+                    BridgeType = TkbEntityTypes.Obstacle_FloatingBridge, Carried = 1, SpanMaxM = 100f, BuildSeconds = 1200f, RecoverSeconds = 1200f, Source = FloatingBridgeSource,
+                })
+                // Large Wheeled Utility Vehicle (1.1.*.7) · subcategory 1 = the floating-bridge engineer (HROT, EntityClassTable "FloatingBridgeEngineer")
+                .WithDisType(floating, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 7, Subcategory = 1 });
+        }
+
         private static void DefineMineClearer(NedTkbBuilder builder)
         {
             const long type = TkbEntityTypes.Engineer_MineClearer;
@@ -1029,7 +1200,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(TkbEntityTypes.Tank_M1Abrams, new TurretDto { PivotX = -0.55f, PivotZ = 1.9f, TrunnionX = 1.65f,
                     ElevationMinDeg = -10f, ElevationMaxDeg = 20f, TraverseRateDegPerSec = 40f, ElevationRateDegPerSec = 10f })
                 .WithFaction(TkbEntityTypes.Tank_M1Abrams, 1)
-                .WithBehavior(TkbEntityTypes.Tank_M1Abrams)
+                .WithBehavior(TkbEntityTypes.Tank_M1Abrams, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired)
                 .WithSignatures(TkbEntityTypes.Tank_M1Abrams, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, TankGunReport))   // ⭐ CE-3281
                 .WithDisType(TkbEntityTypes.Tank_M1Abrams, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 1 });
             
@@ -1086,13 +1257,15 @@ namespace Hrot.Map.Definitions.Tkb
                     ElevationMinDeg = -10f, ElevationMaxDeg = 60f, TraverseRateDegPerSec = 60f, ElevationRateDegPerSec = 30f })
                 .WithFaction(TkbEntityTypes.IFV_Bradley, 1)
                 .WithCarrier(TkbEntityTypes.IFV_Bradley, Fdp.Toolkit.Tkb.Domain.CarrierDefDto.PassengerSeats(6))   // ⭐ CE-2151 — six dismounts; the crew stay abstract (R-2009 B5)
-                .WithBehavior(TkbEntityTypes.IFV_Bradley)
+                .WithBehavior(TkbEntityTypes.IFV_Bradley, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired)
                 .WithSignatures(TkbEntityTypes.IFV_Bradley, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, CannonReport))   // ⭐ CE-3281 — the 25 mm as the catalogue's autocannon
                 .WithDisType(TkbEntityTypes.IFV_Bradley, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 2 });
             
             // HMMWV — ⭐ 2026-10-31 two variants of ONE definition (Hmmwv): 102 crewed (as before), 111 with no crew
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV, "HMMWV (M2, crewed)", crewed: true);
             Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_NoCrew, "HMMWV (M2, no crew)", crewed: false);
+            // ⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.2 D-1″) — the OBSERVER HMMWV: the no-crew HMMWV + a commander seat and the device station he operates
+            Hmmwv(builder, TkbEntityTypes.Truck_HMMWV_Observer, "HMMWV (observer, rangefinder)", crewed: false, observer: true);
             // ⭐ CE-7014 (City Battle R-2) — the HMMWV with a DRONE JAMMER: the crewed HMMWV plus the jammer's bubble; DIS subcategory 9 (HROT-local) tells it apart
             Hmmwv(builder, TkbEntityTypes.Ew_DroneJammer, "HMMWV (drone jammer)", crewed: true);
             builder.WithDisType(TkbEntityTypes.Ew_DroneJammer, new DISEntityType { Kind = 1, Domain = 1, Country = UnitedStates, Category = 6, Subcategory = 9 });
@@ -1151,7 +1324,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithTurrets(TkbEntityTypes.Tank_T72, new TurretDto { PivotX = -0.3f, PivotZ = 1.75f, TrunnionX = 1.2f,
                     ElevationMinDeg = -6f, ElevationMaxDeg = 14f, TraverseRateDegPerSec = 24f, ElevationRateDegPerSec = 6f })
                 .WithFaction(TkbEntityTypes.Tank_T72, 2)
-                .WithBehavior(TkbEntityTypes.Tank_T72)
+                .WithBehavior(TkbEntityTypes.Tank_T72, Hrot.Map.Definitions.Behavior.BehaviorNames.BasicVehicleSop)   // ⭐ CE-8318 — an armed vehicle with no SOP authored fights by default (village-street-fight: the M1 and the T-72 never fired)
                 .WithSignatures(TkbEntityTypes.Tank_T72, Heard(TrackedEngineRange, SoundSourceClass.TrackedEngine, TankGunReport))   // ⭐ CE-3281
                 .WithDisType(TkbEntityTypes.Tank_T72, new DISEntityType { Kind = 1, Domain = 1, Country = Russia, Category = 1 });
 
@@ -1162,6 +1335,7 @@ namespace Hrot.Map.Definitions.Tkb
             //   presets of it — 104 = + an M2 in the bed station + a rifleman in the gunner seat, 105 = + a Kornet (the old ±120° / −10…+20° arc,
             //   now the station's) + a rifleman. Orders go to the pickup; its weapon brain fires the station weapon (WS-3).
             RegisterWeaponSystems(builder);
+            RegisterDevices(builder);   // ⭐ Simulated devices S1e-1 — before the observer HMMWV, whose station starts with one
             Pickup(builder, TkbEntityTypes.Pickup_Toyota, "Pickup (Toyota)", "hmmwv");
             Pickup(builder, TkbEntityTypes.Technical_Hmg, "Technical (HMG)", "hmmwv",
                 weapon: TkbEntityTypes.WeaponSystem_M2Hmg, gunner: TkbEntityTypes.Infantry_Rifleman);
@@ -1487,12 +1661,14 @@ namespace Hrot.Map.Definitions.Tkb
             DefineBomberDrone(builder);  // ⭐ CE-7027
             DefineAttackPlane(builder);   // ⭐ Air Ops slice 4
             DefineAttackHelicopter(builder);   // ⭐ Air Ops slice 6a
+            DefineAttackHelicopter(builder, TkbEntityTypes.Heli_AH64Flame, "AH-64 (flame)", FlameChin(), specific: 1);   // ⭐ CE-3490 BA-9 — the same airframe
             // ⭐⭐ CE-3281 (Sensing §8.6) — the aircraft are HEARD: rotors 3 km, jets 15 km (⚠ a fixed-wing engine is class Rotor — "an aircraft
             //   overhead", the 3-bit class is full); the AH-64's Hydra-70 as the ATGM's report; the A-10's GAU-8 as the catalogue's autocannon,
             //   its burst a Mk-82's (the larger of its two).
             builder.WithSignatures(TkbEntityTypes.Heli_UH60, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_UH60_DoorsOff, Heard(RotorRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Heli_AH64, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))
+                   .WithSignatures(TkbEntityTypes.Heli_AH64Flame, Heard(RotorRange, SoundSourceClass.Rotor, AtgmReport))   // ⭐ CE-3490 BA-9 — the same airframe and pod
                    .WithSignatures(TkbEntityTypes.Jet_F16, Heard(JetRange, SoundSourceClass.Rotor))
                    .WithSignatures(TkbEntityTypes.Jet_MiG29, Heard(JetRange, SoundSourceClass.Rotor))   // ⭐ CE-10000 (AC-7)
                    .WithSignatures(TkbEntityTypes.Cargo_C130, Heard(JetRange, SoundSourceClass.Rotor))
@@ -1503,6 +1679,7 @@ namespace Hrot.Map.Definitions.Tkb
             builder.WithRadarCrossSection(TkbEntityTypes.Heli_UH60, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_UH60_DoorsOff, 4f)
                    .WithRadarCrossSection(TkbEntityTypes.Heli_AH64, 3f)
+                   .WithRadarCrossSection(TkbEntityTypes.Heli_AH64Flame, 3f)   // ⭐ CE-3490 BA-9
                    .WithRadarCrossSection(TkbEntityTypes.Jet_F16, 3f)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_MiG29, 4f)   // ⭐ CE-10000 (AC-7, §5a)
                    .WithRadarCrossSection(TkbEntityTypes.Jet_AttackA10, 10f)
@@ -1517,6 +1694,7 @@ namespace Hrot.Map.Definitions.Tkb
             DefineSelfPropelledHowitzer(builder);   // ⭐ Indirect fire IF-1 (I8)
             DefineBulldozer(builder);               // ⭐ CE-6006 — the engineering dozer
             DefineMineClearer(builder);             // ⭐ CE-4624 (MS-T4, MF-9) — the mine-clearing vehicle: plough / flail / line charge
+            DefineBridgeLayers(builder);            // ⭐ CE-4693 (BL-S3 / BL-S4) — the assault bridge layer and the floating-bridge engineer
             DefineFlameTank(builder);               // ⭐ CE-3486 (flame FL-2) — the M67 flame tank
 
             // ⭐ IF-1 (I8, FM-1) — the ARTILLERY BATTERY: a body-less commander unit (class ArtilleryUnit 11.1.*.4) whose roster is its guns;
@@ -1626,6 +1804,9 @@ namespace Hrot.Map.Definitions.Tkb
             var airArena = new TkbTemplate("Air Arena", TkbEntityTypes.AirArena);
             airArena.AddDescriptor(new MapGraphicDef());
             tkbDb.Register(airArena);
+            // ⭐ CE-11034 (R-11014, AM-2) — an Ambience Layer: a bare template like the World Environment's — its Ambience arrives with the creation request on the creator and through
+            //   dtAmbience everywhere else; a positioned layer also gets a SimTransform with the request. Positionless = heard everywhere. Never in the palette until slice 2's picker row.
+            tkbDb.Register(new TkbTemplate("Ambience Layer", TkbEntityTypes.AmbienceLayer));
             // ⭐ AQ93 R-4021 — the scenario's traffic settings: a bare template like the World Environment's; its TrafficDemand arrives with
             //   the creation request. No SimTransform: it is nowhere.
             var traffic = new TkbTemplate("Traffic", TkbEntityTypes.TrafficDemand);
@@ -1669,9 +1850,35 @@ namespace Hrot.Map.Definitions.Tkb
             //   the hulk, as tough as a concrete block (the 8 kg charge or a blade clears it); and the heavy types that leave one (tanks, the IFV —
             //   a light car stays as it is). A host whose smaller catalogue lacks a type skips it.
             RegisterObstacle(tkbDb, "Wreck", TkbEntityTypes.Obstacle_Wreck, 6.5f, 3.4f, 2.4f, "car-body", feature, maxHealth: 600f);
+            RegisterBridges(tkbDb, feature);   // ⭐ CE-4692 BL-1
             foreach (long heavy in new[] { TkbEntityTypes.Tank_M1Abrams, TkbEntityTypes.Tank_T72, TkbEntityTypes.IFV_Bradley })
                 if (tkbDb.TryGetByType(heavy, out var vehicle) && vehicle.GetDescriptor<Fdp.Toolkit.Tkb.Domain.WreckObstacleDto>() == null)
                     vehicle.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WreckObstacleDto { ObstacleType = TkbEntityTypes.Obstacle_Wreck });
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-1 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §0, §9 Q-6) — the LAID BRIDGES: walkable-deck static obstacles (Length = the span between the deck
+        /// ends, Width = the deck, Height = the deck above the bank; a ramp at each end at the authored 1 : 4). ⚠ PLACEHOLDER figures, said: an assault span of 18 m × 4 m, 1.2 m
+        /// above the bank; a floating span of 60 m × 4.5 m, 0.6 m above the bank. Destructible by the obstacle blast law (100 hp per kg at contact): 600 hp, a concrete block's ⇒ the 8 kg demolition charge
+        /// at the deck. Q-6 replaces them with sourced values in BL-S3. Cultural-feature DIS kind: the terrain mesh draws the deck (no entity kit for a bridge).
+        /// </summary>
+        private static void RegisterBridges(TkbDatabase tkbDb, DISEntityType feature)
+        {
+            // ⭐ CE-4693 (Q-6) — the SOURCED spans (the placeholders were 18 m and 60 m): the Wolverine's 26 m deck; the floating span as long as its longest gap (an
+            //   ESTIMATE, said — a laid floating span's ObstacleShape is its river's width, BL-20). The deck heights stay terrain's.
+            RegisterBridge(tkbDb, "Assault bridge",  TkbEntityTypes.Obstacle_AssaultBridge,  26f,  4f,   1.2f, feature, maxHealth: 600f);
+            RegisterBridge(tkbDb, "Floating bridge", TkbEntityTypes.Obstacle_FloatingBridge, 100f, 4.5f, 0.6f, feature, maxHealth: 600f);
+        }
+
+        private static void RegisterBridge(TkbDatabase tkbDb, string name, long type, float span, float width, float deckHeight, DISEntityType dis, float maxHealth)
+        {
+            var t = new TkbTemplate(name, type);
+            t.DisType = dis;
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.StaticObstacleDto
+            {
+                Length = span, Width = width, Height = deckHeight, Material = "steel-plate", MaxHealth = maxHealth, Kind = Fdp.Toolkit.Terrain.ObstacleKind.WalkableDeck,
+            });
+            tkbDb.Register(t);
         }
 
         private static void RegisterObstacle(TkbDatabase tkbDb, Fdp.Toolkit.Terrain.ClutterTypes.Type type, long tkbType, DISEntityType dis, float maxHealth)
@@ -1718,6 +1925,7 @@ namespace Hrot.Map.Definitions.Tkb
                     { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
                 .WithFaction(type, 2)
                 .WithBehavior(type)
+                .WithRemoteLink(type, new Fdp.Toolkit.Tkb.Domain.RemoteLinkDto { RangeM = 3000f, FailsafeSeconds = 5f })   // ⭐ SD-S2c (D-106) — flyable from a ground station
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
         }
 
@@ -1745,6 +1953,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor } })
                 .WithFaction(type, 1)
                 .WithBehavior(type)
+                .WithRemoteLink(type, new Fdp.Toolkit.Tkb.Domain.RemoteLinkDto { RangeM = 5000f, FailsafeSeconds = 5f })   // ⭐ SD-S2c (D-106) — flyable from a ground station
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 2 });   // unmanned, 2 = recon (HROT-local)
         }
 
@@ -1790,6 +1999,7 @@ namespace Hrot.Map.Definitions.Tkb
                     { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
                 .WithFaction(type, 2)
                 .WithBehavior(type)
+                .WithRemoteLink(type, new Fdp.Toolkit.Tkb.Domain.RemoteLinkDto { RangeM = 3000f, FailsafeSeconds = 5f })   // ⭐ SD-S2c (D-106) — flyable from a ground station
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 3 });   // unmanned, 3 = bomber (HROT-local)
         }
 
@@ -1870,10 +2080,32 @@ namespace Hrot.Map.Definitions.Tkb
         /// the crew is the type itself (no seats). A brain (its behaviours are the behaviour lane's, slice 6). Friendly.
         /// </summary>
         private static void DefineAttackHelicopter(NedTkbBuilder builder)
+            => DefineAttackHelicopter(builder, TkbEntityTypes.Heli_AH64, "AH-64 Apache (attack helicopter)", new WeaponMount
+            {
+                WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
+                DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
+                AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
+                MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+            }, specific: 0);
+
+        /// <summary>⭐⭐ <c>CE-3490</c> BA-9 — the flame helicopter's chin weapon: a flame projector on the chin turret throwing the flame TANK's fuel
+        /// (<see cref="Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel"/>, 60 m, 5°) — a pump-fed projector like the tank's, not a man's backpack; 600 shots
+        /// at 10 a second (a minute of flame), from the nozzle 0.8 m past the turret.</summary>
+        private static WeaponMount FlameChin() => new()
         {
-            const long type = TkbEntityTypes.Heli_AH64;
-            DefineAircraft(builder, type, "AH-64 Apache (attack helicopter)", "SFAPMHA-------", "#56604F",
-                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20 },
+            WeaponType = "chin flame projector", Category = WeaponCategory.Flamethrower, TurretIndex = 0,
+            Ammunition = 600, MagazineSize = 600, RateOfFire = 600, Range = Hrot.Core.Tkb.MunitionTkbCatalog.TankFlameReachM, MuzzleVelocity = 40f,
+            FireOnMove = true,
+            MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
+            AmmoTkb = (Fdp.Core.TkbTypeId)Hrot.Core.Tkb.MunitionTkbCatalog.TkbTankFlameFuel,
+        };
+
+        /// <summary>The AH-64 airframe with <paramref name="chin"/> on its chin turret (mount 0) — ⭐ CE-3490 BA-9: shared by the gun ship (406) and the
+        /// flame helicopter (412, DIS specific 1), so the two cannot differ in anything but the chin weapon.</summary>
+        private static void DefineAttackHelicopter(NedTkbBuilder builder, long type, string name, WeaponMount chin, byte specific)
+        {
+            DefineAircraft(builder, type, name, "SFAPMHA-------", "#56604F",
+                new DISEntityType { Kind = 1, Domain = 2, Country = UnitedStates, Category = 20, Specific = specific },
                 new Fdp.Toolkit.Tkb.Domain.BodyGeometryDto
                 {
                     ReferencePoint = Fdp.Toolkit.Tkb.Domain.ReferencePointKind.CentreOfGravity,
@@ -1907,13 +2139,7 @@ namespace Hrot.Map.Definitions.Tkb
                     c.ArmorFront = 20; c.ArmorSide = 15; c.ArmorRear = 8; c.ArmorTop = 8;
                     c.EyeHeight = 1f;
                     c.SensorRange = 6000;
-                    c.Weapons.Add(new WeaponMount
-                    {
-                        WeaponType = "7.62mm_M134_chin", Ammunition = 4000, Range = 1000, RateOfFire = 3000, Penetration = 8, DamagePerHit = 30,
-                        DispersionMils = 6f, MagazineSize = 4000, ReloadSeconds = 10f, FireOnMove = true, Category = WeaponCategory.MachineGun, TurretIndex = 0,
-                        AmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Ball), TracerAmmoTkb = (Fdp.Core.TkbTypeId)(Hrot.Core.Tkb.MunitionTkbCatalog.Tkb762Tracer), TracerEvery = 5,
-                        MuzzleOffset = new System.Numerics.Vector3(0.8f, 0f, 0f),
-                    });
+                    c.Weapons.Add(chin);
                     c.Weapons.Add(new WeaponMount
                     {
                         WeaponType = "Hydra-70 pod", Ammunition = 38, Range = 4000f, RateOfFire = 300, DispersionMils = 10f,

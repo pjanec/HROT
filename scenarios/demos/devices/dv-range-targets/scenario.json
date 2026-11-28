@@ -1,0 +1,185 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S1 (§5a). A scripted trainee possesses the Observer, who holds a laser rangefinder, binds his view to it, and AIMS his look at three named markers - men standing 200 m east, 450 m north-east and 900 m east of him - pressing RANGE at each: the device points where he looks (DevicePose from the station's look), the muscle traces its laser (LaserSpotSystem) and the device reads the spot that answers its request. Judge: (1) after each RANGE the device's LastRange is that marker's distance (within 3 m - the laser meets the near side of a man's body, the origin is the device); (2) the laser met THAT marker (the device's LastHit, copied from LaserSpot.Points[0].Hit); (3) the HUD bound to the device shows the range. Fail: no range, the wrong distance, the wrong man, or terrain. Check: scripts/scenario-regression.sh dv-range-targets"
+  },
+  "entities": {
+    "d5e10002-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10002-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10002-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10002-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "d5e10002-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -308.6,
+          -441.4,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 200",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "d5e10002-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -131.8,
+          18.19999999999999,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "d5e10002-0000-4000-8000-000000000004": {
+      "SimTransform": {
+        "Position": [
+          450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 900",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

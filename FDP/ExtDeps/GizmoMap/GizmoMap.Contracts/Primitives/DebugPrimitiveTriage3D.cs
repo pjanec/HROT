@@ -89,6 +89,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public int CulledByLod { get; private set; }
         /// <inheritdoc cref="CulledByTarget"/>
         public int DanglingAnchors { get; private set; }
+        /// <summary>⭐ S1d-1 — HUD runs skipped whole in the last <see cref="Triage"/> (a raw frame's runs: no view is bound here).</summary>
+        public int CulledByScope { get; private set; }
 
         /// <summary>Triages <paramref name="primitives"/> into <paramref name="into"/> (cleared first), in emission order.
         /// Returns the number kept.</summary>
@@ -96,7 +98,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         {
             if (into == null) throw new ArgumentNullException(nameof(into));
             into.Clear();
-            CulledByTarget = CulledByLayer = CulledByLod = DanglingAnchors = 0;
+            CulledByTarget = CulledByLayer = CulledByLod = DanglingAnchors = CulledByScope = 0;
 
             var layers = new LayerMask256();
             layers.SetAll();
@@ -118,22 +120,18 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 }
             }
 
-            foreach (ref readonly var p in primitives)
+            for (int pi = 0; pi < primitives.Length; pi++)
             {
-                switch (p.Shape)
-                {
-                    case DebugPrimitiveShape.SpatialAnchor:
-                    case DebugPrimitiveShape.ContextMenuBinding:
-                    case DebugPrimitiveShape.InputCaptureBinding:
-                    case DebugPrimitiveShape.MainMenuBinding:
-                    case DebugPrimitiveShape.LayerControlMask:
-                        continue;
-                }
+                ref readonly var p = ref primitives[pi];
+                // ⭐ Simulated devices S1d-1 (R3-4 / R5-4) — a HUD run is drawn only by a view bound to its source (the 3-D map's layer keeps it
+                //   before triage, HudScopes.Keep, scope marker removed); every other triage (the Stride shell) skips the WHOLE run.
+                if (HudScopes.IsScope(in p)) { pi = HudScopes.After(primitives, pi) - 1; CulledByScope++; continue; }
+                if (PrimitiveKind.IsMeta(p.Shape)) continue;   // ⭐ CC-14 — the one classifier
 
                 if ((p.TargetView & AcceptedTargets) == 0) { CulledByTarget++; continue; }
                 if ((p.TargetView & PipelineTarget.FlatOnly) != 0) { CulledByTarget++; continue; }   // ⭐ a 2-D symbol, never in 3-D
                 // ⭐ CE-3149 — a panel is not a map layer (the 2-D renderer's exemption, kept identical).
-                if (HonourLayerMask && p.Shape != DebugPrimitiveShape.StructInspector && !layers.IsSet(p.DebugLayer))
+                if (HonourLayerMask && !PrimitiveKind.IsPanel(p.Shape) && !layers.IsSet(p.DebugLayer))
                 { CulledByLayer++; continue; }
 
                 var t = new TriagedPrimitive3D { Primitive = p };

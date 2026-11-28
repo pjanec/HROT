@@ -290,6 +290,8 @@ namespace Hrot.AI.Behaviors.Brains
         public SimDuration LeadProgressAt;
         /// <summary>1 = at the last tick every follower stood within 3 m of its slot.</summary>
         public byte AllAtSlots;
+        /// <summary>⭐ <c>CE-5051</c> — leads in a row handed on without having walked at all (the objective has no way to it).</summary>
+        public byte NoWayLeads;
         public SimDuration HaltSince;
         public SimDuration HaltsAllowedAt;
         /// <summary>When the lead arrived (−1 = not yet).</summary>
@@ -683,8 +685,7 @@ namespace Hrot.AI.Behaviors.Brains
         }
 
         /// <summary>⭐ <c>CE-2141</c> (A4) — a member that is itself a unit (a platoon's squad): it receives ORDERS, not behaviours.</summary>
-        public static bool IsUnit(EntityRepository world, Entity member)
-            => world.IsComponentTypeRegistered<UnitEntity>() && world.HasComponent<UnitEntity>(member);
+        public static bool IsUnit(EntityRepository world, Entity member) => Fdp.Toolkit.Squad.CombatEffective.IsUnit(world, member);   // ⭐ C2 CC-8 — the one copy
 
         /// <summary>The order the COMMANDER's run gives a member: recorded on the commander (released when that run ends —
         /// <see cref="SubordinateOrders"/>, A5), then published at Superior.</summary>

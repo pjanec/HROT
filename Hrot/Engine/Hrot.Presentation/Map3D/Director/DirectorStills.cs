@@ -58,6 +58,12 @@ namespace Hrot.UI.Common.Map3D.Director
         private PlayRequest? _play;
         private IReadOnlyList<StillPlan> _plan = Array.Empty<StillPlan>();
         private string _dir = "";
+        // ⭐ CE-11018 (§2c) — the stills as ONE job for the sink: its record and its Begin's task (the first still waits for it)
+        private Hrot.Common.Infrastructure.FilmJob? _job;
+        private Task? _jobBegin;
+
+        /// <summary>⭐ CE-11018 — the frame sink these stills are taken through (rails: the pack's one sink).</summary>
+        public IFrameSink? Sink => _sink;
         private int _width, _height;
         private bool _captions;
         private int _i, _frames;
@@ -221,6 +227,9 @@ namespace Hrot.UI.Common.Map3D.Director
             _dir = Path.GetFullPath(dir);
             _width = width; _height = height; _captions = captions;
             _i = 0; _frames = 0; _capture = null; _path = null; _sheet = null;
+            var first = play.Reel.Items.Count > 0 ? play.Reel.Items[0] : null;
+            _job = new Hrot.Common.Infrastructure.FilmJob(Guid.NewGuid(), Hrot.Common.Infrastructure.FilmJobKind.Still, first == null ? "stills" : first.Scenario + "/" + first.Take, 0, width, height, 1, _dir);
+            _jobBegin = _sink!.Begin(_job);   // ⭐ CE-11018 — the sink picks the stills' source now (the linked client, or the map)
             _done.Clear(); _problems.Clear();
             Directory.CreateDirectory(_dir);
             _step = Step.Begin;
@@ -261,10 +270,12 @@ namespace Hrot.UI.Common.Map3D.Director
                     return;
                 case Step.Settle:
                     if (++_frames < SettleFrames) return;
+                    if (_jobBegin is { IsCompleted: false }) return;   // ⭐ CE-11018 — the frame source is warming up for the job
+                    if (_jobBegin is { IsFaulted: true } notTaken) { Fail("the frame source refused the stills: " + notTaken.Exception!.GetBaseException().Message); return; }
                     if (SceneReady is { } ready && !ready() && _frames < SettleFrames + SceneFrames) return;   // ⭐ CE-4130 — the 3-D scene after the jump is not built yet
                     _path = Path.Combine(_dir, _plan[_i].Name + ".png");
                     _shownSim = _runner.Status()["simTime"]?.GetValue<double>() ?? double.NaN;
-                    _capture = _sink!.Frame(_path, _width, _height, 1, _runner.OverlayNow(_captions));   // ⭐ CE-1305 — and the film graphics, as a movie frame
+                    _capture = _sink!.Frame(_path, _width, _height, 1, _runner.OverlayNow(_captions), _runner.ContextFor(_job!.JobId, _i));   // ⭐ CE-1305 — and the film graphics, as a movie frame; ⭐ CE-11018 — with its context
                     _frames = 0;
                     _step = Step.Capture;
                     return;
@@ -301,6 +312,15 @@ namespace Hrot.UI.Common.Map3D.Director
                 catch (Exception ex) { _problems.Add("the contact sheet failed: " + ex.Message); }
             }
             _step = _done.Count == _plan.Count ? Step.Done : Step.Failed;
+            EndJob(_step == Step.Done ? Hrot.Common.Infrastructure.FilmJobOutcome.Ok : new Hrot.Common.Infrastructure.FilmJobOutcome(Hrot.Common.Infrastructure.FilmJobEnd.Failed, string.Join("; ", _problems)));
+        }
+
+        /// <summary>⭐ CE-11018 — ends the stills' job once (a later call does nothing).</summary>
+        private void EndJob(Hrot.Common.Infrastructure.FilmJobOutcome outcome)
+        {
+            if (_job is not { } job || _sink == null) return;
+            _job = null; _jobBegin = null;
+            _ = _sink.End(job, outcome);
         }
 
         private void Fail(string why)
@@ -308,6 +328,7 @@ namespace Hrot.UI.Common.Map3D.Director
             _problems.Add(why);
             if (_runner.Busy) _runner.Stop();
             _step = Step.Failed;
+            EndJob(new Hrot.Common.Infrastructure.FilmJobOutcome(why == CancelledProblem ? Hrot.Common.Infrastructure.FilmJobEnd.Stopped : Hrot.Common.Infrastructure.FilmJobEnd.Failed, why));
         }
 
         /// <summary>The job: <c>{state, scenario, take, dir, planned, stills[], sheet, problems[]}</c> (state idle · running · done · failed).</summary>
@@ -320,6 +341,7 @@ namespace Hrot.UI.Common.Map3D.Director
             ["planned"] = PlanJson(_plan),
             ["stills"] = new JsonArray(_done.Select(d => (JsonNode?)d.DeepClone()).ToArray()),
             ["sheet"] = _sheet,
+            ["framesTo"] = _step == Step.Idle ? null : _sink?.Route,   // ⭐ CE-11067 — the linked client or HROT's map (and why)
             ["sheetGrid"] = _sheet == null ? null : ContactSheet.Layout(_done.Count, _width, _height).ToJson(),
             ["problems"] = new JsonArray(_problems.Select(p => (JsonNode?)p).ToArray()),
         };

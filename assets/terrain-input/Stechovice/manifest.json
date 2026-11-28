@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "name": "Stechovice",
+  "frame": {
+    "utm": {
+      "zone": 33,
+      "hemisphere": "N",
+      "e0": 457800,
+      "n0": 5524400
+    }
+  },
+  "axes": "x east, y north, z up (absolute); headings compass degrees, 0 = north, clockwise",
+  "bounds": [
+    -2021,
+    -2128,
+    2045,
+    2176
+  ],
+  "sumoAnchor": [
+    0,
+    0
+  ],
+  "source": {
+    "osm": "2026-11-13T22:06:07Z",
+    "dem": "Copernicus DEM GLO-30",
+    "attribution": "\u00A9 OpenStreetMap contributors \u00B7 Copernicus DEM GLO-30",
+    "licence": "OpenStreetMap data: ODbL 1.0 (https://www.openstreetmap.org/copyright)",
+    "box": [
+      49.8512320836564,
+      14.3843549914805,
+      49.8902338541798,
+      14.4414323993174
+    ],
+    "generator": "hrot-terrain-osm"
+  },
+  "files": {
+    ".gitattributes": {
+      "sha256": "d2eec0f545bd003662acc2864b01c756e3b75632c20dda6369c98a8a444bf5b8",
+      "bytes": 90
+    },
+    "buildings/buildings.geojson": {
+      "sha256": "271b33d06fb1504663bfd8910ad58196f2d0900feeb0d7766d03fa66442ec48f",
+      "bytes": 9042275,
+      "features": 4822
+    },
+    "buildings/unassigned.geojson": {
+      "sha256": "40c4f12562d56f517a54822c0d60ac6bffcd08b0c015b9c133f80d020c83172e",
+      "bytes": 199,
+      "features": 0
+    },
+    "heights/heights.f32": {
+      "sha256": "0cf4b991d093adab75c99bcb42be7fc954cc1ba8b985fd111b374367676d0e09",
+      "bytes": 79460,
+      "rows": 145,
+      "cols": 137
+    },
+    "heights/heights.hdr": {
+      "sha256": "a5af79afed4df159ba07ebc7166d953526150791844c53620d04f9d02a32060f",
+      "bytes": 181
+    },
+    "heights/heights.json": {
+      "sha256": "99ddb8d6ee6ec1f8f9e385c728bcd072ab40eeb274962b11f71e34e842debbf6",
+      "bytes": 403
+    },
+    "roads/roads.net.xml": {
+      "sha256": "542729de4ae6562549ca3c3316e34af32dc9ec1af74e5e52d481684ce14e16ed",
+      "bytes": 8699214
+    },
+    "trees/trees.csv": {
+      "sha256": "b211d52a8d83f9b9e670a9930d04b6852e400864799980432b86db188abd68b8",
+      "bytes": 80,
+      "rows": 3
+    },
+    "vegetation/scrub.geojson": {
+      "sha256": "5b3a982ba8f67fc36bef52d645696a311c1c348dc3775097bd9fe84d8f63ee48",
+      "bytes": 26840,
+      "features": 60
+    },
+    "vegetation/woods.geojson": {
+      "sha256": "bff0ff3793cc9a59d7a6a6bbad90c44b62b1d6253cc290931abc0ace9120514e",
+      "bytes": 71878,
+      "features": 77
+    },
+    "walls/walls.geojson": {
+      "sha256": "e360ca4437898ae04850a12e896e93d2a0f3a9345fe1e95fe9b3b7733acb7942",
+      "bytes": 6549,
+      "features": 23
+    },
+    "water/water.geojson": {
+      "sha256": "e4770a2481cc181a4a0d5e3f379b015055710ab2f6b080ef16af6c189b726390",
+      "bytes": 12185,
+      "features": 14
+    }
+  }
+}

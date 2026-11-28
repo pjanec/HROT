@@ -116,6 +116,10 @@ public sealed class SharedApplicationBootstrapperTests
         protected override Fdp.Toolkit.Time.Controllers.TimeRole TimeRole => DeclaredTimeRole;
         protected override bool BuildsPostSimGroup => DeclaredBuildsPostSimGroup;
 
+        /// <summary>CE-11032 — the registry this subclass owns (null = a node with no brain).</summary>
+        public BehaviorRegistry? Registry { get; init; }
+        protected override BehaviorRegistry? GetBehaviorRegistry() => Registry;
+
         protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
         {
             CallLog.Add(nameof(BuildSerializer));
@@ -189,6 +193,20 @@ public sealed class SharedApplicationBootstrapperTests
         public string Key => "cap:test-post-sim";
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
         public void PopulateSystems(HrotNodeContext c, List<IEcsModuleSystem> i, List<IEcsModuleSystem> s, List<IEcsModuleSystem> p) => p.Add(new TestSimSystem());
+    }
+
+    /// <summary>⭐ CE-11032 — the context offers the SAME registry instance the bootstrapper owns (a node extension reads names through it); a node with no brain leaves it null.
+    /// 🔴 Red-proof: the <c>context with { BehaviorRegistry = … }</c> line removed from <c>SharedApplicationBootstrapper</c> ⇒ the first row reads null.</summary>
+    [Fact]
+    public void CE11032_TheContextOffersTheBootstrappersRegistry_AndANodeWithNoBrainLeavesItNull()
+    {
+        var factory = new Hrot.Editor.OfflineNetworkFactory();
+        var registry = new BehaviorRegistry();
+        var withBrain = new TestBootstrapper(factory) { Registry = registry }.BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+        var noBrain = new TestBootstrapper(factory).BootstrapNode(HeadlessConfig(), NodeRole.None, factory);
+
+        Assert.Same(registry, withBrain.BehaviorRegistry);
+        Assert.Null(noBrain.BehaviorRegistry);
     }
 
     /// <summary>⭐ CE-1446 B0 — a declared TimeRole reaches the node's context and its clock (the editor's Standalone is a master-type controller); the default stays Slave — through the ONE build path

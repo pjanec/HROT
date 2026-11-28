@@ -27,8 +27,10 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public void Draw(ISimulationView view, Entity entity, IDebugDrawBuilder draw)
         {
             if (view is not EntityRepository repo || !repo.IsComponentTypeRegistered<SimTransform>() || !view.HasComponent<SimTransform>(entity)) return;
-            string? text = Text(repo, entity);
-            if (text == null) return;
+            Span<char> buf = stackalloc char[64];   // ⭐ CE-11031 (R-2084) — a man who stays down is drawn every frame: formatted on the stack, no list and no Join
+            int len = TextInto(repo, entity, buf);
+            if (len < 0) return;
+            var text = (ReadOnlySpan<char>)buf[..len];
             // ⭐ CE-1178 (U17) — a row of his CARD: the card sits above the head in 3-D (its renderer lifts it to the body top) and above
             //   the symbol in 2-D. ⛔ It was loose ground text, which 3-D drew at his FEET. Loose text stays only for a man with no
             //   network id (a card is keyed by it).
@@ -43,17 +45,32 @@ namespace Hrot.Common.Diagnostics.Gizmos
         /// <summary>The line shown, or null for none. Public for the rail.</summary>
         public static string? Text(EntityRepository repo, Entity entity)
         {
+            Span<char> buf = stackalloc char[64];
+            int n = TextInto(repo, entity, buf);
+            return n < 0 ? null : new string(buf[..n]);
+        }
+
+        /// <summary>⭐ CE-11031 — the line shown, written into <paramref name="into"/> (at most 64 characters); its length, or -1 for none.</summary>
+        public static int TextInto(EntityRepository repo, Entity entity, Span<char> into)
+        {
             bool down = Effects.IsKnockedDown(repo, entity), stunned = Effects.IsStunned(repo, entity), gassed = Effects.IsIrritated(repo, entity);
             bool cowering = Effects.IsCowering(repo, entity);
             string? gesture = GestureWord(Gestures.Of(repo, entity));   // ⭐ CE-1166 (U6-e) — what his arms show, on the same line
-            if (!down && !stunned && !gassed && !cowering && gesture == null) return null;
-            var parts = new System.Collections.Generic.List<string>(3);
-            if (down) parts.Add("DOWN");
-            if (stunned) parts.Add("STUNNED");
-            if (gassed) parts.Add("GASSED");
-            if (cowering) parts.Add("COWERING");
-            if (gesture != null) parts.Add(gesture);
-            return string.Join(" · ", parts);
+            if (!down && !stunned && !gassed && !cowering && gesture == null) return -1;
+            int n = 0;
+            if (down) n = Add(into, n, "DOWN");
+            if (stunned) n = Add(into, n, "STUNNED");
+            if (gassed) n = Add(into, n, "GASSED");
+            if (cowering) n = Add(into, n, "COWERING");
+            if (gesture != null) n = Add(into, n, gesture);
+            return n;
+        }
+
+        private static int Add(Span<char> into, int n, string word)
+        {
+            if (n > 0) { " · ".AsSpan().CopyTo(into[n..]); n += 3; }
+            word.AsSpan().CopyTo(into[n..]);
+            return n + word.Length;
         }
 
         /// <summary>⭐ CE-1166 (U6-e) — a gesture's word: HANDS UP, or PROTEST for the protest gestures; null for none.</summary>

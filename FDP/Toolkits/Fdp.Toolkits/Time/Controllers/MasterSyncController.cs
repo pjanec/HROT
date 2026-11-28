@@ -150,7 +150,8 @@ namespace Fdp.Toolkit.Time.Controllers
 
         /// <summary>
         /// Advances the controller one frame.  In Continuous / BarrierPending: accumulates
-        /// wall-clock and sim time, publishes <see cref="TimePulseDescriptor"/> at ~1 Hz.
+        /// wall-clock and sim time (no pulse is published — slaves extrapolate from the last
+        /// <see cref="SwitchTimeModeEvent"/> anchor, CE-11022).
         /// In Stepping: drains <see cref="FrameStepCompletedEvent"/> from bus to unlock the
         /// next <see cref="Step(float)"/> call.
         /// </summary>
@@ -221,7 +222,23 @@ namespace Fdp.Toolkit.Time.Controllers
         {
             if (scale < 0.0f)
                 throw new ArgumentException("TimeScale cannot be negative.", nameof(scale));
+            bool changed = scale != _timeScale;
             _timeScale = scale;
+            // ⭐ CE-11019 — a slave has no pulse: it EXTRAPOLATES from the last anchor at the anchor's rate. A rate change while running must
+            //   therefore re-anchor every slave, or each keeps the old rate and drifts from the master (measured: SimTimeSyncIntegrationTests
+            //   TC-SYNC-7). The anchor is the tick `_totalTime` was last computed at — from there the new rate applies on the master too, so the
+            //   sample is exact (the same shape as the already-running resume, CE-4087). Paused / mid-barrier: the next resume carries the rate.
+            if (changed && _mode == MasterMode.Continuous && _pendingBarrierWallTicks < 0)
+            {
+                _eventBus.Publish(new SwitchTimeModeEvent
+                {
+                    TargetMode       = TimeMode.Continuous,
+                    BarrierWallTicks = _lastTickSample,
+                    SimTimeSnapshot  = _totalTime,
+                    TimeScale        = _timeScale,
+                    FixedDelta       = 0f,
+                });
+            }
         }
 
         public float    GetTimeScale()    => _timeScale;

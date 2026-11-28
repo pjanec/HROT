@@ -1,0 +1,94 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LLM commander (L-1 CE-4676, L-2 CE-4679 ⑤, L-2b CE-4680; docs/designs/llm-commander/DESIGN_LLM_Commander.md §1, §5b): the Platoon's brain is a seat with the SCRIPTED mind, which runs the platoon's own PlatoonAttack play on the first SPOT (run_play, CE-4680 B-1); Alpha Squad and Bravo Squad fight with the game AI; Red's Defenders hold the sheds. Blue starts behind the L-Block, the objective and the support position are behind the Low Wall, six 1.5 m walls stagger the lane to the house; the platoon carries a CommanderBrief and its places PlaceNotes (B-2, B-6). Measured 2026-11-22 (two runs): PlatoonAttack at 78 s, Bravo supports and reports TargetsDown at ~3:00, Alpha closes by fire and movement; every Red man down by the end, one Bravo man lost. ⚠ The L-2 row 'Red still fires 60 s after its first shot' is gone: with the play Red is beaten after about a minute of fire; the fight's length is judged from Blue's side, and L-1's check ④ is back as its 'Red is beaten' branch (DECISIONS_Backend CE-4680 #1). FEATURE scenario (no golden until two fresh runs agree, §5). The 'report' cue reads the brain node's report log (editor tier). · ⭐ CE-4681 (L-3 ④, DESIGN_LLM_Commander §5a-3): the two rows only the SCRIPTED mind can pass ('both squads to the objective at the start', 'the platoon's own play never runs' — a model plans otherwise and may run PlatoonBound itself) carry \"if\": \"scriptedMind\" — a model run SKIPS them.",
+  "runFor": 420,
+  "golden": false,
+  "anchors": {
+    "spotted": {
+      "on": "report",
+      "target": "Platoon",
+      "is": [
+        "Spot",
+        "Contact"
+      ]
+    },
+    "redFires": {
+      "on": "shot",
+      "by": "*Red "
+    },
+    "scriptedMind": {
+      "on": "field",
+      "who": "Platoon",
+      "path": "CommanderSeat.Mind",
+      "op": "==",
+      "value": "Scripted",
+      "for": 1
+    }
+  },
+  "expect": [
+    {
+      "name": "both squads are sent to the objective at the start",
+      "on": "task",
+      "who": "*Squad",
+      "is": "InfantrySquadMove",
+      "before": 5,
+      "if": "scriptedMind"
+    },
+    {
+      "name": "the platoon runs its PlatoonAttack play within 1 s of the first SPOT into the platoon (run_play, CE-4680)",
+      "on": "task",
+      "who": "Platoon",
+      "is": "PlatoonAttack",
+      "after": "spotted",
+      "before": "spotted+1"
+    },
+    {
+      "name": "the platoon's own play never runs (no PlatoonHold, no ReactToFireFromBuilding)",
+      "never": {
+        "on": "task",
+        "who": "Platoon",
+        "is": [
+          "PlatoonHold",
+          "ReactToFireFromBuilding",
+          "PlatoonBound"
+        ]
+      },
+      "if": "scriptedMind"
+    },
+    {
+      "name": "Alpha Squad reports to the platoon",
+      "on": "report",
+      "by": "Alpha Squad",
+      "target": "Platoon"
+    },
+    {
+      "name": "Bravo Squad reports to the platoon",
+      "on": "report",
+      "by": "Bravo Squad",
+      "target": "Platoon"
+    },
+    {
+      "name": "Red fires (the fight happens)",
+      "on": "shot",
+      "by": "*Red "
+    },
+    {
+      "name": "the fight lasts at least a minute: Blue still fires 60 s after Red's first shot (CE-4679 ⑤)",
+      "on": "shot",
+      "by": [
+        "Alpha *",
+        "Bravo *"
+      ],
+      "after": "redFires+60"
+    },
+    {
+      "name": "the fight ends before the time limit with Red beaten: every Red man down (L-1 check ④, its 'Red is beaten' branch)",
+      "on": "field",
+      "who": "*Red ",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "quantifier": "all",
+      "atEnd": true
+    }
+  ]
+}

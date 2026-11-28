@@ -110,12 +110,16 @@ public static class GizmoFramePanel
     /// field happens to alias the bytes, and it reads as data. ⚠ A shape with no projection yet is
     /// reported as ITSELF with a note — ⛔ inventing fields for it would not be true.</para>
     /// </summary>
+    [ThreadStatic] private static DebugPrimitive[]? t_unscoped;
+
     public static GizmoFrameViewModel BuildViewModel(
         DebugPrimitiveBuffer buffer, string panelId, int max = DefaultMax)
     {
         ArgumentNullException.ThrowIfNull(buffer);
 
-        var frame   = buffer.GetFrame();
+        var scratch = t_unscoped ?? Array.Empty<DebugPrimitive>();
+        var frame   = HudScopes.Unscoped(buffer.GetFrame(), ref scratch);   // ⭐ S1d-1 (R3-4) — no view is bound here: every HUD run skipped whole
+        t_unscoped  = scratch;
         var items   = new JsonArray();
         int emitted = Math.Min(frame.Length, Math.Max(0, max));
 

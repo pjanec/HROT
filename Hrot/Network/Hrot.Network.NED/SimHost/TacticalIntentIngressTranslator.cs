@@ -68,7 +68,7 @@ namespace Hrot.Network.NED.SimHost
                 if (!sample.IsValid) continue;
                 ReceivedSampleCount++;
                 var data = sample.Data;
-                ProcessSample(in data, repo);
+                ProcessSample(in data, repo, cmd);
             }
         }
 
@@ -76,7 +76,7 @@ namespace Hrot.Network.NED.SimHost
         /// Processes a single <see cref="TacticalIntentRequest"/> sample.
         /// Exposed as <c>internal</c> so unit tests can inject samples without a live DDS stack.
         /// </summary>
-        internal void ProcessSample(in TacticalIntentRequest request, EntityRepository repo)
+        internal void ProcessSample(in TacticalIntentRequest request, EntityRepository repo, IEntityCommandBuffer? cmd = null)
         {
             if (!_entityMap.TryGetEntity(request.TargetEntityId, out var entity)) return;
 
@@ -88,7 +88,9 @@ namespace Hrot.Network.NED.SimHost
                     && repo.Bus.IsRegistered<SetRoeEvent>()
                     && RoeDirectiveJson.TryDecode(request.JsonParams, entity, origin, out var roe))
                 {
-                    repo.Bus.Publish(roe);
+                    // ⭐ CE-3494 §10 (R-3119) — a PERSON's ROE is the unit's intent on this, its brain's node
+                    if (IsPersons(repo, entity, origin)) Fdp.Toolkit.Behavior.UnitIntents.RequestRoe(repo, in roe, cmd);
+                    else repo.Bus.Publish(roe);
                     return;
                 }
                 if (request.Kind == TacticalIntentWireKind.SetReporting
@@ -109,6 +111,17 @@ namespace Hrot.Network.NED.SimHost
                 return;
             }
 
+            // ⭐⭐ CE-3494 §10 P6 (R-3119) — a PERSON's order (origin Operator) forwarded from a station is the unit's INTENT here, where its brain
+            //   runs: shown as Next, kept by a checkpoint, replaced by a later order. The simulation's own orders stay events (P2).
+            var by = (Fdp.Toolkit.Behavior.Components.BehaviorOrigin)request.Origin;
+            if (IsPersons(repo, entity, by))
+            {
+                if ((TacticalIntentKind)request.Kind == TacticalIntentKind.Clear)
+                    Fdp.Toolkit.Behavior.UnitIntents.RequestClear(repo, entity, by, request.RequestId, cmd);
+                else
+                    Fdp.Toolkit.Behavior.UnitIntents.RequestTask(repo, entity, request.IntentId ?? string.Empty, request.JsonParams, by, request.RequestId, cmd);   // ⭐ through the host's command buffer: an ingress may not write the world directly
+                return;
+            }
             repo.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity     = entity,
@@ -120,6 +133,11 @@ namespace Hrot.Network.NED.SimHost
                 RequestId  = request.RequestId,   // ⭐ CE-4306 (F5)
             });
         }
+
+        /// <summary>⭐ CE-3494 §10 — a person's request (origin Operator) for a unit whose brain runs HERE.</summary>
+        private static bool IsPersons(EntityRepository repo, Entity entity, Fdp.Toolkit.Behavior.Components.BehaviorOrigin origin)
+            => origin == Fdp.Toolkit.Behavior.Components.BehaviorOrigin.Operator
+               && repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity) && repo.HasAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(entity);
 
         /// <inheritdoc/>
         public void ScanAndPublish(ISimulationView view) { }

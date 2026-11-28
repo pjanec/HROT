@@ -29,6 +29,8 @@ namespace Fdp.Core
     /// agg-behaviors ⭐ 119, 138, 139 (MOVED 2026-11-16: terrain took 324–326 for MinefieldLanes / MineClearing / MineBreadcrumbs before agg-behaviors used any), agg-ui 327–329. ⚠ 280 is a test fixture's (EditLoadClusterOpHandlerTests), 318/319/323 minefields'.</para>
     /// <para>⭐ CE-4628 (ui, 2026-11-19; docs/designs/animals/DESIGN_Animals.md §10a) — the shared creature components take <c>Group</c> 139 (⚠ the agg-behaviors note above listed 139 as reserved for it; no branch declares it — measured 2026-11-19) and <c>AnimalTasks</c> 163 (was <c>InFormationTag</c>'s).</para>
     /// <para>⭐ R-4282 (2026-11-16) — the `convoy` lane (CE-4631, the road convoy) takes 108, 109, 157, 158 (measured free on all eight branches).</para>
+    /// <para>⭐ Simulated devices S1a (coordinator, 2026-11-27) — <c>DeviceInfo</c> takes 219, the toolkit hole beside 218.</para>
+    /// <para>⭐ C1 (coordinator, 2026-11-27; docs/DESIGN_Capability_Components.md CC-1) — <c>Mountable</c> takes 218, a toolkit hole: the coordinator block 476–495 is full and 108 is the convoy lane's (R-4282); measured FREE by <c>ComponentIdCatalogueTests</c> the same day.</para>
     /// <para>⭐ R-10000 (2026-11-17, the `air` lane, CE-10000; docs/designs/air-attack/DESIGN_Air_Combat.md §7) — the air block is 128, 160, 277, 278, 279:
     /// measured by a full scan of every [ComponentId], every *Ids constant (int / ushort / byte) and every literal on coordinator, behaviors, backend,
     /// ui, terrain, convoy and the three exp/agg-* branches — those five were the ONLY ids nobody declares or uses. ⚠ 277–279 sit under NavFakeIds'
@@ -374,6 +376,18 @@ namespace Fdp.Core
 
         /// <summary><c>EffectAnchor</c> — ⭐ CE-1042 E2: the shooter and weapon a muzzle flash / tracer is attached to.</summary>
         public const int EffectAnchor            = 125;
+
+        /// <summary><c>EffectCause</c> — ⭐ CE-11010 (RR-10, R-11004): what an effect made from a HIT struck (surface, material, target, damage, ammo); recorded,
+        /// never saved. Id measured 2026-11-20: production-free on every lane, its only other use a test struct in Fdp.Core.Tests (never registers Hrot types).</summary>
+        public const int EffectCause             = 72;
+
+        /// <summary><c>CameraSuggestion</c> — ⭐ CE-11006 (RR-6, R-11000): the node's CURRENT suggested camera (a world singleton; node-local advice, never recorded,
+        /// replicated or saved). Id measured 2026-11-20: production-free on every lane, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
+        public const int CameraSuggestion        = 86;
+
+        /// <summary><c>FilmCaption</c> — ⭐ CE-11035 (R-11015): the director's subtitle text on this node (a managed singleton, node-local, never recorded or saved; set only when the
+        /// suggested camera's caption serial changes). Id measured 2026-11-22: production-free, its only other use a test struct in Fdp.ModuleHost.Tests (never registers Hrot types).</summary>
+        public const int FilmCaption             = 87;
 
         /// <summary><c>RamOrder</c> — ⭐ CE-4622 K-2 (DESIGN_Checkpoint_And_Ramming.md RM-2, §5a): a hull's "I am ramming this" (the target, or a crowd): its
         /// avoidance skips the target, its breach gate lets it break a weak barrier. Unmanaged, recorded; Brain group, replicated (<c>dtRamOrder</c>, 196).
@@ -923,6 +937,57 @@ namespace Fdp.Core
         /// its owner, replicated (<c>dtWeaponSystemState</c>), saved. ⚠ 380 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int WeaponSystemState = 380;
 
+        /// <summary><c>Mountable</c> — ⭐ Capability components C1 (docs/DESIGN_Capability_Components.md §4.1, CC-1): the ITEM facts (what it mounts on, how many carry it,
+        /// how it slows the carrier) split out of <c>WeaponSystemParams</c>; every node, never saved or replicated. ⚠ 218 is a toolkit hole, listed FREE by
+        /// <c>ComponentIdCatalogueTests</c> on coordinator 2026-11-27 (the lane blocks 476–495 are full; 108 is the convoy lane's, R-4282).</summary>
+        public const int Mountable = 218;
+
+        /// <summary><c>DeviceInfo</c> — ⭐ Simulated devices S1a (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1): the device marker + the behaviour it
+        /// runs. ⚠ 219 is a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> on coordinator 2026-11-27 (the lane blocks are full).</summary>
+        public const int DeviceInfo = 219;
+
+        /// <summary><c>DeviceInput</c> — ⭐ Simulated devices S1b-2: the newest frame a device took. ⚠ 228, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-27).</summary>
+        public const int DeviceInput = 228;
+
+        /// <summary><c>DevicePose</c> — ⭐ Simulated devices S1b-3: a device's orientation and offset relative to where it is carried / mounted. ⚠ 229, a toolkit hole listed FREE (2026-11-27).</summary>
+        public const int DevicePose = 229;
+
+        /// <summary><c>LaserPointing</c> — ⭐ Simulated devices S1c (§3.8 LS-14): whether a device's laser is on, its band, power, direction (device frame) and request seq. ⚠ 231, a toolkit hole listed FREE (2026-11-27).</summary>
+        public const int LaserPointing = 231;
+
+        /// <summary><c>LaserSpot</c> — ⭐ S1c (§3.8 LS-14): where the laser lands — up to 4 points, each with its range, strength and the entity hit; written by the muscle only. ⚠ 232, FREE (2026-11-27).</summary>
+        public const int LaserSpot = 232;
+
+        /// <summary><c>DevicePanel</c> — ⭐ S1c (§3.7 D-28): a device's generic panel outputs (lamps, blinks, 16 values, 4 text lines), written on change. ⚠ 233, FREE (2026-11-27).</summary>
+        public const int DevicePanel = 233;
+
+        /// <summary><c>DroneBattery</c> — ⭐ Simulated devices SD-S2b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-108): a drone's ONE battery state (the
+        /// fraction left), drained airborne by <c>DroneBatterySystem</c> (brain group), frozen in pause. ⚠ 234, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DroneBattery = 234;
+
+        /// <summary><c>ControlledEntities</c> — ⭐ Simulated devices SD-S2c (DESIGN_Simulated_Devices §3.13f D-147, §3.13c D-105): what a DEVICE commands (a drone, up to four
+        /// weapons) — authored on the device; the one pairing. ⚠ 327 — listed FREE by <c>ComponentIdCatalogueTests</c> AND used by no test fixture (2026-11-28; 235 was a fixture's — <c>NetworkSpawningLifecycleTests</c> collided on 241).</summary>
+        public const int ControlledEntities = 327;
+
+        /// <summary><c>RemoteControl</c> — ⭐ SD-S2c (§3.13c D-104): the drone ground station's command on ITSELF (mode, the four sticks, the gimbal, seq), read by the
+        /// paired drone's own brain. ⚠ 328 — listed FREE AND used by no test fixture (2026-11-28; 236 collided with a fixture).</summary>
+        public const int RemoteControl = 328;
+
+        /// <summary><c>DroneLink</c> — ⭐ SD-S2c (§3.13c D-106): a remotely piloted drone's link (quality, jammed, lost) and its pilot phase, written by the drone on
+        /// itself. ⚠ 329 — listed FREE AND used by no test fixture (2026-11-28; 241 collided with a fixture).</summary>
+        public const int DroneLink = 329;
+
+        /// <summary><c>DeviceView</c> — ⭐ SD-S2c (§3.13c D-109): the entity a view bound to the device films through (the drone's camera), its mode and pitch;
+        /// written by the device on itself. ⚠ 398 — listed FREE AND used by no test fixture (2026-11-28; 242 collided with a fixture).</summary>
+        public const int DeviceView = 398;
+        /// <summary><c>DeviceLinks</c> — ⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119): the devices a device SENDS to
+        /// (its peers — an address, scenario-authored). ⚠ 235, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceLinks = 235;
+
+        /// <summary><c>DeviceInbox</c> — ⭐ SD-S5b (D-119): the newest two <c>DeviceMessageEvent</c>s addressed to a device, filed by the device tick's serial ingest.
+        /// ⚠ 236, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
+        public const int DeviceInbox = 236;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;
@@ -1350,6 +1415,12 @@ namespace Fdp.Core
         /// (<c>RPos</c> / <c>RVel</c>) keep private test structs on them — those suites never register these types (the 489–491 precedent).</summary>
         public const int HeatSource = 487, FireState = 488;
 
+        /// <summary><c>Ambience</c> — ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md §1): one AMBIENCE LAYER — a kind (a dotted name, never a sample), an intensity, a radius
+        /// and the sim time it ends; positionless = heard everywhere. Recorded, saved (an authored layer is a scenario entity), replicated (<c>dtAmbience</c> 246; no group — its creator keeps it).
+        /// ⚠ 266, the one production-free id no test holds and no comment reserves (measured 2026-11-22: every <c>[ComponentId]</c> literal in tests, every constant, the free list the
+        /// catalogue rail prints); 266 was only NavFakeIds' note "formerly FakePathPoolEntry — not an ECS component". The ui block (460–475) and the new-lane block (476–495) are full.</summary>
+        public const int Ambience = 266;
+
         /// <summary><c>TerrainBlock</c> — ⭐ O-4 (CE-4415, docs/DESIGN_Terrain_Authoring.md §18c): a placed block of terrain features (recipe, seed, heading, fit flags), one saved entity per block;
         /// the <c>OverlayCompiler</c> expands it at save. Unmanaged, authored, recorded and saved. ⚠ 494–495: the backend block (434–449) is full, so these are taken from the TOP of the coordinator / new-lane block (476–495), which allocates upward (highest in use 485, every lane, 2026-11-11) — NOTE_Backend_To_Coordinator_Component_Ids_494_495.md.</summary>
         public const int TerrainBlock = 494;
@@ -1391,10 +1462,28 @@ namespace Fdp.Core
         /// sees it. 158 measured free on every branch and in every test (the catalogue rail's FREE list + a grep of ComponentId(158)), 2026-11-21.</summary>
         public const int UnderFireSightHolder = 158;
 
+        /// <summary>⭐ CE-4676 (docs/designs/llm-commander/DESIGN_LLM_Commander.md §5, L-1) — <c>CommanderSeat</c> (Hrot.CGF): a commander whose orders come from a MIND
+        /// (scripted, an outside agent, a local model), not from his own play. Saved with the scenario. ⚠ 217: on the catalogue rail's FREE list (2026-11-22); the only other
+        /// user is a Fdp.Core.Tests fixture (EntityQueryEnumeratorTests), whose world never loads the CGF registry.</summary>
+        public const int CommanderSeat = 217;
+
+        /// <summary>⭐ <c>CE-4680</c> B-2 (Hrot.CGF) — <c>CommanderBrief</c>: a seated commander's mission (Task · Purpose · Constraints · Time), authoring-only
+        /// (unmanaged, NoReplay — auto-serialized with the scenario). ⚠ 320: on the catalogue rail's FREE list (2026-11-22; 318 / 319 are the minefields'); no branch declares it; the only other user is a Fdp.Core.Tests fixture (ParallelSyncTests), whose world never loads the CGF registry.</summary>
+        public const int CommanderBrief = 320;
+
+        /// <summary>⭐ <c>CE-4680</c> B-6 (Hrot.CGF) — <c>PlaceNote</c>: a one-line terrain note on a named place, authoring-only (unmanaged, NoReplay).
+        /// ⚠ 321: on the FREE list, as 320.</summary>
+        public const int PlaceNote = 321;
+
         /// <summary>⭐ CE-4624 MS-T4 (DESIGN_Minefields.md MR-11, MR-15, MR-18) — <c>MinefieldLanes</c> (a runtime record of the lanes a deciding node CLEARED through one field;
         /// <c>dtMinefieldLanes</c> 194, TKB 7208) and <c>MineClearing</c> (a mine-clearer's "my plough / flail / line charge is working": Brain group, <c>dtMineClearing</c> 195 — the
         /// bulldozer's <c>BladeCut</c> pattern). ⚠ 324 / 325 measured free on every lane 2026-11-16.</summary>
         public const int MinefieldLanes = 324, MineClearing = 325;
+
+        /// <summary>⭐ <c>CE-4693</c> (bridge laying BL-S3, BL-17) — <c>BridgeCarried</c>: a bridge engineer's span (count, its brain's order: lay / recover). Brain group,
+        /// replicated (<c>dtBridgeCarried</c> 247). ⚠ backend's block 434–449 is full: 292 measured free on every lane (coordinator, behaviors, ui, terrain, backend, convoy,
+        /// the exp/agg-* branches, air, unreal-ig — every *Ids file and literal [ComponentId]) 2026-11-25.</summary>
+        public const int BridgeCarried = 292;
 
         /// <summary>⭐ CE-4624 MS-T2 (MR-5, R-5049) — <c>MineBreadcrumbs</c>: a unit's own recent track near a minefield (the back-out path), written by its brain node, recorded,
         /// not replicated. ⚠ 326 measured free on every lane 2026-11-16.</summary>
@@ -1516,6 +1605,7 @@ namespace Fdp.Core
         public const int GlobalDebugSettings = 185;
         public const int CanvasContextMenuState = 186;
         public const int InitialBlueprintsIntent = 187;
+        // 241 — RETIRED (was InitialDeviceLinksIntent, SD-S5b WIP): DeviceLinks holds EntityLinks, resolved by the one load walker (R-184). Do not reuse.
         // from NavigationContractsComponentIds
         public const int NavigationIntent = 67;
         public const int NavigationStatus = 68;

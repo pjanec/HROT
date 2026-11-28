@@ -38,6 +38,13 @@ namespace Fdp.Toolkit.Vis2D.Defaults
             Raylib.IsKeyReleased((Raylib_cs.KeyboardKey)(int)key);
         public int GetKeyPressed() => Raylib.GetKeyPressed();
 
+        // ⭐ SD-S2a (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-102) — pad 0, raw (the keymap reader applies the one deadzone)
+        private const int Pad = 0;
+        public bool GamepadAvailable => Raylib.IsGamepadAvailable(Pad);
+        public float GamepadAxis(MapGamepadAxis axis) => Raylib.GetGamepadAxisMovement(Pad, (Raylib_cs.GamepadAxis)(int)axis);
+        public bool GamepadButtonDown(MapGamepadButton button) => Raylib.IsGamepadButtonDown(Pad, (Raylib_cs.GamepadButton)(int)button);
+        public bool GamepadButtonPressed(MapGamepadButton button) => Raylib.IsGamepadButtonPressed(Pad, (Raylib_cs.GamepadButton)(int)button);
+
         /// <summary>⭐ CE-3174 — the first-person view's cursor lock (Raylib keeps reporting <see cref="MouseDelta"/>).</summary>
         public void SetCursorLocked(bool locked)
         {
@@ -51,5 +58,8 @@ namespace Fdp.Toolkit.Vis2D.Defaults
             if (locked) io.ConfigFlags |= ImGuiConfigFlags.NoMouse;
             else io.ConfigFlags &= ~ImGuiConfigFlags.NoMouse;
         }
+
+        /// <summary>⭐ SD-S5v (devices §3.13e D-123) — the RMB-look gives the cursor back where it was (raylib's EnableCursor centres it).</summary>
+        public void SetMousePosition(Vector2 position) => Raylib.SetMousePosition((int)position.X, (int)position.Y);
     }
 }

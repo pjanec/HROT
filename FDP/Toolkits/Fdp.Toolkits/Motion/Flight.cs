@@ -83,6 +83,8 @@ namespace Fdp.Toolkit.Motion
             yield return typeof(NavigationIntent);
             yield return typeof(NavigationStatus);
             yield return typeof(Fdp.Toolkit.Physics.Components.PhysicsCollider);
+            yield return typeof(DroneBattery);   // ⭐ devices SD-S2b — a drone type only
+            yield return typeof(DroneLink);      // ⭐ devices SD-S2c — a type flown by radio (RemoteLinkDto) only
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -95,6 +97,10 @@ namespace Fdp.Toolkit.Motion
             Ensure(repo, entity, default(NavigationStatus), overwrite: false);
             // its body: what a round, a fragment or another flyer meets (no ground physics gives it one)
             Ensure(repo, entity, new Fdp.Toolkit.Physics.Components.PhysicsCollider { Radius = dto.BodyRadiusM, Height = dto.BodyHeightM }, overwrite: false);
+            // ⭐ devices SD-S2b (§3.13c D-108) — a drone starts FULL; a scenario's authored charge is kept (overwrite: false)
+            if (DroneBatteries.IsBatteryDrone(template.DisType, dto)) Ensure(repo, entity, new DroneBattery { Remaining01 = 1f }, overwrite: false);
+            // ⭐ devices SD-S2c (§3.13c D-106) — a radio-flown type's link exists from creation (lost: no station yet): its ground station reads it across entities
+            if (template.GetDescriptor<RemoteLinkDto>() != null) Ensure(repo, entity, new DroneLink { Lost = 1 }, overwrite: false);
         }
 
         private static void Ensure<T>(EntityRepository repo, Entity e, T value, bool overwrite) where T : unmanaged

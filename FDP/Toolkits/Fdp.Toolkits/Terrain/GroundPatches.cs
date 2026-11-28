@@ -210,8 +210,11 @@ namespace Fdp.Toolkit.Terrain
                     }
             }
 
-            foreach (var road in corridors)
+            for (int ci = 0; ci < corridors.Count; ci++)
             {
+                var road = corridors[ci];
+                // ⭐ CE-11040 — 28 s on Stechovice (2 526 corridors, 4 cores): a load that imports on first use sees it move (throttled, 0 B; free with no load)
+                Fdp.Core.LoadProgress.ReportDetail("import corridors", ci, corridors.Count);
                 if (road.Line.Length < 2) continue;
                 report.Corridors++;
                 var (sAt, prof) = Profile(road, Ground);

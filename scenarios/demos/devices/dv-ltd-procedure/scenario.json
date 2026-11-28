@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S5c (§3.13d D-113 - D-115, R-4300). The Observer carries a laser target designator (kit 1; TKB 643: a lase lasts at most 60 s, then the laser cools 30 s; its PRF code starts at 1688 and CODE steps it to the next valid code, each digit in its proven range: 1 / 1-7 / 1-8 / 1-8). A scripted trainee possesses him, binds his view to the designator and aims at a marker 450 m away; POWER; CODE once (1688 -> 1711); LASE at 4 s and holds it past the duty limit; a CODE press while lasing and a LASE press while cooling; after the cool-down the run PAUSES for 120 frames and he presses LASE inside the pause (paused frame 10). Judge: (1) the phase runs OFF -> STANDBY -> LASING -> COOLING (at the 60 s limit) -> STANDBY (30 s later) -> LASING (the queued lase); (2) the code is 1688 after POWER and 1711 after CODE, and the presses while lasing / cooling are refused (the code stays, the cooling runs on); (3) while lasing the laser meets the marker and is a live designation; (4) the LASE pressed in the pause is QUEUED - nothing is designated on any paused frame - and the lase starts on the first live frame after it; (5) the HUD shows LASING, then COOLING, then 'queued' in the pause. Fail: a lase past 60 s, a lase while cooling, a code changed outside STANDBY, or a designation inside the pause. Check: scripts/scenario-regression.sh dv-ltd-procedure"
+  },
+  "entities": {
+    "d5e10009-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10009-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10009-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 643
+      },
+      "EntityInfo": {
+        "Name": "Designator",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10009-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "d5e10009-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -131.8,
+          18.19999999999999,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

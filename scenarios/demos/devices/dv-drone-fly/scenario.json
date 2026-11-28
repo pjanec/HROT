@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S2c (DESIGN_Simulated_Devices §3.13c D-104 / D-110). A scripted trainee possesses the Operator, binds his view to the drone ground station he carries and works it: POWER (the drone answers), ARM, TAKEOFF (the recon drone beside him climbs to its 15 m hover); then the RIGHT STICK forward at half (axis 3 = 0.5, Mode 2 pitch) for 13.3 s flies it 200 m north, and LAND brings it down. The drone is flown THROUGH the station - the station writes its command on itself (RemoteControl), the drone's own brain (RemotePilot) reads it - never possessed. Judge: (1) the station's mode (its DroneStationState memory) follows OFF -> LINKED -> ARMED -> FLYING -> LANDED; (2) the drone is above 8 m while it flies; (3) it lands within 30 m of the point 200 m north of its launch, and is down (FlightState.Airborne 0) at the end; (4) its battery drained (DroneBattery below full) and its link held (DroneLink never lost while flown). Fail: a press does nothing, the drone flies on its own, or lands elsewhere. Check: scripts/scenario-regression.sh dv-drone-fly"
+  },
+  "entities": {
+    "d5e10014-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 642
+      },
+      "EntityInfo": {
+        "Name": "Drone station",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10014-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "ControlledEntities": {
+        "Entity0": "d5e10014-0000-4000-8000-000000000002"
+      }
+    },
+    "d5e10014-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Operator",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10014-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10014-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -296,
+          -400,
+          0.08
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "Health": {
+        "Current": 10,
+        "Max": 10
+      },
+      "TkbIdentity": {
+        "TkbType": 407
+      },
+      "EntityInfo": {
+        "Name": "Drone",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "RemotePilot",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

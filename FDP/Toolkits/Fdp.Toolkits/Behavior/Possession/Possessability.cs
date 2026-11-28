@@ -16,7 +16,6 @@ namespace Fdp.Toolkit.Behavior.Possession
 
         /// <summary>Why <paramref name="entity"/> cannot be possessed, or null when it can (as far as this rule goes).</summary>
         public static string? Refusal(ISimulationView view, Entity entity)
-            => view is EntityRepository repo && repo.IsAlive(entity) && repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()
-               && Embarkation.IsWeaponSystem(repo, entity) ? WeaponIsManned : null;
+            => Fdp.Toolkit.Combat.Items.IsMountable(view, entity) ? WeaponIsManned : null;   // ⭐ C1 CC-2 — an ITEM is manned, not possessed
     }
 }

@@ -20,6 +20,6 @@ public static class GenesisIntentRegistry
         world.RegisterManagedComponent<InitialTargetsIntent>();
         world.RegisterManagedComponent<InitialUnitSubordinateIntent>();
         world.RegisterManagedComponent<InitialBlueprintsIntent>();
-        world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.InitialBrainIntent>();   // ⭐ CE-3042
+        world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.UnitIntent>();   // ⭐ CE-3042
     }
 }

@@ -90,15 +90,20 @@ namespace Hrot.Map.Common.Replication.Egress
             {
                 var b = c.Get(i);
                 int panel = terrain != null ? BuildingPanelIndex.ToLocal(terrain, b.Panel) : b.Panel;
-                list.Add(new DdsWallBreach { Panel = panel, From = b.From, To = b.To, Bottom = b.Bottom, Top = b.Top, Kind = (byte)b.Kind });
+                var blast = c.BlastOf(i);
+                list.Add(new DdsWallBreach { Panel = panel, From = b.From, To = b.To, Bottom = b.Bottom, Top = b.Top, Kind = (byte)b.Kind,
+                                             MadeAt = c.MadeAtOf(i), BlastX = blast.X, BlastY = blast.Y, BlastZ = blast.Z,   // ⭐ CE-11051
+                                             Cause = (byte)c.CauseOf(i), ExplosiveKg = c.ExplosiveKgOf(i), Actor = c.ActorOf(i) });   // ⭐ CE-11054
             }
-            return new EntityBuildingDamage { EntityId = netId, Building = c.Building, Collapsed = c.Collapsed, Key = key, Breaches = list };
+            return new EntityBuildingDamage { EntityId = netId, Building = c.Building, Collapsed = c.Collapsed, Key = key, Breaches = list, CollapsedAt = c.CollapsedAt,
+                                             CollapseCause = c.CollapseCause, CollapseBlastX = c.CollapseBlastX, CollapseBlastY = c.CollapseBlastY, CollapseBlastZ = c.CollapseBlastZ, CollapseKg = c.CollapseKg };   // ⭐ CE-11054
         }
 
         /// <summary>⭐ CE-4427 R-3 — true when <paramref name="prev"/> is exactly what <see cref="ToSample"/> would build for <paramref name="c"/> now. Allocation-free (the panel conversion is the world's cached table).</summary>
         internal static bool Matches(in EntityBuildingDamage prev, in BuildingDamage c, string key, Fdp.Toolkit.Terrain.TerrainWorld? terrain)
         {
-            if (prev.Building != c.Building || prev.Collapsed != c.Collapsed || prev.Key != key) return false;
+            if (prev.Building != c.Building || prev.Collapsed != c.Collapsed || prev.Key != key || prev.CollapsedAt != c.CollapsedAt
+                || prev.CollapseCause != c.CollapseCause || prev.CollapseBlastX != c.CollapseBlastX || prev.CollapseBlastY != c.CollapseBlastY || prev.CollapseBlastZ != c.CollapseBlastZ || prev.CollapseKg != c.CollapseKg) return false;   // ⭐ CE-11054
             int n = Math.Min((int)c.Count, BuildingDamage.Capacity);
             if ((prev.Breaches?.Count ?? 0) != n) return false;
             for (int i = 0; i < n; i++)
@@ -106,19 +111,25 @@ namespace Hrot.Map.Common.Replication.Egress
                 var b = c.Get(i); var y = prev.Breaches![i];
                 int panel = terrain != null ? BuildingPanelIndex.ToLocal(terrain, b.Panel) : b.Panel;
                 if (y.Panel != panel || y.From != b.From || y.To != b.To || y.Bottom != b.Bottom || y.Top != b.Top || y.Kind != (byte)b.Kind) return false;
+                var bl = c.BlastOf(i);
+                if (y.MadeAt != c.MadeAtOf(i).Seconds || y.BlastX != bl.X || y.BlastY != bl.Y || y.BlastZ != bl.Z) return false;   // ⭐ CE-11051
+                if (y.Cause != (byte)c.CauseOf(i) || y.ExplosiveKg != c.ExplosiveKgOf(i) || y.Actor != c.ActorOf(i)) return false;   // ⭐ CE-11054
             }
             return true;
         }
 
         internal static bool Same(in EntityBuildingDamage a, in EntityBuildingDamage b)
         {
-            if (a.Building != b.Building || a.Collapsed != b.Collapsed || a.Key != b.Key) return false;
+            if (a.Building != b.Building || a.Collapsed != b.Collapsed || a.Key != b.Key || a.CollapsedAt != b.CollapsedAt
+                || a.CollapseCause != b.CollapseCause || a.CollapseBlastX != b.CollapseBlastX || a.CollapseBlastY != b.CollapseBlastY || a.CollapseBlastZ != b.CollapseBlastZ || a.CollapseKg != b.CollapseKg) return false;   // ⭐ CE-11054
             int na = a.Breaches?.Count ?? 0, nb = b.Breaches?.Count ?? 0;
             if (na != nb) return false;
             for (int i = 0; i < na; i++)
             {
                 var x = a.Breaches![i]; var y = b.Breaches![i];
                 if (x.Panel != y.Panel || x.From != y.From || x.To != y.To || x.Bottom != y.Bottom || x.Top != y.Top || x.Kind != y.Kind) return false;
+                if (x.MadeAt != y.MadeAt || x.BlastX != y.BlastX || x.BlastY != y.BlastY || x.BlastZ != y.BlastZ) return false;   // ⭐ CE-11051
+                if (x.Cause != y.Cause || x.ExplosiveKg != y.ExplosiveKg || x.Actor != y.Actor) return false;   // ⭐ CE-11054
             }
             return true;
         }
@@ -248,9 +259,15 @@ namespace Hrot.Map.Common.Replication.Ingress
             {
                 // the no-terrain seam (a test with no world): the sender's indices as they are — production never gets here (Apply defers until a world is resident)
                 var raw = default(BuildingDamage);
-                raw.Building = d.Building; raw.Collapsed = d.Collapsed;
+                raw.Building = d.Building; raw.Collapsed = d.Collapsed; raw.CollapsedAt = d.CollapsedAt;
+                raw.CollapseCause = d.CollapseCause; raw.CollapseBlastX = d.CollapseBlastX; raw.CollapseBlastY = d.CollapseBlastY; raw.CollapseBlastZ = d.CollapseBlastZ; raw.CollapseKg = d.CollapseKg;   // ⭐ CE-11054
                 int rn = Math.Min(d.Breaches?.Count ?? 0, BuildingDamage.Capacity);
-                for (int i = 0; i < rn; i++) { var b = d.Breaches![i]; raw.Set(i, new WallBreach(b.Panel, b.From, b.To, b.Bottom, b.Top, (BreachKind)b.Kind)); }
+                for (int i = 0; i < rn; i++)
+                {
+                    var b = d.Breaches![i];
+                    raw.Set(i, new WallBreach(b.Panel, b.From, b.To, b.Bottom, b.Top, (BreachKind)b.Kind));
+                    raw.SetOrigin(i, new BreachOrigin(new Fdp.Core.SimInstant(b.MadeAt), new System.Numerics.Vector3(b.BlastX, b.BlastY, b.BlastZ), (BreachCause)b.Cause, b.ExplosiveKg, b.Actor));   // ⭐ CE-11051 / CE-11054
+                }
                 raw.Count = (byte)rn;
                 return raw;
             }
@@ -270,6 +287,8 @@ namespace Hrot.Map.Common.Replication.Ingress
             if (building < 0) return false;
             c.Building = building;
             c.Collapsed = d.Collapsed;
+            c.CollapsedAt = d.CollapsedAt;   // ⭐ CE-11051
+            c.CollapseCause = d.CollapseCause; c.CollapseBlastX = d.CollapseBlastX; c.CollapseBlastY = d.CollapseBlastY; c.CollapseBlastZ = d.CollapseBlastZ; c.CollapseKg = d.CollapseKg;   // ⭐ CE-11054
             int n = Math.Min(d.Breaches?.Count ?? 0, BuildingDamage.Capacity);
             int k = 0;
             for (int i = 0; i < n; i++)
@@ -277,6 +296,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 var b = d.Breaches![i];
                 int panel = BuildingPanelIndex.ToGlobal(terrain, building, b.Panel);   // the wire's panel is within the building
                 if (panel < 0) continue;                                              // no such wall here: never breach another
+                c.SetOrigin(k, new BreachOrigin(new Fdp.Core.SimInstant(b.MadeAt), new System.Numerics.Vector3(b.BlastX, b.BlastY, b.BlastZ), (BreachCause)b.Cause, b.ExplosiveKg, b.Actor));   // ⭐ CE-11051 / CE-11054
                 c.Set(k++, new WallBreach(panel, b.From, b.To, b.Bottom, b.Top, (BreachKind)b.Kind));
             }
             c.Count = (byte)k;

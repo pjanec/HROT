@@ -15,6 +15,7 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.UI.Common.AddEntity;
 using Hrot.UI.Common.Map3D;
 using Xunit;
+using PostureBlend = Hrot.Look.People.PostureBlend;
 
 namespace Hrot.Presentation.Tests.Map3D;
 
@@ -40,7 +41,7 @@ public sealed class Map3DTests
         var d = t.DisType;
         if (d.Kind == 3) return "_person";
         if (d.Kind == 1 && d.Domain == 1)
-            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 28 or 81 => "_wheeled", 80 => "_motorcycle", _ => null };   // ⭐ CE-4618: 28 (the radar SAM truck) is a wheeled body on the picker too   // ⭐ IF-1: 4 (SP artillery) moved on purpose
+            return d.Category switch { 1 or 4 => "_tank", 2 => "_afv", 3 or 6 or 7 or 28 or 81 or 82 or 83 => "_wheeled", 80 => "_motorcycle", _ => null };   // ⭐ CE-11042: 82 (bus) and 83 (cargo truck) are wheeled bodies too, on purpose   // ⭐ CE-4618: 28 (the radar SAM truck) is a wheeled body on the picker too   // ⭐ IF-1: 4 (SP artillery) moved on purpose
         return null;
     }
 
@@ -423,7 +424,8 @@ public sealed class Map3DTests
     public void S1_TheIconFallback_IsUnchangedByTheExtraction_ForEveryBuiltInType()
     {
         foreach (var t in BuiltIn().GetAll())
-            Assert.Equal(VisualFamilies.Of(t) == VisualFamily.MineClearer ? "_tank" : OldFallbackIconName(t),   // ⭐ CE-1955 — the mine clearer (CE-4624) is a tracked body on the picker, on purpose
+            Assert.Equal(VisualFamilies.Of(t) is VisualFamily.MineClearer or VisualFamily.BridgeLayer or VisualFamily.FloatingBridge   // ⭐ CE-1955 — the mine clearer (CE-4624) and ⭐ CE-6502 the
+                             ? VisualFamilies.IconName(VisualFamilies.Of(t)) : OldFallbackIconName(t),                                     //   bridge engineers have their own families, on purpose
                          EntityTypeCatalog.FallbackIconName(t));
     }
 
@@ -524,7 +526,8 @@ public sealed class Map3DTests
         if (d.Kind == 1 && d.Domain == 1)
             return d.Category switch
             {
-                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 => VisualFamily.WheeledCar,
+                1 => VisualFamily.Tank, 2 => VisualFamily.Afv, 81 or 82 or 83 => VisualFamily.WheeledCar,   // ⭐ CE-11042 — the bus and the cargo truck draw as wheeled cars, on purpose
+               
                 3 or 6 or 7 => VisualFamily.WheeledUtility,
                 4 => VisualFamily.SpArtillery, 5 or 10 or 50 => VisualFamily.WeaponSystem,   // ⭐ CE-1087 / CE-1089 — deliberately moved off Unknown
                 28 => VisualFamily.AirDefenceVehicle,   // ⭐ CE-4618 — the radar SAM truck's class (1.1.*.28), deliberately new
@@ -558,6 +561,7 @@ public sealed class Map3DTests
                         var d = new DISEntityType { Kind = kind, Domain = (byte)domain, Category = (byte)category, Country = country, Subcategory = 3 };
                         if (VisualFamilies.IsAnimal(VisualFamilies.Of(d))) continue;   // ⭐ CE-4623 — Kind 3 categories 200-208 are the ANIMALS now (AnimalModelRail), no longer the man the old switch fell up to
                         var now = VisualFamilies.Of(new TkbTemplate("sweep", 9999) { DisType = d });
+                        if (now == VisualFamily.BridgeLayer && d.Kind == 1 && d.Domain == 1 && d.Category == 9) continue;   // ⭐ CE-6502 — 1.1.*.9.3 is the assault bridge layer's own family now, on purpose
                         if (now != OldFamily(d)) moved.Add($"{d}: {OldFamily(d)} -> {now}");
                     }
         Assert.True(moved.Count == 0, string.Join(", ", moved.Take(20)));
@@ -874,10 +878,10 @@ public sealed class Map3DTests
 
     private static Entity WeaponSystem(EntityRepository world, Vector3 at)
     {
-        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
         var w = world.CreateEntity();
         world.AddComponent(w, new SimTransform { Position = at, Rotation = Quaternion.Identity });
-        world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1 });
+        world.AddComponent(w, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(w, new Fdp.Toolkit.Combat.Mountable { Portable = 1 });
         return w;
     }
 
@@ -1197,7 +1201,7 @@ public sealed class Map3DTests
         {
             world.SetSingletonManaged<ITkbDatabase>(db);
             world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponPosture>();
-            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             bool Shoulders(Entity man, int mount)
             {
@@ -1218,7 +1222,7 @@ public sealed class Map3DTests
             var tube = world.CreateEntity();
             world.AddComponent(tube, new SimTransform { Position = new Vector3(10f, 0f, 0f), Rotation = Quaternion.Identity });
             world.AddComponent(tube, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(TkbEntityTypes.WeaponSystem_Javelin) });
-            world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = 1, FireWhileCarried = 1 });
+            world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, FireWhileCarried = 1 }); world.AddComponent(tube, new Fdp.Toolkit.Combat.Mountable { Portable = 1 });
             world.AddComponent(tube, new Fdp.Toolkit.Combat.WeaponSystemState { Deploy = Fdp.Toolkit.Combat.WeaponDeploy.Stowed });
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
@@ -1249,7 +1253,7 @@ public sealed class Map3DTests
         using (world)
         {
             world.SetSingletonManaged<ITkbDatabase>(db);
-            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierSeats>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.CarrierStations>();
             var man = Man(world, new Vector3(10f, 20f, 0f));
@@ -1306,7 +1310,7 @@ public sealed class Map3DTests
             float z = x < 30f ? 1f : x < 60f ? 1f + (x - 30f) * 39f / 30f : 40f - (x - 60f) * 39f / 40f;
             path.Add(new Vector3(x, 0f, z), i * 0.05);   // 5 s of flight
         }
-        var round = new Hrot.UI.Common.Effects.ProjectileLayer.Round(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
+        var round = new Hrot.Look.Effects.RoundState(missile, new Vector3(100f, 0f, 1f), Vector3.Normalize(new Vector3(1f, 0f, -1f)), false, 0f,
                                                                     new Vector3(0f, 0f, 1f), 7, 140f);
         var curved = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round, path);
         var straight = Hrot.UI.Common.Effects.ProjectileLayer.TrailOf(round);
@@ -2122,10 +2126,10 @@ public sealed class Map3DTests
             // a two-man weapon: the 120 mm mortar in the carry station, an assistant at its rear
             var crewFront = Man(world, new Vector3(20f, 0f, 0f));
             var crewRear = Man(world, new Vector3(18f, 0f, 0f));
-            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             var mortar = world.CreateEntity();
             world.AddComponent(mortar, new SimTransform { Position = new Vector3(20f, 0f, 0f), Rotation = Quaternion.Identity });
-            world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1, Portable = (byte)WeaponPortability.TwoMan });
+            world.AddComponent(mortar, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); world.AddComponent(mortar, new Fdp.Toolkit.Combat.Mountable { Portable = (byte)WeaponPortability.TwoMan });
             world.AddComponent(crewFront, new Fdp.Toolkit.Behavior.Components.PersonCarrier { CarrySpeedFactor = 0.5f, DragSpeedFactor = 0.3f });
             var crew = new Fdp.Toolkit.Behavior.Components.PassengerBuffer { Count = 1, Assistant = crewRear };
             crew.Passengers[1] = mortar;
@@ -5539,5 +5543,31 @@ public sealed class Map3DTests
         var plainLook = EntityBodyLayer3D.Resolve(plain);
         Assert.Null(plainLook.Style);
         Assert.Same(ShapeKits.WheeledCar, EntityBodyLayer3D.KitOf(plainLook));
+    }
+
+    /// <summary>⭐ CE-11042 (R-11020; Unreal note NOTE_UnrealIg_To_Ui_Models_And_Freezes §1) — every traffic kind carries its own SISO-REF-010 DIS type
+    /// (a DIS-only image generator tells a bus from a sedan), and each lands in a NAMED picker group. ✅ Red-proof: all kinds back on 1.1.0.81.0.</summary>
+    [Fact]
+    public void CE11042_EveryTrafficKind_HasItsOwnDisType_AndANamedGroup()
+    {
+        var tkb = BuiltIn();
+        var expected = new (long Type, byte Category, byte Sub, string Group)[]
+        {
+            (UrbanCombatTkbCatalog.TkbCivilianCar, 81, 10, "Car"),
+            (UrbanCombatTkbCatalog.TkbTrafficSedan, 81, 43, "Car"), (UrbanCombatTkbCatalog.TkbTrafficEstate, 81, 63, "Car"),
+            (UrbanCombatTkbCatalog.TkbTrafficHatchback, 81, 52, "Car"), (UrbanCombatTkbCatalog.TkbTrafficSuv, 81, 113, "Car"),
+            (UrbanCombatTkbCatalog.TkbTrafficVan, 83, 74, "Cargo Truck"), (UrbanCombatTkbCatalog.TkbTrafficTruck, 83, 101, "Cargo Truck"),
+            (UrbanCombatTkbCatalog.TkbTrafficBus, 82, 1, "Bus"),
+        };
+        var seen = new System.Collections.Generic.HashSet<(byte, byte)>();
+        foreach (var (type, category, sub, group) in expected)
+        {
+            Assert.True(tkb.TryGetByType(type, out var t));
+            var dis = t.DisType;
+            Assert.Equal((byte)1, dis.Kind); Assert.Equal((byte)1, dis.Domain);
+            Assert.Equal(category, dis.Category); Assert.Equal(sub, dis.Subcategory);
+            Assert.True(seen.Add((category, sub)), $"type {type} shares its DIS type with another kind");
+            Assert.Equal(group, Hrot.Core.Tkb.DisNameTable.Default.CategoryName(dis.Kind, dis.Domain, dis.Category));
+        }
     }
 }

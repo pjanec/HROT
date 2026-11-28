@@ -78,6 +78,19 @@ public enum VisualFamily : byte
     /// <summary>⭐ CE-4634 (docs/designs/fun/DESIGN_Dragon.md §8, D-4) — a dragon (class <c>Dragon</c>, DIS <c>1.2.*.20.99</c>, TKB 411): a winged quadruped that flies, lands
     /// and carries riders, its neck on turret 0 and its fire from the mouth. ⛔ Appended (a byte value others may store); NOT an animal (<see cref="VisualFamilies.IsAnimal"/>): it is a combat aircraft.</summary>
     Dragon,
+    /// <summary>⭐ CE-6502 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13 U-6) — the ASSAULT BRIDGE LAYER (class <c>AssaultBridgeLayer</c>, DIS <c>1.1.*.9.3</c>, TKB 118, an
+    /// M104 Wolverine-like): a tank chassis carrying its folded scissor span on the roof — the span drawn only while it carries one (<see cref="Hrot.UI.Common.Map3D.BridgeLayerLook"/>).
+    /// ⛔ Appended (a byte value others may store).</summary>
+    BridgeLayer,
+    /// <summary>⭐ CE-6502 — the FLOATING-BRIDGE ENGINEER (class <c>FloatingBridgeEngineer</c>, DIS <c>1.1.*.7.1</c>, TKB 119, an Improved Ribbon Bridge transporter): an 8×8 truck with a
+    /// folded ribbon bay on its bed — the bay drawn only while it carries one. ⛔ Appended.</summary>
+    FloatingBridge,
+    /// <summary>⭐ CE-6503 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13.4) — a LAID assault bridge (TKB 8825, a cultural feature): the TERRAIN draws its deck and ramps
+    /// (the walkables units stand on); this family draws the bridge ON it — the side girders, the scissor hinge, the end plates, the two treadways. Sized by the entity's
+    /// <c>ObstacleShape</c>. ⛔ Appended.</summary>
+    LaidAssaultBridge,
+    /// <summary>⭐ CE-6503 — a LAID floating bridge (TKB 8826): the terrain's deck, and here the pontoon bays in the water under it, the joints between bays and the curbs. ⛔ Appended.</summary>
+    LaidFloatingBridge,
 }
 
 /// <summary>
@@ -105,6 +118,7 @@ public static class VisualFamilies
         ["Tank"] = VisualFamily.Tank,
         ["Afv"] = VisualFamily.Afv,
         ["Car"] = VisualFamily.WheeledCar,
+        ["Bus"] = VisualFamily.WheeledCar, ["CargoTruck"] = VisualFamily.WheeledCar,   // ⭐ CE-11042 — drawn as before (sized per type) until they get kits of their own
         ["WheeledUtility"] = VisualFamily.WheeledUtility,
         ["Helicopter"] = VisualFamily.Helicopter,
         ["Jet"] = VisualFamily.Jet,
@@ -116,6 +130,8 @@ public static class VisualFamilies
         ["AttackAircraft"] = VisualFamily.AttackJet,    // ⭐ CE-1092 — more specific than Jet, so the A-10 is not an F-16
         ["AttackHelicopter"] = VisualFamily.AttackHelicopter,   // ⭐ CE-1103 — more specific than Helicopter, so the AH-64 is not a UH-60
         ["TwinEngineFighter"] = VisualFamily.TwinEngineJet,   // ⭐ CE-4647 — the MiG-29 (DIS 1.2.*.1.200, type 409): more specific than Fighter / Jet, so it is not an F-16
+        ["AssaultBridgeLayer"] = VisualFamily.BridgeLayer,          // ⭐ CE-6502 — 1.1.*.9.3, TKB 118: more specific than LargeTrackedUtilityVehicle
+        ["FloatingBridgeEngineer"] = VisualFamily.FloatingBridge,   // ⭐ CE-6502 — 1.1.*.7.1, TKB 119: more specific than the large wheeled utility vehicle
         ["MineClearer"] = VisualFamily.MineClearer,     // ⭐ CE-4624 — the mine-clearing vehicle (1.1.*.9.2, TKB 116): bound to terrain's class
         ["Bulldozer"] = VisualFamily.Bulldozer,         // ⭐ CE-6007 — more specific than LargeTrackedUtilityVehicle (which has no family of its own)
         ["Motorcycle"] = VisualFamily.Motorcycle,       // ⭐ CE-4621 — the motorcycle (DIS 1.1.*.80, type 115)
@@ -131,6 +147,9 @@ public static class VisualFamilies
     /// (<c>Gen.Locomotion</c>) is a <see cref="VisualFamily.Drone"/> — a quadcopter, not a 15 m fighter. A fixed-wing UAV stays a jet.</para>
     public static VisualFamily Of(TkbTemplate t)
     {
+        // ⭐ CE-6503 — the two laid-bridge obstacles share the cultural-feature DIS type (5.0.0.0.0) with every other obstacle: they are told apart by their TKB type
+        if ((long)t.TkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_AssaultBridge) return VisualFamily.LaidAssaultBridge;
+        if ((long)t.TkbType == Hrot.Map.Common.TkbEntityTypes.Obstacle_FloatingBridge) return VisualFamily.LaidFloatingBridge;
         var family = Of(t.DisType);
         if (family == VisualFamily.Jet && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.LocomotionDto>()?.Class == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft
             && EntityClassTable.Default.ChainContains(t.DisType, "Uav"))   // ⭐ CE-2394 — no LINQ
@@ -161,7 +180,8 @@ public static class VisualFamilies
         VisualFamily.Person => "_person",
         VisualFamily.Tank or VisualFamily.SpArtillery => "_tank",   // ⭐ CE-1089 — a self-propelled gun is a tracked, turreted body on the 2-D map too
         VisualFamily.Afv => "_afv",
-        VisualFamily.MineClearer => "_tank",   // ⭐ CE-4624 — a tracked body on the 2-D picker; its own glyph (assets/icons/_mineclearer, the mockup's) is a follow-up asset
+        VisualFamily.MineClearer or VisualFamily.BridgeLayer => "_tank",   // ⭐ CE-6502 — the bridge layer is a tracked body on the 2-D picker too
+        VisualFamily.FloatingBridge => "_wheeled",   // ⭐ CE-6502 — a wheeled body   // ⭐ CE-4624 — a tracked body on the 2-D picker; its own glyph (assets/icons/_mineclearer, the mockup's) is a follow-up asset
         VisualFamily.Motorcycle => "_motorcycle",   // ⭐ CE-4621 — its own picker glyph (assets/icons/_motorcycle)
         VisualFamily.Cattle => "_cattle", VisualFamily.Sheep => "_sheep", VisualFamily.Horse => "_horse", VisualFamily.Dog => "_dog", VisualFamily.Cat => "_cat",
         VisualFamily.Bird => "_bird", VisualFamily.Poultry => "_poultry", VisualFamily.Pig => "_pig", VisualFamily.Goat => "_goat", VisualFamily.Rabbit => "_cat",   /* no _rabbit glyph yet: the closest small animal */   // ⭐ CE-4623 — the animals' picker glyphs (assets/icons/_<name>)

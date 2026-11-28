@@ -328,6 +328,13 @@ footprint of `TerrainWorld.Beyond` (the SUMO net, attached by `SumoNetTerrainLoa
 cars "StoppedByTerrain"), nor avoidance or sight. ⚠ The cells coarsen with the extent (demo-city: collider 16 m, perception 24 m — queries cost more, never
 wrong; the seven convoy scenarios pass). Rail `TerrainWorldTests.CE1959_*`.
 
+⭐ **CE-4694 ① (`terrain` lane, `2026-11-25`) — the FIRST tick is fitted, and the margin is 250 m:** ⛔ the perception grid's writer
+(`LocalGridBuilderSystem`) took its epoch branch (every scenario load is an epoch move) and rebuilt on the composition-time placement `[0..1000]²`
+BEFORE the terrain fit — 📐 measured on `stechovice-battle`: 4 455 "outside the perception grid" warnings in that one tick (everyone past 1 km unseen
+for it). Now the fit runs first. And `SpatialGridFit.Margin` is 250 m (was 50): what legitimately grazes a terrain's edge is not authored — SUMO's traffic
+at the ends of its net, aircraft turning at an air arena's rim (📐 14 bodies 18–198 m past the old fitted edge). Rail
+`LocalGridBuilderSystemTests.CE4694_*`; `CE1959_*` restated for the margin.
+
 ```mermaid
 classDiagram
   class SpatialHashGrid {
@@ -528,6 +535,12 @@ load. ⚠ The injected (Stride) arm is unchanged — it brings its own scene-bak
   wall that crossed a cell centre cut a 2 m strip out of the floor — bt-range House A's hall and front doorways never
   connected (found by the `bt-doors` live run). ⭐ A panel is thin and its own side faces block, so it keeps the ground under
   it. 📄 `DESIGN_Building_Interiors.md` §3j "5d-3 / 5d-4 as built".
+- **Why the ground grid keeps the ground under an OVERHEAD solid** *(`TerrainWorldMesh.GroundBins.Overhead`, CE-5056, as built `2026-11-25`)*: the
+  overhead rule above, now on the grid too — a solid prism whose base is more than `StepHeight` over the ground at its footprint's centre (a pitched
+  roof's cap at the eaves) cuts no ground cell. 📐 It used to: every capped house (the importer writes the cap as a building block with a `baseZ`)
+  lost the ground under it and, the cells being coarse, a strip OUTSIDE its walls — its doors opened onto a hole in the navmesh (village-street: 25
+  doors with no path in; the Recast spans across one showed no floor from the wall's outer half to 0.3 m beyond it). Rail
+  `TerrainWorldTests.CE5056_AnOverheadBlock_KeepsTheGroundUnderIt_ABlockOnTheGroundCutsIt`.
 
 ## 6a. ALLOCATION — a background batch allocates nothing per query *(R-220, backend, `2026-10-08`)*
 

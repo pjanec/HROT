@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Tkb.Domain
         [EditUnit("deg/s")] [Description("Yaw rate.")]
         public float TurnRateDeg { get; init; } = 120f;
 
-        [EditUnit("s")] [Description("The battery: how long it can fly (its behaviour keeps the clock).")]
+        [EditUnit("s")] [Description("The battery: how long it can fly. A drone's battery (DroneBattery) drains by it while it is airborne, frozen in pause.")]
         public float EnduranceSeconds { get; init; } = 600f;
 
         [EditUnit("m")] [Description("It meets a body or the ground within this distance.")]

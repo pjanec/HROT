@@ -18,9 +18,10 @@ namespace Hrot.ClusterRunner.Testing
     /// <summary>
     /// Lightweight test-harness component that makes an entity's X position advance each tick.
     /// Registered only by E2E test fixtures — never wired into a production boot path.
-    /// ComponentId 219 is an unoccupied byte value in the test-reserved range (200-255).
+    /// ⭐ ComponentId 511 — the test-only range (500-511, GlobalComponentIds). ⛔ It was 219, "the test-reserved range (200-255)" — a convention production ids
+    /// have since filled: 219 is DeviceInfo, which the E2E boot registers too.
     /// </summary>
-    [Fdp.Core.ComponentId(219)]
+    [Fdp.Core.ComponentId(511)]
     [DataPolicy(DataPolicy.Default)]   // ⭐ CE-3299 D7 — declared: world state: recorded, saved, snapshotted (what it got by default)
     public struct MovingTestTag
     {

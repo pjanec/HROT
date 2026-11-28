@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: none
 related-designs:
+  - DESIGN_Open_Field_Suite.md — the §12 "stalemate probe" at squad / platoon scale: OF1–OF5 measure the open-field stalls before the town
   - DESIGN_Urban_Fight_Suite.md — the squad-scale realism set (tier ③ of §12, at squad scale): six squad v squad situations in a town
   - ../vehicle-tactics/DESIGN_Road_Convoy.md — OWNS the road convoy; its contact hand-off (C-10) leads into §11's convoy-under-contact plays
   - DESIGN_Assault_Under_Fire.md — the modern assault: support by fire, the shift, vehicles at covered stand-off, drones in the attack (revises §6a's tempo smoke and base-of-fire stand-off)

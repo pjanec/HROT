@@ -103,6 +103,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Combat.Translators.InjuryTkbTranslator(),
             // ⭐ Weapon systems WS-1 (R-2016) — a weapon-system entity's handling (Gen.WeaponSystem) and its deploy state.
             new Fdp.Toolkit.Combat.WeaponSystemTkbTranslator(),   // ⭐ CE-2155 (R-2011) — a type's injury band; without Gen.Injury, ok until dead
+            // ⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.1 R7-4) — a device type's item facts (Mountable, kind Device) and its marker (DeviceInfo).
+            new Fdp.Toolkit.Behavior.Devices.DeviceTkbTranslator(),
             // ⭐ WL-1 — a turret part child per TKB turret, on every node (docs/DESIGN_Weapon_Layers.md W-9).
             new Fdp.Toolkit.Combat.Translators.TurretTkbTranslator(),
             new Fdp.Toolkit.Perception.Translators.PerceptionTkbTranslator(),
@@ -110,6 +112,8 @@ namespace Hrot.Core.Tkb
             new Fdp.Toolkit.Perception.Signatures.SignatureTkbTranslator(),
             // ⭐ CE-3136 P-7a — a static obstacle's marker, box and movement collider (it is baked into the terrain).
             new Fdp.Toolkit.Terrain.ObstacleTkbTranslator(),
+            // ⭐ CE-4693 (BL-S3) — a bridge engineer's spans on board (BridgeCarried), added with their final value at creation.
+            new Fdp.Toolkit.Terrain.BridgeLayerTkbTranslator(),
             // ⭐ CE-4016 (AQ93 S2) — the traffic settings: produced by the "Traffic" template so a ghost waits for the scenario's values.
             new Fdp.Toolkit.Traffic.TrafficDemandTkbTranslator(),
             // Writes VisualData (SymbolCode = the MIL-STD-2525 SIDC, ColorHex, MapShapeName) and

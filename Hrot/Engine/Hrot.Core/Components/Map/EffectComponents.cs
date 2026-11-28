@@ -34,6 +34,38 @@ public struct EffectAnchor
 }
 
 /// <summary>
+/// ⭐ CE-11010 (RR-10, R-11004; docs/designs/vehicle-appearance/DESIGN_Look_Rules_For_Renderers.md D-6) — what an effect made from a HIT struck, written by the
+/// spawner from the shared rule's spec (<c>Hrot.Look.Effects.EffectRules</c>): so the effect ENTITY alone (live, and recorded for a replay) says a hit on a unit
+/// from a hit on the ground, and on what. ⭐ RECORDED, never saved (VE-R).
+/// </summary>
+[StructLayout(LayoutKind.Sequential)]
+[ComponentId(GlobalComponentIds.EffectCause)]
+[DataPolicy(DataPolicy.NoScenario | DataPolicy.NoPreview)]
+public struct EffectCause
+{
+    /// <summary>What it struck: <c>Hrot.Look.Effects.EffectSurface</c> as a byte (Ground, Water, Building, Vehicle, Person, Air).</summary>
+    public byte Surface;
+    /// <summary>The material of a surface it struck: <c>Fdp.Toolkit.Combat.ImpactMaterial</c> as a byte (0 = unknown, or a unit).</summary>
+    public byte Material;
+    /// <summary>The unit it struck (Null = the ground, a wall, the air).</summary>
+    public Entity Target;
+    /// <summary>The damage of the hit (0 = unknown).</summary>
+    public float Damage;
+    /// <summary>The munition's TKB type (0 = unknown).</summary>
+    public long Ammo;
+    // ⭐ CE-11024 — APPENDED (the layout above is unchanged, so a recording made before keeps its meaning for those fields).
+    /// <summary>What a ROUND did at this surface: <c>Fdp.Toolkit.Combat.ImpactKind</c> + 1 — 1 Entry, 2 Exit, 3 Stop; ⭐ 0 = not a round's impact (a
+    /// detonation), so a zero never reads as "entered". ⭐ CE-11030 — set on ONE effect of a round's impact (the first the rule makes: its puff), 0 on the others (its mark),
+    /// so a renderer that makes one impact per entity with a non-zero <c>Impact</c> sees ONE.</summary>
+    public byte Impact;
+    /// <summary>Who fired it (Null = unknown, or a hit with no shooter) — from the impact's or the detonation's <c>Shooter</c>.</summary>
+    public Entity Shooter;
+    // ⭐ CE-11030 — APPENDED again (the layout above is unchanged). The layout hash of this COMPONENT changes: a recording made before only WARNS and skips this component's data (SchemaValidator), it still plays.
+    /// <summary>The outward normal of the face an impact struck, as the round's <c>RoundImpactNotification</c> said it (all 0 = not stated); 0 for a detonation's effects.</summary>
+    public System.Numerics.Vector3 Normal;
+}
+
+/// <summary>
 /// ⭐ CE-1115 (docs/DESIGN_Visual_Effects.md §9 DV-3) — an effect that MOVES: a decoy flare or a chaff cloud follows the path its release
 /// fixed — <c>Fdp.Toolkit.Combat.DecoyFlight.At(Origin, Velocity, SinkMps, now − FiredAt)</c>, the one function the SimHost's decoy uses
 /// too, so the drawn flare is where the seeker sees it. The spawn system writes the effect's <c>SimTransform</c> from it every frame.

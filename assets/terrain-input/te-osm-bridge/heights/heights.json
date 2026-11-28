@@ -1,0 +1,22 @@
+{
+  "originX": -100,
+  "originY": -100,
+  "originIs": "south-west cell centre",
+  "cellSize": 1,
+  "cols": 201,
+  "rows": 201,
+  "rowOrder": "north first",
+  "nodata": -9999,
+  "units": "m",
+  "frame": {
+    "utm": {
+      "zone": 33,
+      "hemisphere": "N",
+      "e0": 500000,
+      "n0": 5430000
+    }
+  },
+  "minZ": 4,
+  "maxZ": 10,
+  "nodataCells": 0
+}

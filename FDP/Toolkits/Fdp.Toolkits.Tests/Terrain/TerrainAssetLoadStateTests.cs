@@ -26,7 +26,7 @@ public sealed class TerrainAssetLoadStateTests
 {
     /// <summary>Control component: no policy ⇒ saveable AND recordable. Without it, an assertion that
     /// the marker is absent could be satisfied by everything being absent.</summary>
-    [ComponentId(232)]
+    [ComponentId(501)]   // ⭐ the test-only range: 232 is LaserSpot, registered in this suite
     private struct PlainMarkerControl { public float X; }
 
     // ── B2: the marker is in NEITHER output ──────────────────────────────────────────────

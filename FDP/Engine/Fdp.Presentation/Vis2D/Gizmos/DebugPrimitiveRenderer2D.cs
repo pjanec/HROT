@@ -75,6 +75,9 @@ namespace Fdp.Toolkit.Vis2D.Gizmos
         /// <summary>⭐ CE-1033 S5b — the card primitives the last <see cref="Render"/> set aside (layer mask and LOD applied).</summary>
         public IReadOnlyList<DebugPrimitive> CardPrimitives => _inner.CardPrimitives;
 
+        /// <summary>⭐ S1d-2 — the view-canvas (HUD) primitives the last <see cref="Render"/> set aside for the screen pass.</summary>
+        public IReadOnlyList<DebugPrimitive> ScreenPassPrimitives => _inner.ScreenPassPrimitives;
+
         public void Render(ReadOnlySpan<DebugPrimitive> primitives, RenderContext ctx)
         {
             var zoom = ctx.Zoom > 0f ? ctx.Zoom : 1f;

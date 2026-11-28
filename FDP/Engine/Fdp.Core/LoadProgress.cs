@@ -41,6 +41,53 @@ namespace Fdp.Core
             [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)   // ⭐ the call site, for the longest-silence diagnostic (compile-time constants: no allocation)
             => Ambient.Value?.AdvanceAt(amount, file, line);
 
+        /// <summary>
+        /// ⭐ <c>CE-11038</c> — a loader's long stretch says HOW FAR it has got (<i>"navmesh 12000/59834"</i>): the running node's step text carries it
+        /// (<see cref="Detail"/>), so the one progress report every watcher reads (the cluster's load step; the director's stall clock) CHANGES while a
+        /// stage that has no step of its own works for long. Throttled to once a second (the last call, <c>done == total</c>, always lands); the text is
+        /// built only when it is stored — a call in between is free (0 B). Free when no load runs.
+        /// <para>⭐⭐ <c>CE-5060</c> — and it ADVANCES the count, as <see cref="Report"/> does: a loader saying how far it has got HAS advanced, and both heartbeat sources
+        /// beat only while the count moves (<see cref="MovedWithin"/>). 📐 Measured: a first-use terrain import inside a node's load reported only its detail
+        /// (the road levelling, 12 s on Stechovice) and the master ejected the node for a heartbeat timeout 8 s in. A hung loader still reports nothing.</para>
+        /// <para>⭐ Only when the report CHANGED (<paramref name="what"/> or <paramref name="done"/> differs from the last one): a stuck loop re-reporting the same value
+        /// is a hung loader and must not keep its node alive (coordinator review, <c>2026-11-26</c>). Reports from parallel workers race benignly (a change may advance
+        /// twice or once; an unchanged value never does).</para>
+        /// </summary>
+        public static void ReportDetail(string what, long done, long total,
+            [CallerFilePath] string file = "", [CallerLineNumber] int line = 0)
+        {
+            if (Ambient.Value is not { } progress) return;
+            progress.SetDetail(what, done, total);
+            if (progress.DetailChanged(what, done)) progress.AdvanceAt(1, file, line);
+        }
+
+        private string? _lastWhat;
+        private long _lastDone = long.MinValue;
+
+        /// <summary>True when this report differs from the previous one (and remembers it). Allocation-free: the text is compared, never built.</summary>
+        private bool DetailChanged(string what, long done)
+        {
+            if (done == Volatile.Read(ref _lastDone) && string.Equals(what, Volatile.Read(ref _lastWhat), StringComparison.Ordinal)) return false;
+            Volatile.Write(ref _lastWhat, what);
+            Volatile.Write(ref _lastDone, done);
+            return true;
+        }
+
+        /// <summary>⭐ The detail the last <see cref="ReportDetail"/> stored for the step in flight (<c>null</c> when none; cleared when a step is entered).</summary>
+        public string? Detail => _detail;
+
+        private volatile string? _detail;
+        private long _detailAt;   // Stopwatch ticks of the last stored detail
+
+        private void SetDetail(string what, long done, long total)
+        {
+            long now = Stopwatch.GetTimestamp();
+            long last = Volatile.Read(ref _detailAt);
+            if (done < total && last != 0 && now - last < Stopwatch.Frequency) return;
+            Volatile.Write(ref _detailAt, now);
+            _detail = $"{what} {done}/{total}";
+        }
+
         private long _count;
         private int _active;
         private EntityRepository? _world;
@@ -99,6 +146,7 @@ namespace Fdp.Core
                     _movedFile = ""; _movedLine = 0;   // ⇒ "(the step's start)"
                 }
                 if (step != null) _step = step;
+                _detail = null;   // ⭐ CE-11038 — a detail belongs to the step that reported it
                 Interlocked.Increment(ref _active);
             }
             Advance();

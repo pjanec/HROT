@@ -4,6 +4,12 @@ using Xunit;
 
 namespace Fdp.ModuleHost.Tests
 {
+    /// <summary>⭐ CE-11076 — the timer is PROCESS-GLOBAL (<c>KernelFrameTimings.Enabled</c>): while a test switches it on, a kernel ticking in a
+    /// parallel test records its own parts into it (extra parts in the drain, a contended lock allocating on this thread). 📌 Measured: red 2 of 3
+    /// suite runs once a kernel rail that sleeps between frames (CE11076) joined the suite, green alone. ⇒ this collection runs alone.</summary>
+    [CollectionDefinition("KernelFrameTimings", DisableParallelization = true)]
+    public sealed class KernelFrameTimingsCollection { }
+
     /// <summary>⭐ CE-4433 — the kernel's frame-by-part timer (HROT_FRAME_STATS) on the per-frame path: 0 B once a part is known (R-2084); drained biggest first.</summary>
     [Collection("KernelFrameTimings")]
     public class KernelFrameTimingsTests

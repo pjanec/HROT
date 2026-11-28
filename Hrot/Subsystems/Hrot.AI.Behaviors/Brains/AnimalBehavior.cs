@@ -691,6 +691,10 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ AB-5 — a flock's (or a lone bird's) flying / landed / perched, on its own <see cref="FlockState"/>, on a change.</summary>
         private static void SetFlock(EntityRepository world, Entity self, FlockMode mode)
         {
+            // ⭐ CE-11008 (RR-8, R-11002; cross-lane edit by ui — the brain is the ONE writer of AnimalState) — a LONE bird has no FlockState, so its flight is
+            //   said on its own flags too: every node, a recording and an external renderer read "flying" from state
+            if (mode == FlockMode.Flying) SetFlags(world, self, AnimalFlags.InFlight, AnimalFlags.None);
+            else SetFlags(world, self, AnimalFlags.None, AnimalFlags.InFlight);
             if (!world.IsComponentTypeRegistered<FlockState>() || !world.HasComponent<FlockState>(self)) return;
             if (world.GetComponentRO<FlockState>(self).Mode != mode) world.GetComponentRW<FlockState>(self).Mode = mode;
         }

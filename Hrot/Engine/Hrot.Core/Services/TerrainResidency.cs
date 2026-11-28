@@ -52,6 +52,7 @@ public sealed class TerrainResidency
         internal string?            BaseHash;        // ⭐ O-8 — the base terrain's content hash, known when an overlay is merged
         internal TerrainBridges     Bridges = TerrainBridges.None;   // ⭐ T-7b (CE-4423) — the overlay's bridges (overlay.json bridges[]), for the BridgeClosureSystem
         internal string?            OverlayFolder;   // ⭐ O-4 — the CONTENT HASH of the overlay merged into World, if any
+        internal string             OverlayAbsent = "";   // ⭐ CE-11071 — the overlay features this run's variant left out (sorted roll keys; "" = none)
         internal Fdp.Toolkit.Navigation.INavmeshProvider? Navmesh;
         internal Fdp.Toolkit.Spatial.Eqs.TerrainCoverProvider? Cover;
         /// <summary>⭐ AQ93 R-4021 — what each attached <see cref="ITerrainContentLoader"/> prepared, committed in attach order.</summary>
@@ -86,6 +87,7 @@ public sealed class TerrainResidency
     private string?  _lastLoadedTerrainName;
     private DateTime _lastLoadedTimestamp;
     private string?  _lastLoadedOverlay;   // ⭐ O-4 — a resident terrain is only 'unchanged' for the same overlay HASH
+    private string   _lastLoadedAbsent = "";   // ⭐ CE-11071 — … and the same features left out by the run's variant
 
     /// <summary>
     /// The production constructor: resolves terrains through the standard node search list —
@@ -177,7 +179,11 @@ public sealed class TerrainResidency
     /// <para>⛔ <b>A named-but-missing definition THROWS.</b> Loading the terrain a scenario names is
     /// mandatory, so that is a broken deployment rather than a terrain-less scenario.</para>
     /// </summary>
-    public Staged Prepare(string? terrainName, string? overlayFolder = null)
+    public Staged Prepare(string? terrainName, string? overlayFolder = null) => Prepare(terrainName, overlayFolder, variant: 0);
+
+    /// <summary>⭐ CE-11071 — as above for the run <paramref name="variant"/> (<c>ScenarioVariants.VariantOf</c> of the run's args): an overlay feature that variant leaves out is not merged
+    /// (<see cref="OverlayPresence"/>), on every node alike; the resident terrain is "unchanged" only for the same set of absent features.</summary>
+    public Staged Prepare(string? terrainName, string? overlayFolder, int variant)
     {
         if (string.IsNullOrWhiteSpace(terrainName))
         {
@@ -219,7 +225,9 @@ public sealed class TerrainResidency
 
         DateTime currentFileTime = LatestWriteTime(definitionPath);
 
-        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, OverlayHashOf(overlayFolder), StringComparison.Ordinal))
+        string absent = OverlayAbsentOf(overlayFolder, variant);
+        if (_lastLoadedTerrainName == terrainName && _lastLoadedTimestamp == currentFileTime && string.Equals(_lastLoadedOverlay, OverlayHashOf(overlayFolder), StringComparison.Ordinal)
+            && string.Equals(_lastLoadedAbsent, absent, StringComparison.Ordinal))
         {
             FdpLog<TerrainResidency>.Info(
                 "[Terrain] Terrain '{0}' already resident and unchanged — skipping re-ingestion.",
@@ -235,6 +243,7 @@ public sealed class TerrainResidency
             TerrainName   = terrainName,
             FileTimestamp = currentFileTime,
             OverlayFolder = OverlayHashOf(overlayFolder),
+            OverlayAbsent = absent,
         };
 
         // ⭐ Schema v2 — the terrain WORLD every derived query reads (docs/DESIGN_Terrain_World.md).
@@ -259,7 +268,7 @@ public sealed class TerrainResidency
                 if (!string.Equals(actualOverlay, header.ContentHash, StringComparison.Ordinal))
                     throw new InvalidOperationException(
                         $"[Terrain] The overlay '{overlayFolder}' is torn: its header says content hash '{header.ContentHash}', its files hash to '{actualOverlay}' (terrain '{terrainName}').");
-                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!), baseWorld.Height);   // ⭐ CE-5014 — the overlay's walls / trees on the resident relief
+                var overlay = TerrainFolderWorld.ReadOverlay(overlayFolder, terrainName, TerrainAssets.RecipesSibling(Path.GetDirectoryName(Path.GetFullPath(definitionPath))!), baseWorld.Height, variant);   // ⭐ CE-5014 — the overlay's walls / trees on the resident relief
                 baseWorld = TerrainWorldMerge.Merge(baseWorld, overlay.World);
                 if (header.Bridges.Count > 0) staged.Bridges = new TerrainBridges(header.Bridges);
             }
@@ -410,6 +419,7 @@ public sealed class TerrainResidency
         _lastLoadedTerrainName = staged.TerrainName;
         _lastLoadedTimestamp   = staged.FileTimestamp;
         _lastLoadedOverlay     = staged.OverlayFolder;
+        _lastLoadedAbsent      = staged.OverlayAbsent;
 
         FdpLog<TerrainResidency>.Info(
             $"[Terrain] Terrain '{staged.TerrainName ?? "(unnamed)"}' committed "
@@ -481,6 +491,7 @@ public sealed class TerrainResidency
         _lastLoadedTerrainName = null;
         _lastLoadedTimestamp   = default;
         _lastLoadedOverlay     = null;
+        _lastLoadedAbsent      = "";
 
         FdpLog<TerrainResidency>.Info("[Terrain] Terrain residency released — the world has no terrain (flat ground).");
     }
@@ -523,6 +534,15 @@ public sealed class TerrainResidency
     /// the main thread (Prepare and the obstacle bake both run there). ⛔ It was built and attached nowhere, so every live sight
     /// line and every EQS point placement scanned every piece.
     /// </summary>
+    private static string OverlayAbsentOf(string? overlayFolder, int variant)
+    {
+        if (variant == 0 || string.IsNullOrEmpty(overlayFolder)) return "";
+        var header = Path.Combine(overlayFolder, TerrainOverlayHeader.FileName);
+        if (!File.Exists(header)) return "";
+        var h = TerrainOverlayHeader.Parse(File.ReadAllText(header), header);
+        return OverlayPresence.AbsentKeys(Path.GetFullPath(Path.Combine(overlayFolder, h.World)), variant);
+    }
+
     private static string? OverlayHashOf(string? overlayFolder)
     {
         if (string.IsNullOrEmpty(overlayFolder)) return null;
@@ -556,6 +576,7 @@ public sealed class TerrainResidency
         internal CraterTable? Craters;   // ⭐ CE-4591 — the craters this bake laid into the ground
         internal FelledTrees? Trees;     // ⭐ CE-4603 — the trunks this bake left out
         internal MinefieldSet? Minefields;   // ⭐ CE-4624 MS-T3 — the minefields (and lanes) this bake stamped into its navmesh
+        internal List<TerrainWalkable> Decks = new();   // ⭐ CE-4692 BL-5 — the laid bridges' decks this bake added
         /// <summary>
         /// ⭐ O-7 B (B-5) — where this bake differs from the last one committed on the same base (obstacle prisms, building damage, live-overlay parts): the rectangles a 3-D chunk rebuild must redo.
         /// Null = unknown (the first bake after a base change, or another bake in between) = everything. Set on every bake, whether or not this node bakes a navmesh.
@@ -610,7 +631,16 @@ public sealed class TerrainResidency
     /// only a node that does world queries (<see cref="BakesDamage"/>) bakes them; the dirty region gains the box of every field added, removed, edited or laned (old and new): only the tiles under it rebake.
     /// </summary>
     public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
+        => BakeObstacles(obstacles, damage, overlay, craters, trees, minefields, null);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4692</c> BL-5 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — and the laid bridges' WALKABLE DECKS added to the world (<see cref="TerrainObstacles.With(TerrainWorld, IReadOnlyList{TerrainPrism}, BuildingDamageTable?, CraterTable?, FelledTrees?, MinefieldSet?, IReadOnlyList{TerrainWalkable}?)"/>),
+    /// on EVERY node (a deck is a surface everyone stands on, like a crater's ground); the dirty region gains the box of every deck added, moved or gone, so the INCREMENTAL bake rebuilds the tiles under it.
+    /// </summary>
+    public ObstacleBake BakeObstacles(IReadOnlyList<TerrainPrism> obstacles, BuildingDamageTable? damage, LiveOverlayResult? overlay, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields,
+                                      IReadOnlyList<TerrainWalkable>? decks)
     {
+        decks ??= System.Array.Empty<TerrainWalkable>();
         if (!BakesDamage) { damage = null; minefields = null; }
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var baseWorld = overlay?.Base ?? _baseWorld;
@@ -623,10 +653,11 @@ public sealed class TerrainResidency
         if (overlay != null && damage != null) damage = damage.RemapTo(terrain);
         var damageNow = DamageHashes(terrain, damage);
         var dirty = DirtyRegions(obstacles, damageNow, terrain, baseVersion, parts, out bool diffed);
-        if (diffed) { CraterDirt(craters, dirty); TreeDirt(trees, terrain, dirty); MinefieldDirt(minefields, dirty); }   // ⭐ CE-4591 (V-4), CE-4603, CE-4624
+        if (diffed) { CraterDirt(craters, dirty); TreeDirt(trees, terrain, dirty); MinefieldDirt(minefields, dirty); DeckDirt(decks, dirty); }   // ⭐ CE-4591 (V-4), CE-4603, CE-4624, CE-4692
+        bake.Decks = new List<TerrainWalkable>(decks);
         bake.Prisms = new List<TerrainPrism>(obstacles); bake.Damage = damageNow; bake.Parts = parts; bake.Craters = craters; bake.Trees = trees; bake.Minefields = minefields;
         bake.Dirty = diffed ? dirty : null;
-        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters, trees, minefields));   // ⭐ CE-3279 (a) — a derived world gets its own index
+        bake.World = Indexed(TerrainObstacles.With(terrain, obstacles, damage, craters, trees, minefields, decks));   // ⭐ CE-3279 (a) — a derived world gets its own index
         if (_navmeshFactory is Fdp.Toolkit.Navigation.IIncrementalNavmeshFactory inc)
         {
             // ⭐ CE-4427 R-6 — the factory checks "its last bake is the one I committed" UNDER its own lock and hands back THIS bake's serial
@@ -657,7 +688,7 @@ public sealed class TerrainResidency
     public bool CommitObstacles(EntityRepository world, ObstacleBake bake)
     {
         if (bake.BaseVersion != BaseVersion) return false;
-        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastTrees = bake.Trees; _lastMinefields = bake.Minefields; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
+        lock (_dirtyGate) { _lastPrisms = bake.Prisms; _lastDamage = bake.Damage; _lastParts = bake.Parts; _lastCraters = bake.Craters; _lastTrees = bake.Trees; _lastMinefields = bake.Minefields; _lastDecks = bake.Decks; _lastBakeBase = bake.BaseVersion; _committedSerial = bake.Navmesh != null ? bake.BakeSerial : -1; }   // ⭐ O-7 A — the next bake diffs against this one
         world.RegisterManagedComponent<TerrainWorld>();
         // ⭐ CE-4427 R-4 — a world that numbers its buildings / panels differently replaces the old one: every BuildingDamage entity is re-keyed to it BEFORE it is published (main thread, here)
         var replaced = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
@@ -699,6 +730,31 @@ public sealed class TerrainResidency
     private CraterTable? _lastCraters;
     private FelledTrees? _lastTrees;
     private MinefieldSet? _lastMinefields;
+    private List<TerrainWalkable> _lastDecks = new();
+
+    /// <summary>
+    /// ⭐ <c>CE-4692</c> BL-5 — adds to <paramref name="rects"/> the box (grown 1 m: the walkable's edge cells) of every deck walkable added, moved or gone since the last committed bake (old place and new):
+    /// only the navmesh tiles under a laid or a fallen bridge rebake.
+    /// </summary>
+    internal void DeckDirt(IReadOnlyList<TerrainWalkable> now, List<(System.Numerics.Vector2 Min, System.Numerics.Vector2 Max)> rects)
+    {
+        List<TerrainWalkable> was;
+        lock (_dirtyGate) was = _lastDecks;
+        var grow = new System.Numerics.Vector2(1f);
+        var before = new Dictionary<ulong, int>();
+        foreach (var w in was) { var k = TerrainObstacles.WalkableKey(w); before[k] = before.TryGetValue(k, out var c) ? c + 1 : 1; }
+        foreach (var w in now)
+        {
+            var k = TerrainObstacles.WalkableKey(w);
+            if (before.TryGetValue(k, out var c) && c > 0) { before[k] = c - 1; continue; }   // unchanged
+            rects.Add((w.Min - grow, w.Max + grow));                                          // added / moved there
+        }
+        foreach (var w in was)
+        {
+            var k = TerrainObstacles.WalkableKey(w);
+            if (before.TryGetValue(k, out var c) && c > 0) { before[k] = c - 1; rects.Add((w.Min - grow, w.Max + grow)); }   // gone / moved from there
+        }
+    }
 
     /// <summary>
     /// ⭐ <c>CE-4624</c> MS-T3 (MR-3) — adds to <paramref name="rects"/> the box (grown 3 m: the tile hash reaches 3 m) of every minefield that is new, gone or changed (its outline, its orientation, a lane added or lost in a
@@ -943,7 +999,7 @@ public sealed class TerrainResidency
             ApplyGeoOrigin(world, null, terrainName: null);
             return;
         }
-        var definition = _catalog.ReadDefinition(terrainName);   // ⭐ AQ107 C — the catalog's one locate-and-parse (the master reads it the same way)
+        var definition = _catalog.PeekDefinition(terrainName);   // ⭐ CE-5060 — never imports (this runs on the frame): the origin from the input set on a first use; the import runs in Prepare, on the worker
         if (definition == null) return;
         ApplyGeoOrigin(world, definition.Origin, terrainName, definition.Utm);
     }

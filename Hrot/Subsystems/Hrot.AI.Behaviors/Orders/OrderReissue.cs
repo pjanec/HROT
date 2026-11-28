@@ -51,7 +51,13 @@ namespace Hrot.AI.Behaviors.Orders
         public static string? PlayFor(EntityRepository repo, Entity unit, AggregateResolution resolution, OrderKind kind, Func<string, bool> isBehaviour, string? json)
         {
             var play = PlayFor(repo, unit, resolution, kind, isBehaviour);
-            if (play is "PlatoonAttack" or "CompanyAttack" && HoldsBack(json)) return null;
+            // ⭐ CE-4686 ③ (backend, cross-lane — the AGG lane's reconciler; user: "feel free to give the aggregated unit behavior to the backend") — a
+            //   hold-back attack IS support by fire (R-8303, B-8): its physical play is the one the kind SupportByFire resolves to (a platoon:
+            //   PlatoonSupportByFire, which never closes); none (a company) ⇒ null as before. ⛔ SUPERSEDES R-8392's "a hold-back attack has no physical
+            //   play": 📐 measured on llm-company-aggregated (Haiku): a stochastic 2nd Platoon on support by fire split at 6:21 and the reconciler
+            //   CLEARED its order ("its order has no play at Physical") — the platoon stopped 150 m short of its support position, TaskFailed
+            if (play is "PlatoonAttack" or "CompanyAttack" && HoldsBack(json))
+                return resolution == AggregateResolution.Stochastic ? null : PlayFor(repo, unit, resolution, OrderKind.SupportByFire, isBehaviour);
             return play;
         }
 
@@ -83,7 +89,7 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>⭐ X2-C (R-8355) — the params the re-issued <paramref name="targetPlay"/> gets from the order's <paramref name="json"/>: to a
         /// stochastic play ⇒ <see cref="Project"/>ed; to a physical one ⇒ as they are (R-8300: every physical play of a kind reads its neutral DTO).</summary>
         public static string ParamsFor(string targetPlay, string json, bool toStochastic)
-            => toStochastic ? Project(targetPlay, json) : (string.IsNullOrEmpty(json) ? "{}" : json);
+            => toStochastic || HoldsBack(json) ? Project(targetPlay, json) : (string.IsNullOrEmpty(json) ? "{}" : json);   // ⭐ CE-4686 ③ — a hold-back attack re-issued as a support-by-fire play: its Position (where it stands) carried, HoldBack dropped
 
         /// <summary>⭐ X2-C — <paramref name="json"/> read RELAXED into <paramref name="targetPlay"/>'s params DTO and written back: the fields the
         /// play does not know (a physical play's <c>Posts</c>, <c>MinRange</c> …) are dropped, so its strict read accepts it. A play with no

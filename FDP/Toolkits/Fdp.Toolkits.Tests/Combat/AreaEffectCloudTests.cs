@@ -408,7 +408,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
         /// <summary>
         /// ⭐ VC-4 — a cloud SITS on its venting canister while that lives (no drift in the wind), and once the canister is gone (picked up)
-        /// it lets go and drifts from where it was. ✅ Red-proof: <c>SitsOnItsSource</c> returning false ⇒ it drifts while the canister vents
+        /// it lets go and drifts from where it was. ⭐ CE-11056: the public read-only <c>AreaEffectClouds.SitsOnSource</c> answers the same. ✅ Red-proof: <c>SitsOnItsSource</c> returning false ⇒ it drifts while the canister vents
         /// ⇒ red.
         /// </summary>
         [Fact]
@@ -426,8 +426,11 @@ namespace Fdp.Toolkit.Combat.Tests
             for (int i = 1; i <= 6; i++) Frame(i * 0.5);
             Assert.Equal(0f, X(), 3);                                                       // venting: it stays on its canister
             Assert.Equal(777, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);
+            Assert.True(AreaEffectClouds.SitsOnSource(_w, in _w.GetComponentRO<AreaEffectCloud>(cloud)));   // ⭐ CE-11056 — the public rule agrees
 
             _w.DestroyEntity(canister);                                                     // picked up
+            Assert.False(AreaEffectClouds.SitsOnSource(_w, in _w.GetComponentRO<AreaEffectCloud>(cloud)));  // ⭐ CE-11056 — gone ⇒ no …
+            Assert.Equal(777, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);   // … and READ-ONLY: asking changed nothing
             Frame(3.5);
             Assert.Equal(0, _w.GetComponentRO<AreaEffectCloud>(cloud).SourceNetworkId);     // let go (replicates: free) …
             Assert.Equal(2f, X(), 3);                                                       // … and drifts from that step: 2 m/s × 1 s

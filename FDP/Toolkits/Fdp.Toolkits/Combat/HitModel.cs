@@ -69,7 +69,7 @@ namespace Fdp.Toolkit.Combat
         /// </summary>
         public static Entity BodyOf(EntityRepository repo, Entity shooter)
         {
-            if (!WeaponSystems.IsWeaponSystem(repo, shooter) || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
+            if (!Items.IsMountable(repo, shooter) || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
                 || !repo.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter)) return shooter;
             var host = repo.GetComponentRO<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(shooter).VehicleEntity;
             return repo.IsAlive(host) ? host : shooter;

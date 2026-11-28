@@ -46,6 +46,11 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>⭐ <c>CE-9004</c> (C-9, R-9008; docs/designs/vehicle-tactics/DESIGN_Road_Convoy.md) — drive in a road CONVOY: the lead to the destination,
         /// the rest on its path, never split (<see cref="ConvoyOrder"/>, <c>PlatformConvoy</c>).</summary>
         Convoy = 16,   // ⭐ was 15 on the convoy branch — 15 is SupportByFire (agg-behaviors, allocated first); referenced by NAME only
+        /// <summary>⭐ <c>CE-4693</c> (bridge laying BL-S3, BL-11; 📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §12) — lay a bridge across the water between two banks
+        /// (<see cref="LayBridgeOrder"/>; <c>AssaultBridgeLayerLayBridge</c>, <c>FloatingBridgeEngineerLayBridge</c>). Refused, with its reason, over a gap wider than the span.</summary>
+        LayBridge = 17,
+        /// <summary>⭐ <c>CE-4693</c> — take a laid bridge back on board (<see cref="RecoverBridgeOrder"/>).</summary>
+        RecoverBridge = 18,
     }
 
     /// <summary>

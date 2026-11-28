@@ -1,0 +1,21 @@
+{
+  "$doc": "docs/designs/audio/DESIGN_Ambience.md 5 slice 1 (CE-11034, R-11014) - ambience-air-raid, the scenario's Judge list: (1) the positionless authored layer 'Distant War' (battle.distant) sounds from the start; (2) no siren before 30 s; (3) at 30 s the trigger's SetAmbience makes the siren layer, at the town, radius 800, ending 60 s after it began; (4) it still sounds at 80 s; (5) it is gone by 95 s - the owner's expiry system removed it at its sim time; (6) the Distant War sounds at the end. The layer is read through the entity dump's Ambience component (the wire form is judged by the translator rails).",
+  "runFor": 100,
+  "later": ["Ambience alarm.airraid"],
+  "golden": {
+    "every": 10
+  },
+  "expect": [
+    { "name": "(1) the Distant War sounds from the start", "on": "field", "who": "Distant War", "path": "Ambience.Intensity", "op": ">", "value": 0, "before": 3 },
+    { "name": "(1) it is the battle.distant kind", "on": "field", "who": "Distant War", "path": "Ambience.Kind", "op": "==", "value": "battle.distant", "before": 3 },
+    { "name": "(1) it has no position (heard everywhere)", "never": { "on": "field", "who": "Distant War", "path": "SimTransform.Position.0", "op": ">=", "value": -1000000 } },
+    { "name": "(2) no siren before 30 s", "never": { "on": "field", "who": "Ambience alarm.airraid", "path": "Ambience.Intensity", "op": ">", "value": 0 }, "before": 29 },
+    { "name": "(3) the siren appears once the trigger runs (30 s)", "on": "field", "who": "Ambience alarm.airraid", "path": "Ambience.Intensity", "op": "==", "value": 1, "after": 29, "before": 36 },
+    { "name": "(3) the siren is the alarm.airraid kind", "on": "field", "who": "Ambience alarm.airraid", "path": "Ambience.Kind", "op": "==", "value": "alarm.airraid", "after": 29, "before": 36 },
+    { "name": "(3) the siren stands at the town and is heard within 800 m", "on": "field", "who": "Ambience alarm.airraid", "path": "SimTransform.Position.0", "op": "==", "value": 300, "also": [ { "path": "SimTransform.Position.1", "op": "==", "value": 300 }, { "path": "Ambience.Radius", "op": "==", "value": 800 } ], "after": 29, "before": 36 },
+    { "name": "(3) it ends 60 s after it began (an end between 89.5 s and 92 s of sim time)", "on": "field", "who": "Ambience alarm.airraid", "path": "Ambience.Until", "op": ">", "value": 89.5, "also": [ { "path": "Ambience.Until", "op": "<", "value": 92 } ], "after": 29, "before": 36 },
+    { "name": "(4) the siren still sounds at 80 s", "on": "field", "who": "Ambience alarm.airraid", "path": "Ambience.Intensity", "op": ">", "value": 0, "after": 79, "before": 85 },
+    { "name": "(5) the siren is gone by 95 s", "never": { "on": "field", "who": "Ambience alarm.airraid", "path": "Ambience.Intensity", "op": ">", "value": 0 }, "after": 95 },
+    { "name": "(6) the Distant War still sounds at the end", "on": "field", "who": "Distant War", "path": "Ambience.Intensity", "op": ">", "value": 0, "atEnd": true }
+  ]
+}

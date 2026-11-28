@@ -79,7 +79,9 @@ namespace Hrot.ScenarioEditor.Map
             var a = _p.World;
             using var trace = AccessTrace.Scope("ui: interaction block (gizmos, selection, tools)", TraceContext.Presentation);
             var buffer = _mi.Buffer;
-            if (_feedAddress != null) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(buffer, _feedAddress);
+            // ⭐ CE-11045 (HL-1b) — the JSON feed (up to 500 primitives projected per shape, ≈ 21 % of the headless garbage, measured) is published only while the gizmo group
+            //   RUNS: windowed, always; a headless editor starts the group shut and GET /panels/_gizmo (or /panels/<host>/_gizmo) opens it for 5 s (GizmoReadLease) — one mechanism.
+            PublishGizmoFeed(buffer);
             buffer.EndFrame(dt);
             _mi.InteractionBus.SwapBuffers();
             for (int i = 0; i < _hostUiFirst.Count; i++) Run(_hostUiFirst[i], a, dt);
@@ -104,6 +106,12 @@ namespace Hrot.ScenarioEditor.Map
                 if (n == _rows.Length) Array.Resize(ref _rows, n * 2);
                 _rows[n++] = e;
             }
+        }
+
+        /// <summary>⭐ CE-11045 (HL-1b) — publishes the JSON gizmo feed, only while the gizmo group runs (a rail calls it directly).</summary>
+        internal void PublishGizmoFeed(Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer buffer)
+        {
+            if (_feedAddress != null && _mi.GizmoGroup.Enabled) Fdp.Diagnostics.Contracts.Panels.GizmoFramePanel.Publish(buffer, _feedAddress);
         }
 
         /// <summary>UI thread, every frame after the pull, over A: the canvas menu's state (UI state on the presentation side).</summary>

@@ -99,6 +99,49 @@ namespace Hrot.AI.Behaviors.Orders
     }
 
     /// <summary>
+    /// ⭐ <c>CE-4693</c> (bridge laying BL-S3, BL-11; 📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §12) — the LAY BRIDGE order, given to a bridge engineer: lay its span
+    /// across the water between <see cref="NearBank"/> (the side it comes from) and <see cref="FarBank"/>. The deck is centred on the water gap along that line. ⛔ Refused, with its
+    /// reason, when the gap is wider than the engineer's span, a bank (or a deck end) is in the water, or there is no water between them. Flat JSON, e.g.
+    /// <c>{"NearBank":[80,50,0],"FarBank":[80,82,0]}</c>. ⚠ The two-point map pick is the UI's gesture (a NOTE to ui); HTTP and a commander's seat give two points now.
+    /// </summary>
+    [Order(nameof(OrderKind.LayBridge))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct LayBridgeOrder
+    {
+        /// <summary>The bank the engineer lays from (local metres, S0).</summary>
+        [Required]
+        [JsonPropertyName("NearBank")]
+        public Fdp.Toolkit.Replication.PointLink NearBank;
+
+        /// <summary>The bank across the water.</summary>
+        [Required]
+        [JsonPropertyName("FarBank")]
+        public Fdp.Toolkit.Replication.PointLink FarBank;
+
+        /// <summary>Drive speed to the bank (m/s); 0 = the behaviour's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-4693</c> (BL-S3) — the RECOVER BRIDGE order: the engineer drives to the nearer end of <see cref="Bridge"/> (a laid bridge it can carry) and takes it back on board.
+    /// No bridge named ⇒ the nearest laid bridge of the type it carries (within <c>BridgeLayingBehaviors.NearestBridgeMetres</c>) — a bridge laid during the run has no
+    /// authored name to give. Flat JSON, e.g. <c>{"Bridge":"@Bridge"}</c> or <c>{}</c>.
+    /// </summary>
+    [Order(nameof(OrderKind.RecoverBridge))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RecoverBridgeOrder
+    {
+        /// <summary>The laid bridge to take back; none = the nearest of the type the engineer carries.</summary>
+        [JsonPropertyName("Bridge")]
+        public Fdp.Toolkit.Replication.EntityLink Bridge;
+
+        /// <summary>Drive speed to the deck end (m/s); 0 = the behaviour's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
+    }
+
+    /// <summary>
     /// ⭐ <c>CE-2140</c> — the ATTACK order: close in on <see cref="Target"/> and fight it until it is out of the fight. ⚠ ROE still
     /// applies. ⭐ <see cref="Target"/> is an <see cref="EntityRef"/>, so the type alone makes the menu ask for an entity.
     /// <para>⭐ agg-behaviors R-8303 / R-8316 (ST-3): the attack may be on a <see cref="Position"/> instead — a commander's platoon attack on a point has no entity
@@ -251,6 +294,36 @@ namespace Hrot.AI.Behaviors.Orders
         /// <summary>Where the enemy comes from (local metres); zero = the play's own choice.</summary>
         [JsonPropertyName("Threat")]
         public Fdp.Toolkit.Replication.PointLink Threat;
+
+        /// <summary>⭐ <c>CE-8327</c> — a RE-SENT order to the point the unit already holds (a flank turn re-plans the posts): the squad takes posts
+        /// from where it stands instead of marching to the centre. false = as ever.</summary>
+        [JsonPropertyName("InPlace")]
+        public bool InPlace;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-4686</c> ④ (the orders design's R-8300 pattern; a user-authorised cross-lane edit, `2026-11-24`) — the BOUND order: move to
+    /// <see cref="Position"/> by bounds, one element covering the other, the covering element first setting at <see cref="SupportPoint"/>. The ONE
+    /// neutral DTO of the kind; ⭐ every play that fulfils Bound (<c>PlatoonBound</c>, <c>BoundingOverwatch</c>) accepts every field strictly (the
+    /// R-8300 rail walks the pairs), and a stochastic unit's generic attack (the table routes Bound there) reads the same <see cref="Position"/> — so
+    /// ONE Bound order means the same to a physical and a stochastic subordinate. 📌 CE-4685: a whole unit's Bound carried <c>PlatoonBound</c>'s own
+    /// fields (<c>Objective</c>), which a stochastic unit cannot read. Field names follow Attack / Defend (<c>Position</c> = the place).
+    /// </summary>
+    [Order(nameof(OrderKind.Bound))]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BoundOrder
+    {
+        /// <summary>Where the bounds end — the objective (local metres).</summary>
+        [JsonPropertyName("Position")]
+        public Fdp.Toolkit.Replication.PointLink Position;
+
+        /// <summary>Where the covering element sets first (local metres); unset = the play's own choice (a platoon: the objective).</summary>
+        [JsonPropertyName("SupportPoint")]
+        public Fdp.Toolkit.Replication.PointLink SupportPoint;
+
+        /// <summary>The asked speed (m/s); 0 = the play's default.</summary>
+        [JsonPropertyName("Speed")]
+        public float Speed;
     }
 
     /// <summary>

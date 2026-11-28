@@ -101,6 +101,8 @@ namespace Hrot.Map.Common.Translators
             yield return new EntityMinefieldLanesIngressTranslator(participant, entityMap, ghostCreationSystem, localNodeId);
             yield return new EntityMineClearingEgressTranslator(participant);                    // ⭐ CE-4624 MS-T4 — the clearer's tool marker (Brain group, the BladeCut pair)
             yield return new EntityMineClearingIngressTranslator(participant, entityMap);
+            yield return new EntityBridgeCarriedEgressTranslator(participant);                    // ⭐ CE-4693 (BL-S3) — the bridge engineer's span and order (Brain group, the MineClearing pair)
+            yield return new EntityBridgeCarriedIngressTranslator(participant, entityMap);
             yield return new EntityRamOrderEgressTranslator(participant);                        // ⭐ CE-4622 K-2 — the hull's ram order (Brain group, the MineClearing pair)
             yield return new EntityRamOrderIngressTranslator(participant, entityMap);
             // ⭐ CE-4601 (B-4) — a bulldozer's blade-cut marker, its brain → the Muscle that cuts.
@@ -244,6 +246,9 @@ namespace Hrot.Map.Common.Translators
             // ⭐ CE-3219 part 3 (civilians B-1) — a gas / smoke cloud's description (creator → every node).
             yield return new EntityAreaEffectCloudEgressTranslator(participant);
             yield return new EntityAreaEffectCloudIngressTranslator(participant, entityMap);
+            // ⭐ CE-11034 (R-11014) — an ambience layer (kind, intensity, radius, end time): its creator → every node; the gateway's DPS row reads it.
+            yield return new EntityAmbienceEgressTranslator(participant);
+            yield return new EntityAmbienceIngressTranslator(participant, entityMap);
             // ⭐ CE-3210 (hit location HL-6, HL-8) — the damage per body part (the Health owner → every node) and where rounds struck
             //   (the Muscle → every node).
             yield return new EntityPartDamageEgressTranslator(participant);

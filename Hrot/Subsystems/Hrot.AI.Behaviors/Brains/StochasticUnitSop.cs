@@ -83,7 +83,7 @@ namespace Hrot.AI.Behaviors.Brains
                     .Label("Under fire → break contact")
                 .Sequence(row => row
                     .Condition(IsSuppressed, Id("c8310000-0000-0000-0000-000000000021"))
-                        .Label("Suppressed (share ≥ 0.5)")
+                        .Label("Suppressed (share at least half)")
                     .React(StochasticUnitHoldBehavior.Name, ReactionUrgency.Contact, Id("c8310000-0000-0000-0000-000000000022"))
                         .Label("React: StochasticUnitHold")
                         .Comment("Stops where it stands while suppressed; succeeds when the share falls, and the paused order resumes."),

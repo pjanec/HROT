@@ -109,3 +109,8 @@ scenarios/scale-rig-*/
 
 # hrot-terrain-osm's default --out: OSM-derived input sets (ODbL) - regenerated, never committed
 terrain-input/
+!assets/terrain-input/
+assets/terrain-input/*
+!assets/terrain-input/Stechovice/
+!assets/terrain-input/village-street/
+!assets/terrain-input/te-osm-bridge/

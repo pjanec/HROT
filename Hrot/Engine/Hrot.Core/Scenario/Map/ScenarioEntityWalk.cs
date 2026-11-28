@@ -19,7 +19,7 @@ public static class ScenarioEntityWalk
 {
     /// <summary>Applies <paramref name="pass"/> to every component in <paramref name="comps"/> (in place; a boxed struct in its box; a record or a route replaced by its new value).
     /// <paramref name="behaviorRemapper"/> null ⇒ the blobs are left alone (a host with no behaviour registry). The blob holders: <see cref="ActiveMissionPlan"/> tasks,
-    /// <see cref="InitialBrainIntent"/> (staging's, and the live world's through <c>BrainIntentReader.Read</c> — the very slots the save writes).</summary>
+    /// <see cref="UnitIntent"/> (staging's, and the live world's through <c>BrainIntentReader.Read</c> — the very slots the save writes).</summary>
     public static void Apply(List<object> comps, ScenarioBehaviorRemapper? behaviorRemapper, LeafApplier pass)
     {
         for (int ci = 0; ci < comps.Count; ci++)
@@ -35,10 +35,15 @@ public static class ScenarioEntityWalk
                         if (behaviorRemapper.ApplyJson(task.BehaviorName, task.BehaviorParams, pass) is { } p1 && p1 != task.BehaviorParams) task.BehaviorParams = p1;
                     }
                     break;
-                case InitialBrainIntent brain when behaviorRemapper != null:
-                    if (brain.Behavior is { } b) { pass.Entering("Behavior.Params"); if (behaviorRemapper.ApplyJson(b.Name, b.Params, pass) is { } p2 && p2 != b.Params) b.Params = p2; }
-                    if (brain.Sop is { } sop) { pass.Entering("Sop.Params"); if (behaviorRemapper.ApplyJson(sop.Name, sop.Params, pass) is { } p3 && p3 != sop.Params) sop.Params = p3; }
+                case UnitIntent brain when behaviorRemapper != null:
+                {
+                    // ⭐ CE-3494 — an immutable record: a CHANGED slot makes a new intent in the list (a reading pass changes nothing, N-9)
+                    var nb = brain.Behavior; var ns = brain.Sop;
+                    if (nb is { } b) { pass.Entering("Behavior.Params"); if (behaviorRemapper.ApplyJson(b.Name, b.Params, pass) is { } p2 && p2 != b.Params) nb = b with { Params = p2 }; }
+                    if (ns is { } sop) { pass.Entering("Sop.Params"); if (behaviorRemapper.ApplyJson(sop.Name, sop.Params, pass) is { } p3 && p3 != sop.Params) ns = sop with { Params = p3 }; }
+                    if (!ReferenceEquals(nb, brain.Behavior) || !ReferenceEquals(ns, brain.Sop)) comps[ci] = brain with { Behavior = nb, Sop = ns };
                     break;
+                }
                 case RoutePlan route:
                     comps[ci] = route.WithWaypoints(list =>
                     {

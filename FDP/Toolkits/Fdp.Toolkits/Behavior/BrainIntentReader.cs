@@ -18,7 +18,7 @@ namespace Fdp.Toolkit.Behavior
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-3048</c> — THE ONE READER of a unit's AI as <c>{Name, Params, Origin}</c> per slot (<see cref="InitialBrainIntent"/>),
+    /// ⭐⭐ <c>CE-3048</c> — THE ONE READER of a unit's AI as <c>{Name, Params, Origin}</c> per slot (<see cref="UnitIntent"/>),
     /// shared by the scenario save (<see cref="BrainIntentScope.Ordered"/>, <c>CE-3042</c>) and the Brain hand-over
     /// (<see cref="BrainIntentScope.Running"/>), so the two cannot drift apart. 📄 <c>docs/DESIGN_Sensors_And_Doctrine.md</c>
     /// §7.5, §7.7.
@@ -32,7 +32,7 @@ namespace Fdp.Toolkit.Behavior
     public static class BrainIntentReader
     {
         /// <summary>The unit's AI in <paramref name="scope"/>; a slot is null when there is nothing to report.</summary>
-        public static InitialBrainIntent Read(EntityRepository repo, Entity entity, BehaviorRegistry registry, BrainIntentScope scope)
+        public static UnitIntent Read(EntityRepository repo, Entity entity, BehaviorRegistry registry, BrainIntentScope scope)
             => new()
             {
                 Behavior = TaskOf(repo, entity, registry, scope),
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Behavior
             };
 
         /// <summary>The task slot (see the type's notes).</summary>
-        public static SavedBrainSlot? TaskOf(EntityRepository repo, Entity entity, BehaviorRegistry registry, BrainIntentScope scope)
+        public static IntentSlot? TaskOf(EntityRepository repo, Entity entity, BehaviorRegistry registry, BrainIntentScope scope)
         {
             if (!repo.IsComponentTypeRegistered<BehaviorState>() || !repo.HasComponent<BehaviorState>(entity)) return null;
             ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Behavior
 
             if (BehaviorOriginRank.Pauses(state.Origin))                  // a reaction / possession is transient — keep what it paused (CE-3172)
                 return BehaviorIngressSystem.PausedTaskOf(repo, entity) is { } paused
-                    ? new SavedBrainSlot { Name = paused.BehaviorName, Params = Json(paused.JsonParams), Origin = paused.Origin }
+                    ? new IntentSlot { Name = paused.BehaviorName, Params = Json(paused.JsonParams), Origin = paused.Origin }
                     : null;
             if (state.ActiveBehaviorHash == BehaviorIds.None) return null;
             if (scope == BrainIntentScope.Ordered && state.Origin == BehaviorOrigin.Sop) return null;
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Behavior
                 json = record.JsonParams;
             }
             if (name == null && !registry.TryGetName(state.ActiveBehaviorHash, out name)) return null;
-            return new SavedBrainSlot
+            return new IntentSlot
             {
                 Name   = name!,
                 Params = Json(json),
@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>The SOP slot.</summary>
-        public static SavedBrainSlot? SopOf(EntityRepository repo, Entity entity, BrainIntentScope scope)
+        public static IntentSlot? SopOf(EntityRepository repo, Entity entity, BrainIntentScope scope)
         {
             if (!repo.IsComponentTypeRegistered<SopState>() || !repo.HasComponent<SopState>(entity)) return null;
             ref readonly var sop = ref repo.GetComponentRO<SopState>(entity);
@@ -82,7 +82,7 @@ namespace Fdp.Toolkit.Behavior
             if (!repo.HasManagedComponent<SopStartRecord>(entity)) return null;
             var record = ((ISimulationView)repo).GetManagedComponentRO<SopStartRecord>(entity);
             if (record == null || string.IsNullOrEmpty(record.BehaviorName)) return null;
-            return new SavedBrainSlot
+            return new IntentSlot
             {
                 Name   = record.BehaviorName,
                 Params = Json(record.JsonParams),
@@ -107,11 +107,13 @@ namespace Fdp.Toolkit.Behavior
         {
             if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)) return false;
             ref readonly var queue = ref repo.GetComponentRO<MissionPlanQueue>(entity);
+            // ⚠ CE-3494 — a HELD plan still drives the slot for the SAVE: a save is a STARTING state (progress is not saved, §7.5), so a held
+            //   plan reloads from task 0 and the operator's order is not saved. A checkpoint / recording keeps the hold (MissionPlanQueue is recorded).
             return queue.TaskCount > 0 && queue.CurrentTask < queue.TaskCount;
         }
 
         /// <summary>Two slots run the same thing: same name, same params, same origin.</summary>
-        public static bool Same(SavedBrainSlot? a, SavedBrainSlot? b)
+        public static bool Same(IntentSlot? a, IntentSlot? b)
             => a is null ? b is null
              : b is not null && a.Name == b.Name && a.Origin == b.Origin && Json(a.Params).Trim() == Json(b.Params).Trim();
 

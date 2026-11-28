@@ -192,6 +192,17 @@ public sealed record HrotNodeContext : IDisposable
     public Hrot.Map.Common.Services.TerrainContentRegistry TerrainContent { get; init; } = new();
 
     /// <summary>
+    /// ⭐ <c>CE-11026</c> (R-11009, <c>DESIGN_Linked_Client_Director.md</c> §2d-1) — the node's LINKED CLIENT registry: a capability offers the client it connects, every load waits for it (<c>LinkedClientLoadStep</c>). One per node, every node gets one by construction.
+    /// </summary>
+    public LinkedClients LinkedClients { get; init; } = new();
+
+    /// <summary>
+    /// ⭐ <c>CE-11032</c> — the node's BEHAVIOR REGISTRY (behavior hash to name and definition), the ONE instance its brain and scenario serializer use; a node extension (the gateway's status gather) reads
+    /// <c>BrainIntentReader</c> / <c>TryGetName</c> through it. Filled once by <c>SharedApplicationBootstrapper</c> from the subclass's <c>GetBehaviorRegistry()</c>; <b>null on a node with no brain</b>.
+    /// </summary>
+    public Fdp.Toolkit.Behavior.BehaviorRegistry? BehaviorRegistry { get; init; }
+
+    /// <summary>
     /// ⭐ <c>CE-3330</c> — one live-timeline step: the lanes evaluated on this world (nothing while its sim frame does not advance). <see cref="Tick"/>
     /// calls it after the kernel; a host with its OWN frame (the editor) calls it at the same point.
     /// </summary>

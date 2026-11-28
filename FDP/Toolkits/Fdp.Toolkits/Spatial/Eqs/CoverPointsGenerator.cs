@@ -63,6 +63,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             float hullLength = 0f, hullWidth = 0f, hullHeight = 0f;
             bool hull = VehicleFootprint && Eqs.VehicleFootprint.Hull(repo, self, out hullLength, out hullWidth, out hullHeight);
             var world = hull ? EqsTerrainSight.World(repo) : null;
+            Vector3? hullFrom = hull && repo.HasComponent<SimTransform>(self) ? repo.GetComponentRO<SimTransform>(self).Position : null;   // ⭐ CE-5048 (b)
             var terrain = Kind == CoverKind.WindowFiring && SetBackMetres > 0f ? EqsTerrainSight.World(repo) : null;   // ⭐ D-2b
 
             int rawCount = 0;
@@ -70,7 +71,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
             {
                 var at = new Vector3(rawPoints[i].PositionX, rawPoints[i].PositionY, rawPoints[i].PositionZ);
                 if (RoofOnly && (roofWorld == null || !OnRoof(roofWorld, at))) continue;   // ⭐ D-2g
-                if (hull && !Sized(world, ref at, new Vector2(rawPoints[i].DirectionX, rawPoints[i].DirectionY), hullLength, hullWidth, hullHeight)) continue;
+                if (hull && !Sized(world, ref at, new Vector2(rawPoints[i].DirectionX, rawPoints[i].DirectionY), hullLength, hullWidth, hullHeight, hullFrom)) continue;
                 short flags = 0, meaningful = 0;
                 if (terrain != null)
                 {
@@ -115,7 +116,7 @@ namespace Fdp.Toolkit.Spatial.Eqs
                         {
                             // its own box is not its cover: the points round it stand within its half diagonal + a stand-off
                             if (Vector2.Distance(new Vector2(at.X, at.Y), center) < OwnBoxReach(hullLength, hullWidth)) continue;
-                            if (!Sized(world, ref at, new Vector2(p.DirectionX, p.DirectionY), hullLength, hullWidth, hullHeight)) continue;
+                            if (!Sized(world, ref at, new Vector2(p.DirectionX, p.DirectionY), hullLength, hullWidth, hullHeight, hullFrom)) continue;
                         }
                         candidates[rawCount++] = new EqsResult
                         {
@@ -165,18 +166,28 @@ namespace Fdp.Toolkit.Spatial.Eqs
             return best > ground && best == surfaces.Length - 1 && MathF.Abs(surfaces[best] - at.Z) <= 0.5f;
         }
 
-        private static bool Sized(Fdp.Toolkit.Terrain.TerrainWorld? world, ref Vector3 at, Vector2 towardCover, float hullLength, float hullWidth, float hullHeight)
+        private static bool Sized(Fdp.Toolkit.Terrain.TerrainWorld? world, ref Vector3 at, Vector2 towardCover, float hullLength, float hullWidth, float hullHeight,
+                                  Vector3? from = null)
         {
+            Vector2 away = default;
             if (towardCover.LengthSquared() > 1e-6f)
             {
+                away = -Vector2.Normalize(towardCover);
                 float push = Eqs.VehicleFootprint.StandOff(hullWidth) - TerrainCoverProvider.StandOff;
-                if (push > 0f)
-                {
-                    var away = -Vector2.Normalize(towardCover) * push;
-                    at = new Vector3(at.X + away.X, at.Y + away.Y, at.Z);
-                }
+                if (push > 0f) at = new Vector3(at.X + away.X * push, at.Y + away.Y * push, at.Z);
             }
-            return world == null || Eqs.VehicleFootprint.Clear(world, at, towardCover, hullLength, hullWidth, hullHeight);
+            if (world == null) return true;
+            if (!Eqs.VehicleFootprint.Clear(world, at, towardCover, hullLength, hullWidth, hullHeight)) return false;
+            if (from is not { } f) return true;
+            // ⭐ CE-5048 (b) — and in the pose the hull ARRIVES in (from where it is now): a hide it can only reach nose-first into the wall is pushed
+            //   farther off the wall, up to half a hull length, before it is dropped — so a building keeps its hides, a little farther out
+            for (float extra = 0f; extra <= hullLength * 0.5f + 1e-3f; extra += Eqs.VehicleFootprint.SampleStep)
+            {
+                var p = new Vector3(at.X + away.X * extra, at.Y + away.Y * extra, at.Z);
+                if (Eqs.VehicleFootprint.FitsArriving(world, p, new Vector2(p.X - f.X, p.Y - f.Y), hullLength, hullWidth, hullHeight)) { at = p; return true; }
+                if (away == default) break;
+            }
+            return false;
         }
 
         private static float OwnBoxReach(float hullLength, float hullWidth)

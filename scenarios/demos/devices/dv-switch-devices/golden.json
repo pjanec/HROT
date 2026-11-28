@@ -1,0 +1,772 @@
+{
+  "$doc": "scenario golden — docs/DESIGN_Scenario_Regression.md §4; re-record: Hrot.ClusterRunner --mode editor --headless --verify dv-switch-devices --verify-capture (or POST /director/verify {scenario, capture: true})",
+  "scenario": "dv-switch-devices",
+  "meaning": 2,
+  "steps": 541,
+  "times": {
+    "possessed": 0.5,
+    "binoculars viewed": 1.5,
+    "he raises the binoculars while the view shows them": 1.75,
+    "the view shows the binoculars' HUD": 1.75,
+    "zoomed": 2.5,
+    "ZOOM IN steps the binoculars to 10x": 2.75,
+    "rangefinder viewed": 4,
+    "after the re-bind the view shows the rangefinder's HUD": 4.25,
+    "moded": 5,
+    "MODE steps the rangefinder to CONTINUOUS": 5.25,
+    "eye": 6.5,
+    "he lowers it when the view returns to the eye": 6.75,
+    "the plain eye shows no device HUD": 6.75
+  },
+  "shots": [],
+  "blasts": [],
+  "snapshots": [
+    {
+      "t": 0,
+      "units": {
+        "Binoculars": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 4
+            }
+          },
+          "components": {
+            "Behavior": "3a2ee737826292dd",
+            "BehaviorStartRecord": "857ee95a9287da62",
+            "BehaviorState": "5bcfad0ba53c0c49",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "39967f4c5ea90829",
+            "BrainDiagnostics": "941bc6c0a1fb77d8",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "636bb932c3169ae2",
+            "DevicePose": "205082427d4a9a55",
+            "EntityGuid": "3b392e07a619da88",
+            "EntityInfo": "465c0d1ada44af7e",
+            "IsEmbarkedTag": "8edc6ecd560e3af2",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c2944cd84e942f75"
+          }
+        },
+        "Observer": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            },
+            "WeaponPosture.HeldItem": "None"
+          },
+          "components": {
+            "AcousticEmitter": "9c683b78fe2308cf",
+            "ActionStatus": "88f697cab6962087",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "eb254276adbcc26e",
+            "AnimationExecutorState": "b841457ac16c55b8",
+            "BehaviorState": "03a6fc5adbe92090",
+            "BrainDiagnostics": "2ecb33202630ee7c",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "fd594d934ee6a0fe",
+            "CarrierSeats": "48754cb0fe6592b2",
+            "CarrierStations": "31583316a1057357",
+            "CharacterAnimationDefRuntime": "74998346b5218a53",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e80a67e99de5c2a2",
+            "EntityGuid": "e44165012c77ca7e",
+            "EntityInfo": "8aba1603cb2924a6",
+            "FormationController": "900200110e4d4dfd",
+            "FrustrationTicks": "f99159ce31f85d51",
+            "Health": "2712238ebd632aff",
+            "InjuryThresholds": "a757d6d8cced34c2",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "LookAtChannel": "f97efa71a72cf38d",
+            "LookAtChannelStatus": "215f014ed0246ce3",
+            "LookAtExecutorState": "ddb00c66b845dca5",
+            "LookState": "663601c4529aab25",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavState": "bd7fb42373c5ab11",
+            "NavigationIntent": "5aa218f5dffd32e4",
+            "NavigationStatus": "3e379155351ff643",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "9b306d57a41edb67",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "9c9d445a18ab83e0",
+            "PersonCarrier": "f1b5ce9d4933b82e",
+            "PhysicsCollider": "3fa321c1a1b5c5e6",
+            "PreviousCapabilities": "eb254276adbcc26e",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Roe": "b23a785496f51560",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "Sop": "84f835ebedfeb483",
+            "SopState": "b2b3b2f540cfc379",
+            "StanceIntent": "225c1f1d17cc5623",
+            "StanceStatus": "913352713cb7bd57",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "e91d8452934c635f",
+            "TkbIdentity": "1cf1b11761e25ed8",
+            "UnitIntent": "46b87967383dd515",
+            "VehicleParams": "f6cc5dbc3f693158",
+            "VehicleState": "93adbcbd112837d3",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "366665b60b6c902e"
+          }
+        },
+        "Rangefinder": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 5
+            }
+          },
+          "components": {
+            "Behavior": "b63266f781132a4c",
+            "BehaviorStartRecord": "6e4304b40b13b3a7",
+            "BehaviorState": "53cb602dd477a0b8",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "89043e37c8084f80",
+            "BrainDiagnostics": "7c6ec6bd129400a4",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "0d2ada5bb798b83c",
+            "DevicePanel": "524eaa60e76c2c08",
+            "DevicePose": "205082427d4a9a55",
+            "EntityGuid": "32820507a12629d7",
+            "EntityInfo": "34560cb1e977a3dd",
+            "IsEmbarkedTag": "8ed96acd560bfe4f",
+            "LaserPointing": "c2623e180cbeea86",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c29748d84e965e80"
+          }
+        }
+      }
+    },
+    {
+      "t": 3,
+      "units": {
+        "Binoculars": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 4
+            }
+          },
+          "components": {
+            "Behavior": "3a2ee737826292dd",
+            "BehaviorStartRecord": "857ee95a9287da62",
+            "BehaviorState": "5bcfad0ba53c0c49",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "d17dc881e28b5c4f",
+            "BrainDiagnostics": "941bc6c0a1fb77d8",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "636bb932c3169ae2",
+            "DeviceInput": "af9319399dfc1558",
+            "DevicePose": "880c9f5b6447c506",
+            "EntityGuid": "3b392e07a619da88",
+            "EntityInfo": "465c0d1ada44af7e",
+            "IsEmbarkedTag": "8edc6ecd560e3af2",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PossessedBy": "3742be9ead56827a",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c2944cd84e942f75",
+            "UtilityDecisionLog": "34cba9cb93ee7851"
+          }
+        },
+        "Observer": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "Binoculars"
+            },
+            "WeaponPosture.HeldItem": "Binoculars"
+          },
+          "components": {
+            "AcousticEmitter": "3284ddbab772de66",
+            "ActionStatus": "88f697cab6962087",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "eb254276adbcc26e",
+            "AnimationExecutorState": "b841457ac16c55b8",
+            "BehaviorStartRecord": "1c27f927b01c9ccd",
+            "BehaviorState": "fd270b94329218ea",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard1024": "fe27e14bf03788c9",
+            "BlueprintBlackboard256": "7155ffec94972a10",
+            "BrainDiagnostics": "f8329572103e712e",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "3f3e9ebef2cb590c",
+            "CarrierSeats": "48754cb0fe6592b2",
+            "CarrierStations": "31583316a1057357",
+            "CharacterAnimationDefRuntime": "74998346b5218a53",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e80a67e99de5c2a2",
+            "EntityGuid": "e44165012c77ca7e",
+            "EntityInfo": "8aba1603cb2924a6",
+            "FormationController": "900200110e4d4dfd",
+            "FrustrationTicks": "01a5c9454026353d",
+            "Health": "2712238ebd632aff",
+            "HeatSource": "10cc1af56e66335a",
+            "InjuryThresholds": "a757d6d8cced34c2",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "LookAtChannel": "f97efa71a72cf38d",
+            "LookAtChannelStatus": "215f014ed0246ce3",
+            "LookAtExecutorState": "ddb00c66b845dca5",
+            "LookState": "663601c4529aab25",
+            "ManualDrive": "1c7b9afdff9e8837",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavState": "31be9080533297c1",
+            "NavigationApplied": "a4128b13202ef473",
+            "NavigationIntent": "8c5e776db63741fd",
+            "NavigationStatus": "25d71313e6a85157",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "9b306d57a41edb67",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "9c9d445a18ab83e0",
+            "PersonCarrier": "f1b5ce9d4933b82e",
+            "PhysicsCollider": "3fa321c1a1b5c5e6",
+            "PossessedBy": "00bd77aefdbe2177",
+            "PreviousCapabilities": "eb254276adbcc26e",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Restless": "64f717e9ff7f1bed",
+            "Roe": "b23a785496f51560",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "Sop": "84f835ebedfeb483",
+            "SopStartRecord": "739a22630ef9ebc5",
+            "SopState": "ef907cec608e376d",
+            "StanceIntent": "225c1f1d17cc5623",
+            "StanceStatus": "913352713cb7bd57",
+            "Stress": "48041d87af37bc8e",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "e91d8452934c635f",
+            "TkbIdentity": "1cf1b11761e25ed8",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleParams": "f6cc5dbc3f693158",
+            "VehicleState": "93adbcbd112837d3",
+            "WeaponAmmo": "2ab5f4128f0551f4",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "453ed5240a900570",
+            "WeaponState": "366665b60b6c902e"
+          }
+        },
+        "Rangefinder": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 5
+            }
+          },
+          "components": {
+            "Behavior": "b63266f781132a4c",
+            "BehaviorStartRecord": "6e4304b40b13b3a7",
+            "BehaviorState": "53cb602dd477a0b8",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "5bce52ff706940c0",
+            "BrainDiagnostics": "7c6ec6bd129400a4",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "0d2ada5bb798b83c",
+            "DeviceInput": "b6d44239a1b1dfa7",
+            "DevicePanel": "524eaa60e76c2c08",
+            "DevicePose": "205082427d4a9a55",
+            "EntityGuid": "32820507a12629d7",
+            "EntityInfo": "34560cb1e977a3dd",
+            "IsEmbarkedTag": "8ed96acd560bfe4f",
+            "LaserPointing": "c2623e180cbeea86",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PossessedBy": "3742be9ead56827a",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c29748d84e965e80",
+            "UtilityDecisionLog": "34cba9cb93ee7851"
+          }
+        }
+      }
+    },
+    {
+      "t": 6,
+      "units": {
+        "Binoculars": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 4
+            }
+          },
+          "components": {
+            "Behavior": "3a2ee737826292dd",
+            "BehaviorStartRecord": "857ee95a9287da62",
+            "BehaviorState": "5bcfad0ba53c0c49",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "d17dc881e28b5c4f",
+            "BrainDiagnostics": "941bc6c0a1fb77d8",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "636bb932c3169ae2",
+            "DeviceInput": "b6d44239a1b1dfa7",
+            "DevicePose": "880c9f5b6447c506",
+            "EntityGuid": "3b392e07a619da88",
+            "EntityInfo": "465c0d1ada44af7e",
+            "IsEmbarkedTag": "8edc6ecd560e3af2",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PossessedBy": "3742be9ead56827a",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c2944cd84e942f75",
+            "UtilityDecisionLog": "34cba9cb93ee7851"
+          }
+        },
+        "Observer": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "Binoculars"
+            },
+            "WeaponPosture.HeldItem": "Binoculars"
+          },
+          "components": {
+            "AcousticEmitter": "3284ddbab772de66",
+            "ActionStatus": "88f697cab6962087",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "eb254276adbcc26e",
+            "AnimationExecutorState": "b841457ac16c55b8",
+            "BehaviorStartRecord": "1c27f927b01c9ccd",
+            "BehaviorState": "fd270b94329218ea",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard1024": "fe27e14bf03788c9",
+            "BlueprintBlackboard256": "7155ffec94972a10",
+            "BrainDiagnostics": "f8329572103e712e",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "3f3e9ebef2cb590c",
+            "CarrierSeats": "48754cb0fe6592b2",
+            "CarrierStations": "31583316a1057357",
+            "CharacterAnimationDefRuntime": "74998346b5218a53",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e80a67e99de5c2a2",
+            "EntityGuid": "e44165012c77ca7e",
+            "EntityInfo": "8aba1603cb2924a6",
+            "FormationController": "900200110e4d4dfd",
+            "FrustrationTicks": "01a5c9454026353d",
+            "Health": "2712238ebd632aff",
+            "HeatSource": "10cc1af56e66335a",
+            "InjuryThresholds": "a757d6d8cced34c2",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "LookAtChannel": "f97efa71a72cf38d",
+            "LookAtChannelStatus": "215f014ed0246ce3",
+            "LookAtExecutorState": "ddb00c66b845dca5",
+            "LookState": "663601c4529aab25",
+            "ManualDrive": "1c7b9afdff9e8837",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavState": "31be9080533297c1",
+            "NavigationApplied": "a4128b13202ef473",
+            "NavigationIntent": "8c5e776db63741fd",
+            "NavigationStatus": "25d71313e6a85157",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "9b306d57a41edb67",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "9c9d445a18ab83e0",
+            "PersonCarrier": "f1b5ce9d4933b82e",
+            "PhysicsCollider": "3fa321c1a1b5c5e6",
+            "PossessedBy": "00bd77aefdbe2177",
+            "PreviousCapabilities": "eb254276adbcc26e",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Restless": "e4e3728ec40ec252",
+            "Roe": "b23a785496f51560",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "Sop": "84f835ebedfeb483",
+            "SopStartRecord": "739a22630ef9ebc5",
+            "SopState": "9f44602bb645f17f",
+            "StanceIntent": "225c1f1d17cc5623",
+            "StanceStatus": "913352713cb7bd57",
+            "Stress": "0a4b7467b5a2b8e5",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "e91d8452934c635f",
+            "TkbIdentity": "1cf1b11761e25ed8",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleParams": "f6cc5dbc3f693158",
+            "VehicleState": "93adbcbd112837d3",
+            "WeaponAmmo": "2ab5f4128f0551f4",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "453ed5240a900570",
+            "WeaponState": "366665b60b6c902e"
+          }
+        },
+        "Rangefinder": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 5
+            }
+          },
+          "components": {
+            "Behavior": "b63266f781132a4c",
+            "BehaviorStartRecord": "6e4304b40b13b3a7",
+            "BehaviorState": "53cb602dd477a0b8",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "ec5e5b6b4d93cea0",
+            "BrainDiagnostics": "7c6ec6bd129400a4",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "0d2ada5bb798b83c",
+            "DeviceInput": "af9319399dfc1558",
+            "DevicePanel": "647b9e55540d4249",
+            "DevicePose": "205082427d4a9a55",
+            "EntityGuid": "32820507a12629d7",
+            "EntityInfo": "34560cb1e977a3dd",
+            "IsEmbarkedTag": "8ed96acd560bfe4f",
+            "LaserPointing": "c2623e180cbeea86",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PossessedBy": "3742be9ead56827a",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c29748d84e965e80",
+            "UtilityDecisionLog": "34cba9cb93ee7851"
+          }
+        }
+      }
+    },
+    {
+      "t": 9,
+      "units": {
+        "Binoculars": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 4
+            }
+          },
+          "components": {
+            "Behavior": "3a2ee737826292dd",
+            "BehaviorStartRecord": "857ee95a9287da62",
+            "BehaviorState": "5bcfad0ba53c0c49",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "d17dc881e28b5c4f",
+            "BrainDiagnostics": "941bc6c0a1fb77d8",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "636bb932c3169ae2",
+            "DeviceInput": "b6d44239a1b1dfa7",
+            "DevicePose": "880c9f5b6447c506",
+            "EntityGuid": "3b392e07a619da88",
+            "EntityInfo": "465c0d1ada44af7e",
+            "IsEmbarkedTag": "8edc6ecd560e3af2",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49918b3e8efa3bea",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PossessedBy": "3742be9ead56827a",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c2944cd84e942f75",
+            "UtilityDecisionLog": "34cba9cb93ee7851"
+          }
+        },
+        "Observer": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": 100,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "NavigationStatus.Phase": "Idle",
+            "WeaponPosture": {
+              "Kind": "AtEase",
+              "Target": "null",
+              "Point": [
+                0,
+                0,
+                0
+              ],
+              "IdleSeconds": 0,
+              "ActiveMount": 0,
+              "HeldItem": "None"
+            },
+            "WeaponPosture.HeldItem": "None"
+          },
+          "components": {
+            "AcousticEmitter": "3284ddbab772de66",
+            "ActionStatus": "88f697cab6962087",
+            "ActiveSensorTracks": "b0438f6fac96a015",
+            "ActorCapabilityState": "eb254276adbcc26e",
+            "AnimationExecutorState": "b841457ac16c55b8",
+            "BehaviorStartRecord": "1c27f927b01c9ccd",
+            "BehaviorState": "fd270b94329218ea",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard1024": "fe27e14bf03788c9",
+            "BlueprintBlackboard256": "7155ffec94972a10",
+            "BrainDiagnostics": "f8329572103e712e",
+            "BrainInterrupts": "00fc813433b81130",
+            "BrainJournal": "3f3e9ebef2cb590c",
+            "CarrierSeats": "48754cb0fe6592b2",
+            "CarrierStations": "31583316a1057357",
+            "CharacterAnimationDefRuntime": "74998346b5218a53",
+            "CullingState": "9c97051fd4b28240",
+            "DisEntityType": "e80a67e99de5c2a2",
+            "EntityGuid": "e44165012c77ca7e",
+            "EntityInfo": "8aba1603cb2924a6",
+            "FormationController": "900200110e4d4dfd",
+            "FrustrationTicks": "01a5c9454026353d",
+            "Health": "2712238ebd632aff",
+            "HeatSource": "10cc1af56e66335a",
+            "InjuryThresholds": "a757d6d8cced34c2",
+            "InteractionChannel": "c36eb62a5ca3f850",
+            "KnownCombatantList": "a13c63e63cdb9166",
+            "LocomotionChannel": "c36eb62a5ca3f850",
+            "LookAtChannel": "f97efa71a72cf38d",
+            "LookAtChannelStatus": "215f014ed0246ce3",
+            "LookAtExecutorState": "ddb00c66b845dca5",
+            "LookState": "663601c4529aab25",
+            "ManualDrive": "1c7b9afdff9e8837",
+            "MapDisplayComponent": "ccfa2677ba8bb11f",
+            "MissionAdapterState": "766d4a99664fb12f",
+            "MissionPlanQueue": "c9922549cfdc31e6",
+            "NavState": "31be9080533297c1",
+            "NavigationApplied": "a4128b13202ef473",
+            "NavigationIntent": "8c5e776db63741fd",
+            "NavigationStatus": "25d71313e6a85157",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "498d873e8ef64c47",
+            "OpenPassengerCabin": "fcf7b120b61bb627",
+            "PassengerBuffer": "9b306d57a41edb67",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PerceptionReceptor": "9c9d445a18ab83e0",
+            "PersonCarrier": "f1b5ce9d4933b82e",
+            "PhysicsCollider": "3fa321c1a1b5c5e6",
+            "PossessedBy": "00bd77aefdbe2177",
+            "PreviousCapabilities": "eb254276adbcc26e",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "Restless": "c37eb42c5756ae22",
+            "Roe": "b23a785496f51560",
+            "SimTier": "365b00ecaf6d39dc",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "Sop": "84f835ebedfeb483",
+            "SopStartRecord": "739a22630ef9ebc5",
+            "SopState": "e3d59005f2695f01",
+            "StanceIntent": "225c1f1d17cc5623",
+            "StanceStatus": "913352713cb7bd57",
+            "Stress": "d365d869d78adb5b",
+            "TargetMemory": "236b0dd577e0138f",
+            "ThermalState": "e91d8452934c635f",
+            "TkbIdentity": "1cf1b11761e25ed8",
+            "UtilityDecisionLog": "34cba9cb93ee7851",
+            "VehicleParams": "f6cc5dbc3f693158",
+            "VehicleState": "93adbcbd112837d3",
+            "WeaponAmmo": "2ab5f4128f0551f4",
+            "WeaponChannel": "c36eb62a5ca3f850",
+            "WeaponPosture": "ab047033bcf37d78",
+            "WeaponState": "366665b60b6c902e"
+          }
+        },
+        "Rangefinder": {
+          "position": [
+            0,
+            0,
+            0
+          ],
+          "health": null,
+          "visible": {
+            "EntityInfo.ForceId": "Friend",
+            "IsEmbarkedTag": {
+              "Vehicle": "@Observer",
+              "Seat": 5
+            }
+          },
+          "components": {
+            "Behavior": "b63266f781132a4c",
+            "BehaviorStartRecord": "6e4304b40b13b3a7",
+            "BehaviorState": "53cb602dd477a0b8",
+            "BlueprintAssignments": "390633fb115c5404",
+            "BlueprintBlackboard256": "ec5e5b6b4d93cea0",
+            "BrainDiagnostics": "7c6ec6bd129400a4",
+            "CullingState": "9c97051fd4b28240",
+            "DeviceInfo": "0d2ada5bb798b83c",
+            "DeviceInput": "b6d44239a1b1dfa7",
+            "DevicePanel": "647b9e55540d4249",
+            "DevicePose": "205082427d4a9a55",
+            "EntityGuid": "32820507a12629d7",
+            "EntityInfo": "34560cb1e977a3dd",
+            "IsEmbarkedTag": "8ed96acd560bfe4f",
+            "LaserPointing": "c2623e180cbeea86",
+            "MapDisplayComponent": "2dc16dd037d36ae9",
+            "Mountable": "f7dfed0337ac155a",
+            "NetworkAuthority": "8794707a112cee7f",
+            "NetworkIdentity": "49948b3e8efc71c1",
+            "PendingNetworkAck": "4541f2b8ef5997af",
+            "PossessedBy": "3742be9ead56827a",
+            "ResolvedStyle": "c58932ed5da1f213",
+            "SimTransform": "299f4042520bbd21",
+            "SimVelocity": "bf069ad2ca2ec25a",
+            "TkbIdentity": "c29748d84e965e80",
+            "UtilityDecisionLog": "34cba9cb93ee7851"
+          }
+        }
+      }
+    }
+  ],
+  "verdicts": {
+    "the view shows the binoculars' HUD": 1.75,
+    "the binoculars' view never shows the rangefinder": null,
+    "after the re-bind the view shows the rangefinder's HUD": 4.25,
+    "the rangefinder's view never shows the binoculars": null,
+    "the plain eye shows no device HUD": 6.75,
+    "ZOOM IN steps the binoculars to 10x": 2.75,
+    "the rangefinder is untouched by the binoculars' press": null,
+    "MODE steps the rangefinder to CONTINUOUS": 5.25,
+    "the binoculars are untouched by the rangefinder's press": null,
+    "he raises the binoculars while the view shows them": 1.75,
+    "the optic stays raised while the view shows a hand-held device": null,
+    "he lowers it when the view returns to the eye": 6.75
+  }
+}

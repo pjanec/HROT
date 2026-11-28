@@ -1,0 +1,69 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u00b7 docs/DESIGN_Unit_Intent.md R1 (CE-3494 F3) \u2014 an order given between steps (a paused frame) takes effect at the next step.",
+  "runFor": 32,
+  "sampleEvery": 0.02,
+  "golden": {
+    "every": 5
+  },
+  "do": [
+    {
+      "name": "ordered",
+      "at": 2,
+      "order": {
+        "who": "M2 Bradley IFV",
+        "kind": "behavior",
+        "behavior": "MoveToLocation",
+        "params": {
+          "speed": 5,
+          "arrivalRadius": 5,
+          "target": [
+            489,
+            296,
+            0
+          ]
+        }
+      }
+    }
+  ],
+  "expect": [
+    {
+      "name": "no task runs before the order",
+      "never": {
+        "on": "task",
+        "who": "M2 Bradley IFV",
+        "is": "MoveToLocation"
+      },
+      "before": "ordered"
+    },
+    {
+      "name": "it does not move before the order",
+      "never": {
+        "on": "field",
+        "who": "M2 Bradley IFV",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 369
+      },
+      "before": "ordered"
+    },
+    {
+      "name": "the order runs at the next step",
+      "on": "task",
+      "who": "M2 Bradley IFV",
+      "is": "MoveToLocation",
+      "after": "ordered",
+      "before": "ordered+0.1"
+    },
+    {
+      "name": "it stops within 6 m of (489,296)",
+      "on": "near",
+      "who": "M2 Bradley IFV",
+      "point": [
+        489,
+        296
+      ],
+      "within": 6,
+      "atEnd": true
+    }
+  ]
+}

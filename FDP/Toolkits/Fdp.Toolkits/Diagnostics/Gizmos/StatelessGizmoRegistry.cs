@@ -23,6 +23,8 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         public float MinMetresPerPixel;
         /// <summary>⭐ CE-4388 (D-4) — the projector's <see cref="GizmoProjectorAttribute.DrawsOffScreen"/>.</summary>
         public bool DrawsOffScreen;
+        /// <summary>⭐ Simulated devices S1d-2 (R2-10 / R3-13) — the projector's <see cref="GizmoProjectorAttribute.Hud"/>: scoped per entity, never cut, never held.</summary>
+        public bool Hud;
     }
 
     /// <summary>
@@ -87,6 +89,15 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 mask.SetBit(id);
             }
 
+            var view = ViewSettingsOf(projector);
+            // ⭐⭐ Simulated devices S1d-2 (DESIGN_Simulated_Devices §3.6 R2-10 / R3-13) — the HUD family's policy, FIXED here, where every registration
+            //   (reflection and by hand) passes: drawn off screen, no zoom band, its own visibility policy (the device TYPE, the operator, the authority —
+            //   R7-3) whatever the host's resolver offered. ⛔ A host cannot cull a trainee's display by its map's zoom or its culling setting.
+            if (view.Hud)
+            {
+                view.MaxMetresPerPixel = 0f; view.MinMetresPerPixel = 0f; view.DrawsOffScreen = true;
+                if (projector is IGizmoVisibilityPolicy own) visibilityPolicy = own;
+            }
             _rules.Add(new CompiledStatelessRule
             {
                 Projector        = projector,
@@ -94,16 +105,17 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 VisibilityPolicy = visibilityPolicy ?? AlwaysVisiblePolicy.Instance,
                 RuleIndex        = _rules.Count,
                 // ⭐ CE-4388 — the view filter's per-rule settings, read once from the projector's attribute
-                MaxMetresPerPixel = ViewSettingsOf(projector).MaxMetresPerPixel,
-                MinMetresPerPixel = ViewSettingsOf(projector).MinMetresPerPixel,
-                DrawsOffScreen    = ViewSettingsOf(projector).DrawsOffScreen,
+                MaxMetresPerPixel = view.MaxMetresPerPixel,
+                MinMetresPerPixel = view.MinMetresPerPixel,
+                DrawsOffScreen    = view.DrawsOffScreen,
+                Hud               = view.Hud,
             });
         }
 
-        private static (float MaxMetresPerPixel, float MinMetresPerPixel, bool DrawsOffScreen) ViewSettingsOf(IStatelessGizmo projector)
+        private static (float MaxMetresPerPixel, float MinMetresPerPixel, bool DrawsOffScreen, bool Hud) ViewSettingsOf(IStatelessGizmo projector)
         {
             var attr = (GizmoProjectorAttribute?)Attribute.GetCustomAttribute(projector.GetType(), typeof(GizmoProjectorAttribute));
-            return attr == null ? (0f, 0f, false) : (attr.MaxMetresPerPixel, attr.MinMetresPerPixel, attr.DrawsOffScreen);
+            return attr == null ? (0f, 0f, false, false) : (attr.MaxMetresPerPixel, attr.MinMetresPerPixel, attr.DrawsOffScreen, attr.Hud);
         }
 
         /// <summary>

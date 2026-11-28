@@ -78,6 +78,55 @@ namespace Fdp.Toolkit.Terrain
             return t_panels;
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-3490</c> (DESIGN_Breath_Attack BA-4, BA-5) — the BURNABLE building at <paramref name="p"/>: the one whose footprint contains it, else the
+        /// nearest whose footprint circle (<see cref="Extent"/>) comes within <paramref name="within"/> m of it; −1 when none (or it does not burn). 0 B per call.
+        /// </summary>
+        public static int BurnableAt(TerrainWorld world, Vector2 p, float within)
+        {
+            var burnable = Burnable(world);
+            int best = -1;
+            float bestGap = within;
+            for (int k = 0; k < burnable.Count; k++)
+            {
+                var b = world.Buildings[burnable[k]];
+                if (b.Footprint.Length >= 3 && PolygonMath.Contains(b.Footprint, p)) return burnable[k];
+                var (c, r) = Extent(b);
+                float gap = Vector2.Distance(c, p) - r;
+                if (gap <= bestGap) { bestGap = gap; best = burnable[k]; }
+            }
+            return best;
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-3490</c> (BA-4) — the point of <paramref name="building"/>'s burnable walls nearest <paramref name="from"/> (flat), the wall's OUTWARD normal there
+        /// (away from the footprint's centre) and the wall's middle height; false when it has no burnable wall. 0 B per call.
+        /// </summary>
+        public static bool NearestBurnableWall(TerrainWorld world, int building, Vector2 from, out Vector2 point, out Vector2 outward, out float midZ)
+        {
+            point = outward = default;
+            midZ = 0f;
+            if ((uint)building >= (uint)world.Buildings.Count) return false;
+            var panels = BurnablePanels(world);
+            float best = float.MaxValue;
+            for (int k = 0; k < panels.Count; k++)
+            {
+                var w = world.Panels[panels[k]];
+                if (w.Building != building) continue;
+                var ab = w.B - w.A;
+                float len2 = ab.LengthSquared();
+                float t = len2 > 1e-9f ? Math.Clamp(Vector2.Dot(from - w.A, ab) / len2, 0f, 1f) : 0f;
+                var q = w.A + ab * t;
+                float d = Vector2.DistanceSquared(q, from);
+                if (d >= best) continue;
+                best = d;
+                point = q;
+                outward = WallGroups.OutwardNormal(world, panels[k], q);   // ⭐ CE-11054 — the one outward-normal rule (the side decided at the nearest point, as before)
+                midZ = 0.5f * (w.BaseZ + w.TopZ);
+            }
+            return best < float.MaxValue;
+        }
+
         // ⭐ per thread (BEHAVIOUR CODE RUNS IN PARALLEL: no shared static scratch) — a world's burnable set, built once
         [ThreadStatic] private static TerrainWorld? t_world, t_panelWorld;
         [ThreadStatic] private static List<int>? t_burnable, t_panels;

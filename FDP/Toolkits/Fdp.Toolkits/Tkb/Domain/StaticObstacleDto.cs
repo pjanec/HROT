@@ -34,5 +34,11 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// 0 = indestructible (no Health). 📄 docs/DESIGN_Peek_And_Fire.md §9.9.
         /// </summary>
         public float MaxHealth { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-1 — <see cref="Fdp.Toolkit.Terrain.ObstacleKind.WalkableDeck"/> makes the type a LAID BRIDGE: baked as a deck with ramps you stand on
+        /// (Length = the span between the deck ends, Height = the deck's height above the bank), not a box. 📄 docs/designs/engineering/DESIGN_Bridge_Laying.md.
+        /// </summary>
+        public Fdp.Toolkit.Terrain.ObstacleKind Kind { get; init; }
     }
 }

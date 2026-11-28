@@ -225,11 +225,11 @@ namespace CarKinem.Controllers
                 float along = CentreAlong(p, here, fwd, hit.At);
                 var pending = NewPending(vehicle);
                 if (row.Blade)   // ⭐ CE-4629 — a blade: the blade's width, the wall's full height, on every panel of the wall it spans (a stepped wall's pieces)
-                    CutAlong(world, panel, along, hull.Width + 2f * table.CutMarginM, vehicle, pending.Breaches, buildings: true);
+                    CutAlong(world, panel, along, hull.Width + 2f * table.CutMarginM, vehicle, pending.Breaches, buildings: true, source: new Vector3(here, hereZ), cause: BreachCause.Blade);   // ⭐ CE-11054 — a blade
                 else
                 {
                     float w = MathF.Min(table.BumpWidthM, hull.Width);
-                    pending.Breaches.Add(Event(world, panel, along - w * 0.5f, along + w * 0.5f, p.BaseZ, MathF.Min(p.TopZ, p.BaseZ + table.BumpHeightM), vehicle));
+                    pending.Breaches.Add(Event(world, panel, along - w * 0.5f, along + w * 0.5f, p.BaseZ, MathF.Min(p.TopZ, p.BaseZ + table.BumpHeightM), vehicle, new Vector3(here, hereZ), BreachCause.Ram));   // ⭐ CE-11054 — a building's bump is a RAM only (D-3)
                 }
                 pending.Cue = Make(vehicle, ContactBreachKind.Bumped, hit.At, hereZ, 1f); pending.HasCue = true;
                 s_bumped[me] = new Contact(key, GraceSeconds);   // one bump, not one per tick of contact (the hull stays held)
@@ -249,7 +249,8 @@ namespace CarKinem.Controllers
 
             s_push.TryRemove(me, out _);
             var broke = NewPending(vehicle);
-            if (panel >= 0) Cut(world, table, in hull, panel, hit.At, fwd, vehicle, broke.Breaches);
+            // ⭐ CE-11054 — a free wall: rammed at speed (into >= the row's minimum) = Ram; broken only by the HELD full-throttle push (the branch above) = Push
+            if (panel >= 0) Cut(world, table, in hull, panel, hit.At, fwd, vehicle, broke.Breaches, new Vector3(here, hereZ), into >= row.MinRamSpeedMs ? BreachCause.Ram : BreachCause.Push);
             else if (tree != null) broke.Tree = tree;   // ⭐ CE-4603 (B-6) — the trunk is felled
             else broke.ObstacleIndex = obstacle;
             broke.Cue = Make(vehicle, ContactBreachKind.Broke, hit.At, hereZ, 1f); broke.HasCue = true;
@@ -305,7 +306,8 @@ namespace CarKinem.Controllers
         /// ⭐ V-9 / V-12 — the drive-through cut: the hull's footprint across the wall at its crossing angle + the margin each side, at least the drive-through width,
         /// from the wall's base to its top (a Passage, V-6) — on the panel hit AND every free-wall panel the cut overlaps (a joint, a corner).
         /// </summary>
-        public static void Cut(TerrainWorld world, ContactBreachTable table, in VehicleParams hull, int panel, Vector2 at, Vector2 fwd, Entity by, List<BuildingDamageEvent> into)
+        public static void Cut(TerrainWorld world, ContactBreachTable table, in VehicleParams hull, int panel, Vector2 at, Vector2 fwd, Entity by, List<BuildingDamageEvent> into,
+                               Vector3 source, BreachCause cause = BreachCause.Ram)
         {
             var p = world.Panels[panel];
             float len = p.Length;
@@ -314,7 +316,7 @@ namespace CarKinem.Controllers
             var side = new Vector2(-fwd.Y, fwd.X);
             float extent = MathF.Abs(hull.Length * Vector2.Dot(fwd, dir)) + MathF.Abs(hull.Width * Vector2.Dot(side, dir));
             float width = MathF.Max(extent + 2f * table.CutMarginM, table.MinDriveThroughM);
-            CutAlong(world, panel, Along(p, at), width, by, into, buildings: false);   // a drive-through cut opens free walls; a building is the bump's
+            CutAlong(world, panel, Along(p, at), width, by, into, buildings: false, source, cause);   // a drive-through cut opens free walls; a building is the bump's
         }
 
         /// <summary>
@@ -322,7 +324,8 @@ namespace CarKinem.Controllers
         /// <paramref name="panel"/>, on that panel AND every panel of the same line it overlaps (a joint, a corner, a stepped wall's ≤ 2 m pieces — CE-5015). Used by the
         /// player's drive-through (<paramref name="buildings"/> false: free walls only), a bulldozer's bump and the AI dozer's ordered cut (<c>DozerCutSystem</c>).
         /// </summary>
-        public static void CutAlong(TerrainWorld world, int panel, float along, float width, Entity by, List<BuildingDamageEvent> into, bool buildings)
+        /// <param name="source">⭐ CE-11051 — the hull's centre (the breach's "blast point": its debris falls away from the hull).</param>
+        public static void CutAlong(TerrainWorld world, int panel, float along, float width, Entity by, List<BuildingDamageEvent> into, bool buildings, Vector3 source, BreachCause cause = BreachCause.Ram)
         {
             var p = world.Panels[panel];
             float len = p.Length;
@@ -345,7 +348,7 @@ namespace CarKinem.Controllers
                 float t1 = Vector2.Dot(e1 - q.A, qd), t2 = Vector2.Dot(e2 - q.A, qd);
                 float from = MathF.Max(0f, MathF.Min(t1, t2)), to = MathF.Min(ql, MathF.Max(t1, t2));
                 if (to - from < 0.05f) continue;
-                into.Add(Event(world, qi, from, to, q.BaseZ, q.TopZ, by));
+                into.Add(Event(world, qi, from, to, q.BaseZ, q.TopZ, by, source, cause));
             }
         }
 
@@ -368,7 +371,7 @@ namespace CarKinem.Controllers
             return len > 1e-6f ? Vector2.Dot(at - p.A, d / len) : 0f;
         }
 
-        private static BuildingDamageEvent Event(TerrainWorld world, int panel, float from, float to, float bottom, float top, Entity by)
+        private static BuildingDamageEvent Event(TerrainWorld world, int panel, float from, float to, float bottom, float top, Entity by, Vector3 source, BreachCause cause)
         {
             var p = world.Panels[panel];
             from = MathF.Max(0f, from); to = MathF.Min(p.Length, to);
@@ -376,6 +379,8 @@ namespace CarKinem.Controllers
             {
                 Building = WallGroups.Of(world, panel), Panel = panel, From = from, To = to, Bottom = bottom, Top = top,
                 Kind = (byte)BreachRule.Classify(in p, world.Breaches, from, to, bottom, top), Shooter = by,
+                BlastX = source.X, BlastY = source.Y, BlastZ = source.Z,   // ⭐ CE-11051
+                Cause = (byte)cause,   // ⭐ CE-11054
             };
         }
 

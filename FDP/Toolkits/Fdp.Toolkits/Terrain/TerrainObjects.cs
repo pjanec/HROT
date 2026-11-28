@@ -69,7 +69,10 @@ namespace Fdp.Toolkit.Terrain
     {
         private readonly byte[] _states;
 
-        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null, WindowTable? windows = null, UnderFireTable? underFire = null, UnderFireSight? underFireSight = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; Windows = windows; UnderFire = underFire ?? UnderFireTable.Empty; UnderFireSight = underFireSight ?? UnderFireSight.Empty; }
+        private DoorStates(byte[] states, BuildingDamageTable? damage = null, CraterTable? craters = null, FelledTrees? trees = null, PlaceKnowledgeTable? knowledge = null, WindowTable? windows = null, UnderFireTable? underFire = null, UnderFireSight? underFireSight = null, DeckTable? decks = null) { _states = states; Damage = damage; Craters = craters; Trees = trees; Knowledge = knowledge ?? PlaceKnowledgeTable.Empty; Windows = windows; UnderFire = underFire ?? UnderFireTable.Empty; UnderFireSight = underFireSight ?? UnderFireSight.Empty; Decks = decks; }
+
+        /// <summary>⭐ CE-4692 BL-3 — the laid-bridge decks still standing in this view (null = the view has no static obstacles): a baked deck not in it has fallen and is skipped.</summary>
+        public DeckTable? Decks { get; }
 
         /// <summary>⭐ CE-2468 UF-4 / UF-5 (K5) — the ground known enemies cover and the route-cost maps, as the serial pass last published them for this view's world.</summary>
         public UnderFireSight UnderFireSight { get; }
@@ -138,9 +141,10 @@ namespace Fdp.Toolkit.Terrain
             var windows = WindowTable.Of(view);   // ⭐ CE-5033 (GW-2) — the damaged window panes, the same way
             var underFire = UnderFireTable.Of(view);   // ⭐ CE-2468 UF-4 (K11) — the places under fire, on their own cache
             var underFireSight = UnderFireSight.Of(view);   // ⭐ CE-2468 UF-4 (K5) — the serial pass's published grids + cost maps
+            var decks = world.HasObstacleDecks ? DeckTable.Of(view) : null;   // ⭐ CE-4692 BL-3 — the standing laid-bridge decks (only a world that holds one asks)
             if (!ReferenceEquals(r.Damage, damage) || !ReferenceEquals(r.Craters, craters) || !ReferenceEquals(r.Trees, trees) || !ReferenceEquals(r.Knowledge, knowledge) || !ReferenceEquals(r.Windows, windows)
-                || !ReferenceEquals(r.UnderFire, underFire) || !ReferenceEquals(r.UnderFireSight, underFireSight))
-                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge, windows, underFire, underFireSight);   // a new instance over the SAME door array
+                || !ReferenceEquals(r.UnderFire, underFire) || !ReferenceEquals(r.UnderFireSight, underFireSight) || !ReferenceEquals(r.Decks, decks))
+                r = t_last = new DoorStates(r._states, damage, craters, trees, knowledge, windows, underFire, underFireSight, decks);   // a new instance over the SAME door array
             Fdp.Toolkit.Diagnostics.QueryTimings.End(S_Of, t0);
             return r;
         }

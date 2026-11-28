@@ -477,6 +477,60 @@ public sealed class Map3DGizmoTests
         Assert.All(prims, p => Assert.Equal(DebugTraceLayers.Labels, p.DebugLayer));
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-11031</c> (R-2084; measured by SimNetGateway T-059: 9 840 B a run for 110 cards, all of it <c>EntityNameGizmo</c>'s <c>$"{name} #{net}"</c>) — a steady frame of 110 cards (100 men with a frame, a name and a health bar, 10
+    /// unit commanders with a frame and a name) drawn by HROT's card projectors allocates NOTHING; the text is the same as before (a blank name is just "#id", a 63-character name is cut to the card's 31). 🔴 Mutation: one
+    /// <c>$"..."</c> string put back in <c>DrawName</c> ⇒ bytes.
+    /// </summary>
+    [Fact]
+    public void CE11031_ASteadyFrameOf110Cards_AllocatesNothing_AndTheNamesAreUnchanged()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        w.RegisterComponent<Fdp.Core.EntityInfo>();
+        w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        var ents = new System.Collections.Generic.List<Fdp.Core.Entity>();
+        for (int k = 0; k < 110; k++)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(10000 + k));
+            string name = k == 0 ? "   " : k == 1 ? new string('N', 63) : k < 100 ? "Man " + k : "Alpha squad";
+            w.AddComponent(e, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64(name), ForceId = Fdp.Core.ForceId.Friend });
+            if (k < 100) w.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = 80, Max = 100 });
+            else { w.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitEntity()); w.AddComponent(e, new Fdp.Core.CommandHierarchy.UnitRoster()); }
+            ents.Add(e);
+        }
+
+        var d = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(8192);
+        var settings = new Fdp.Toolkit.Diagnostics.Gizmos.Settings.GizmoSettingsRegistry();
+        var frame = new Hrot.Common.Diagnostics.Gizmos.EntityCardFrameGizmo();
+        var namer = new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo();
+        var bar = new Hrot.Common.Diagnostics.Gizmos.HealthBarGizmo(settings);
+        void Frame()
+        {
+            d.EndFrame(0f);
+            for (int i = 0; i < ents.Count; i++)
+            {
+                frame.Draw(w, ents[i], d);
+                namer.Draw(w, ents[i], d);
+                if (i < 100) bar.Draw(w, ents[i], d);
+            }
+        }
+
+        for (int i = 0; i < 5; i++) Frame();
+        var texts = d.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
+        Assert.Equal(110, texts.Length);
+        Assert.Equal("#10000", texts[0]);                                  // blank name: the id alone
+        Assert.Equal(new string('N', 31), texts[1]);                        // a long name is cut to the card's 31
+        Assert.Equal(new[] { "Man 2 #10002", "Alpha squad #10100" }, new[] { texts[2], texts[100] });
+
+        long before = System.GC.GetAllocatedBytesForCurrentThread();
+        for (int i = 0; i < 20; i++) Frame();
+        Assert.Equal(0L, System.GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
     /// <summary>⭐ CE-4388 (DESIGN_Map_View_Filter D-3, R-1049) — the card's rows stop at the map scales <c>CardZoom</c> names: the frame and the health bar at
     /// 1 m/px, the name at 2 m/px — read by the gizmo system once at registration (its zoom gate is railed in <c>StatelessGizmoSystemTests</c>). 📐 Measured: 1 247
     /// cards at the whole-terrain zoom, 6.6 ms a frame, none readable. 🔴 Red-proof (compiles): drop <c>MaxMetresPerPixel</c> from the frame's attribute ⇒ red.</summary>
@@ -520,6 +574,59 @@ public sealed class Map3DGizmoTests
         }
         Assert.Equal(new[] { "MiG #1", "UH-60 #2" }, Names(new Hrot.Common.Diagnostics.Gizmos.AircraftNameGizmo()));
         Assert.Equal(new[] { "Rifleman #3", "Duck #4" }, Names(new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo()));
+    }
+
+    /// <summary>⭐ CE-11029 (SimNetGateway R-143 / R-144) — a SWARM member's name is not always-on: an aircraft whose direct commander is an air unit
+    /// (every live member an aircraft) follows the ground's zoom-limited name; an aircraft under a mixed HQ, and one with no commander, keep the
+    /// always-on name. 🔒 User: <i>"for expensive aircraft (scarse) each shoudl have a label"</i>, not each of <i>"a swarm of cheap drones"</i>.
+    /// 🔴 Red-proof: <c>InAirUnit</c> returning false ⇒ the drones land in the always-on set.</summary>
+    [Fact]
+    public void CE11029_ASwarmMembersName_FollowsTheGroundsRule_ALoneOrHqAircraftKeepsItsAlwaysOnName()
+    {
+        using var w = new Fdp.Core.EntityRepository();
+        w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
+        w.RegisterComponent<Fdp.Core.EntityInfo>();
+        w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+        w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+        Fdp.Core.Entity Make(int net, string name, Fdp.Toolkit.Tkb.Domain.LocomotionClass c)
+        {
+            var e = w.CreateEntity();
+            w.AddComponent(e, new Fdp.Toolkit.Replication.Components.NetworkIdentity(net));
+            w.AddComponent(e, new Fdp.Core.EntityInfo { Name = new Fdp.Core.FixedString64(name) });
+            w.AddComponent(e, new Fdp.Toolkit.Motion.Locomotion { Class = c });
+            return e;
+        }
+        Fdp.Core.Entity Unit(params Fdp.Core.Entity[] members)
+        {
+            var u = w.CreateEntity();
+            w.AddComponent(u, new Fdp.Core.CommandHierarchy.UnitEntity());
+            w.AddComponent(u, new Fdp.Core.CommandHierarchy.UnitRoster());
+            foreach (var m in members)
+            {
+                Fdp.Core.CommandHierarchy.UnitRoster.Add(ref w.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(u), m);
+                w.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = u });
+            }
+            return u;
+        }
+        var fw = Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing;
+        var d1 = Make(1, "Drone", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+        var d2 = Make(2, "Drone", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+        Unit(d1, d2);                                                        // a swarm: every member an aircraft
+        var apache = Make(3, "Apache", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+        var rifleman = Make(4, "Rifleman", Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian);
+        Unit(apache, rifleman);                                              // a mixed HQ: no air unit
+        var mig = Make(5, "MiG", fw);                                        // no commander
+        var all = new[] { d1, d2, apache, rifleman, mig };
+        string[] Names(Fdp.Toolkit.Diagnostics.Gizmos.IStatelessGizmo g)
+        {
+            var d = new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer();
+            foreach (var e in all) g.Draw(w, e, d);
+            return d.GetFrame().ToArray().Where(p => p.Shape == DebugPrimitiveShape.Text).Select(p => p.TextContent.ToString()).ToArray();
+        }
+        Assert.Equal(new[] { "Apache #3", "MiG #5" }, Names(new Hrot.Common.Diagnostics.Gizmos.AircraftNameGizmo()));
+        Assert.Equal(new[] { "Drone #1", "Drone #2", "Rifleman #4" }, Names(new Hrot.Common.Diagnostics.Gizmos.EntityNameGizmo()));
     }
 
     private static void AssertNear(Vector3 expected, Vector3 actual, float tol = 1e-3f)

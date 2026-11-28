@@ -19,7 +19,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// contract).</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    [TickMode(TickPolicy.EveryFrame)]
+    // ⭐⭐ CE-3494 (R-3114, DESIGN_Unit_Intent.md §1 R1) — nothing the AI does takes effect on a paused frame: this runs only when time
+    //   advances and reads every request since its last run, IN ORDER (the step window) — so stepped and continuous runs agree.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     public sealed class BrainHandOverSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;
@@ -50,6 +52,10 @@ namespace Fdp.Toolkit.Behavior.Systems
                 var replica = view.GetManagedComponentRO<ReplicatedBrainIntent>(evt.Entity);
                 if (replica == null) continue;
                 Replace(repo, evt.Entity, replica.Intent, _registry, _ingress);
+                // ⭐ CE-3494 (DESIGN_Unit_Intent.md §3.3) — what the old owner RAN supersedes an intent this node loaded but never applied
+                //   (a non-brain node keeps the load's intent until it gains the brain); ⛔ applying it after the hand-over would undo it.
+                if (repo.TryGetTable(typeof(UnitIntent), out _) && repo.HasManagedComponent<UnitIntent>(evt.Entity))
+                    repo.RemoveComponent<UnitIntent>(evt.Entity);
                 HandOverCount++;
             }
         }
@@ -59,7 +65,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// that differs (name, params or origin — a running reaction always differs) is ended, then started through the
         /// ingress at its published origin; a slot that is the same keeps running.
         /// </summary>
-        public static void Replace(EntityRepository repo, Entity entity, InitialBrainIntent intent, BehaviorRegistry registry,
+        public static void Replace(EntityRepository repo, Entity entity, UnitIntent intent, BehaviorRegistry registry,
                                    BehaviorIngressSystem ingress)
         {
             if (intent.Roe is { } roe && repo.IsComponentTypeRegistered<Roe>())

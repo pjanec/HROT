@@ -130,7 +130,7 @@ namespace Hrot.SimHost.Tests
                 seats.Roles[0] = SeatRole.Gunner;
                 seats.Roles[1] = SeatRole.Passenger;   // the loader
                 _w.AddComponent(m, seats);
-                _w.AddComponent(m, new WeaponSystemParams { NeedsOperator = 1 });
+                _w.AddComponent(m, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(m, new Fdp.Toolkit.Combat.Mountable());
                 return m;
             }
             var rider = Mortar();
@@ -580,45 +580,59 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(Fdp.Toolkit.Combat.LeanSide.LeanNone, Fdp.Toolkit.Combat.Leans.Of(_w, op));   // let go with the body
         }
 
-        /// <summary>⭐ <c>CE-1219</c> (docs/DESIGN_Entity_Control.md §8k B-1) — B held raises the operator's binoculars through their one writer,
-        /// letting go lowers them; a man whose type carries none is refused (nothing in his hand); the possession's end puts them away.</summary>
+        /// <summary>⭐⭐ Simulated devices S1d-3 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.10 D-63 / R4-3 / D-75 — rehomes CE-1219's rail, whose
+        /// B level is gone): while a view of his station shows a hand-held device he CARRIES (its frame's <c>Viewed</c>), his brain raises the held
+        /// binoculars through their one writer — a man of a type with no pockets binoculars, so the DEVICE is what lets him (R4-3); unviewed, they go down;
+        /// a viewed device he does NOT carry raises nothing; the possession's end puts them away. ✅ Red-proof: <c>CarriedDevices.AnyViewed</c> → false ⇒ red.</summary>
         [Fact]
-        public void CE1219_BHeld_RaisesHisBinoculars_LettingGoLowersThem_AManWithNoneIsRefused()
+        public void S1d3_AViewedCarriedDevice_RaisesHisBinoculars_UnviewedLowersThem_AndThePossessionsEndPutsThemAway()
         {
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
-            var observer = new TkbTemplate("Observer", 4546L);
-            observer.AddDescriptor(new PocketItemsDto { Binoculars = true });
-            db.Register(observer);
-            db.Register(new TkbTemplate("Rifleman", 4547L));
+            db.Register(new TkbTemplate("Rifleman", 4547L));                                   // no pocket binoculars
             _w.SetSingletonManaged<ITkbDatabase>(db);
             if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()) _w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            Entity Op(long type)
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInfo>()) _w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+            if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInput>()) _w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInput>();
+            Entity Op()
             {
                 var op = Operator(Vector3.Zero);
-                _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(type) });
+                _w.AddComponent(op, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4547L) });
                 if (!_w.HasComponent<WeaponPosture>(op)) _w.AddComponent(op, new WeaponPosture());
+                if (!_w.HasComponent<PassengerBuffer>(op)) _w.AddComponent(op, new PassengerBuffer());
                 return op;
             }
-            void Hold(Entity op, ref OperatorControlBehavior.ManualControlState ws, bool b)
+            Entity Device()
             {
-                ref var input = ref _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op);
-                input.Seq++;
-                input.Binoculars = b ? (byte)1 : (byte)0;
+                var d = _w.CreateEntity();
+                _w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 78, Behavior = new FixedString64("DeviceBinoculars") });
+                return d;
+            }
+            void Viewed(Entity device, bool on, Entity op, ref OperatorControlBehavior.ManualControlState ws)
+            {
+                var c = new Fdp.Toolkit.Behavior.Devices.DeviceControl { Viewed = on ? (byte)1 : (byte)0 };
+                var input = new Fdp.Toolkit.Behavior.Devices.DeviceInput { Control = c };
+                if (_w.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceInput>(device)) _w.SetComponent(device, input); else _w.AddComponent(device, input);
+                _w.GetComponentRW<Fdp.Toolkit.Behavior.Possession.OperatorInput>(op).Seq++;
                 Tick(op, ref ws);
             }
-            var eyes = Op(4546L);
+            var eyes = Op();
+            var binoculars = Device();
+            _w.GetComponentRW<PassengerBuffer>(eyes).Passengers[4] = binoculars;               // in his first kit station
             var ws = default(OperatorControlBehavior.ManualControlState);
-            Hold(eyes, ref ws, true);
-            Assert.True(HeldItems.BinocularsUp(_w, eyes));
-            Hold(eyes, ref ws, false);
-            Assert.Equal(HeldItemKind.None, HeldItems.Of(_w, eyes));
+            Viewed(binoculars, false, eyes, ref ws);
+            Assert.Equal(HeldItemKind.None, HeldItems.Of(_w, eyes));                          // carried, not viewed: down
+            Viewed(binoculars, true, eyes, ref ws);
+            Assert.True(HeldItems.BinocularsUp(_w, eyes));                                     // viewed: raised (the device is his binoculars, R4-3)
+            Viewed(binoculars, false, eyes, ref ws);
+            Assert.Equal(HeldItemKind.None, HeldItems.Of(_w, eyes));                          // the view left it: lowered
 
-            var plain = Op(4547L);
+            var plain = Op();
+            var lying = Device();                                                              // a device he does not carry, viewed
             var ws2 = default(OperatorControlBehavior.ManualControlState);
-            Hold(plain, ref ws2, true);
-            Assert.Equal(HeldItemKind.None, HeldItems.Of(_w, plain));                         // he carries none: refused
+            Viewed(lying, true, plain, ref ws2);
+            Assert.Equal(HeldItemKind.None, HeldItems.Of(_w, plain));
 
-            Hold(eyes, ref ws, true);                                                          // up when the possession ends
+            Viewed(binoculars, true, eyes, ref ws);                                            // up when the possession ends
             if (!_w.HasComponent<BehaviorState>(eyes)) _w.AddComponent(eyes, new BehaviorState());
             _w.SetAuthority<BehaviorState>(eyes, true);
             new Fdp.Toolkit.Behavior.Possession.PossessionSystem(Hrot.Map.Definitions.Behavior.BehaviorNames.OperatorControl).Execute(_w, 0.016f);
@@ -757,7 +771,7 @@ namespace Hrot.SimHost.Tests
             var seats = new CarrierSeats { SeatCount = 1 };
             seats.Roles[0] = SeatRole.Gunner;
             _w.AddComponent(k, seats);
-            _w.AddComponent(k, new WeaponSystemParams { NeedsOperator = 1 });
+            _w.AddComponent(k, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(k, new Fdp.Toolkit.Combat.Mountable());
             _w.AddComponent(k, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(KornetType) });
             _w.AddComponent(k, new WeaponState { Ammo = 2 });
             return k;

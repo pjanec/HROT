@@ -30,6 +30,10 @@ namespace Fdp.Toolkit.Combat
         public Vector3 Muzzle { get; init; }
         public Vector3 Aim { get; init; }
         public uint Ordinal { get; init; }
+        /// <summary>⭐ <c>CE-11033</c> (§5l) — the AI's planned burst this round belongs to (0 = none), its rounds and this round's place (1-based).</summary>
+        public uint BurstId { get; init; }
+        public byte BurstRounds { get; init; }
+        public byte BurstIndex { get; init; }
         /// <summary>AQ85 σ (rad) and the deflection θ the round was turned by.</summary>
         public float Sigma { get; init; }
         public float Deflection { get; init; }
@@ -88,7 +92,8 @@ namespace Fdp.Toolkit.Combat
             var record = new ShotRecord
             {
                 Seq = _next, Tick = r.Tick, Shooter = r.Shooter, Target = r.Target, Bullet = r.Bullet, WeaponIndex = r.WeaponIndex,
-                Muzzle = r.Muzzle, Aim = r.Aim, Ordinal = r.Ordinal, Sigma = r.Sigma, Deflection = r.Deflection,
+                Muzzle = r.Muzzle, Aim = r.Aim, Ordinal = r.Ordinal, BurstId = r.BurstId, BurstRounds = r.BurstRounds, BurstIndex = r.BurstIndex,   // ⭐ CE-11033
+                 Sigma = r.Sigma, Deflection = r.Deflection,
                 Penetration = r.Penetration, PenetrationSource = r.PenetrationSource, Damage = r.Damage,
                 RaisedAt = r.RaisedAt, FiredAt = r.FiredAt, CaughtUpSeconds = r.CaughtUpSeconds, OwedFrames = r.OwedFrames, CaughtUpFrames = r.CaughtUpFrames, FrameDt = r.FrameDt,
             };

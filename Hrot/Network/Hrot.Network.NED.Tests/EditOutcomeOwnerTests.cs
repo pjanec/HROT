@@ -339,6 +339,40 @@ public sealed class EditOutcomeOwnerTests
         return (owner, requester);
     }
 
+    /// <summary>
+    /// ⭐⭐ CE-11061 (docs/DESIGN_Injury_States.md §9, RV-4) — REVIVE from a station that does not own the man: the requester sends the <c>$revive</c> patch (its
+    /// replica is NOT written), the node that applies his Health revives him through <c>CombatLife.Revive</c> (full health, move and fire back) and the requester's
+    /// journal reads Applied; a bystander that does not apply his Health stays silent. ✅ Red-proof (run): the request system without the <c>$revive</c> intercept ⇒
+    /// the patch reaches the JSON compiler, nothing is revived ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11061_ReviveOnANonOwner_IsAppliedByTheOwnerOfHisHealth_AndABystanderIsSilent()
+    {
+        var (owner, requester) = Pair(new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+        var stripped = new Fdp.Toolkit.Behavior.Components.ActorCapabilityState { Capabilities = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanInteract };
+        Give(owner, stripped, owned: true);
+        Give(requester, stripped, owned: false);
+
+        var ticket = Edits.Submit(requester.World, EditOp.Revive(requester.Entity));
+        Assert.Equal(Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Requested, ticket.Route);
+        Assert.Equal(0f, requester.World.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(requester.Entity).Current);   // the replica is NOT written
+        var req = SentBy(requester);
+        Assert.Equal((ticket.RequestId, true, ReviveEdits.Patch), (req.RequestId, req.WantOutcome, req.AttributePatchJson));
+
+        var bystander = new Node(owns: false, OtherNode + 1);
+        Give(bystander, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f }, owned: false);
+        Assert.Empty(bystander.Run(req));
+        Assert.Equal(0f, bystander.World.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(bystander.Entity).Current);
+
+        owner.Run(req);
+        Assert.Equal(100f, owner.World.GetComponentRO<Fdp.Toolkit.Combat.Components.Health>(owner.Entity).Current);
+        var both = Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanMove | Fdp.Toolkit.Behavior.Components.ActorCapabilities.CanShoot;
+        Assert.Equal(both, owner.World.GetComponentRO<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>(owner.Entity).Capabilities & both);
+
+        var entry = AnswerBack(owner, requester, ticket.RequestId);
+        Assert.Equal((EditStatus.Applied, "Revive"), (entry.Status, entry.Label));
+    }
+
     [Fact]
     public void D2_HealthCurrent_OnANonOwner_IsAppliedByTheOwner_AndClamped()
     {

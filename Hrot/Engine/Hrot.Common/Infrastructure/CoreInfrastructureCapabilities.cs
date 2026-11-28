@@ -68,6 +68,8 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.Systems.BleedOutSystem _bleedOut = new();
         // ⭐ CE-6003 (city battle O-1) — a destructible obstacle at 0 HP is removed by its Health owner, right after the damage that emptied it.
         private readonly Fdp.Toolkit.Combat.Systems.ObstacleRemovalSystem _obstacles = new();
+        // ⭐ CE-4692 BL-9 — whoever stood on a laid bridge's span as it fell goes into the river (its Health owner, the frame its Health reaches 0, before the removal).
+        private readonly Fdp.Toolkit.Combat.Systems.WaterFallSystem _waterFall = new();
         // ⭐ CE-6005 (city battle O-2) — a heavy vehicle's death leaves ONE wreck obstacle on the hulk, asked by its Health owner.
         private readonly Fdp.Toolkit.Combat.Systems.WreckObstacleSystem _wrecks = new();
         // ⭐ CE-4660 (thermal drivers TD-16) — a destroyed fuelled hull catches fire, and a fire burns the bodies in it, on the Health owner.
@@ -82,7 +84,7 @@ public static class CoreInfrastructureCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493); run them FIRST in its sim list.</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _obstacles, _wrecks, _flame, _burn, _stateSince };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _system, _bleedOut, _waterFall, _obstacles, _wrecks, _flame, _burn, _stateSince };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -93,6 +95,7 @@ public static class CoreInfrastructureCapabilities
             if (simulation is null) throw new ArgumentNullException(nameof(simulation));
             simulation.Add(_system);
             simulation.Add(_bleedOut);
+            simulation.Add(_waterFall);
             simulation.Add(_obstacles);
             simulation.Add(_wrecks);
             simulation.Add(_flame);
@@ -152,6 +155,7 @@ public static class CoreInfrastructureCapabilities
         private readonly Fdp.Toolkit.Combat.WeaponDeploySystem            _deploy        = new();   // ⭐ Weapon systems WS-1 (W-C)
         private readonly Hrot.Common.EntityCreation.EjectionSystem        _ejection      = new();   // ⭐ Airborne insertion B-8 (§7d D-14)
         private readonly Fdp.Toolkit.Combat.Systems.AreaEffectCloudSystem _clouds    = new();   // ⭐ CE-3219 part 3 — the owner drifts, irritates, ends it
+        private readonly Fdp.Toolkit.Ambient.AmbienceExpirySystem         _ambience  = new();   // ⭐ CE-11034 (R-11014) — the layer's owner ends it at its sim time
         private readonly Fdp.Toolkit.Combat.Systems.RoundPickUpSystem     _pickUp    = new();   // ⭐ CE-3235 — the round's flier grants, the brain owner receives
         private readonly Fdp.Toolkit.Combat.Systems.HandsFuzeSystem       _handsFuze = new();   // ⭐ CE-3235 — a live round burns in the hand
         private readonly Fdp.Toolkit.Behavior.CarryStationSystem          _stations  = new();   // ⭐ CE-3233 — draw / stow / conceal on the list owner
@@ -166,7 +170,7 @@ public static class CoreInfrastructureCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         /// <summary>The systems, for a hand-wired harness that must match production (CE-493).</summary>
-        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _pickUp, _handsFuze, _stations, _charges, _custody, _seed, _openings, _lights };
+        public IReadOnlyList<IEcsModuleSystem> Systems => new IEcsModuleSystem[] { _passengerSide, _doors, _embarkation, _deploy, _ejection, _clouds, _ambience, _pickUp, _handsFuze, _stations, _charges, _custody, _seed, _openings, _lights };
 
         public void PopulateSystems(
             HrotNodeContext context,
@@ -182,6 +186,7 @@ public static class CoreInfrastructureCapabilities
             simulation.Add(_deploy);
             simulation.Add(_ejection);
             simulation.Add(_clouds);
+            simulation.Add(_ambience);
             simulation.Add(_pickUp);
             simulation.Add(_handsFuze);
             simulation.Add(_stations);

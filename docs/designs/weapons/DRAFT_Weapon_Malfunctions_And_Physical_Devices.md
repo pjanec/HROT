@@ -4,6 +4,7 @@ updated: 2026-11-16
 current-answer: the whole file
 stale-below: nothing
 related-designs:
+  - ../devices/DESIGN_Simulated_Devices.md — SIMULATED DEVICES: a trainee's equipment as entities (carried in this station / scope / view), a generic I/O model with adapters, the logic as a behaviour on the brain with its state in [UnitMemory], its HUD drawn by one view-HUD mechanism (§3v, §3w)
   - ../air-attack/DESIGN_Air_Combat.md — the fighter's gun jam is a malfunction (this draft), not a pilot lapse (AC-12)
   - ../../DESIGN_Node_Extensions.md — OWNS node extensions (CE-4293, R-4158): the door a physical device's driver comes through
   - ../../reference/NED_DDS_Protocol.md — OWNS the wire as an outsider sees it; an external gateway (the DIS/HLA one) is a node like any other

@@ -51,6 +51,78 @@ namespace Fdp.Toolkit.Terrain.Tests
                 Assert.False(wps[i].Position.X > 299.5f && wps[i].Position.X < 300.5f && MathF.Abs(wps[i].Position.Y - 250f) < 40f, $"waypoint {i} {wps[i].Position} is inside the hedge");
         }
 
+        // ── a wall's thickness is its material's (CE-11069) ─────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-11069</c> (DESIGN_Breachable_Obstacle_Walls.md §8 V-4) — a SANDBAG wall feature is built 0.6 m thick, a CONCRETE one 0.4 m, a brick one at the parser's 0.3 m as before; and the 1 m
+        /// sandbag wall's contact strength (resistance × thickness × height, <c>ContactBreach.Identify</c>) is above a ramming car's limit (a car is held) and within an IFV's (it breaks it), from
+        /// <c>contact-breach.json</c>. 🔴 Red-proof: <c>WallThicknessOf</c> returns 0 ⇒ the sandbag panel is 0.3 m and its strength 30 — below the car's 40.
+        /// </summary>
+        [Fact]
+        public void CE11069_AWallFeature_IsItsMaterialsThickness_AndASandbagWallHoldsARammingCar()
+        {
+            const string S = "c4000000-0000-4000-8000-000000000004", C = "c5000000-0000-4000-8000-000000000005", B = "c6000000-0000-4000-8000-000000000006";
+            var world = Merged((S, OverlayFixture.Feature(TerrainFeature.Wall, 300, 250, "sandbags", 0, 1.0f, 0, (0, -6), (0, 6))),
+                               (C, OverlayFixture.Feature(TerrainFeature.Wall, 320, 250, "concrete", 0, 0.8f, 0, (0, -6), (0, 6))),
+                               (B, OverlayFixture.Feature(TerrainFeature.Wall, 340, 250, "brick", 0, 2.0f, 0, (0, -6), (0, 6))));
+            TerrainWallPanel Of(string guid) => world.Panels.First(p => p.Label == guid + "/0");
+            var sand = Of(S);
+            Assert.Equal(0.6f, sand.Thickness, 3);
+            Assert.Equal(0.4f, Of(C).Thickness, 3);
+            Assert.Equal(0.3f, Of(B).Thickness, 3);
+
+            float strength = sand.Material.ResistanceMmRhaPerMetre * sand.Thickness * (sand.TopZ - sand.BaseZ);
+            var table = ContactBreachTable.Shared;
+            var car = table.Rows.First(r => r.Name == "ramming-car");
+            var ifv = table.Rows.First(r => r.Name == "ifv");
+            Assert.True(strength > car.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must hold a ramming car (limit {car.SmallMaxStrength})");
+            Assert.True(strength <= ifv.SmallMaxStrength, $"a 1 m sandbag wall's strength {strength} must break under an IFV (limit {ifv.SmallMaxStrength})");
+        }
+
+        // ── a feature wall that stands in some variants only (CE-11071) ──────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <c>CE-11071</c> (DESIGN_Breachable_Obstacle_Walls.md §9c) — a wall feature with <c>Presence 0.6</c> and <c>PresenceWith</c> a roadblock macro instance's guid: the compiled overlay stamps its
+        /// part, and reading the overlay for a run drops the wall EXACTLY in the variants where the scenario load drops the roadblock (<c>ScenarioVariants.Apply</c> on the same DOM — the one
+        /// decision); variant 0 keeps it; a wall without Presence is never dropped. 🔴 Red-proof: <c>OverlayPresence.Keep</c> returns true ⇒ the wall stands in a variant whose roadblock is absent.
+        /// 🔴 Red-proof: <c>Apply</c> rolls under the entity's own key (ignores PresenceWith) ⇒ the wall and the roadblock disagree in some variant.
+        /// </summary>
+        [Fact]
+        public void CE11071_AWallWithPresenceWith_StandsExactlyWhenItsRoadblockDoes()
+        {
+            const string Wall = "c7000000-0000-4000-8000-000000000007", Plain = "c8000000-0000-4000-8000-000000000008", Roadblock = "cb000000-0000-4000-8000-00000000000b";
+            var wall = OverlayFixture.Feature(TerrainFeature.Wall, 300, 250, "concrete", 0, 1.0f, 0, (0, -3), (0, 3));
+            wall["Presence"] = 0.6; wall["PresenceWith"] = Roadblock;
+            _f.Compile(_f.Scenario((Wall, wall), (Plain, OverlayFixture.Feature(TerrainFeature.Wall, 320, 250, "brick", 0, 2.0f, 0, (0, -3), (0, 3)))));
+            bool Stands(int variant, string guid)
+            {
+                var o = TerrainFolderWorld.ReadOverlay(_f.Overlay, "base-t", TerrainAssets.RecipesSibling(_f.TerrainFolder), null, variant);
+                return o.World.Panels.Any(p => p.Label == guid + "/0");
+            }
+            bool RoadblockStands(int variant)
+            {
+                var dom = new JsonObject { ["entities"] = new JsonObject
+                {
+                    [Roadblock] = new JsonObject { ["Presence"] = 0.6, ["EntityInfo"] = new JsonObject { ["Name"] = "Roadblock N" } },
+                    [Wall] = new JsonObject { ["Presence"] = 0.6, ["PresenceWith"] = Roadblock, ["EntityInfo"] = new JsonObject { ["Name"] = "wall" } },
+                } };
+                Fdp.Toolkit.Scenario.ScenarioVariants.Apply(dom, variant, Guid.Empty, "t");
+                var ents = (JsonObject)dom["entities"]!;
+                Assert.Equal(ents.ContainsKey(Roadblock), ents.ContainsKey(Wall));   // the load drops them together
+                return ents.ContainsKey(Roadblock);
+            }
+            Assert.True(Stands(0, Wall));
+            int absent = 0, present = 0;
+            for (int v = 1; v <= 40; v++)
+            {
+                bool rb = RoadblockStands(v);
+                Assert.Equal(rb, Stands(v, Wall));
+                Assert.True(Stands(v, Plain), $"a wall without Presence stands in variant {v}");
+                if (rb) present++; else absent++;
+            }
+            Assert.True(absent > 0 && present > 0, $"40 variants should drop the roadblock in some and keep it in others (absent {absent}, present {present})");
+        }
+
         // ── a wood conceals ───────────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A WOOD feature (a forest surface from its polygon) conceals as the base's woods do: 100 m apart inside it is hidden, 20 m is seen. 🔴 Red-proof: expand a wood to an <c>open</c> surface ⇒ 100 m is seen.</summary>
@@ -112,6 +184,104 @@ namespace Fdp.Toolkit.Terrain.Tests
             Assert.Equal(2, mounds.Count);
             Assert.All(mounds, m => Assert.False(m.Min.X < 230f && m.Max.X > 200f, "no mound reaches into the river (x 200..230)"));
             Assert.False(Nav(derived).PathExists(from, to, (uint)NavLayerMask.Infantry), "after the collapse nothing carries a unit across the river");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4692</c> BL-4 — ONE deck geometry: the authored bridge's compiled parts are, corner for corner, the pre-lift quads (deck, ramp at A, ramp at B — the formula as it stood in
+        /// <c>FeatureKinds.Bridge</c> before the lift, restated here as the reference), and a laid bridge of the same span, width and height (a WalkableDeck obstacle, <c>TerrainObstacles.DeckOf</c>)
+        /// is the SAME three walkables as the parsed authored ones. 🔴 Red-proof: flip the side normal in <c>DeckGeometry.Build</c> (or reorder its corners) ⇒ the compiled corners differ.
+        /// </summary>
+        [Fact]
+        public void CE4692_TheAuthoredBridge_AndALaidDeck_AreTheOneDeckGeometry()
+        {
+            var world = Merged((G1, River()), (G2, Bridge()));
+            var features = JsonNode.Parse(File.ReadAllText(Path.Combine(_f.Overlay, "overlay.world.geojson")))!["features"]!.AsArray()
+                .Where(ft => ((string?)ft!["properties"]!["label"])?.StartsWith(G2 + "/", StringComparison.Ordinal) == true).ToList();
+            Assert.Equal(3, features.Count);
+            // the pre-lift formula (FeatureKinds.Bridge before CE-4692), as the reference
+            var a = new Vector2(198, 200); var b = new Vector2(232, 200);
+            var u = Vector2.Normalize(b - a); var n = new Vector2(-u.Y, u.X); float hw = 2f;
+            (Vector2, float)[] Quad(Vector2 p0, float z0, Vector2 p1, float z1) => new[] { (p0 - n * hw, z0), (p1 - n * hw, z1), (p1 + n * hw, z1), (p0 + n * hw, z0) };
+            var expected = new[] { Quad(a, 1.5f, b, 1.5f), Quad(a - u * 6f, 0f, a, 1.5f), Quad(b, 1.5f, b + u * 6f, 0f) };
+            var kinds = new[] { "slab", "ramp", "ramp" };
+            for (int f = 0; f < 3; f++)
+            {
+                var ft = features.Single(x => (string)x!["properties"]!["label"]! == $"{G2}/{f}")!;
+                Assert.Equal(kinds[f], (string)ft["properties"]!["kind"]!);
+                var ring = ft["geometry"]!["coordinates"]![0]!.AsArray();
+                Assert.Equal(5, ring.Count);
+                for (int i = 0; i < 4; i++)
+                {
+                    Assert.Equal(expected[f][i].Item1.X, (float)ring[i]![0]!, 3);
+                    Assert.Equal(expected[f][i].Item1.Y, (float)ring[i]![1]!, 3);
+                    Assert.Equal(expected[f][i].Item2, (float)ring[i]![2]!, 3);
+                }
+            }
+            // the laid deck: the same three walkables
+            var authored = world.Walkables.Where(w => w.Building >= 0 && world.Buildings[w.Building].Label == G2).ToList();
+            Assert.Equal(3, authored.Count);
+            var laid = new System.Collections.Generic.List<TerrainWalkable>();
+            TerrainObstacles.DeckOf(new Vector3(215, 200, 0), 0f, new ObstacleShape { Length = 34f, Width = 4f, Height = 1.5f }, (x, y) => world.GroundHeightAt(x, y), 7, false, laid);
+            Assert.Equal(3, laid.Count);
+            Assert.All(laid, w => Assert.Equal(7, w.Obstacle));
+            foreach (var w in laid)
+            {
+                var twin = authored.SingleOrDefault(o => o.Kind == w.Kind && Vector2.Distance(o.Min, w.Min) < 0.02f && Vector2.Distance(o.Max, w.Max) < 0.02f);
+                Assert.True(twin != null, $"the laid {w.Kind} {w.Min}..{w.Max} has no authored twin");
+                Assert.Equal(twin!.Vertices.Length, w.Vertices.Length);
+                for (int i = 0; i < w.Vertices.Length; i++)
+                    Assert.True(w.Vertices.Any(v => Vector3.Distance(v, twin.Vertices[i]) < 0.02f), $"vertex {twin.Vertices[i]} of the authored {w.Kind} is not on the laid one");
+            }
+        }
+
+        /// <summary>
+        /// ⭐ DD-035 D-2 (gateway) — <c>TerrainObstacles.DeckParts</c> IS what <c>DeckOf</c> feeds the walkables, for an assault span (8825-like) and a floating span (8826-like, low deck, rotated and off-origin,
+        /// and a degenerate shape the clamps lift): the same three parts in the same order, each part's footprint the walkable's own, a slab's corners at the deck height. 🔴 Red-proof: give <c>DeckOf</c> its own clamp again (e.g. <c>Max(shape.Length, 2f)</c> there) ⇒ the degenerate case's footprints differ.
+        /// </summary>
+        [Fact]
+        public void DeckParts_IsWhatDeckOfFeedsTheWalkables_ForAnAssaultAndAFloatingSpan()
+        {
+            var cases = new (Vector3 At, float Yaw, ObstacleShape Shape)[]
+            {
+                (new Vector3(215, 200, 0), 0f, new ObstacleShape { Length = 34f, Width = 4f, Height = 1.5f }),
+                (new Vector3(-40, 12, 0), 0.7f, new ObstacleShape { Length = 22f, Width = 3.2f, Height = 0.6f }),
+                (new Vector3(5, 5, 0), 2.1f, new ObstacleShape { Length = 0f, Width = 0f, Height = 0f }),
+            };
+            foreach (var (at, yaw, shape) in cases)
+            {
+                var parts = TerrainObstacles.DeckParts(at, yaw, shape);
+                Assert.Equal(3, parts.Length);
+                Assert.Equal(new[] { TerrainWalkableKind.Slab, TerrainWalkableKind.Ramp, TerrainWalkableKind.Ramp }, parts.Select(p => p.Kind));
+                var laid = new System.Collections.Generic.List<TerrainWalkable>();
+                TerrainObstacles.DeckOf(at, yaw, shape, (_, _) => 0f, 3, false, laid);
+                Assert.Equal(parts.Length, laid.Count);
+                for (int k = 0; k < parts.Length; k++)
+                {
+                    Assert.Equal(parts[k].Kind, laid[k].Kind);
+                    var (lo, hi) = DeckGeometry.Bounds(new[] { parts[k] });
+                    Assert.True(Vector2.Distance(lo, laid[k].Min) < 0.02f && Vector2.Distance(hi, laid[k].Max) < 0.02f, $"part {k} footprint");
+                    for (int i = 0; i < 4; i++)
+                        Assert.True(laid[k].Vertices.Any(v => Vector2.Distance(new Vector2(v.X, v.Y), parts[k][i].At) < 0.02f), $"part {k} corner {i}");
+                    if (parts[k].Kind == TerrainWalkableKind.Slab)
+                        for (int i = 0; i < 4; i++) Assert.Equal(MathF.Max(shape.Height, 0.05f), parts[k][i].Above, 3);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-4694</c> ② — a vehicle climbs an AUTHORED bridge's ramp: a hull whose nose is 4 m up the west ramp (0.9 m high — above the hull's step reach, 0.6 m, from the
+        /// ground; the foot is sunk 0.3 m) is NOT held, and its corner there rests ON the ramp. 📐 Found live (stechovice-battle): a tank was held at the authored bridge's ramp foot (FailedBlocked) —
+        /// CE-4692's hull-point rule held for LAID decks only. 🔴 Red-proof: make <c>TerrainWorld.IsDeck</c> test <c>Obstacle</c> only ⇒ the step is blocked.
+        /// </summary>
+        [Fact]
+        public void CE4694_AHullClimbsAnAuthoredBridgesRamp()
+        {
+            var world = Merged((G1, River()), (G2, Bridge()));
+            var q = new TerrainWorldQuery(world);
+            // the bridge runs x 198 → 232 at y 200, its west ramp x 192 → 198; a 7.9 m hull heading east, nose at x 196.0 (4 m up)
+            Assert.True(q.HullPointZ(196.0f, 200f, 0f) > 0.8f, "the hull's nose on the ramp rests on it");
+            Assert.False(global::CarKinem.Controllers.HullClearance.StepBlocked(q, new Vector2(192.05f, 200f), Vector2.UnitX, 0f, new Vector2(192.15f, 200f), Vector2.UnitX, 0f, 7.9f, 3.66f),
+                "a hull climbing the authored bridge's ramp is held");
         }
 
         /// <summary>

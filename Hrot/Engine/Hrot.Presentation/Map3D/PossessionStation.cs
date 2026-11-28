@@ -10,6 +10,7 @@ using Fdp.Toolkit.Replication.Services;
 using Fdp.Toolkit.Vis2D;
 using Fdp.Toolkit.Vis2D.Abstractions;
 using Fdp.Toolkit.Vis3D;
+using Hrot.Common.Messages;
 using Hrot.Common.Orders;
 using Raylib_cs;
 
@@ -47,6 +48,7 @@ namespace Hrot.UI.Common.Map3D
             _view = view ?? throw new ArgumentNullException(nameof(view));
             _world = world ?? throw new ArgumentNullException(nameof(world));
             Bodies = bodies;
+            _handOver = new DriveHandOver(_world, Orders);
         }
 
         /// <summary>⭐ CE-4148 — the node's feature gate provider (null = ungated).</summary>
@@ -80,7 +82,7 @@ namespace Hrot.UI.Common.Map3D
             var map = w.HasSingletonManaged<NetworkEntityMap>() ? w.GetSingletonManaged<NetworkEntityMap>() : null;
             int net = map is not null && map.TryGetNetworkId(unit, out int id) ? id : 0;
             var side = w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(unit) ? w.GetComponentRO<EntityInfo>(unit).ForceId : ForceId.Neutral;
-            int station = map is not null ? (int)new EntityOrders(w, map, geo: null).StationFor(unit) : 0;
+            var station = map is not null ? (Fdp.Core.StationId)new EntityOrders(w, map, geo: null).StationFor(unit) : default;
             return new MessageViewer(net, side, station);
         }
 
@@ -176,7 +178,7 @@ namespace Hrot.UI.Common.Map3D
         public int AimTarget => _driver?.AimTarget ?? 0;
 
         /// <summary>⭐ <c>CE-1262</c> — the zoomed field of view (binoculars / weapon zoom) while zooming, else null.</summary>
-        public float? ZoomFovDegrees => _driver is { Zooming: true } d ? d.ZoomFovDegrees : null;
+        public float? ZoomFovDegrees => _driver is { } d && (d.Zooming || BoundFovDegrees > 0f) ? d.ZoomFovDegrees : null;
 
         /// <summary>Frames sent this session (diagnostics, rails).</summary>
         public long FramesSent { get; private set; }
@@ -188,43 +190,28 @@ namespace Hrot.UI.Common.Map3D
         /// default). The station's, not the driver's, so it stays across possessions and Tab.</summary>
         public bool PersonLookFree { get; internal set; }
 
-        /// <summary>⭐ CE-1158 — where the Drive hand-over stands (§8h driving sequence).</summary>
-        public enum HandOverStep : byte
-        {
-            None = 0,
-            /// <summary>Drive was pressed: waiting for the replicated passenger list to show the soldier in the driver seat.</summary>
-            AwaitBoard,
-            /// <summary>The soldier was asked to ride: waiting for his <see cref="PossessedBy"/> to say Riding.</summary>
-            AwaitRiding,
-            /// <summary>The vehicle was possessed: waiting for it to be held here.</summary>
-            AwaitVehicle,
-        }
+        /// <summary>⭐ CE-11041 (§8h.10 HO-1) — the Drive hand-over, the class every station owns (local screen and remote seat alike).</summary>
+        private readonly DriveHandOver _handOver;
 
-        /// <summary>A hand-over step that has not moved on in this long is dropped (the press was refused, the seat went to someone else).</summary>
-        public const float HandOverTimeout = 15f;
+        /// <summary>A hand-over step that has not moved on in this long is dropped.</summary>
+        public const float HandOverTimeout = DriveHandOver.HandOverTimeout;
 
-        private HandOverStep _step;
-        private Entity _hoSoldier, _hoVehicle;
-        private float _hoSince;
-        private Entity _getOutRider;
-        private float _getOutSince;
-        private float _orphanCheckAt;
         private bool _softLeft;
 
         /// <summary>⭐ CE-1158 — the Drive hand-over's step now (rails).</summary>
-        public HandOverStep Step => _step;
+        public DriveHandOver.HandOverStep Step => _handOver.Current;
 
         public void Update(float dt)
         {
             Clock += dt;
             var w = _world();
-            if (w is not null) { StepHandOver(w); ReleaseOrphanRiders(w); }
+            _handOver.Step(dt);
             // ⭐ CE-1216 (§8k S-2) — a round passing his ear (the audio's own rule, RoundPasses) shocks the view; it fades in ShockSeconds
             Shock = MathF.Max(0f, Shock - dt / ShockSeconds);
             if (_driver != null && w is not null && HudOn(Hrot.Common.Infrastructure.HudFeatures.NearMiss))   // ⭐ CE-4148 hud.near-miss
                 Shock = MathF.Min(1f, Shock + ShockPerPass * _passes.Scan(w, _driver.Unit, _view.Camera3D.Eye));
             var held = w is null ? Entity.Null : HeldHere(w, out _);
-            bool handing = _step != HandOverStep.None || !_getOutRider.IsNull;
+            bool handing = _handOver.Handing;
             if (MapPeek && _view.Is3D && !_view.IsSwitching) MapPeek = false;   // ⭐ CE-1218 — something else brought the 3-D view back
             // ⭐ CE-1218 — M on the map ends the peek. ⭐ CE-1295 — but NOT on the frame that opened it: the canvas runs the camera driver's input
             //   (which opens the peek on that M) BEFORE its layers' Update (this), and IsKeyPressed still reads true — so the same press used to
@@ -244,153 +231,25 @@ namespace Hrot.UI.Common.Map3D
             }
             else _releasedAt = -1f;
             if (_driver == null && !held.IsNull && w is not null) Enter(w, held);
+            RefreshSources(w);   // ⭐ S1d-3 — the devices he operates now (a dropped one leaves the cycle and the view)
             if (_driver == null && _softLeft && !handing && Fall == null) RestoreView();   // a hand-over that came to nothing
             if (Fall != null && w is not null) Fall.Step(w, dt);
         }
 
-        /// <summary>
-        /// The unit this station DRIVES in <paramref name="w"/> (its <see cref="PossessedBy"/> names this node), or null. ⭐ CE-1158 — a unit
-        /// held as <see cref="PossessionMode.Riding"/> is skipped (the soldier sitting in the vehicle the station drives), and of two Fps
-        /// units (a moment during a take-over) the newest possession wins (<see cref="PossessedBy.Epoch"/>).
-        /// </summary>
-        public static Entity HeldHere(EntityRepository w, out int networkId)
-        {
-            networkId = 0;
-            if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
-            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            var orders = new EntityOrders(w, map, geo: null);
-            Entity best = Entity.Null;
-            uint bestEpoch = 0;
-            foreach (var unit in w.Query().With<PossessedBy>().Build())
-            {
-                if (!w.IsAlive(unit)) continue;
-                var held = w.GetComponentRO<PossessedBy>(unit);
-                if (held.StationNodeId != orders.StationFor(unit) || held.Mode == PossessionMode.Riding) continue;
-                if (!map.TryGetNetworkId(unit, out int id)) continue;
-                if (best.IsNull || held.Epoch > bestEpoch) { best = unit; bestEpoch = held.Epoch; networkId = id; }
-            }
-            return best;
-        }
+        /// <summary>The unit this station DRIVES in <paramref name="w"/> — forwards to <see cref="DriveHandOver.HeldHere(EntityRepository, out int, EntityOrders?)"/>.</summary>
+        public static Entity HeldHere(EntityRepository w, out int networkId) => DriveHandOver.HeldHere(w, out networkId);
 
-        /// <summary>⭐ CE-1158 — the soldier this station holds as <see cref="PossessionMode.Riding"/> aboard <paramref name="vehicle"/>, or null.</summary>
-        public static Entity RiderOf(EntityRepository w, Entity vehicle)
-        {
-            if (vehicle.IsNull || !w.IsComponentTypeRegistered<PossessedBy>() || !w.IsComponentTypeRegistered<IsEmbarkedTag>()
-                || !w.HasSingletonManaged<NetworkEntityMap>()) return Entity.Null;
-            var orders = new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null);
-            foreach (var unit in w.Query().With<PossessedBy>().With<IsEmbarkedTag>().Build())
-            {
-                var held = w.GetComponentRO<PossessedBy>(unit);
-                if (w.IsAlive(unit) && held.Mode == PossessionMode.Riding && held.StationNodeId == orders.StationFor(unit)
-                    && w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity == vehicle) return unit;
-            }
-            return Entity.Null;
-        }
+        /// <summary>⭐ CE-1158 — the soldier this station holds as Riding aboard <paramref name="vehicle"/> — forwards to <see cref="DriveHandOver"/>.</summary>
+        public static Entity RiderOf(EntityRepository w, Entity vehicle) => DriveHandOver.RiderOf(w, vehicle);
 
-        /// <summary>⭐ CE-1158 — is <paramref name="soldier"/> in <paramref name="vehicle"/>'s DRIVER seat, by the replicated passenger list?</summary>
-        public static bool InDriverSeat(EntityRepository w, Entity soldier, Entity vehicle)
-        {
-            if (!w.IsComponentTypeRegistered<IsEmbarkedTag>() || !w.HasComponent<IsEmbarkedTag>(soldier)) return false;
-            var tag = w.GetComponentRO<IsEmbarkedTag>(soldier);
-            if (tag.VehicleEntity != vehicle) return false;
-            return !w.IsComponentTypeRegistered<CarrierSeats>() || !w.HasComponent<CarrierSeats>(vehicle)
-                || w.GetComponentRO<CarrierSeats>(vehicle).Roles[tag.Seat] == SeatRole.Driver;
-        }
+        /// <summary>⭐ CE-1158 — is <paramref name="soldier"/> in <paramref name="vehicle"/>'s DRIVER seat — forwards to <see cref="DriveHandOver"/>.</summary>
+        public static bool InDriverSeat(EntityRepository w, Entity soldier, Entity vehicle) => DriveHandOver.InDriverSeat(w, soldier, vehicle);
 
-        /// <summary>
-        /// ⭐ CE-1158 (§8h U-4) — the driver sent a Drive / Pilot press: once the soldier shows in the driver seat, ride him and drive the
-        /// vehicle. The STATION orchestrates it, from replicated state, because the soldier and the vehicle may be brained on different nodes.
-        /// </summary>
-        internal void ArmDrive(Entity soldier, Entity vehicle)
-        {
-            _step = HandOverStep.AwaitBoard;
-            _hoSoldier = soldier;
-            _hoVehicle = vehicle;
-            _hoSince = Clock;
-        }
+        /// <summary>⭐ CE-1158 (§8h U-4) — a Drive / Pilot press: see <see cref="DriveHandOver.Arm"/>.</summary>
+        internal void ArmDrive(Entity soldier, Entity vehicle) => _handOver.Arm(soldier, vehicle);
 
-        /// <summary>
-        /// ⭐ CE-1158 (§8h U-4) — <c>E</c> (or Esc) in a vehicle with a rider: possess the rider as Fps — which releases the vehicle (one Fps
-        /// unit per station) — and, once the view is back in him, send his Get-out press. False when <paramref name="vehicle"/> has no rider.
-        /// </summary>
-        internal bool TryGetOut(Entity vehicle)
-        {
-            if (_world() is not { } w || Orders() is not { } orders) return false;
-            var rider = RiderOf(w, vehicle);
-            if (rider.IsNull || !w.GetSingletonManaged<NetworkEntityMap>()!.TryGetNetworkId(rider, out int id)) return false;
-            orders.Possess(id, PossessionMode.Fps);
-            _getOutRider = rider;
-            _getOutSince = Clock;
-            return true;
-        }
-
-        private void StepHandOver(EntityRepository w)
-        {
-            if (!_getOutRider.IsNull && Clock - _getOutSince > HandOverTimeout) _getOutRider = Entity.Null;
-            if (_step == HandOverStep.None) return;
-            if (Clock - _hoSince > HandOverTimeout || !w.IsAlive(_hoSoldier) || !w.IsAlive(_hoVehicle) || Orders() is not { } orders)
-            {
-                _step = HandOverStep.None;
-                return;
-            }
-            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            switch (_step)
-            {
-                case HandOverStep.AwaitBoard:
-                    if (!HeldByThis(w, _hoSoldier, out _)) { _step = HandOverStep.None; break; }   // released meanwhile (Esc)
-                    if (InDriverSeat(w, _hoSoldier, _hoVehicle) && map.TryGetNetworkId(_hoSoldier, out int soldierId))
-                    {
-                        orders.Possess(soldierId, PossessionMode.Riding);   // O-2 — his task stays paused
-                        _step = HandOverStep.AwaitRiding;
-                    }
-                    break;
-                case HandOverStep.AwaitRiding:
-                    if (!HeldByThis(w, _hoSoldier, out var mode)) { _step = HandOverStep.None; break; }
-                    // ⚠ only once he RIDES: possessing the vehicle as Fps releases this station's other Fps unit — which he still was
-                    if (mode == PossessionMode.Riding && map.TryGetNetworkId(_hoVehicle, out int vehicleId))
-                    {
-                        orders.Possess(vehicleId, PossessionMode.Fps);
-                        _step = HandOverStep.AwaitVehicle;
-                    }
-                    break;
-                case HandOverStep.AwaitVehicle:
-                    if (HeldHere(w, out _) == _hoVehicle) _step = HandOverStep.None;
-                    break;
-            }
-        }
-
-        /// <summary>
-        /// ⭐ CE-1158 — a rider whose vehicle this station no longer drives (the operator possessed someone else from the menu, the vehicle
-        /// was released or destroyed, he was thrown out) is let go, so his own task resumes. Checked once a second (a release takes a
-        /// round trip to show).
-        /// </summary>
-        private void ReleaseOrphanRiders(EntityRepository w)
-        {
-            if (_step != HandOverStep.None || Clock < _orphanCheckAt || !w.IsComponentTypeRegistered<PossessedBy>()) return;
-            _orphanCheckAt = Clock + 1f;
-            if (Orders() is not { } orders) return;
-            var map = w.GetSingletonManaged<NetworkEntityMap>()!;
-            foreach (var unit in w.Query().With<PossessedBy>().Build())
-            {
-                if (unit == _getOutRider || !HeldByThis(w, unit, out var mode) || mode != PossessionMode.Riding) continue;
-                var vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit)
-                    ? w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity : Entity.Null;
-                if (!vehicle.IsNull && HeldByThis(w, vehicle, out var vehicleMode) && vehicleMode != PossessionMode.Riding) continue;
-                // ⭐ CE-1210 (§8n MS-7) — the station plays a GUN of his vehicle (seat switching): he stays held for the way back
-                if (!vehicle.IsNull && HeldHere(w, out _) is var fps && !fps.IsNull && SeatSwitch.VehicleOf(w, fps) == vehicle) continue;
-                if (map.TryGetNetworkId(unit, out int id)) orders.Unpossess(id);
-            }
-        }
-
-        private static bool HeldByThis(EntityRepository w, Entity unit, out PossessionMode mode)
-        {
-            mode = PossessionMode.None;
-            if (!w.IsComponentTypeRegistered<PossessedBy>() || !w.IsAlive(unit) || !w.HasComponent<PossessedBy>(unit)
-                || !w.HasSingletonManaged<NetworkEntityMap>()) return false;
-            var held = w.GetComponentRO<PossessedBy>(unit);
-            mode = held.Mode;
-            return held.StationNodeId == new EntityOrders(w, w.GetSingletonManaged<NetworkEntityMap>()!, geo: null).StationFor(unit);
-        }
+        /// <summary>⭐ CE-1158 (§8h U-4) — Get out with a rider aboard: see <see cref="DriveHandOver.TryGetOut"/>.</summary>
+        internal bool TryGetOut(Entity vehicle) => _handOver.TryGetOut(vehicle);
 
         private void Enter(EntityRepository w, Entity unit)
         {
@@ -409,12 +268,12 @@ namespace Hrot.UI.Common.Map3D
             if (Hrot.ScenarioEditor.Map.HatArbiter.Of(w) is { } hats) hats.Embodied = true;   // ⭐ Seats H3 — the station wears the Embodied hat
             if (Bodies != null) Bodies.FirstPerson = unit;   // ⭐ CE-1073 — the camera is inside this head
             // ⭐ CE-1158 (§8h U-4) — back in the rider after Get out: his first frame carries the Get-out press (his only action aboard)
-            if (unit == _getOutRider)
+            if (unit == _handOver.GetOutRider)
             {
                 int vehicle = w.IsComponentTypeRegistered<IsEmbarkedTag>() && w.HasComponent<IsEmbarkedTag>(unit) && w.GetSingletonManaged<NetworkEntityMap>()!
                     .TryGetNetworkId(w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity, out int v) ? v : 0;
                 _driver.QueueUse(0, vehicle);
-                _getOutRider = Entity.Null;
+                _handOver.GetOutSent();
             }
         }
 
@@ -427,6 +286,7 @@ namespace Hrot.UI.Common.Map3D
             _driver = null;
             if (Hrot.ScenarioEditor.Map.HatArbiter.Of(_world()) is { } hats) hats.Embodied = false;   // ⭐ Seats H3 — back to the hat it came from
             if (Bodies != null) Bodies.FirstPerson = Entity.Null;
+            Bind(Entity.Null);              // ⭐ S1d-3 — the view goes back to the plain eye with the possession
             if (restore) RestoreView();
             else _softLeft = true;
         }
@@ -447,6 +307,74 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>The operator lets the unit go (Esc); the view leaves FPS when <see cref="PossessedBy"/> says so.</summary>
         internal void Release(int netId) => Orders()?.Unpossess(netId);
+
+        // ── ⭐⭐ Simulated devices S1d-3 — the view's SOURCE (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-38 / D-66, "S1d-3 AS BUILT") ──────────
+        //   The view is bound to ONE source: the plain eye, or a device the possessed man operates (the replicated Operated rows naming his station —
+        //   OperatedDevices; the station computes nothing, R7-1). Station-local UI state, never simulation: B cycles eye → each device → eye (Q-5's lean),
+        //   the gizmo layer's BoundSource follows (only the bound device's HUD run is drawn), the camera takes the source's field of view, and the
+        //   station's frames tell each device whether it is VIEWED (the body's brain raises a carried one, D-63).
+
+        /// <summary>The most devices a station cycles through.</summary>
+        public const int MaxViewSources = 8;
+
+        /// <summary>How long the cycle strip stays after a switch (s, the wall clock — observation, R6-4).</summary>
+        public const float SwitchStripSeconds = 2f;
+
+        /// <summary>⭐ The 3-D map's gizmo layer: its <c>BoundSource</c> is this view's source (set by the map pack — the forwarding rail checks).</summary>
+        public Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer? ViewLayer { get; set; }
+
+        /// <summary>The device the view is bound to, or <see cref="Entity.Null"/> — the plain eye.</summary>
+        public Entity BoundDevice { get; private set; }
+
+        /// <summary>⭐⭐ SD-S5v (§3.13e D-131 / D-141) — which panel IO sources are live per device at this station: an attached primary (a replica, a tracker, a
+        /// test adapter) for a device, else the driver's virtual panel; the virtual panel's clicks and hotkeys always. Station-local (survives a re-possess).</summary>
+        public Fdp.Toolkit.Behavior.Devices.DevicePanelIoBinding PanelIo { get; } = new(MaxViewSources);
+
+        /// <summary>The bound device's network id (what its HUD run is scoped by, D-41), 0 for the plain eye.</summary>
+        public long BoundSource => _world() is { } w && !BoundDevice.IsNull ? Fdp.Toolkit.Behavior.Devices.OperatedDevices.NetIdOf(w, BoundDevice) : 0;
+
+        /// <summary>⭐ ONE rule for the view's field of view: the bound source's (<see cref="Fdp.Toolkit.Behavior.Devices.DeviceOptics.FovOf"/>), 0 when
+        /// it has none (the plain eye — the weapon zoom or the map's own).</summary>
+        public float BoundFovDegrees => _world() is { } w && !BoundDevice.IsNull ? Fdp.Toolkit.Behavior.Devices.DeviceOptics.FovOf(w, BoundDevice) : 0f;
+
+        /// <summary>The cycle strip is shown (a switch less than <see cref="SwitchStripSeconds"/> ago).</summary>
+        public bool Switching => Clock < _switchUntil;
+
+        /// <summary>The devices this station operates now (network id ascending) — the cycle after the plain eye.</summary>
+        public ReadOnlySpan<Entity> ViewSources => _sources.AsSpan(0, _sourceCount);
+
+        private readonly Entity[] _sources = new Entity[MaxViewSources];
+        private int _sourceCount;
+        private float _switchUntil = -1f;
+
+        /// <summary>The station id the possessed man's row names — the one every device row he operates names too (the walk, R5-3).</summary>
+        internal Fdp.Core.StationId? BodyStation(EntityRepository w)
+            => _driver is { } d && w.IsAlive(d.Unit) && w.IsComponentTypeRegistered<PossessedBy>() && w.HasComponent<PossessedBy>(d.Unit)
+                ? w.GetComponentRO<PossessedBy>(d.Unit).StationNodeId : null;
+
+        private void RefreshSources(EntityRepository? w)
+        {
+            _sourceCount = w is not null && _driver != null && BodyStation(w) is { } station
+                ? Fdp.Toolkit.Behavior.Devices.OperatedDevices.Of(w, station, _sources) : 0;
+            if (!BoundDevice.IsNull && _sources.AsSpan(0, _sourceCount).IndexOf(BoundDevice) < 0) Bind(Entity.Null);   // dropped, taken, handed over
+        }
+
+        /// <summary>B / Shift+B — the next / previous source: eye → each device he operates → eye. Shows the strip.</summary>
+        public void CycleView(int direction)
+        {
+            RefreshSources(_world());
+            int n = _sourceCount + 1;   // slot 0 = the plain eye
+            int at = BoundDevice.IsNull ? 0 : _sources.AsSpan(0, _sourceCount).IndexOf(BoundDevice) + 1;
+            int next = ((at + Math.Sign(direction == 0 ? 1 : direction)) % n + n) % n;
+            Bind(next == 0 ? Entity.Null : _sources[next - 1]);
+            _switchUntil = Clock + SwitchStripSeconds;
+        }
+
+        private void Bind(Entity device)
+        {
+            BoundDevice = device;
+            if (ViewLayer is { } layer) layer.BoundSource = BoundSource;
+        }
 
         /// <summary>⭐ <c>CE-1214</c> (§8j T-1) — the operator jumps to <paramref name="next"/>: one possession, which also lets the unit he
         /// leaves go back to his brain (<see cref="EntityOrders.Possess(long, PossessionMode)"/> releases the station's other Fps unit —
@@ -482,29 +410,34 @@ namespace Hrot.UI.Common.Map3D
             var size = camera.Viewport;
             var vc = camera.ViewCentre;   // ⭐ CE-4084 — drawn where Aim picks
             int cx = (int)vc.X, cy = (int)vc.Y;
-            Raylib.DrawLine(cx - 10, cy, cx - 3, cy, Color.White);
-            Raylib.DrawLine(cx + 3, cy, cx + 10, cy, Color.White);
-            Raylib.DrawLine(cx, cy - 10, cx, cy - 3, Color.White);
-            Raylib.DrawLine(cx, cy + 3, cx, cy + 10, Color.White);
-            if (_driver.ShotPending && OnScreen(camera, LockedWorldPoint(w, _driver), out var locked))
-                Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
-            if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
-                Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
-            // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-9) — the round would stop short of the crosshair (a wall the camera sees past): an X
-            //   where it would really hit
-            if (BlockedShot(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } stop && OnScreen(camera, stop, out var hit)
-                && Vector2.Distance(hit, new Vector2(cx, cy)) > 4f)
+            bool device = !BoundDevice.IsNull;   // ⭐ S1d-3 — a view bound to a device shows ITS HUD (its reticle, the gizmo screen pass): no station crosshair
+            if (!device)
             {
-                Raylib.DrawLine((int)hit.X - 5, (int)hit.Y - 5, (int)hit.X + 5, (int)hit.Y + 5, Color.Red);
-                Raylib.DrawLine((int)hit.X - 5, (int)hit.Y + 5, (int)hit.X + 5, (int)hit.Y - 5, Color.Red);
+                Raylib.DrawLine(cx - 10, cy, cx - 3, cy, Color.White);
+                Raylib.DrawLine(cx + 3, cy, cx + 10, cy, Color.White);
+                Raylib.DrawLine(cx, cy - 10, cx, cy - 3, Color.White);
+                Raylib.DrawLine(cx, cy + 3, cx, cy + 10, Color.White);
+                if (_driver.ShotPending && OnScreen(camera, LockedWorldPoint(w, _driver), out var locked))
+                    Raylib.DrawRectangleLines((int)locked.X - 12, (int)locked.Y - 12, 24, 24, Color.Orange);
+                if (BarrelPoint(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } barrel && OnScreen(camera, barrel, out var gun))
+                    Raylib.DrawCircleLines((int)gun.X, (int)gun.Y, 7f, Color.Yellow);
+                // ⭐ CE-1293 (docs/DESIGN_Unit_Camera.md UC-9) — the round would stop short of the crosshair (a wall the camera sees past): an X
+                //   where it would really hit
+                if (BlockedShot(w, _driver.Unit, _driver.Mount, _driver.AimAt) is { } stop && OnScreen(camera, stop, out var hit)
+                    && Vector2.Distance(hit, new Vector2(cx, cy)) > 4f)
+                {
+                    Raylib.DrawLine((int)hit.X - 5, (int)hit.Y - 5, (int)hit.X + 5, (int)hit.Y + 5, Color.Red);
+                    Raylib.DrawLine((int)hit.X - 5, (int)hit.Y + 5, (int)hit.X + 5, (int)hit.Y - 5, Color.Red);
+                }
+                DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2) — not through a device (⛔ CE-1219's binocular overlay: dropped, D-75)
             }
-            if (!_driver.BinocularsUp) DrawSpreadAndShock(w, camera, cx, cy);   // ⭐ CE-1216 (§8k S-1, S-2) — not through binoculars
-            else DrawBinoculars(camera, cx, cy);                             // ⭐ CE-1219 (§8k B-1)
             DrawHitFeedback(w, camera, cx, cy);   // ⭐ CE-1215 (§8j H-1, H-2)
             DrawDown(w, camera);                  // ⭐ CE-1220 (§8k K-1)
             var font = HudText.Font();
             DrawFriends(w, camera, font);   // ⭐ CE-1217 (§8k C-2)
-            DrawCompass(camera, font, cx);  // ⭐ CE-1217 (§8k C-1)
+            // ⭐ CE-1217 (§8k C-1) — the man's compass; ⭐ SD-S2d (devices-hud-drone.svg panel 12) NOT while the view rides what a device films (the drone):
+            //   that OSD's heading tape is the drone's heading, and two strips would read two headings
+            if (!device || !Fdp.Toolkit.Behavior.Devices.DeviceViews.TryTarget(w, BoundDevice, out _, out _, out _)) DrawCompass(camera, font, cx);
             // ⭐ CE-1158 (§8h U-1, U-3, O-1, §8h.6) — the use prompt, the hold-use list and the verdict: under the crosshair, where the operator looks
             int uy = cy + 26;
             foreach (var use in _driver.UseLines(w))
@@ -558,7 +491,7 @@ namespace Hrot.UI.Common.Map3D
             }
             // ⭐ CE-1213 (§8j W-1) — the command wheel round the crosshair while T is held; then what the order did, under it
             if (_driver.WheelOpen) DrawWheel(font, cx, cy);
-            else if ((_driver.NoBinoculars ? "no binoculars" : _driver.WheelVerdict(Clock)) is { } verdict)
+            else if (_driver.WheelVerdict(Clock) is { } verdict)
             {
                 int vw = (int)HudText.Measure(font, verdict);
                 Raylib.DrawRectangle(cx - vw / 2 - 6, uy - 3, vw + 12, HudLineHeight, new Color(0, 0, 0, 130));
@@ -578,6 +511,8 @@ namespace Hrot.UI.Common.Map3D
                 HudText.Draw(font, lines[i], x, y, Hud.ColourOf(w, _driver.Unit, lines[i], i == lines.Length - 1));
                 y += HudLineHeight;
             }
+            DrawViewSource(w, ctx.TargetSize, font);   // ⭐ S1d-3 (mockup devices-hud.svg panel 6) — VIEW ▸ <device> and, while switching, the cycle strip
+            DrawPanelHover(ctx.TargetSize);   // ⭐ SD-S5v (D-123) — the virtual panel's hover frame over the HUD chip under the free cursor
             // ⭐ CE-4647 (AC-15 step 7; mockup air-combat-hud.svg) — a possessed FIGHTER's cues: the gun pipper, the missile cue, the radar warning, the g (the manual mouse-aim pilot; mode 8 is AI only)
             if (_driver.Scheme == ControlScheme.FixedWing)
                 FighterHud.Draw(FighterHudNow = _fighterHud.Build(w, _driver.Unit, camera.Forward, _driver.Mount, w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null, Fdp.Toolkit.Time.SimClock.Of(w).TotalTime), camera, font);
@@ -625,19 +560,112 @@ namespace Hrot.UI.Common.Map3D
             }
         }
 
-        /// <summary>⭐ <c>CE-1219</c> (§8k B-1) — through the binoculars: the two eyepieces' rims, the range to the point under the crosshair
-        /// (the eye to it, m), and the click's meaning.</summary>
-        private void DrawBinoculars(MapCamera3D camera, int cx, int cy)
+        /// <summary>⭐ S1d-3 — what the label and the strip call a device, and its icon and colour (Colour Icons: the binoculars teal, the rangefinder's
+        /// crosshairs red). ⚠ Keyed on the device's behaviour until its TKB type names it (D-26 — <c>DeviceDefDto</c>), like its channels.</summary>
+        public static (string Label, string Short, string Icon, Color Colour) SourceLook(EntityRepository w, Entity device)
         {
-            float r = camera.Viewport.Y * 0.42f;
-            var rim = new Color(0, 0, 0, 200);
-            Raylib.DrawRing(new Vector2(cx - r * 0.55f, cy), r, r + 600f, 0f, 360f, 64, rim);
-            Raylib.DrawRing(new Vector2(cx + r * 0.55f, cy), r, r + 600f, 0f, 360f, 64, rim);
-            var font = HudText.Font();
-            string range = $"RANGE {Vector3.Distance(camera.Eye, _driver!.AimAt):0} m   LMB designate";
-            int tw = (int)HudText.Measure(font, range);
-            Raylib.DrawRectangle(cx - tw / 2 - 6, cy + 40, tw + 12, HudLineHeight, new Color(0, 0, 0, 160));
-            HudText.Draw(font, range, cx - tw / 2, cy + 42, Color.Gold);
+            if (device.IsNull) return ("PLAIN EYE", "eye", HudText.Eye, EyeBlue);
+            var behaviour = w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInfo>() && w.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device)
+                ? w.GetComponentRO<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device).Behavior : default;
+            if (behaviour.Equals(BinocularsName)) return ("BINOCULARS", "binoculars", HudText.Binoculars, DeviceTeal);
+            if (behaviour.Equals(RangefinderName)) return ("LASER RANGEFINDER", "rangefinder", HudText.Crosshairs, DeviceRed);
+            if (behaviour.Equals(DroneStationName)) return ("DRONE STATION", "drone station", HudText.Video, EyeBlue);   // ⭐ SD-S2d (mockup devices-hud-drone.svg) — the camera, blue
+            if (behaviour.Equals(DesignatorName)) return ("LASER DESIGNATOR", "designator", HudText.Crosshairs, DeviceRed);   // ⭐ SD-S5c — a laser device, red as the rangefinder
+            return ("DEVICE", "device", HudText.Crosshairs, new Color(160, 160, 170, 255));
+        }
+
+        /// <summary>⭐ SD-S2d — the VIEW label's top (in the 460-px device frame): under the device's top-right status. The rangefinder's lamp (panel 6) puts it at
+        /// 94; the drone OSD's battery and link row (devices-hud-drone.svg, its 640-px frame's y 48 = 34.5 here) puts it just under that row — the drone OSD has no
+        /// lamp, and at 94 the label would sit in the empty middle of the right edge. One label, one rule: the row it sits under is the device's.</summary>
+        public static float ViewLabelTop(EntityRepository w, Entity device)
+            => !device.IsNull && w.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInfo>() && w.HasComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device)
+               && w.GetComponentRO<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device).Behavior.Equals(DroneStationName) ? 48f * MockupWidth / 640f : 94f;
+
+        private static readonly FixedString64 BinocularsName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars);
+        private static readonly FixedString64 RangefinderName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder);
+        private static readonly FixedString64 DroneStationName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDroneStation);
+        private static readonly FixedString64 DesignatorName = new(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDesignator);
+        /// <summary>The mockup kit's colours (C.BLUE, C.TEAL, C.RED).</summary>
+        public static readonly Color EyeBlue = new(90, 169, 255, 255), DeviceTeal = new(62, 198, 176, 255), DeviceRed = new(230, 85, 85, 255);
+
+        /// <summary>The mockup frame's width (px) — the label and the strip are laid out in its numbers and fitted as the device HUD's canvas.</summary>
+        private const float MockupWidth = 460f;
+
+        /// <summary>
+        /// ⭐⭐ S1d-3 (mockup <c>devices-hud.svg</c> panel 6) — the view's SOURCE: while bound to a device, the <c>VIEW ▸ &lt;device&gt;</c> label (its icon in
+        /// its colour) top-right under the device's lamp; while switching (<see cref="SwitchStripSeconds"/>), the cycle strip — the plain eye, then each
+        /// device he operates — the selection framed. Laid out in the mockup's frame numbers through the device HUD's canvas fit, so both line up.
+        /// </summary>
+        private void DrawViewSource(EntityRepository w, Vector2 viewSize, Font? font)
+        {
+            if (BoundDevice.IsNull && !Switching) return;
+            Fdp.Toolkit.Diagnostics.Gizmos.ViewCanvas.Fit(viewSize, out var origin, out float scale);
+            float k = scale * Fdp.Toolkit.Diagnostics.Gizmos.ViewCanvas.Width / MockupWidth;
+            Vector2 P(float x, float y) => origin + new Vector2(x, y) * k;
+            var grey = new Color(160, 160, 170, 255);
+            if (!BoundDevice.IsNull)
+            {
+                var look = SourceLook(w, BoundDevice);
+                float lw = 56f + HudText.Measure(font, look.Label, 11f * k) / k + 13f;   // the mockup: the name at +56, 13 past its end
+                float lx = MockupWidth - 14f - lw, top = ViewLabelTop(w, BoundDevice);   // ⭐ SD-S2d — the row it sits under is the device's
+                var at = P(lx, top);
+                Raylib.DrawRectangleRounded(new Rectangle(at.X, at.Y, lw * k, 20f * k), 0.3f, 4, new Color(0, 0, 0, 178));
+                HudText.DrawIcon(look.Icon, P(lx + 6f, top + 3f).X, P(lx + 6f, top + 3f).Y, 13f * k, look.Colour);
+                LabelText(font, "VIEW", P(lx + 24f, top + 14.5f), 10.5f * k, grey);
+                LabelText(font, look.Label, P(lx + 56f, top + 14.5f), 11f * k, Color.White, bold: true);
+            }
+            if (!Switching) return;
+            int n = _sourceCount + 1;
+            float sx = MockupWidth / 2f - 45f * n + 5f;   // the strip (90 n + 2 wide) centred — the mockup: 3 sources at 100
+            var strip = P(sx - 6f, 138f);
+            Raylib.DrawRectangleRounded(new Rectangle(strip.X, strip.Y, (90f * n + 2f) * k, 30f * k), 0.25f, 4, new Color(0, 0, 0, 178));
+            for (int i = 0; i < n; i++)
+            {
+                var d = i == 0 ? Entity.Null : _sources[i - 1];
+                var look = SourceLook(w, d);
+                bool sel = d == BoundDevice;
+                float cx = sx + i * 90f;
+                if (sel)
+                {
+                    var box = new Rectangle(P(cx, 141f).X, P(cx, 141f).Y, 86f * k, 24f * k);
+                    Raylib.DrawRectangleRounded(box, 0.3f, 4, new Color(52, 52, 62, 255));
+                    Raylib.DrawRectangleRoundedLinesEx(box, 0.3f, 4, 1.3f * k, new Color(200, 200, 212, 255));
+                }
+                var c = look.Colour;
+                HudText.DrawIcon(look.Icon, P(cx + 6f, 146f).X, P(cx + 6f, 146f).Y, 13f * k, sel ? c : new Color(c.R, c.G, c.B, (byte)153));
+                LabelText(font, look.Short, P(cx + 24f, 158f), 10.5f * k, sel ? Color.White : new Color(154, 154, 164, 255), bold: sel);
+            }
+        }
+
+        /// <summary>⭐ SD-S5v (D-123) — the hover frame's colour (the mockups' gold) and a refused chip's (grey — a latching control another source owns, D-135).</summary>
+        public static readonly Color HoverColour = new(255, 215, 0, 255), HoverRefusedColour = new(138, 138, 150, 255);
+
+        /// <summary>⭐⭐ SD-S5v (§3.13e D-123, mockup <c>devices-hud.svg</c> panels 2 / 4) — the VIRTUAL PANEL's hover: a frame around the HUD chip under the free
+        /// cursor (POINT), station-local (the device and its HUD never know). Laid out through the HUD canvas's fit, 3 / 20 of the chip's height outside it.</summary>
+        private void DrawPanelHover(Vector2 viewSize)
+        {
+            if (BoundDevice.IsNull || _driver?.Panel is not { Looking: false, Hovered: { } p } panel) return;
+            Fdp.Toolkit.Diagnostics.Gizmos.ViewCanvas.Fit(viewSize, out var origin, out float scale);
+            float m = p.PanelH * 0.15f;
+            var at = origin + new Vector2(p.PanelX - m, p.PanelY - m) * scale;
+            var rect = new Rectangle(at.X, at.Y, (p.PanelW + 2f * m) * scale, (p.PanelH + 2f * m) * scale);
+            Raylib.DrawRectangleRoundedLinesEx(rect, 0.25f, 4, MathF.Max(1f, p.PanelH * 0.1f * scale), panel.HoverRefused ? HoverRefusedColour : HoverColour);
+            LastHover = rect;
+        }
+
+        /// <summary>⭐ SD-S5v — the hover frame drawn last (rails; zero size when none).</summary>
+        public Rectangle LastHover { get; private set; }
+
+        /// <summary>A label with its BASELINE at <paramref name="baseline"/> (the mockup's SVG text y) and the HUD's dark halo; bold = drawn twice.</summary>
+        private static void LabelText(Font? font, string text, Vector2 baseline, float size, Color colour, bool bold = false)
+        {
+            float top = baseline.Y - size * 0.79f;   // Roboto's baseline in raylib's glyph box (GizmoMap's ViewCanvasDrawer.BaselineFraction)
+            var halo = new Color(0, 0, 0, 153);
+            for (int dx = -1; dx <= 1; dx++)
+                for (int dy = -1; dy <= 1; dy++)
+                    if (dx != 0 || dy != 0) HudText.Draw(font, text, baseline.X + dx, top + dy, size, halo);
+            HudText.Draw(font, text, baseline.X, top, size, colour);
+            if (bold) HudText.Draw(font, text, baseline.X + 0.6f, top, size, colour);
         }
 
         /// <summary>⭐ <c>CE-1220</c> (§8k K-1) — how long the fall screen fades to its colour (s), how long a kill cam runs (s), and how long a
@@ -1106,7 +1134,7 @@ namespace Hrot.UI.Common.Map3D
                             ? "W/S move  A/D turn  Shift run  Ctrl crouch (hold)  C crouch  Z prone  V lock look  Esc release"   // ⭐ CE-1204
                             : "W/A/S/D move  Shift run  Ctrl crouch (hold)  C crouch  Z prone  V free look  Esc release",
                 });
-                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  J next man  Tab scores  M map  B binoculars");   // ⭐ CE-1078 / CE-1079 / CE-1158
+                lines.Add("LMB fire  RMB zoom  X cancel  1-4 weapon  R ammo  F use (hold: more)  Q/E lean  T orders  J next man  Tab scores  M map  B view");   // ⭐ CE-1078 / CE-1079 / CE-1158 · ⭐ S1d-3 B cycles the view (CE-1219 dropped)
                 return lines.ToArray();
             }
 
@@ -1168,35 +1196,13 @@ namespace Hrot.UI.Common.Map3D
             }
 
             /// <summary>⭐ CE-1158 — a unit's type name from the TKB (<c>BMP-2</c>, <c>ZU-23-2</c>), or null.</summary>
-            public static string? TypeName(EntityRepository w, Entity e)
-            {
-                if (e.IsNull || !w.IsAlive(e) || !w.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.TkbIdentity>()
-                    || !w.HasComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>(e) || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
-                long type = w.GetComponentRO<Fdp.Toolkit.Replication.Components.TkbIdentity>(e).TkbType;
-                return w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(type, out var t) && t != null ? t.Name : null;
-            }
+            public static string? TypeName(EntityRepository w, Entity e) => Hrot.Look.Hud.HudWords.TypeName(w, e);   // ⭐ CE-11005 (RR-5) — the shared words
 
             /// <summary>⭐ CE-1158 (§8h U-1) — an action as the HUD names it: <c>Open door</c>, <c>Drag</c>, <c>Drive BMP-2</c>, <c>Man ZU-23-2</c>.</summary>
-            public static string Label(EntityRepository w, in UseAction a)
-                => a.Verb is UseVerbKind.Drive or UseVerbKind.Pilot or UseVerbKind.Board or UseVerbKind.Man
-                         or UseVerbKind.Take or UseVerbKind.Drop or UseVerbKind.PickUpRound && TypeName(w, a.Target) is { } name   // ⭐ CE-1207
-                    ? $"{a.Label} {name}" : a.Label;
+            public static string Label(EntityRepository w, in UseAction a) => Hrot.Look.Hud.HudWords.Label(w, in a);
 
             /// <summary>⭐ CE-1158 (§8h U-3) — why an action cannot be done, in the HUD's words.</summary>
-            public static string ReasonText(UseReason r) => r switch
-            {
-                UseReason.OutOfReach => "too far",
-                UseReason.Locked => "locked",
-                UseReason.DoorRefuses => "will not move",
-                UseReason.NotDown => "not down",
-                UseReason.SeatTaken => "seat taken",
-                UseReason.OtherSide => "enemy aboard",   // ⭐ R-4096
-                UseReason.Unfit => "you are down",
-                UseReason.Carrying => "hands full",
-                UseReason.NothingToDo => "nothing to do",
-                UseReason.Failed => "failed",
-                _ => "",
-            };
+            public static string ReasonText(UseReason r) => Hrot.Look.Hud.HudWords.ReasonText(r);
 
             /// <summary>⭐ CE-1158 (§8h U-1, U-3) — the prompt: <c>F  Open door</c>, or greyed with its reason <c>F  Open door (too far)</c> (⭐ CE-1212 — E before).</summary>
             public static string Prompt(EntityRepository w, in UseAction a)
@@ -1277,29 +1283,10 @@ namespace Hrot.UI.Common.Map3D
             /// <summary>⭐ CE-1358 — the weapon line shows the barrel's heat from this percent (below it the barrel is not worth a word).</summary>
             public const int HeatShownFromPercent = 25;
 
-            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => c switch
-            {
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms => "RIFLE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun => "MG",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon => "AUTOCANNON",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun => "CANNON",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Atgm => "MISSILE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Mortar => "MORTAR",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade => "GRENADE",
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Bomb => "BOMB",        // ⭐ Air Ops (backend, cross-lane: a name only)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket => "ROCKETS",   // ⭐ Air Ops 6a (AW-3)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Howitzer => "HOWITZER",   // ⭐ IF-1 (I8)
-                Fdp.Toolkit.Tkb.Domain.WeaponCategory.Sam => "SAM",             // ⭐ CE-2187 (backend, cross-lane: a name only)
-                _ => "WEAPON",
-            };
+            public static string KindOf(Fdp.Toolkit.Tkb.Domain.WeaponCategory c) => Hrot.Look.Hud.HudWords.KindOf(c);
 
             /// <summary>⭐ CE-1079 — a round's name from the TKB (its munition template; a trailing " round" dropped), or null.</summary>
-            public static string? RoundName(EntityRepository w, long ammo)
-            {
-                if (ammo == 0 || !w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()) return null;
-                if (!w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>()!.TryGetByType(ammo, out var t) || t == null) return null;
-                return t.Name.EndsWith(" round", StringComparison.Ordinal) ? t.Name[..^6] : t.Name;
-            }
+            public static string? RoundName(EntityRepository w, long ammo) => Hrot.Look.Hud.HudWords.RoundName(w, ammo);
         }
     }
 
@@ -1310,13 +1297,25 @@ namespace Hrot.UI.Common.Map3D
     /// V (a vehicle's hull-locked view, where the mouse steers) and Esc (release), and sends ONE control frame per frame. It consumes
     /// the input, so no click or menu reaches the map's layers while the operator is in the unit.
     /// </summary>
-    public sealed class FpsCameraDriver : ICameraDriver
+    public sealed class FpsCameraDriver : ICameraDriver, ICameraSuggests
     {
+        /// <summary>⭐ CE-11006 (RR-6) — the operator in a unit: over its shoulder (the side and distance he set) or at its eyes.</summary>
+        public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+        {
+            if (DeviceFilm(out var film)) { film.Describe(world, ref s); return; }   // ⭐ SD-S2c (D-109) — through the device's entity: a follow at its eye
+            s.Source = Hrot.Map.Common.Components.CameraSource.Operator;
+            bool shoulder = ShoulderViewOn;
+            s.Mode = shoulder ? Hrot.Map.Common.Components.CameraMode.Shoulder : Hrot.Map.Common.Components.CameraMode.Eyes;
+            s.Bound = Unit;
+            s.Distance = shoulder ? _station.ShoulderDistance(Scheme) : 0f;
+            s.ShoulderSide = shoulder ? (sbyte)Math.Sign(_station.ShoulderSide) : (sbyte)0;
+        }
+
         /// <summary>Radians of look per pixel of mouse movement.</summary>
         public const float LookSensitivity = 0.0025f;
         /// <summary>⭐ <c>CE-1351</c> — how far ahead of a flyer's nose A/D put the heading it turns to (rad): held, it turns at its own rate
         /// (a helicopter) or banks into the turn (a plane); released, it holds its heading.</summary>
-        public const float FlyerTurnLead = 0.8f;
+        public const float FlyerTurnLead = Fdp.Toolkit.Navigation.ManualFlight.TurnLead;   // ⭐ SD-S2c — the one rule (ManualFlight), shared with the remote pilot
         /// <summary>A vehicle's eye above its origin (m) — v1: the hull, not yet the turret (§8d, deferred).</summary>
         public const float VehicleEyeHeight = 2.5f;
         /// <summary>⭐ CE-2168 — a flyer's camera sits on it (an FPV view).</summary>
@@ -1350,7 +1349,23 @@ namespace Hrot.UI.Common.Map3D
         {
             if (!ReferenceEquals(_chordsFor, input)) { _chords = new Fdp.Presentation.Input.ProviderChordInput(input); _chordsFor = input; }
             _keys.Input = _chords;
+            _deviceKeys.Input = _chords;
+            // ⭐ SD-S2a (devices §3.13c D-102) — while a view shows a device, its place (the pad's sticks and buttons) shadows the body's rows on the same input
+            _keys.Inner = _station.BoundDevice.IsNull ? null : _deviceKeys;
+            _panel.Bind(_chords);   // ⭐ SD-S5v — the bound types' hotkey places read the same input
         }
+
+        // ⭐⭐⭐ SD-S5v (§3.13e D-122 – D-131) — the station's VIRTUAL PANEL: while a view shows a device it owns the mouse (POINT / RMB LOOK), the type's hotkeys,
+        //   the wheel's roles and the pad's device rows, and writes the device only through its own encoder (the panel IO). ⛔ S1d-3's by-index mapping retired.
+        private readonly VirtualPanelAdapter _panel;
+        /// <summary>⭐ SD-S5v — the driver's virtual panel (rails; the station draws its hover frame).</summary>
+        internal VirtualPanelAdapter Panel => _panel;
+
+        // ⭐⭐ SD-S2a (§3.13c D-103) — the device place of the Embodied hat (EmbodiedKeys.DeviceHat): the pad's sticks → the bound device's axes 0–3, its face
+        //   buttons and bumpers → channels 0–5. Read only while a view shows a device.
+        private readonly Fdp.Toolkit.Input.KeymapReader _deviceKeys;
+        /// <summary>⭐ SD-S2a — the driver's reader of the device place (rails).</summary>
+        internal Fdp.Toolkit.Input.KeymapReader DeviceKeys => _deviceKeys;
         private float _yaw, _pitch, _roll;
         private float _hullLook, _hullYaw;   // ⭐ CE-1351 — the look off the hull while the view is hull-locked (V); the hull's heading
         private float? _heldHeading;         // ⭐ CE-1354 — the heading a flyer holds since A/D was let go (taken once, never re-read)
@@ -1392,6 +1407,8 @@ namespace Hrot.UI.Common.Map3D
             _netId = netId;
             EmbodiedKeys.Declare(station.Keymap);
             _keys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.Hat);
+            _deviceKeys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.DeviceHat);
+            _panel = new VirtualPanelAdapter(station.Keymap, _keys, _deviceKeys, PossessionStation.MaxViewSources);
         }
 
         public Entity Unit { get; }
@@ -1544,8 +1561,39 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1073 — where the eye is this frame (world metres).</summary>
         public Vector3 Eye => _eye;
 
+        /// <summary>
+        /// ⭐⭐ SD-S2c (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-109) — ONE "a view follows an entity" rule: while the view is bound to a device
+        /// whose <c>DeviceView</c> names a live entity on this node (a ground station's drone), the camera rides THAT entity through the existing
+        /// <see cref="FollowCameraDriver"/> — at its eye, along its heading at the gimbal's pitch (<see cref="FollowCameraDriver.EyePitch"/>), or behind it
+        /// (Chase). The operator's own driver keeps his input (the device's panel, its sticks). The follow is made again only when the entity changes.
+        /// </summary>
+        private bool DeviceFilm(out FollowCameraDriver film)
+        {
+            film = null!;
+            if (_station.BoundDevice.IsNull || _world() is not { } w
+                || !Fdp.Toolkit.Behavior.Devices.DeviceViews.TryTarget(w, _station.BoundDevice, out var target, out var mode, out float pitch))
+            {
+                _film = null;
+                return false;
+            }
+            bool chase = mode == Fdp.Toolkit.Behavior.Devices.DeviceViewMode.Chase;
+            if (_film == null || _film.Unit != target) _film = new FollowCameraDriver(_world, target, _station.Bodies, chase ? ChaseDistance : 0f);
+            _film.EyePitch = chase ? null : pitch;
+            film = _film;
+            return true;
+        }
+
+        private FollowCameraDriver? _film;
+
+        /// <summary>⭐ SD-S2c — the chase view's distance behind the entity a device films through (m).</summary>
+        public const float ChaseDistance = 8f;
+
+        /// <summary>⭐ SD-S2c — the entity the camera rides for the bound device (null: his own view).</summary>
+        public Entity FilmedEntity => _film?.Unit ?? Entity.Null;
+
         public void Update(MapCamera3D camera, float dt)
         {
+            if (DeviceFilm(out var film)) { film.Update(camera, dt); camera.FovyDegrees = ZoomFovDegrees; return; }   // ⭐ SD-S2c (D-109)
             if (_world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
             var tf = w.GetComponentRO<SimTransform>(Unit);
             float hullYaw = HullYaw(tf.Rotation);
@@ -1643,6 +1691,7 @@ namespace Hrot.UI.Common.Map3D
         /// </summary>
         public void BeforeDraw(MapCamera3D camera)
         {
+            if (DeviceFilm(out var film)) { film.BeforeDraw(camera); camera.FovyDegrees = ZoomFovDegrees; return; }   // ⭐ SD-S2c (D-109)
             if (!_eyeKnown || _world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
             var tf = w.GetComponentRO<SimTransform>(Unit);
             bool vehicle = IsVehicle;
@@ -1687,7 +1736,7 @@ namespace Hrot.UI.Common.Map3D
 
 
         /// <summary>⭐ <c>CE-1293</c> (UC-11) — the camera stands back this frame: the shoulder view is on and RMB is not aiming from the eyes.</summary>
-        public bool ShoulderViewOn => _station.OverShoulder && !Zooming;
+        public bool ShoulderViewOn => _station.OverShoulder && !Zooming && _station.BoundDevice.IsNull;   // ⭐ S1d-3 — through a device: at his eyes
 
         /// <summary>⭐ <c>CE-1293</c> (UC-4) — the first wall, roof or ground between the pivot and the camera, as a fraction of the line.</summary>
         private float? FirstHit(Vector3 from, Vector3 to)
@@ -1788,7 +1837,7 @@ namespace Hrot.UI.Common.Map3D
         private void SendStill()
         {
             Leaning = Fdp.Toolkit.Combat.LeanSide.LeanNone;
-            BinocularsHeld = false;   // ⭐ CE-1219 — the binoculars go down with him (Binoculars = 0 below)
+            SendDeviceFrames(viewing: false);   // ⭐ S1d-3 — the 2-D map is up: no view shows a device (a raised one goes down)
             _station.Send(_netId, new OperatorControlFrameEvent
             {
                 Seq = ++_seq, Yaw = BodyYaw, Gait = 1, Mount = (byte)Mount, AimPoint = AimAt,
@@ -1849,21 +1898,12 @@ namespace Hrot.UI.Common.Map3D
         public bool Zooming { get; private set; }
 
         /// <summary>⭐ <c>CE-1211</c> — the field of view this frame: <see cref="FpsZoom.FovFor"/> the selected weapon while
-        /// <see cref="Zooming"/>, else the map's own.</summary>
-        public float ZoomFovDegrees => BinocularsUp ? Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees   // ⭐ CE-1219 — the sim's own 10°
+        /// <see cref="Zooming"/>, else the map's own.
+        /// <para>⭐⭐ S1d-3 — ONE rule, the view's SOURCE first: a view bound to a device shows the device's field of view (its zoom step, its fixed
+        /// magnification — <see cref="PossessionStation.BoundFovDegrees"/>); ⛔ CE-1219's binoculars branch (10° while the sim's binoculars were up) is
+        /// gone (D-75).</para></summary>
+        public float ZoomFovDegrees => _station.BoundFovDegrees is var bound && bound > 0f ? bound
             : Zooming && _world() is { } zw ? FpsZoom.FovFor(zw, Unit, Mount) : FpsZoom.NormalFovDegrees;
-
-
-        /// <summary>⭐ <c>CE-1219</c> — is B held (the frame asks his brain to raise them)?</summary>
-        public bool BinocularsHeld { get; private set; }
-
-        /// <summary>⭐ <c>CE-1219</c> — are his binoculars UP in the sim (<see cref="Fdp.Toolkit.Combat.HeldItems.BinocularsUp"/>, the
-        /// replicated posture)? The view narrows only then — never on the key alone, so it never shows what the sim does not see.</summary>
-        public bool BinocularsUp => _world() is { } bw && Fdp.Toolkit.Combat.HeldItems.BinocularsUp(bw, Unit);
-
-        /// <summary>⭐ <c>CE-1219</c> — B held by a man who carries none (his type's pockets): the HUD says so.</summary>
-        public bool NoBinoculars => BinocularsHeld && _world() is { } nw
-            && !Fdp.Toolkit.Combat.HeldItems.Has(nw, Unit, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
 
         /// <summary>
         /// ⭐ <c>CE-1219</c> (§8k B-1) — with his binoculars up, LMB DESIGNATES for his men (<see cref="CommandWheel.MenOf"/>) in the station's
@@ -1914,6 +1954,9 @@ namespace Hrot.UI.Common.Map3D
                 _station.SwitchTo(next);
                 return true;
             }
+            // ⭐⭐ S1d-3 (devices §3.6 D-38, Q-5's lean) — B / Shift+B: the view's next / previous source (the plain eye, each device he operates)
+            if (_keys.Pressed(EmbodiedKeys.ViewPrevious)) _station.CycleView(-1);
+            else if (_keys.Pressed(EmbodiedKeys.ViewNext)) _station.CycleView(+1);
             // ⭐ CE-1210 (§8n MS-3) — G: the next seat (the vehicle's own seat, then each manned gun); one possession, as J
             if (_keys.Pressed(EmbodiedKeys.SeatNext) && _world() is { } gw && SeatSwitch.Next(gw, Unit) is { IsNull: false } seat)
             {
@@ -1922,10 +1965,18 @@ namespace Hrot.UI.Common.Map3D
             }
             bool vehicle = IsVehicle;
             var delta = new Vector2(_keys.Axis(EmbodiedKeys.LookX), _keys.Axis(EmbodiedKeys.LookY));   // ⭐ B-10 K4 — the mouse look is two Axis rows
+            // ⭐⭐ SD-S5v (D-123) — through a device the VIRTUAL PANEL owns the mouse: POINT (the cursor free, a click presses the HUD button under it) or, while
+            //   RMB is held, LOOK (its delta turns the look); the arrows turn it finely. Its presses go to the device through its own encoder.
+            if (_world() is { } panelWorld)
+            {
+                var panelLook = _panel.Frame(panelWorld, input, _station.BoundDevice, _station.PanelIo,
+                    _station.ViewLayer is { } viewLayer ? viewLayer.ViewFrame() : default, camera.Viewport);
+                if (!_station.BoundDevice.IsNull) delta = panelLook;
+            }
             // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
             if (CommandWheelInput(delta)) delta = Vector2.Zero;
             // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
-            Zooming = _keys.Held(EmbodiedKeys.Zoom);
+            Zooming = _station.BoundDevice.IsNull && _keys.Held(EmbodiedKeys.Zoom);   // ⭐ S1d-3 — through a device RMB is the device's button
             float look = FpsZoom.SensitivityFor(ZoomFovDegrees);
             if (delta != Vector2.Zero) _lookIdle = 0f;   // ⭐ CE-1293 (UC-7) — the mouse moved: no re-centre yet
             // ⭐ CE-1351 — V locks the view to the hull, looking forward (a vehicle or a flyer); the keys still steer and the mouse still looks.
@@ -2011,7 +2062,7 @@ namespace Hrot.UI.Common.Map3D
             {
                 // ⭐ CE-1293 (R-1034, superseding R-1033's wheel) — the wheel is the camera distance, possessed as when watching; out of the
                 //   eyes switches the shoulder view on, all the way in switches it off. Weapons are 1-4 only.
-                if (wheel != 0f) WheelDistance(wheel);
+                if (wheel != 0f && _station.BoundDevice.IsNull) WheelDistance(wheel);   // ⭐ S1d-3 — through a device the wheel is its buttons 2 / 3
                 // ⭐ CE-1079 (§8e D-2) — 1-4 pick a weapon directly; ⭐ CE-1158 (U-5) the weapons he controls follow his own
                 for (int k = 0; k < 4; k++)
                     if (_keys.Pressed(EmbodiedKeys.Weapon(k)) && k < slotCount) Mount = slots[k];
@@ -2033,7 +2084,6 @@ namespace Hrot.UI.Common.Map3D
             // ⭐ CE-1293 (UC-6) — the lean also puts the camera over that shoulder (it stays there)
             if (Leaning == Fdp.Toolkit.Combat.LeanSide.LeanLeft) _station.ShoulderSide = -1;
             else if (Leaning == Fdp.Toolkit.Combat.LeanSide.LeanRight) _station.ShoulderSide = 1;
-            BinocularsHeld = Scheme == ControlScheme.Person && _keys.Held(EmbodiedKeys.Binoculars);   // ⭐ CE-1219 (§8k B-1)
             // ⭐ CE-1074 — C cycles a person's stance: standing → crouched → prone → standing (from the stance he has when first driven)
             if (Scheme == ControlScheme.Person && _world() is { } sw)   // a person only: on a flyer C is the climb axis (CE-2168)
             {
@@ -2058,10 +2108,12 @@ namespace Hrot.UI.Common.Map3D
             if (_keys.Pressed(EmbodiedKeys.Select) && aimTarget != 0 && _world() is { } selectWorld
                 && selectWorld.Bus.IsRegistered<Hrot.Common.Events.SelectEntityCommand>())
                 selectWorld.Bus.Publish(new Hrot.Common.Events.SelectEntityCommand { NetworkId = aimTarget });
-            bool glassing = BinocularsUp;   // ⭐ CE-1219 (§8k B-1) — binoculars up: LMB designates, the trigger stays up
-            bool firePressed = _keys.Pressed(EmbodiedKeys.Fire);
-            if (glassing && firePressed) Designate(aimAt, aimTarget);
-            else if (firePressed)
+            // ⭐ S1d-3 — through a device the mouse is the DEVICE's (its buttons, below): no shot, the trigger stays up; the middle button designates for
+            //   his men (CE-1219's LMB designate, rehomed — B-1's capability kept)
+            bool glassing = !_station.BoundDevice.IsNull;
+            bool firePressed = !glassing && _keys.Pressed(EmbodiedKeys.Fire);
+            if (glassing && _keys.Pressed(EmbodiedKeys.Designate)) Designate(aimAt, aimTarget);
+            if (firePressed)
             {
                 unchecked { _shotSeq++; }
                 _shotTarget = aimTarget;
@@ -2093,19 +2145,47 @@ namespace Hrot.UI.Common.Map3D
                 Stance = !vehicle && Stance is { } stance ? (byte)((byte)stance + 1) : (byte)0,   // ⭐ CE-1074 / CE-1143 (Ctrl held = crouched)
                 ShotSeq = _shotSeq, CancelSeq = _cancelSeq, AmmoSeq = _ammoSeq, ShotTarget = _shotTarget,   // ⭐ CE-1078 / CE-1079
                 Lean = (byte)Leaning,                                                                     // ⭐ CE-1212
-                Binoculars = BinocularsHeld ? (byte)1 : (byte)0,                                          // ⭐ CE-1219
                 UseSeq = _useSeq, UseVerb = _useVerb, UseTarget = _useTarget,                              // ⭐ CE-1158 (U-2)
                 // ⭐ CE-4143 (§8r) — the crosshair RAY (the eye and the direction through the visible map's centre) and the L preference:
                 //   a SIGHT shot on a turret aims along the ray, never at what it hits
                 LookFrom = camera.Eye, LookDir = camera.RayDirection(camera.ViewCentre), FirePref = FirePref,
             };
             _station.Send(_netId, frame);
+            SendDeviceFrames(viewing: true, wheel);   // ⭐ S1d-3 — and one frame per device he operates (its look, Viewed, its buttons)
             return true;
+        }
+
+        // ── ⭐⭐ S1d-3 — the device input (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4 D-43 / R5-13, §3.6 D-38) ─────────────────────────────
+        //   ⭐ SD-S5v (§3.13e D-146) — written through THE ONE encoder every adapter uses: here the virtual panel's (its presses staged by VirtualPanelAdapter.Frame);
+        //   an attached primary (a replica, a tracker) flushes its own
+
+        /// <summary>The device input events this driver's virtual panel sent (rails).</summary>
+        public long DeviceFramesSent => _panel.Encoder.Sent;
+
+        /// <summary>
+        /// The device input of every device the station operates (D-43): the operator's LOOK relative to each device's mount (R5-13 — unless another source owns
+        /// that device's look or it has another primary, D-126 / D-141) and <c>Viewed</c> while the view is bound to it (D-63), with the virtual panel's staged
+        /// presses; then every attached adapter's own. ⛔ None while HTTP or a scenario's scripted station drives the unit (CE-1464 — its input would race ours). 0 B.
+        /// </summary>
+        private void SendDeviceFrames(bool viewing, float wheel = 0f)
+        {
+            if (_world() is not { } w || HttpControlledUnits.IsMarked(_netId) || _station.BodyStation(w) is not { } station) return;
+            var devices = _station.ViewSources;
+            var bound = _station.BoundDevice;
+            var io = _station.PanelIo;
+            var look = Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder.Look(_yaw, _pitch);
+            for (int i = 0; i < devices.Length; i++)
+            {
+                if (io.VirtualIsPrimary(devices[i])) _panel.Encoder.SetWorldLook(w, devices[i], look);
+                _panel.Encoder.SetViewed(devices[i], viewing && devices[i] == bound);
+            }
+            _panel.Encoder.Flush(w, station, devices);
+            io.Flush(w, station, devices);
         }
 
         /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold
         /// (<paramref name="side"/> +1 = A, left / counter-clockwise).</summary>
-        public static float FlyerHeading(float hullYaw, float side) => hullYaw + Math.Clamp(side, -1f, 1f) * FlyerTurnLead;
+        public static float FlyerHeading(float hullYaw, float side) => Fdp.Toolkit.Navigation.ManualFlight.Heading(hullYaw, side);   // ⭐ SD-S2c — ruling 9
 
         /// <summary>⭐ <c>CE-1204</c> (§8l LK-2) — the body's heading after a free look to <paramref name="look"/>: unchanged while the look
         /// is within <paramref name="neck"/> of it, else dragged so the look sits on the neck's limit.</summary>

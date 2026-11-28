@@ -1,4 +1,5 @@
 using System;
+using Fdp.Core.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using Fdp.Core;
@@ -69,10 +70,16 @@ namespace Fdp.Presentation.Adapters
 
         public void SetComponent(Entity e, Type componentType, object componentData)
         {
-            if (e == SingletonEntity)
-                RepoReflector.SetSingleton(_repo, componentType, componentData);
-            else
-                RepoReflector.SetComponent(_repo, e, componentType, componentData);
+            // ⭐ CE-11060 — on a threaded node this adapter holds the UI's world (A), a copy the staging refreshes from the simulation world (S): a write
+            //   made here would be overwritten by the next pull of a changed chunk. ⇒ the write runs on the sim thread against S (the ONE sim job queue,
+            //   in order with the undo bracket EditSteps forwards). A singleton S does not have is the UI's own state (never synced) — it stays on A.
+            //   With no link (serial, headless, a test) the job runs at once on this world, as before.
+            SimJobs.Run(_repo, sim =>
+            {
+                if (e != SingletonEntity) { RepoReflector.SetComponent(sim, e, componentType, componentData); return null; }
+                if (ReferenceEquals(sim, _repo) || RepoReflector.HasSingleton(sim, componentType)) { RepoReflector.SetSingleton(sim, componentType, componentData); return null; }
+                return ui => RepoReflector.SetSingleton(ui, componentType, componentData);   // the UI's own singleton: back on A, in order
+            }, "inspector: set " + componentType.Name);
         }
 
         /// <summary>⭐ CE-3386 (docs/DESIGN_Struct_Editor.md §10.4) — the inspector's write is ONE step of the editor's history where one is recorded (Edit mode: the recorder

@@ -7,6 +7,7 @@ stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Film_Director.md §0 / §3 cut and render films by STEPPING a live run (R-3038) — this design keeps that for LIVE preview only; films are cut and rendered from RECORDINGS (§2 F-1). Film Director's §3e already pointed here
 related-designs:
+  - designs/IG/DESIGN_Linked_Client_Director.md — OWNS the director's LINKED CLIENT (a node extension as the frame sink and sound source, DD-022's HROT half; CE-11017, Q113)
   - DESIGN_Director_Timeline_Editor.md — §11 OWNS the build plan (INVENTORY, classes, sequences, leans CR-1…CR-12, phases P0–P6); §2 the tracks, §5 the take format, §9 / §9c the timeline index and its lanes
   - DESIGN_Film_Director.md — OWNS the take and reel formats, DirectorRunner, the stepping rule for live runs (R-3038), capture and the sound track
   - PLAN_Feature_Films.md — OWNS WHAT to film (the clip list → takes and reels) and the director's GRAMMAR (§1a) the drafter follows

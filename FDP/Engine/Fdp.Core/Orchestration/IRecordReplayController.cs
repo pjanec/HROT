@@ -106,6 +106,10 @@ namespace Fdp.Core.Orchestration
         /// <summary>⭐ AQ107 C — the terrain that was resident while the open replay's recording was made; empty outside a replay or when none.</summary>
         string ActiveReplayTerrainName => string.Empty;
 
+        /// <summary>⭐ CE-11025 — the terrain ADDITIONS the open replay's recording was made with (their content hash, O-8); <see langword="null"/>
+        /// outside a replay, for a listener, or when the run had none.</summary>
+        string? ActiveReplayOverlayHash => null;
+
         /// <summary>⭐ CE-3329 PW — releases <see cref="HoldEgress"/>: the next egress frame republishes the world.</summary>
         void ReleaseEgress() { }
 

@@ -62,6 +62,200 @@ public sealed class FilmTests : System.IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-11006 (RR-6, R-11000) — the suggested camera a node extension reads: the director chasing unit 77 at 20 m writes Director / Chase / net id 77 / 20 m,
+    /// its cut counter, and the camera's own pose (eye, orientation carrying +X onto the view, fov); the free camera writes Operator / Free; a follow writes
+    /// Follow / Orbit with the unit. 🔒 Red-proved: the director's Describe not called (the driver test dropped) ⇒ red.
+    /// </summary>
+    [Fact]
+    public void RR6_TheSuggestedCamera_SaysWhoDrivesHowAndWhere()
+    {
+        using var world = new EntityRepository();
+        world.RegisterComponent<SimTransform>();
+        world.RegisterComponent<NetworkIdentity>();
+        var unit = world.CreateEntity();
+        world.AddComponent(unit, new SimTransform { Position = new Vector3(5f, 6f, 0f), Rotation = Quaternion.Identity });
+        world.AddComponent(unit, new NetworkIdentity { Value = 77 });
+        var camera = new MapCamera3D();
+        var director = new FilmDirector(() => world) { Shot = new FilmShot { Follow = 77, Distance = 20f, Yaw = 1f, Pitch = -0.3f, Lift = 2f } };
+        camera.Driver = director;
+        Assert.True(director.Place(camera));
+
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out var s));
+        Assert.Equal((Hrot.Map.Common.Components.CameraSource.Director, Hrot.Map.Common.Components.CameraMode.Chase, 77, 20f),
+                     (s.Source, s.Mode, s.BoundNetId, s.Distance));
+        Assert.Equal(FilmStudio.Cut, s.Cut);
+        Assert.Equal(camera.Eye, s.Position);
+        Assert.True(Vector3.Dot(Vector3.Transform(Vector3.UnitX, s.Orientation), Vector3.Normalize(camera.Forward)) > 0.9999f);
+        Assert.Equal(camera.FovyDegrees, s.FovyDegrees);
+
+        camera.Driver = null;
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out s));
+        Assert.Equal((Hrot.Map.Common.Components.CameraSource.Operator, Hrot.Map.Common.Components.CameraMode.Free), (s.Source, s.Mode));
+
+        camera.Driver = new FollowCameraDriver(() => world, unit, null);
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out s));
+        Assert.Equal((Hrot.Map.Common.Components.CameraSource.Follow, Hrot.Map.Common.Components.CameraMode.Orbit, unit, FollowCameraDriver.StartDistance),
+                     (s.Source, s.Mode, s.Bound, s.Distance));
+    }
+
+    private static (EntityRepository World, MapCamera3D Camera) DirectedWorld()
+    {
+        var world = new EntityRepository();
+        var camera = new MapCamera3D();
+        var director = new FilmDirector(() => world) { Shot = new FilmShot { Pose = new CameraPose(Vector3.Zero, 50f, 0f, -0.3f) } };
+        camera.Driver = director;
+        return (world, camera);
+    }
+
+    private static Hrot.Map.Common.Components.CameraSuggestion Suggested(EntityRepository world, MapCamera3D camera)
+    {
+        CameraSuggestions.Write(world, camera);
+        Assert.True(Hrot.Look.CameraAdvice.TryGet(world, out var s));
+        return s;
+    }
+
+    /// <summary>
+    /// ⭐ CE-11035 (R-11015, DESIGN_Look_Rules_For_Renderers.md §3.4) — the director's black reaches the suggested camera each frame (and 0 outside a fade); any other source
+    /// leaves it 0 even while the studio's fade is up. 🔴 Mutation: <c>Describe</c> not copying <c>Fade</c> ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11035_TheSuggestedCamera_FollowsTheDirectorsFade()
+    {
+        var (world, camera) = DirectedWorld();
+        using (world)
+        {
+            Assert.Equal(0f, Suggested(world, camera).Fade);
+            foreach (var f in new[] { 0.25f, 0.8f, 1f, 0f }) { FilmStudio.Fade = f; Assert.Equal(f, Suggested(world, camera).Fade); }
+
+            FilmStudio.Fade = 0.6f;
+            camera.Driver = null;
+            Assert.Equal(0f, Suggested(world, camera).Fade);   // the operator's own camera: no black
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11035 — the subtitle: the serial grows exactly when the TEXT changes (a held line, the same line again, and none leave it), the text is on <c>FilmCaption</c>, the position
+    /// and alpha follow the director (alpha fades), and with no subtitle the alpha is 0 and the serial unchanged. Any other source: no caption.
+    /// 🔴 Mutations: serial bumped every frame ⇒ the held-line rows; alpha not copied ⇒ the alpha rows; position not copied ⇒ the Top row.
+    /// </summary>
+    [Fact]
+    public void CE11035_TheSuggestedCamera_CarriesTheDirectorsSubtitle()
+    {
+        var (world, camera) = DirectedWorld();
+        using (world)
+        {
+            var s = Suggested(world, camera);
+            Assert.Equal((0, 0f), (s.CaptionSerial, s.CaptionAlpha));
+            Assert.Equal(string.Empty, world.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Dawn at the bridge", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Top, 0.4f);
+            s = Suggested(world, camera);
+            Assert.Equal((1, (byte)1, 0.4f), (s.CaptionSerial, s.CaptionPosition, s.CaptionAlpha));
+            Assert.Equal("Dawn at the bridge", world.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Dawn at the bridge", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Top, 1f);   // the fade moves, the text does not
+            s = Suggested(world, camera);
+            Assert.Equal((1, 1f), (s.CaptionSerial, s.CaptionAlpha));
+
+            FilmStudio.Caption = null;   // none on screen: alpha 0, serial unchanged
+            s = Suggested(world, camera);
+            Assert.Equal((1, 0f), (s.CaptionSerial, s.CaptionAlpha));
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Contact", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Bottom, 1f);
+            s = Suggested(world, camera);
+            Assert.Equal((2, (byte)0, 1f), (s.CaptionSerial, s.CaptionPosition, s.CaptionAlpha));
+            Assert.Equal("Contact", world.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            camera.Driver = null;   // not the director: no caption
+            s = Suggested(world, camera);
+            Assert.Equal((0, 0f), (s.CaptionSerial, s.CaptionAlpha));
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11035 — the managed text is replaced ONLY when the serial changes: over a held subtitle (the alpha animating) the very same <c>FilmCaption</c> instance stays in the world
+    /// (one set), and a new line replaces it once. 🔴 Mutation: the text set every frame ⇒ many instances ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11035_TheCaptionText_IsSetOnlyWhenTheSerialChanges()
+    {
+        var (world, camera) = DirectedWorld();
+        using (world)
+        {
+            var seen = new System.Collections.Generic.HashSet<Hrot.Map.Common.Components.FilmCaption>(ReferenceEqualityComparer.Instance);
+            Suggested(world, camera);
+            seen.Add(world.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!);   // the initial, empty one
+            for (int i = 0; i < 30; i++)
+            {
+                FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Held line", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Bottom, i / 30f);
+                Suggested(world, camera);
+                seen.Add(world.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!);
+            }
+            Assert.Equal(2, seen.Count);   // the empty one, then ONE for the held line (30 frames)
+        }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11035 — 0 B per steady frame (CLAUDE.md HOT PATH) with a subtitle held and a fade running: the suggestion is a struct set by value, the caption read is one locked
+    /// read, the text is not touched. 🔴 Mutation: a new <c>FilmCaption</c> every frame ⇒ bytes &gt; 0.
+    /// </summary>
+    [Fact]
+    public void CE11035_ASteadyFrame_WithASubtitleAndAFade_AllocatesNothing()
+    {
+        var (world, camera) = DirectedWorld();
+        using (world)
+        {
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Held line", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Middle, 0.7f);
+            for (int i = 0; i < 20; i++) { FilmStudio.Fade = i / 20f; CameraSuggestions.Write(world, camera); }   // warm
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++) { FilmStudio.Fade = (i % 20) / 20f; CameraSuggestions.Write(world, camera); }
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-11066 (unreal-ig director test H-1) — a THREADED node: the map writes on the presentation world A, the gateway reads the node's world S. The suggestion and the
+    /// caption text reach S at the sim's next drain (the newest of several UI frames, one job per drain), and a steady UI frame + drain allocates nothing.
+    /// 🔴 Mutations: no uplink ⇒ S has no suggestion; the caption not copied ⇒ the text rows; a post every frame ⇒ the job count row.
+    /// </summary>
+    [Fact]
+    public void CE11066_OnAThreadedNode_TheSuggestionAndCaption_ReachTheSimWorld()
+    {
+        var (world, camera) = DirectedWorld();
+        using (world)
+        using (var sim = new EntityRepository())
+        {
+            var jobs = new Fdp.Core.Threading.SimJobQueue();
+            world.SetSingletonManaged(new Fdp.Core.Threading.SimLink(jobs, sim));
+            Assert.False(sim.HasSingletonUnmanaged<Hrot.Map.Common.Components.CameraSuggestion>());
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Dawn at the bridge", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Top, 0.5f);
+            FilmStudio.Fade = 0.25f; CameraSuggestions.Write(world, camera);
+            FilmStudio.Fade = 0.75f; CameraSuggestions.Write(world, camera);   // two UI frames before the sim drains
+            Assert.Equal(1, jobs.Pending);                                     // ONE copy waits
+            jobs.Drain(sim);
+
+            var onSim = sim.GetSingletonUnmanagedRO<Hrot.Map.Common.Components.CameraSuggestion>();
+            Assert.Equal(Hrot.Map.Common.Components.CameraSource.Director, onSim.Source);
+            Assert.Equal(0.75f, onSim.Fade);                                   // the newest
+            Assert.Equal((1, (byte)1), (onSim.CaptionSerial, onSim.CaptionPosition));
+            Assert.Equal("Dawn at the bridge", sim.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            FilmStudio.Caption = new Hrot.UI.Common.Map3D.Director.SubtitleFrame("Contact", Hrot.UI.Common.Map3D.Director.SubtitlePosition.Bottom, 1f);
+            CameraSuggestions.Write(world, camera); jobs.Drain(sim);
+            Assert.Equal("Contact", sim.GetSingletonManaged<Hrot.Map.Common.Components.FilmCaption>()!.Text);
+
+            for (int i = 0; i < 20; i++) { FilmStudio.Fade = i / 20f; CameraSuggestions.Write(world, camera); jobs.Drain(sim); }   // warm
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 200; i++) { FilmStudio.Fade = (i % 20) / 20f; CameraSuggestions.Write(world, camera); jobs.Drain(sim); }
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+        }
+    }
+
+    /// <summary>
     /// The director looks AT a point (a driver that is not a pair of eyes): the fog starts part way there, as the free camera's —
     /// a first-person driver's starts at the lens. 🔴 Red-proof: <c>ViewsFromEye</c> true ⇒ 0.
     /// </summary>

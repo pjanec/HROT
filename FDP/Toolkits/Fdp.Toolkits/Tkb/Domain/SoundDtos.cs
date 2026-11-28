@@ -45,6 +45,12 @@ namespace Fdp.Toolkit.Tkb.Domain
         Glass,
         /// <summary>⭐ CE-4635 (flame weapons §8) — a FLAMETHROWER's roar: low rumbling noise with a hiss and a little crackle, a seamless loop held while the jet is lit. Appended.</summary>
         FlameRoar,
+        /// <summary>⭐ CE-4634 (DESIGN_Dragon §8.2 S) — a DRAGON's wingbeat: one heavy whoosh of air per down-stroke. Appended.</summary>
+        DragonWhoosh,
+        /// <summary>⭐ CE-4634 — a DRAGON's roar: a deep growling beast's voice (on the breath, a take-off, a hit, now and then in flight). Appended.</summary>
+        DragonRoar,
+        /// <summary>⭐ CE-4634 — a DRAGON dying: a long roar falling away. Appended.</summary>
+        DragonDeathRoar,
     }
 
     /// <summary>

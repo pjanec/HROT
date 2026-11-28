@@ -121,7 +121,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in PossessRequestEvent e) => new InteractionPayload
                 { Possess = new PossessInteractionPayload { StationNodeId = e.StationNodeId, Mode = (byte)e.Mode, RequestId = e.RequestId } },   // ⭐ F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new PossessRequestEvent
-                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true, RequestId = p.Possess.RequestId });
+                { Unit = target, StationNodeId = (Fdp.Core.StationId)(p.Possess.StationNodeId), Mode = (PossessionMode)p.Possess.Mode, IsRemote = true, RequestId = p.Possess.RequestId });
 
         /// <summary>⭐ CE-3172 S4e — a station lets its unit go.</summary>
         public static readonly IInteractionCodec ReleasePossession = new InteractionCodec<ReleasePossessionEvent>(
@@ -133,7 +133,7 @@ namespace Hrot.Map.Common.Replication.Interactions
             toPayload:   static (in ReleasePossessionEvent e) => new InteractionPayload
                 { ReleasePossession = new ReleasePossessionInteractionPayload { StationNodeId = e.StationNodeId, RequestId = e.RequestId } },   // ⭐ F4
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new ReleasePossessionEvent
-                { Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ReleasePossession.StationNodeId), IsRemote = true, RequestId = p.ReleasePossession.RequestId });
+                { Unit = target, StationNodeId = (Fdp.Core.StationId)(p.ReleasePossession.StationNodeId), IsRemote = true, RequestId = p.ReleasePossession.RequestId });
 
         /// <summary>⭐ CE-3172 / CE-3173 S4e — one frame of a station's controls.</summary>
         public static readonly IInteractionCodec ControlFrame = new InteractionCodec<OperatorControlFrameEvent>(
@@ -151,14 +151,13 @@ namespace Hrot.Map.Common.Replication.Interactions
                     ShotSeq = e.ShotSeq, CancelSeq = e.CancelSeq, AmmoSeq = e.AmmoSeq, ShotTarget = e.ShotTarget,
                     UseSeq = e.UseSeq, UseVerb = e.UseVerb, UseTarget = e.UseTarget,   // ⭐ CE-1151
                     Lean = e.Lean,                                                     // ⭐ CE-1212
-                    Binoculars = e.Binoculars,                                         // ⭐ CE-1219
                     LookFromX = e.LookFrom.X, LookFromY = e.LookFrom.Y, LookFromZ = e.LookFrom.Z,   // ⭐ CE-4143
                     LookDirX = e.LookDir.X, LookDirY = e.LookDir.Y, LookDirZ = e.LookDir.Z, FirePref = e.FirePref,
                 },
             },
             fromPayload: static (Entity target, Entity actor, in InteractionPayload p) => new OperatorControlFrameEvent
             {
-                Unit = target, StationNodeId = (Fdp.Core.NodeId)(p.ControlFrame.StationNodeId), Seq = p.ControlFrame.Seq,
+                Unit = target, StationNodeId = (Fdp.Core.StationId)(p.ControlFrame.StationNodeId), Seq = p.ControlFrame.Seq,
                 Forward = p.ControlFrame.Forward, Lateral = p.ControlFrame.Lateral, Steer = p.ControlFrame.Steer, Yaw = p.ControlFrame.Yaw,
                 Gait = p.ControlFrame.Gait, Trigger = p.ControlFrame.Trigger, Mount = p.ControlFrame.Mount, Vertical = p.ControlFrame.Vertical,
                 AimPoint = new System.Numerics.Vector3(p.ControlFrame.AimX, p.ControlFrame.AimY, p.ControlFrame.AimZ), Stance = p.ControlFrame.Stance,
@@ -166,7 +165,6 @@ namespace Hrot.Map.Common.Replication.Interactions
                 ShotTarget = p.ControlFrame.ShotTarget, IsRemote = true,
                 UseSeq = p.ControlFrame.UseSeq, UseVerb = p.ControlFrame.UseVerb, UseTarget = p.ControlFrame.UseTarget,   // ⭐ CE-1151
                 Lean = p.ControlFrame.Lean,                                                                               // ⭐ CE-1212
-                Binoculars = p.ControlFrame.Binoculars,                                                                   // ⭐ CE-1219
                 LookFrom = new System.Numerics.Vector3(p.ControlFrame.LookFromX, p.ControlFrame.LookFromY, p.ControlFrame.LookFromZ),   // ⭐ CE-4143
                 LookDir = new System.Numerics.Vector3(p.ControlFrame.LookDirX, p.ControlFrame.LookDirY, p.ControlFrame.LookDirZ),
                 FirePref = p.ControlFrame.FirePref,

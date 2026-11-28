@@ -71,7 +71,7 @@ public sealed class TerrainLoadStep : ILoadPartProvider
     }
 
     private string? RequestedName(LoadPhaseContext context)
-        => !string.IsNullOrWhiteSpace(context.TerrainName)
+        => !string.IsNullOrWhiteSpace(context.TerrainName) || context.IsReplayWorld   // ⭐ CE-11025 — a replay's name is the recording's, never the staged scenario's
             ? context.TerrainName
             : ScenarioTerrainName.Read(_stagingRoot);
 
@@ -85,12 +85,24 @@ public sealed class TerrainLoadStep : ILoadPartProvider
         //    present or genuinely absent. 📄 docs/DESIGN_Cluster_Load_Phase.md §7.3 ④.
         // ⭐ O-4 (CE-4415) — the scenario's terrain overlay, staged beside the terrain by its content hash; a hash named but no folder found is a broken deployment, like a missing terrain
         string? overlayFolder = null;
-        string? overlayHash = ScenarioTerrainName.ReadOverlayHash(_stagingRoot);
+        string? overlayHash = context.IsReplayWorld ? context.OverlayHash : ScenarioTerrainName.ReadOverlayHash(_stagingRoot);
+        // ⭐ CE-11025 — a replay's additions missing on this machine: the base terrain, with a warning (as the Replay Browser does, CE-4420 O-8) —
+        //   the recording still plays; ⛔ a LIVE load stays strict below (a broken deployment)
+        if (context.IsReplayWorld && !string.IsNullOrWhiteSpace(requested) && !string.IsNullOrEmpty(overlayHash)
+            && _residency.ResolveOverlay(overlayHash) == null)
+        {
+            Fdp.Core.Logging.FdpLog<TerrainLoadStep>.Warn(
+                $"[Terrain] the recording's terrain additions {overlayHash} are not available on this machine — the replay shows the base terrain '{requested}' only.");
+            overlayHash = null;
+        }
         if (!string.IsNullOrWhiteSpace(requested) && !string.IsNullOrEmpty(overlayHash))
             overlayFolder = _residency.ResolveOverlay(overlayHash)
                 ?? throw new System.IO.FileNotFoundException(
                     $"[Terrain] The staged scenario names terrain overlay '{overlayHash}' for terrain '{requested}', but no overlays/{overlayHash}/overlay.json exists under any terrain root. Loading it is mandatory: a broken deployment.");
-        var staged = _residency.Prepare(requested, overlayFolder);
+        // ⭐ CE-11071 — the run's variant (the same arg every node's scenario load reads): overlay features that variant leaves out are not merged
+        //   (a replay's context carries the recording's args when it has them; none ⇒ variant 0, every feature)
+        int variant = Fdp.Toolkit.Scenario.ScenarioVariants.VariantOf(context.ScenarioArgsJson);
+        var staged = _residency.Prepare(requested, overlayFolder, variant);
         if (staged.HasWork)
             lock (_stagedGate) _staged[context.TransactionId] = staged;
 

@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Tests.Civilians
             _world.RegisterComponent<WeaponMountInfo>();
             _world.RegisterComponent<Fdp.Toolkit.Replication.Components.PartMetadata>();
             _world.RegisterComponent<AmmoLoadout>();
-            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();
             _world.RegisterComponent<WeaponSystemState>();
             _world.RegisterComponent<PassengerBuffer>();
             _world.RegisterComponent<CarrierSeats>();

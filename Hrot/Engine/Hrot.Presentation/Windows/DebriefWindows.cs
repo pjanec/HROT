@@ -43,8 +43,9 @@ internal sealed class DebriefInputs
         if (World == null) return;
         MissionSummaryModel.ExercisePhaseOf(World, out Result);
         Entries = RulesReader.Read(World, includeAuthored: false);
-        if (World.IsComponentTypeRegistered<PossessedBy>())
-            foreach (var e in World.Query().With<PossessedBy>().Build()) { View = PlayerView.Of(World, e); if (!View.IsNone) break; }
+        // ⭐ C3 CC-13 — THIS station's own body (StationBody.Own); ⛔ before: the first hold in the world with a view, whichever station held it
+        var own = Fdp.Toolkit.Behavior.Possession.StationBody.Own(World, null);
+        if (!own.IsNull) View = PlayerView.Of(World, own);
     }
 
     public string NameOf(int net) => World == null ? $"#{net}" : RulesModel.NameOf(World, NetworkIdResolver.ResolveNetworkId(World, net), net);

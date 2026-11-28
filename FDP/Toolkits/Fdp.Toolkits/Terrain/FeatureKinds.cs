@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Terrain
     public static partial class FeatureExpander
     {
         public const float DefaultWallHeight = 2.0f, DefaultFenceHeight = 1.6f, DefaultHedgeHeight = 1.5f, HedgeThickness = 0.8f;
-        public const float DefaultBridgeWidth = 4.0f, BridgeDeckHeight = 1.5f, BridgeRampLength = 6.0f;
+        public const float DefaultBridgeWidth = 4.0f, BridgeDeckHeight = DeckGeometry.AuthoredDeckHeight, BridgeRampLength = DeckGeometry.AuthoredRampLength;
         public const int MaxScatterItems = 2000;
         public const float DefaultRowSpacing = 8f;
         public const int DefaultGroupCount = 10;
@@ -32,7 +32,10 @@ namespace Fdp.Toolkit.Terrain
                 case TerrainFeature.House:
                     return new[] { House(baseWorld, assets, template, at, headingDeg, pad, key) };
                 case TerrainFeature.Wall:
-                    return new[] { Line("wall", key, template.Length > 0 ? template : TerrainMaterialLibrary.DefaultMaterial, pad > 0 ? pad : DefaultWallHeight, 0f, points, where) };
+                {
+                    string material = template.Length > 0 ? template : TerrainMaterialLibrary.DefaultMaterial;
+                    return new[] { Line("wall", key, material, pad > 0 ? pad : DefaultWallHeight, WallThicknessOf(material), points, where) };
+                }
                 case TerrainFeature.Fence:
                     return new[] { Line("fence", key, template.Length > 0 ? template : TerrainMaterialLibrary.DefaultFenceMaterial, pad > 0 ? pad : DefaultFenceHeight, 0f, points, where) };
                 case TerrainFeature.Hedge:
@@ -67,6 +70,20 @@ namespace Fdp.Toolkit.Terrain
                     throw new ArgumentException($"[Terrain] {where}: unknown feature kind {kind}.");
             }
         }
+
+        /// <summary>
+        /// ⭐ <c>CE-11069</c> (docs/designs/engineering/DESIGN_Breachable_Obstacle_Walls.md §8 V-4) — the thickness (m) a WALL feature of <paramref name="material"/> is built with: a sandbag wall
+        /// 0.6 m, a concrete barrier line 0.4 m; any other material 0 = the parser's default (0.3 m), as before. ⭐ It is what a contact breach weighs (strength = resistance × thickness × height):
+        /// a 1 m sandbag wall is 100 × 0.6 × 1 = 60 — above a ramming car's 40, so a car is held and a tank / an IFV breaks it. No struct field: the recorded <see cref="TerrainFeature"/> layout is unchanged.
+        /// </summary>
+        public static float WallThicknessOf(string material) => material switch
+        {
+            "sandbags" => SandbagWallThickness,
+            "concrete" => ConcreteWallThickness,
+            _ => 0f,
+        };
+
+        public const float SandbagWallThickness = 0.6f, ConcreteWallThickness = 0.4f;
 
         /// <summary>True for the kinds that carry a shape (a polyline beside the component): they are the line and area kinds.</summary>
         public static bool NeedsShape(byte kind) => kind is TerrainFeature.Wall or TerrainFeature.Fence or TerrainFeature.Hedge or TerrainFeature.Wood or TerrainFeature.Scrub or TerrainFeature.Water or TerrainFeature.Lane
@@ -240,24 +257,20 @@ namespace Fdp.Toolkit.Terrain
         {
             if (points.Count < 2) throw new ArgumentException($"[Terrain] {where}: a bridge needs two points (the banks).");
             var a = points[0]; var b = points[^1];
-            var d = b - a; float len = d.Length();
-            if (len < 1f) throw new ArgumentException($"[Terrain] {where}: a bridge's two points are the same place.");
-            var u = d / len; var n = new Vector2(-u.Y, u.X); float hw = width / 2f;
-            JsonArray Quad(Vector2 p0, float z0, Vector2 p1, float z1)   // p0 → p1 along the bridge; z0 / z1 are the heights above the ground at each end
+            if ((b - a).Length() < 1f) throw new ArgumentException($"[Terrain] {where}: a bridge's two points are the same place.");
+            // ⭐ CE-4692 BL-4 — the ONE deck geometry (DeckGeometry), shared with the laid bridge's bake; this only writes its parts as features
+            JsonArray Ring(DeckGeometry.Part q)
             {
-                var corners = new[] { (p0 - n * hw, z0), (p1 - n * hw, z1), (p1 + n * hw, z1), (p0 + n * hw, z0) };
                 var ring = new JsonArray();
-                foreach (var (p, z) in corners) ring.Add(new JsonArray(Round(p.X), Round(p.Y), Round(z)));
-                ring.Add(new JsonArray(Round(corners[0].Item1.X), Round(corners[0].Item1.Y), Round(corners[0].Item2)));
+                for (int i = 0; i < 4; i++) ring.Add(new JsonArray(Round(q[i].At.X), Round(q[i].At.Y), Round(q[i].Above)));
+                ring.Add(new JsonArray(Round(q[0].At.X), Round(q[0].At.Y), Round(q[0].Above)));
                 return ring;
             }
             JsonObject Part(string kind, string label, JsonArray ring)
                 => Feature(new JsonObject { ["kind"] = kind, ["zRef"] = "ground", ["structure"] = key, ["label"] = label },
                            new JsonObject { ["type"] = "Polygon", ["coordinates"] = new JsonArray(ring) });
-            var deck = Part("slab", key + "/0", Quad(a, BridgeDeckHeight, b, BridgeDeckHeight));
-            var rampA = Part("ramp", key + "/1", Quad(a - u * BridgeRampLength, 0f, a, BridgeDeckHeight));
-            var rampB = Part("ramp", key + "/2", Quad(b, BridgeDeckHeight, b + u * BridgeRampLength, 0f));
-            return new[] { deck, rampA, rampB };
+            var q = DeckGeometry.Build(a, b, width, BridgeDeckHeight, BridgeRampLength);
+            return new[] { Part("slab", key + "/0", Ring(q[0])), Part("ramp", key + "/1", Ring(q[1])), Part("ramp", key + "/2", Ring(q[2])) };
         }
 
         // ── row and group of lone trees (CE-5007) ─────────────────────────────────────────────────────────────────

@@ -46,6 +46,19 @@ public static class DeployFlowApi
         return (Get(f), null, 200);
     }
 
+    /// <summary>⭐ CE-11027 S12-4 — a <c>?station=</c> value: the whole station id (<c>458759</c>) or <c>node/seat</c> (<c>7/2</c>).</summary>
+    public static bool TryParseStation(string text, out int station)
+    {
+        station = 0;
+        int slash = text.IndexOf('/');
+        var ci = System.Globalization.CultureInfo.InvariantCulture;
+        if (slash < 0) return int.TryParse(text, System.Globalization.NumberStyles.Integer, ci, out station);
+        if (!int.TryParse(text.AsSpan(0, slash), System.Globalization.NumberStyles.Integer, ci, out int node) || node is < 0 or > 0xFFFF) return false;
+        if (!int.TryParse(text.AsSpan(slash + 1), System.Globalization.NumberStyles.Integer, ci, out int index) || index is < 0 or > StationId.MaxIndex) return false;
+        station = StationId.Of((NodeId)node, index).Value;
+        return true;
+    }
+
     private static bool TrySide(JsonNode? n, out ForceId side)
     {
         side = ForceId.Neutral;

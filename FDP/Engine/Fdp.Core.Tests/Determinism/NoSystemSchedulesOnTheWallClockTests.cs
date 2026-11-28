@@ -35,6 +35,8 @@ namespace Fdp.Tests.Determinism
             ["Stride/Hrot.Stride.Core/PhysicsBodyLifecycleSystem.cs"] = "throttles its own log lines; decides nothing",
             ["Hrot/Engine/Hrot.Core/Services/StaticObstacleBake.cs"] =
                 "R-244 (approved): the obstacle rebuild's quiet-period debounce only schedules background work; WHEN an obstacle enters the simulation is the lifecycle gate's",
+            ["Hrot/Subsystems/Hrot.CGF/Commander/CommanderActionSystem.cs"] =
+                "DESIGN_LLM_Commander §5a-2 (think-pause): an outside mind thinks in WALL time — the hold pauses the sim clock while it does and gives up after MaxHold wall seconds; it never advances sim time or writes world state",
             ["Hrot/Engine/Hrot.Traffic/TrafficModules.cs"] =
                 "R-3048 (approved): SilenceClock (CE-4021) times a traffic node's SILENCE to drop a dead node's cars — accrues only while cluster time advances, decides nothing while the node publishes",
         };

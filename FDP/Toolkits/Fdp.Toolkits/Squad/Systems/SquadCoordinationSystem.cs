@@ -224,6 +224,7 @@ namespace Fdp.Toolkit.Squad.Systems
                 //   WeaponSystems.Controlled (who controls a weapon: seats, stations — the weapon dispatcher's own stable set, M-7); nothing in
                 //   this phase writes them
                 .Unmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>()
+                .Unmanaged<Fdp.Toolkit.Combat.Mountable>()   // ⭐ C1 — the item facts, split out of WeaponSystemParams
                 .Unmanaged<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>()
                 .Unmanaged<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()
                 .Unmanaged<Fdp.Toolkit.Behavior.Components.CarrierStations>();

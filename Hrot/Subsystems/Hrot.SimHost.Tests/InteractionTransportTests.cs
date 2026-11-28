@@ -181,18 +181,17 @@ namespace Hrot.SimHost.Tests
             var egress = new InteractionEgressTranslator(writer, map);
 
             station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
-                { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
+                { Unit = unit, StationNodeId = (Fdp.Core.StationId)(300), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
             station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent
             {
-                Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300), Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
+                Unit = unit, StationNodeId = (Fdp.Core.StationId)(300), Seq = 7, Forward = 1f, Lateral = -0.5f, Steer = 0.25f, Yaw = 1.5f, Gait = 1,
                 Trigger = 1, Mount = 2, AimPoint = new System.Numerics.Vector3(10f, 20f, 3f),
                 Stance = 2, ShotSeq = 5, CancelSeq = 3, AmmoSeq = 9, ShotTarget = 4242,   // ⭐ CE-1074 / CE-1078 / CE-1079
                 UseSeq = 6, UseVerb = 1, UseTarget = 777,   // ⭐ CE-1151
                 Lean = 2,                                    // ⭐ CE-1212
-                Binoculars = 1,                              // ⭐ CE-1219
                 LookFrom = new System.Numerics.Vector3(1f, 2f, 3f), LookDir = new System.Numerics.Vector3(0f, 0.6f, 0.8f), FirePref = 2,   // ⭐ CE-4143
             });
-            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = (Fdp.Core.NodeId)(300) });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = (Fdp.Core.StationId)(300) });
             station.Bus.SwapBuffers();
             egress.ScanAndPublish(station);
 
@@ -227,12 +226,72 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(((byte)2, (byte)5, (byte)3, (byte)9, 4242L), (frame.Stance, frame.ShotSeq, frame.CancelSeq, frame.AmmoSeq, frame.ShotTarget));
             Assert.Equal(((byte)6, (byte)1, 777L), (frame.UseSeq, frame.UseVerb, frame.UseTarget));   // ⭐ CE-1151 — the use press arrives unchanged
             Assert.Equal((byte)2, frame.Lean);                                                           // ⭐ CE-1212 — and the lean held
-            Assert.Equal((byte)1, frame.Binoculars);                                                     // ⭐ CE-1219 — and the binoculars
             Assert.Equal((new System.Numerics.Vector3(1f, 2f, 3f), new System.Numerics.Vector3(0f, 0.6f, 0.8f), (byte)2), (frame.LookFrom, frame.LookDir, frame.FirePref));   // ⭐ CE-4143 — the look ray and L preference cross
             Assert.True(frame.IsRemote);
             var release = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>().ToArray());
             Assert.Equal(300L, release.StationNodeId);
             Assert.True(release.IsRemote);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11027</c> S12-1 (the seat survives the wire) — a station that is a plain int carrying seat index 2 (<c>node | 2 &lt;&lt; 16</c>) crosses the interaction transport (possess, control frame, release) AND the
+        /// <c>PossessedBy</c> ingress translator, and arrives with index 2 and the same node. ⛔ A <c>(NodeId)</c> hop at any of those sites would make it seat 0 (or throw): <c>NodeId → StationId</c> is explicit now, so the
+        /// compiler names each site — this rail pins the behaviour. 🔴 Mutation: a <c>(Fdp.Core.NodeId)</c> hop at <c>InteractionTransport</c>'s possess decode ⇒ the possess case arrives as seat 0 / throws.
+        /// </summary>
+        [Fact]
+        public void CE11027_ASeatIndexInAPlainIntStation_SurvivesTheInteractionTransport_AndThePossessedByIngress()
+        {
+            var seat = Fdp.Core.StationId.Of((NodeId)3, 2);
+            int onTheWire = seat;   // what a topic / payload carries: a plain int
+            Assert.Equal(2, ((Fdp.Core.StationId)onTheWire).Index);
+
+            using var station = new EntityRepository();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+            station.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+            var map = new NetworkEntityMap();
+            var unit = station.CreateEntity();
+            map.Register(900, unit);
+            var writer = new CapturingWriter<EntityInteractionRequest>();
+            var egress = new InteractionEgressTranslator(writer, map);
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent { Unit = unit, StationNodeId = seat, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent { Unit = unit, StationNodeId = seat, Seq = 1, Forward = 1f });
+            station.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent { Unit = unit, StationNodeId = seat });
+            station.Bus.SwapBuffers();
+            egress.ScanAndPublish(station);
+            Assert.Equal(3, writer.Written.Count);
+
+            using var brain = new EntityRepository();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>();
+            brain.RegisterEvent<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>();
+            var brainMap = new NetworkEntityMap();
+            brainMap.Register(900, brain.CreateEntity());
+            var ingress = new InteractionIngressTranslator(participant: null, brainMap);
+            using var cmd = new EntityCommandBuffer();
+            foreach (var sample in writer.Written) ingress.ProcessSample(in sample, cmd);
+            cmd.Playback(brain);
+            brain.Bus.SwapBuffers();
+            var possess = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>().ToArray());
+            var frame = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.OperatorControlFrameEvent>().ToArray());
+            var release = Assert.Single(brain.Bus.Read<Fdp.Toolkit.Behavior.Possession.ReleasePossessionEvent>().ToArray());
+            foreach (var got in new[] { possess.StationNodeId, frame.StationNodeId, release.StationNodeId })
+            {
+                Assert.Equal(seat, got);
+                Assert.Equal(2, got.Index);
+                Assert.Equal((NodeId)3, got.Node);
+            }
+
+            // the PossessedBy descriptor: the brain's held seat reaches the station's node with its index
+            var sampleHeld = new Hrot.NED.Descriptors.EntityPossessedBy { EntityId = 900, Held = 1, StationNodeId = onTheWire, Mode = (byte)Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 };
+            using var replica = new EntityRepository();
+            replica.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
+            var replicaMap = new NetworkEntityMap();
+            var replicaUnit = replica.CreateEntity();
+            replicaMap.Register(900, replicaUnit);
+            new Hrot.Map.Common.Replication.Ingress.EntityPossessedByIngressTranslator(participant: null, replicaMap).Apply(in sampleHeld, cmd, replica);
+            cmd.Playback(replica);
+            Assert.Equal(2, replica.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(replicaUnit).StationNodeId.Index);
         }
 
         /// <summary>

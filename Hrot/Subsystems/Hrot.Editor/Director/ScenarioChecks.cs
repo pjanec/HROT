@@ -70,13 +70,23 @@ namespace Hrot.Editor.Director
         public bool Squad { get; init; }
         /// <summary>⭐ <c>CE-2476</c> <c>perceives</c>: false skips a contact heard only through an opening (D-8 — "look there", not "he is there").</summary>
         public bool Through { get; init; } = true;
+        /// <summary>⭐⭐ Simulated devices S1e-2 (DESIGN_Simulated_Devices §5a) — <c>field</c> with <c>memory</c>: the unit's <c>[UnitMemory]</c> struct of this
+        /// NAME (<c>RangefinderState</c>) is read instead of its dumped components, <see cref="Path"/> naming its field (<c>"field": "LastRange"</c>); an entity
+        /// field reads as the name of the unit it holds.</summary>
+        public string? Memory { get; init; }
+        /// <summary>⭐ S1e-2 <c>hud</c>: the source (a device, or a unit) whose HUD RUN a view bound to it draws.</summary>
+        public string? Source { get; init; }
+        /// <summary>⭐ S1e-2 <c>hud</c>: <c>"text": [op, value]</c> — some text of the run compares (<c>contains</c> …).</summary>
+        public (string Op, JsonNode? Value)? Text { get; init; }
+        /// <summary>⭐ S1e-2 <c>hud</c>: <c>"count": [op, n]</c> — the run's primitive count compares (<c>[">", 0]</c>: the view shows the source's HUD).</summary>
+        public (string Op, JsonNode? Value)? Count { get; init; }
 
         public string On => Spec.On;
 
         /// <summary>The cues a check may use: the take's nine, <c>field</c> and ⭐ <c>knowledge</c> (CE-4624 — what a side knows of a minefield:
         /// <c>"is": "Marked"</c>, or a cell state — <c>Suspected</c> / <c>KnownClear</c> / <c>KnownMined</c> / <c>Unknown</c> — counted and compared by
         /// <c>op</c> / <c>value</c>, default <c>&gt;= 1</c>).</summary>
-        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives" }).ToArray();
+        public static readonly IReadOnlyList<string> Kinds = AnchorSpec.Kinds.Concat(new[] { "field", "knowledge", "far", "close", "between", "window", "cover", "bunched", "still", "exposed", "perceives", "report", "hud" }).ToArray();
         /// <summary>⭐ <c>CE-4672</c> <c>cover</c>: <c>in</c> — a cover point (the terrain's cover database) within <see cref="M"/> of the unit; <c>open</c> — none.</summary>
         public static readonly IReadOnlyList<string> CoverStates = new[] { "in", "open" };
 
@@ -90,7 +100,11 @@ namespace Hrot.Editor.Director
 
         public IEnumerable<string> Names() => Spec.Names().Concat(Hit != null ? new[] { Hit } : Array.Empty<string>())
             .Concat(From != null ? new[] { From } : Array.Empty<string>())
-            .Concat(To != null ? new[] { To } : Array.Empty<string>());
+            .Concat(To != null ? new[] { To } : Array.Empty<string>())
+            .Concat(Source != null && Source != StationView ? new[] { Source } : Array.Empty<string>());
+
+        /// <summary>⭐ S1e-2 — a <c>hud</c> cue's source naming the station's VIEW (whatever it is bound to now), not a unit.</summary>
+        public const string StationView = "station:1";
     }
 
     /// <summary>⭐ One expectation: the cue holds once in [<see cref="After"/>, <see cref="Before"/>], NEVER in it, or at the end.</summary>
@@ -106,6 +120,42 @@ namespace Hrot.Editor.Director
         /// for a line about an EVENT the run need not produce (📌 Bridgehead: "a civilian harmed fails the tree", once the fire-discipline fix
         /// CE-2379 stopped the accidental harm the row relied on).</summary>
         public string? If { get; init; }
+        /// <summary>⭐ <c>CE-4693</c> — the mirror of <see cref="If"/>: judged only when this anchor / action / expectation did NOT happen; else <c>skipped</c>.
+        /// For a scenario with two legitimate outcomes (📌 <c>bl-river-crossing</c>: the sapper silenced ⇒ the bridge held and is recovered; his charge
+        /// fired ⇒ the fall), each outcome's rows keyed on the same event.</summary>
+        public string? Unless { get; init; }
+        /// <summary>⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — judged ONLY at the n-th paused frame of a <c>do: pause</c> (1 = the first): the sim time stands
+        /// still there, the run's frames go on — so "the menu changed while time did not" is a row.</summary>
+        public int? AtPausedFrame { get; init; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ Simulated devices S1e-2 (docs/designs/devices/DESIGN_Simulated_Devices.md §5a) — what a scripted TRAINEE does at a station: <c>possess</c> a
+    /// unit (as the HTTP possess does), <c>control</c> the device the view shows (press buttons by their TKB NAME, set axes, aim the look at a unit or a
+    /// point — through the SAME sender a keyboard or a replica fills), bind the <c>view</c> to a device (or the plain eye), or <c>pause</c>: hold the sim
+    /// time for n frames while the run keeps stepping frames (the verifier samples every paused frame).
+    /// </summary>
+    public sealed record StationAction
+    {
+        /// <summary>possess · control · view · pause · ⭐ SD-S5v click</summary>
+        public string Kind { get; init; } = "";
+        /// <summary>The station (1 = this node's own — the only one in the editor tier).</summary>
+        public int Station { get; init; } = 1;
+        /// <summary><c>possess</c>: the unit; <c>view</c>: the device (null = the plain eye).</summary>
+        public string? Who { get; init; }
+        /// <summary><c>control</c>: elements pressed once each, by the device type's element NAME (<c>DeviceDefDto.Elements</c>, D-142 — a switch steps).</summary>
+        public IReadOnlyList<string> Press { get; init; } = Array.Empty<string>();
+        /// <summary><c>control</c>: axis index (0–3) ⇒ value (−1…1), held for <see cref="For"/> s (0 = until changed).</summary>
+        public IReadOnlyList<(int Axis, float Value)> Axes { get; init; } = Array.Empty<(int, float)>();
+        /// <summary><c>control</c>: the look aims at this unit (its centre) …</summary>
+        public string? AimAt { get; init; }
+        /// <summary>… or at this world point.</summary>
+        public System.Numerics.Vector3? AimPoint { get; init; }
+        public double For { get; init; }
+        /// <summary><c>pause</c>: how many frames the sim time is held.</summary>
+        public int Frames { get; init; }
+        /// <summary>⭐ SD-S5v <c>click</c>: the HUD button to click, by the element's NAME (its chip's PanelButton on the bound view's HUD).</summary>
+        public string? Button { get; init; }
     }
 
     /// <summary>⭐ A change the check makes to the world at <see cref="At"/> (the old live checks' hand edits — wound a man, set an attribute).</summary>
@@ -116,6 +166,18 @@ namespace Hrot.Editor.Director
         public string Who { get; init; } = "";
         public string Component { get; init; } = "";
         public JsonObject Patch { get; init; } = new();
+        /// <summary>⭐ CE-3494 F3 — an OPERATOR ORDER instead of a component patch: a <c>POST /orders</c> item (<c>kind</c>, <c>behavior</c>, <c>params</c> …)
+        /// given to every unit <see cref="Who"/> names, through the same service the route uses. The verifier applies actions between steps, so the
+        /// order is given while the world is paused — it takes effect at the next step (DESIGN_Unit_Intent.md R1).</summary>
+        public JsonObject? Order { get; init; }
+        /// <summary>⭐ CE-3494 F3 — resume the unit's held (or halted) mission plan — the <c>POST /missions/{id}/resume</c> service.</summary>
+        public bool Resume { get; init; }
+        /// <summary>⭐ CE-11061 — REVIVE the unit (the Unit form's Revive, <c>POST /entities/{id}/revive</c>): back in the fight, through the edit framework.</summary>
+        public bool Revive { get; init; }
+        /// <summary>⭐ S1e-2 — a trainee's action at a station (possess · control · view · pause) instead of a world edit.</summary>
+        public StationAction? Station { get; init; }
+        /// <summary>⭐ S1e-2 — applied on the n-th paused frame of a <c>do: pause</c> instead of at <see cref="At"/> (the sim time stands still there).</summary>
+        public int? AtPausedFrame { get; init; }
     }
 
     /// <summary>⭐ <c>CE-4042</c> — <c>scenarios/&lt;s&gt;/checks.json</c>: what a scenario must do, as data (§3).</summary>
@@ -138,12 +200,13 @@ namespace Hrot.Editor.Director
 
         /// <summary>Every unit a cue or an action names (to validate against the scenario's cast).</summary>
         /// <summary>⭐ RT-3 — the component paths the expectations read (a golden keeps them as visible state).</summary>
-        public IEnumerable<string> Paths() => Expect.Select(e => e.Cue.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.Ordinal);
+        public IEnumerable<string> Paths() => Expect.Where(e => e.Cue.Memory == null).Select(e => e.Cue.Path).Where(p => !string.IsNullOrEmpty(p)).Select(p => p!).Distinct(StringComparer.Ordinal);
 
         public IEnumerable<string> Names() =>
             Anchors.Values.SelectMany(a => a.Names())
                 .Concat(Expect.SelectMany(e => e.Cue.Names()))
-                .Concat(Do.Select(a => a.Who))
+                .Concat(Do.Where(a => a.Station == null).Select(a => a.Who))
+                .Concat(Do.Where(a => a.Station != null).SelectMany(a => new[] { a.Station!.Who, a.Station.AimAt }).Where(n => n != null).Select(n => n!))   // ⭐ S1e-2
                 .Distinct(StringComparer.Ordinal);
     }
 
@@ -186,11 +249,54 @@ namespace Hrot.Editor.Director
                     var where = $"do[{i}]";
                     if (da[i] is not JsonObject a) { problems.Add($"{where} is not an object"); continue; }
                     foreach (var (k, _) in a)
-                        if (k is not ("name" or "at" or "set")) problems.Add($"{where}: unknown key '{k}'");
+                        if (k is not ("name" or "at" or "atPausedFrame" or "set" or "order" or "resume" or "revive" or "possess" or "control" or "view" or "pause" or "click")) problems.Add($"{where}: unknown key '{k}'");
+                    int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1) + (a["revive"] is null ? 0 : 1)
+                              + (a["possess"] is null ? 0 : 1) + (a["control"] is null ? 0 : 1) + (a["view"] is null ? 0 : 1) + (a["pause"] is null ? 0 : 1)
+                              + (a["click"] is null ? 0 : 1);
+                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume, revive, possess, control, view, pause, click"); continue; }
+                    // ⭐ S1e-2 — on the n-th paused frame of a pause, instead of at a time (a pause itself starts at a time)
+                    int? atPaused = null;
+                    if (a["atPausedFrame"] is { } apf)
+                    {
+                        if (apf is JsonValue pv && pv.TryGetValue<int>(out int pn) && pn >= 1) atPaused = pn;
+                        else { problems.Add($"{where}: atPausedFrame is a whole frame number >= 1"); continue; }
+                        if (a["pause"] is not null) { problems.Add($"{where}: a pause starts at a time, not at a paused frame"); continue; }
+                        if (a["at"] is not null) { problems.Add($"{where}: at and atPausedFrame together"); continue; }
+                    }
+                    var at = atPaused is null ? Time(a["at"], where + " at", problems) : new AtExpr(0d);
+                    if (at is null) { problems.Add($"{where}: at is required"); continue; }
+                    if (a["possess"] is not null || a["control"] is not null || a["view"] is not null || a["pause"] is not null || a["click"] is not null)
+                    {
+                        if (StationActionOf(a, where, problems) is { } station)
+                            actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, AtPausedFrame = atPaused, Who = station.Who ?? "", Station = station });
+                        continue;
+                    }
+                    if (atPaused != null) { problems.Add($"{where}: atPausedFrame belongs to a station action (possess, control, view)"); continue; }
+                    if (a["order"] is not null)
+                    {
+                        if (a["order"] is not JsonObject ord || ord["who"] is null || ord["kind"] is null)
+                        { problems.Add($"{where}: order is {{who, kind, …}} — a POST /orders item"); continue; }
+                        var item = (JsonObject)ord.DeepClone();
+                        item.Remove("who");
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = ord["who"]!.ToString(), Order = item });
+                        continue;
+                    }
+                    if (a["resume"] is not null)
+                    {
+                        if (a["resume"] is not JsonValue rv || !rv.TryGetValue<string>(out var rwho) || rwho.Length == 0)
+                        { problems.Add($"{where}: resume is the unit's name"); continue; }
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = rwho, Resume = true });
+                        continue;
+                    }
+                    if (a["revive"] is not null)   // ⭐ CE-11061 — "revive": "<unit name>"
+                    {
+                        if (a["revive"] is not JsonValue vv || !vv.TryGetValue<string>(out var vwho) || vwho.Length == 0)
+                        { problems.Add($"{where}: revive is the unit's name"); continue; }
+                        actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, Who = vwho, Revive = true });
+                        continue;
+                    }
                     if (a["set"] is not JsonObject set || set["who"] is null || set["component"] is null || set["patch"] is not JsonObject patch)
                     { problems.Add($"{where}: set is {{who, component, patch}}"); continue; }
-                    var at = Time(a["at"], where + " at", problems);
-                    if (at is null) { problems.Add($"{where}: at is required"); continue; }
                     actions.Add(new CheckAction
                     {
                         Name = a["name"]?.ToString(), At = at.Value, Who = set["who"]!.ToString(), Component = set["component"]!.ToString(),
@@ -212,17 +318,27 @@ namespace Hrot.Editor.Director
                     bool atEnd = e["atEnd"] is JsonValue ev && ev.TryGetValue<bool>(out var ae) && ae;
                     CheckCue cue = never
                         ? ParseCue((JsonObject)e["never"]!, where + " never", problems, Array.Empty<string>())
-                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if" });
+                        : ParseCue(e, where, problems, new[] { "name", "after", "before", "atEnd", "never", "if", "unless", "atPausedFrame" });
                     if (never)
                         foreach (var (k, _) in e)
-                            if (k is not ("name" or "never" or "after" or "before" or "if")) problems.Add($"{where}: unknown key '{k}' beside never");
+                            if (k is not ("name" or "never" or "after" or "before" or "if" or "unless")) problems.Add($"{where}: unknown key '{k}' beside never");
+                    int? atPausedFrame = null;   // ⭐ S1e-2
+                    if (e["atPausedFrame"] is { } epf)
+                    {
+                        if (epf is JsonValue epv && epv.TryGetValue<int>(out int epn) && epn >= 1) atPausedFrame = epn;
+                        else problems.Add($"{where}: atPausedFrame is a whole frame number >= 1");
+                        if (atEnd) problems.Add($"{where}: atPausedFrame and atEnd together");
+                    }
                     if (never && atEnd) problems.Add($"{where}: never and atEnd together");
                     expect.Add(new Expectation
                     {
                         Name = name!, Cue = cue, Never = never, AtEnd = atEnd,
                         After = Time(e["after"], where + " after", problems), Before = Time(e["before"], where + " before", problems),
                         If = e["if"]?.ToString(),
+                        Unless = e["unless"]?.ToString(),
+                        AtPausedFrame = atPausedFrame,
                     });
+                    if (e["if"] != null && e["unless"] != null) problems.Add($"{where}: if and unless together");
                 }
 
             if (expect.Count == 0) problems.Add("expect is empty — a check with nothing to judge");
@@ -237,6 +353,8 @@ namespace Hrot.Editor.Director
                 if (t is { Anchor: { } n } && !known.Contains(n)) problems.Add($"a time names '{n}', which is no anchor, action or expectation");
             foreach (var e in expect.Where(x => x.If != null && !known.Contains(x.If)))
                 problems.Add($"expect '{e.Name}': if names '{e.If}', which is no anchor, action or expectation");
+            foreach (var e in expect.Where(x => x.Unless != null && !known.Contains(x.Unless)))
+                problems.Add($"expect '{e.Name}': unless names '{e.Unless}', which is no anchor, action or expectation");
 
             var later = new List<string>();
             if (json["later"] is { } ln)
@@ -260,6 +378,77 @@ namespace Hrot.Editor.Director
             catch (FormatException ex) { problems.Add($"{where}: {ex.Message}"); return null; }
         }
 
+        /// <summary>⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — <c>possess</c> · <c>control</c> · <c>view</c> · <c>pause</c>; null (with the problems named) when malformed.</summary>
+        private static StationAction? StationActionOf(JsonObject a, string where, List<string> problems)
+        {
+            static int StationOf(JsonObject o, string where, List<string> problems)
+            {
+                if (o["station"] is null) return 1;
+                if (o["station"] is JsonValue sv && sv.TryGetValue<int>(out int n) && n == 1) return 1;
+                problems.Add($"{where}: station is 1 — this node's own station (the editor tier has one; a second station is the cluster tier's, SD-C)");
+                return 1;
+            }
+            if (a["pause"] is { } pn)
+            {
+                if (pn is not JsonObject po || po["frames"] is not JsonValue fv || !fv.TryGetValue<int>(out int frames) || frames < 1)
+                { problems.Add($"{where}: pause is {{\"frames\": n}} (n >= 1)"); return null; }
+                foreach (var (k, _) in po) if (k != "frames") problems.Add($"{where}: pause: unknown key '{k}'");
+                return new StationAction { Kind = "pause", Frames = frames };
+            }
+            if (a["possess"] is { } psn)
+            {
+                if (psn is not JsonObject po || po["who"]?.ToString() is not { Length: > 0 } who) { problems.Add($"{where}: possess is {{who, station}}"); return null; }
+                foreach (var (k, _) in po) if (k is not ("who" or "station")) problems.Add($"{where}: possess: unknown key '{k}'");
+                return new StationAction { Kind = "possess", Station = StationOf(po, where, problems), Who = who };
+            }
+            if (a["click"] is { } cn)
+            {
+                // ⭐ SD-S5v (DESIGN_Simulated_Devices §3.13e) — click the bound device's HUD button by its element NAME, through the station's panel (the HUD is the path)
+                if (cn is not JsonObject clo || clo["button"]?.ToString() is not { Length: > 0 } button) { problems.Add($"{where}: click is {{station, button}} (a HUD button's element name)"); return null; }
+                foreach (var (k, _) in clo) if (k is not ("button" or "station")) problems.Add($"{where}: click: unknown key '{k}'");
+                return new StationAction { Kind = "click", Station = StationOf(clo, where, problems), Button = button };
+            }
+            if (a["view"] is { } vn)
+            {
+                if (vn is not JsonObject vo || vo["source"]?.ToString() is not { Length: > 0 } source) { problems.Add($"{where}: view is {{station, source}} (a device's name, or \"none\")"); return null; }
+                foreach (var (k, _) in vo) if (k is not ("source" or "station")) problems.Add($"{where}: view: unknown key '{k}'");
+                return new StationAction { Kind = "view", Station = StationOf(vo, where, problems), Who = source == "none" ? null : source };
+            }
+            if (a["control"] is not JsonObject co) { problems.Add($"{where}: control is {{station, press | axis | aim, for}}"); return null; }
+            foreach (var (k, _) in co) if (k is not ("station" or "press" or "axis" or "aim" or "for")) problems.Add($"{where}: control: unknown key '{k}'");
+            var press = new List<string>();
+            switch (co["press"])
+            {
+                case null: break;
+                case JsonValue one when one.TryGetValue<string>(out var b) && b.Length > 0: press.Add(b); break;
+                case JsonArray many when many.All(x => x is JsonValue v && v.TryGetValue<string>(out var t) && t.Length > 0): press.AddRange(many.Select(x => x!.GetValue<string>())); break;
+                default: problems.Add($"{where}: control.press is a button name (the device type's channel) or a list of them"); break;
+            }
+            var axes = new List<(int, float)>();
+            if (co["axis"] is { } an)
+            {
+                if (an is not JsonObject ao) problems.Add($"{where}: control.axis is {{\"0\": v, …}} (axis 0–3, v in -1…1)");
+                else
+                    foreach (var (k, v) in ao)
+                        if (int.TryParse(k, NumberStyles.None, CultureInfo.InvariantCulture, out int ax) && ax is >= 0 and < 4
+                            && v is JsonValue av && av.TryGetValue<double>(out double val) && val is >= -1d and <= 1d) axes.Add((ax, (float)val));
+                        else problems.Add($"{where}: control.axis '{k}': an axis is 0–3 and its value -1…1");
+            }
+            string? aimAt = null; System.Numerics.Vector3? aimPoint = null;
+            switch (co["aim"])
+            {
+                case null: break;
+                case JsonValue av when av.TryGetValue<string>(out var unit) && unit.Length > 0: aimAt = unit; break;
+                case JsonArray p when p.Count is 2 or 3 && p.All(x => x is JsonValue xv && xv.TryGetValue<double>(out _)):
+                    aimPoint = new System.Numerics.Vector3((float)p[0]!.GetValue<double>(), (float)p[1]!.GetValue<double>(), p.Count > 2 ? (float)p[2]!.GetValue<double>() : 0f); break;
+                default: problems.Add($"{where}: control.aim is a unit's name or a point [x, y, z]"); break;
+            }
+            double forS = co["for"] is JsonValue fv2 && fv2.TryGetValue<double>(out double fs) ? fs : 0d;
+            if (co["for"] is not null && !(forS > 0d)) problems.Add($"{where}: control.for is seconds (> 0)");
+            if (press.Count == 0 && axes.Count == 0 && aimAt == null && aimPoint == null) problems.Add($"{where}: control needs press, axis or aim");
+            return new StationAction { Kind = "control", Station = StationOf(co, where, problems), Press = press, Axes = axes, AimAt = aimAt, AimPoint = aimPoint, For = forS };
+        }
+
         private static CheckCue ParseCue(JsonObject o, string where, List<string> problems, IReadOnlyCollection<string> extra)
         {
             var on = o["on"]?.ToString() ?? "";
@@ -269,6 +458,7 @@ namespace Hrot.Editor.Director
             string? hit = null, path = null, op = "==", quantifier = "any", side = null, from = null, to = null, building = null;
             bool dead = false, upright = false, fighting = false; int men = 2;
             string? truth = null, metric = null; bool squad = false, through = true;   // ⭐ CE-2476
+            string? memory = null, source = null; (string, JsonNode?)? text = null, count = null;   // ⭐ S1e-2
             double forSeconds = 0d;
             var also = new List<(string, string, JsonNode?)>();
             int elements = 1;
@@ -285,6 +475,14 @@ namespace Hrot.Editor.Director
                     case "at": spec["target"] = v?.DeepClone(); break;          // a shot's target: "at" reads as the sentence says
                     case "hit": hit = v?.ToString(); break;
                     case "path": path = v?.ToString(); break;
+                    case "memory": memory = v?.ToString(); break;                 // ⭐ S1e-2 — a [UnitMemory] struct by name
+                    case "field": path = v?.ToString(); break;                    // ⭐ S1e-2 — its field (the memory row's wording)
+                    case "source": source = v?.ToString(); break;                 // ⭐ S1e-2 — hud
+                    case "text" or "count":                                       // ⭐ S1e-2 — hud: [op, value]
+                        if (v is JsonArray hp && hp.Count == 2 && hp[0] is JsonValue hop && CheckCue.Ops.Contains(hop.ToString()))
+                        { if (k == "text") text = (hop.ToString(), hp[1]?.DeepClone()); else count = (hop.ToString(), hp[1]?.DeepClone()); }
+                        else problems.Add($"{where}: {k} is [op, value] (op one of {string.Join(" ", CheckCue.Ops)})");
+                        break;
                     case "op": op = v?.ToString() ?? "=="; opGiven = true; break;
                     case "side": side = v?.ToString(); break;
                     case "from": from = v?.ToString(); break;
@@ -328,7 +526,14 @@ namespace Hrot.Editor.Director
             // a take anchor's parser checks the take keys; "field" is the verifier's own, so it is checked here
             var anchorProblems = new List<string>();
             var parsed = TakeJson.ParseAnchor(spec, where, anchorProblems);
-            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            problems.AddRange(anchorProblems.Where(p => on is not ("field" or "knowledge" or "far" or "close" or "between" or "window" or "cover" or "bunched" or "still" or "exposed" or "perceives" or "report" or "hud") || !p.Contains("is not one of", StringComparison.Ordinal)));
+            if (on == "hud")   // ⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — the published HUD run a view bound to the source draws
+            {
+                if (string.IsNullOrWhiteSpace(source)) problems.Add($"{where}: a hud cue needs source (the device or unit a view is bound to)");
+                if (text is null && count is null) problems.Add($"{where}: a hud cue needs text or count ([op, value])");
+            }
+            else if (source != null || text != null || count != null) problems.Add($"{where}: source, text and count belong to a hud cue");
+            if (memory != null && on != "field") problems.Add($"{where}: memory belongs to a field cue");
             if (on == "window")
             {
                 if (string.IsNullOrWhiteSpace(building)) problems.Add($"{where}: a window cue needs building (its terrain key or label)");
@@ -371,7 +576,13 @@ namespace Hrot.Editor.Director
             }
             else if (truth != null || metric != null || squad || !through) problems.Add($"{where}: truth, metric, squad and through belong to a perceives cue");
             if (forSeconds < 0d) problems.Add($"{where}: for is seconds (>= 0)");
-            if (forSeconds > 0d && on is "shot" or "blast" or "hit") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (forSeconds > 0d && on is "shot" or "blast" or "hit" or "report") problems.Add($"{where}: for belongs to a state cue (a {on} is an event)");
+            if (on == "report")   // ⭐ CE-4676 — a report the inbox saw: by (the sender), target (the addressee), is (its kind or kinds)
+            {
+                foreach (var k in parsed.Is is JsonArray ks ? ks.Select(x => x?.ToString()) : parsed.Is is JsonValue kv ? new[] { kv.ToString() } : Array.Empty<string?>())
+                    if (!Enum.TryParse<Fdp.Toolkit.Squad.Command.ReportKind>(k, ignoreCase: true, out var rk) || rk == Fdp.Toolkit.Squad.Command.ReportKind.NoReport)
+                        problems.Add($"{where}: a report cue's is is a report kind (Contact, Spot, Sitrep, Lace, Progress, Request), not '{k}'");
+            }
             if (fighting && on is not ("cover" or "still" or "field" or "bunched" or "exposed" or "close" or "far")) problems.Add($"{where}: fighting belongs to a cover, still, field, bunched, exposed, close or far cue");
             if (men != 2 && on != "bunched") problems.Add($"{where}: men belongs to a bunched cue");
             if (dead && on != "field") problems.Add($"{where}: dead belongs to a field cue");
@@ -421,7 +632,7 @@ namespace Hrot.Editor.Director
             if (where_.Count > 0 && on == "field" && !(path ?? "").Contains(".*.", StringComparison.Ordinal)) problems.Add($"{where}: where on a field cue filters the elements of a path with a * part");
             if (hit != null && on != "shot") problems.Add($"{where}: hit belongs to a shot cue");
             return new CheckCue { Spec = parsed, Where = where_, Hit = hit, Path = path, Op = op, Value = value, Quantifier = quantifier, Elements = elements, Side = side, From = from, To = to, Margin = margin, M = m, Building = building, Dead = dead, Upright = upright, Also = also, For = forSeconds, Fighting = fighting, Men = men,
-                                 Truth = truth, Metric = metric, Squad = squad, Through = through };
+                                 Truth = truth, Metric = metric, Squad = squad, Through = through, Memory = memory, Source = source, Text = text, Count = count };
         }
     }
 }

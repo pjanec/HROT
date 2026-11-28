@@ -988,12 +988,17 @@ classDiagram
 | P4 | ⭐ `pe-two-shooters` | two riflemen 8 m apart firing in turn | the squad `matched == 2` — ⛔ never one (over-merging is the opposite error to U2b's) |
 | P5 | `pe-shelled` | rounds landing among the listeners, no enemy near | every man and the squad `contacts == 0` (R-2071) |
 | P2 | `pe-house-shot` | a shooter in a room; listeners in the corridor, another room, outside a window | squad `matched == 1`, `duplicate == 0`; after CE-2475 `phantom == 0` |
-| P2b | `pe-wall-and-door` | a shooter behind ONE wall, a door off to the listener's side | his contact within m of the SHOOTER, not the door (CE-2475) |
+| P2b | `pe-wall-and-door` | a shooter just inside the north wall of a TIMBER HOUSE (`timber-house`, placed on basic-desert at (300,300)); two listeners 7 m north; the ways round (the open south door, the east / west windows) 4.5–5 m from him | both listeners `matched == 1` within `m` 2 (5 s); never a `phantom` beyond 2 m (no estimate at the door or a window); the squad never `duplicate` (CE-2475, CE-2492) |
 | P6 | `pe-steps-round-corner` | a man JOGGING (2.5 m/s) along House A's north wall, stopping short of its NE corner; two listeners just east of the house, 8–12 m round that corner — the house always between (📐 a walker's steps carry ~6 m at 1.2 m/s) | an ear hears him (`contacts ≥ 1`, any); `through: false` ⇒ `contacts == 0` always (no straight hearing, no sighting) |
 | P7 | `pe-seen-then-hidden` | a man crosses open ground 20 m in front of two listeners, then stops behind House A | both identify him while crossing (`matched == 1`, 2 s, before `hidden`); never `matched == 0` in the 20 s after `hidden`; `contacts == 0` at the end (130 s: the ~70 s fade, `ThreatScoreDecayPerSecond` 0.1 to `ForgetThreatScore` 0.5) |
 | P8 | P1, listeners on two nodes (cluster, nightly) | ⚠ the per-node token (§8.6d): 1 or 2 — needs the dump to carry heard contacts |
 
 ##### What the suite found first (`2026-11-22`)
+
+| ⭐ **`CE-2492` — found by P2b (`2026-11-22`)** | |
+|---|---|
+| ⛔ first reading — WRONG, reverted (`1bb02ce0a`) | "a smeared hearing's circle does not cover its pull" ⇒ the pull added to the radius: P2b still failed at 8.25 s and `ia-house-hunt` broke (the attacker never hit). 📐 the route probe then showed EVERY shot heard straight (lead 10 dB — no smear at all) |
+| ⭐ the measured cause | the SHOOTER WALKS while firing (to his target): heard 1.6 m apart a second apart, two 0.7 m circles never meet ⇒ two slots. CE-2486's 3 m slack is for a man once SEEN; a man only HEARD had none. ⭐ `HearContact` fuses two STRAIGHT hearings within their circles + how far he could have walked since last heard (`WalkMetresPerSecond` 1.5 × the elapsed time, capped at 3 m); never a burst, never a point round an opening (CE-2489). Rail `SquadPerceptionMergeSystemTests.CE2492_*` |
 
 | ⚠ **suite setup, found writing P6 / P7 (`2026-11-22`)** | |
 |---|---|

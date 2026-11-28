@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Toolkit.Orchestration;
 using Hrot.Editor.Director;
 using Xunit;
@@ -85,5 +86,70 @@ public sealed class TheDirectorsStopIsTheOneIdleIntentTests
         Assert.False(discarded);                                           // ⛔ never the user's work
         Assert.False(host.LoadMayRetry);
         Assert.Contains("save or discard it in the editor", host.LoadRefusal);
+    }
+
+    /// <summary>The raw verbs a door calls (the editor's scenario session), recorded.</summary>
+    private sealed class RawSession : Hrot.UI.Common.RunMode.IRunScenarioControl
+    {
+        public readonly List<string> Calls = new();
+        public string? LoadedScenarioName => null;
+        public void LoadForLive(string scenarioName) => Calls.Add("LoadForLive");
+        public void OpenForEdit(string scenarioName) => Calls.Add("OpenForEdit");
+        public void OpenRecording(Guid exerciseId) => Calls.Add($"OpenRecording {exerciseId}");
+        public void OpenRecording(Guid exerciseId, double? atSimSeconds) => Calls.Add($"OpenRecording {exerciseId} at {atSimSeconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "-"}");
+        public void SaveCurrent() { }
+        public void TakeCheckpoint() { }
+    }
+
+    /// <summary>
+    /// ⭐ CE-11023 — the editor's director opens a recording through the start screen's DOOR: by its exercise id, or by its files (their
+    /// <c>.meta.json</c> names the exercise); the open is Opening until the cluster operates the replay of THAT exercise, then the recording is Shown;
+    /// a nameless open is refused with the reason; the cluster's error state fails it.
+    /// 🔴 Mutation: Opening ignoring which exercise is replayed ⇒ a replay of another recording reads as ready.
+    /// </summary>
+    [Fact]
+    public void CE11023_TheEditorsOpener_GoesThroughTheDoor_AndIsReadyOnlyWhenThatExerciseIsReplayed()
+    {
+        var raw = new RawSession();
+        var door = new Hrot.UI.Common.RunMode.ScenarioDoor(raw, () => Hrot.UI.Common.Facades.TransportMode.Idle);
+        var state = ClusterState.Idle;
+        Guid replayed = Guid.Empty;
+        Hrot.UI.Common.RunMode.RunGate? gate = null;
+        var host = new EditorDirectorHost(
+            world: () => null, load: _ => { }, operatingEdit: () => false, inPreview: () => false, enterPreview: _ => { }, exitPreview: () => { },
+            paused: () => true, pause: () => { }, stepBy: _ => { }, behaviourName: _ => null, takes: null!, slotRunInFlight: () => false,
+            writeCheckpoint: (_, _) => { }, restoreCheckpoint: _ => 0d, loadLive: _ => { }, master: new Master(), state: () => state,
+            recordingPath: () => null, openRecording: _ => throw new NotSupportedException(),
+            door: () => door, gate: () => gate, replayExercise: () => replayed);
+        Hrot.Presentation.DebugApi.IRecordingOpener opener = host;
+
+        var id = Guid.NewGuid();
+        Assert.Null(opener.Open(Hrot.Presentation.DebugApi.RecordingName.Exercise(id), 0d));
+        Assert.Equal(new[] { $"OpenRecording {id}" }, raw.Calls);
+        Assert.True(opener.Opening);                          // went, but the cluster has not operated it yet
+        state = ClusterState.OperatingReplay; replayed = Guid.NewGuid();
+        Assert.True(opener.Opening);                          // another recording is replayed
+        replayed = id;
+        Assert.False(opener.Opening);
+        Assert.Null(opener.OpenFailure);
+        Assert.True(Hrot.Presentation.DebugApi.RecordingName.Exercise(id).Same(opener.Shown));
+
+        // by its files: the .meta.json names the exercise
+        string dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "ce11023-" + Guid.NewGuid().ToString("N"));
+        System.IO.Directory.CreateDirectory(dir);
+        try
+        {
+            var other = Guid.NewGuid();
+            string file = System.IO.Path.Combine(dir, "node1.fdp");
+            System.IO.File.WriteAllText(file + ".meta.json", Fdp.Core.FlightRecorder.Metadata.MetadataSerializer.Serialize(
+                new Fdp.Core.FlightRecorder.Metadata.RecordingMetadata { ExerciseId = (Fdp.Core.ExerciseId)other }));
+            Assert.Null(opener.Open(Hrot.Presentation.DebugApi.RecordingName.Files(new[] { file }), 12.5));
+            Assert.Equal($"OpenRecording {other} at 12.5", raw.Calls[^1]);
+            gate = new Hrot.UI.Common.RunMode.RunGate(false, "lost", false, "", true, "Brain (CGF, node 3) lost", true);
+            Assert.Contains("the cluster is in error — Brain (CGF, node 3) lost", opener.OpenFailure);
+        }
+        finally { System.IO.Directory.Delete(dir, true); }
+
+        Assert.Contains("exercise id", opener.Open(Hrot.Presentation.DebugApi.RecordingName.Exercise(Guid.Empty), 0d));
     }
 }

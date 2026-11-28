@@ -66,6 +66,10 @@ namespace GizmoMap.Presentation
         /// <see cref="Render"/> (they are not world shapes) for the card pass the host draws in screen space after the camera mode.</summary>
         public List<DebugPrimitive> CardPrimitives { get; } = new();
 
+        /// <summary>⭐ Simulated devices S1d-2 (DESIGN_Simulated_Devices §3.6 R2-1) — the frame's <see cref="CoordinateSpace.ViewCanvas"/> primitives (a bound
+        /// view's HUD), set aside by <see cref="Render"/> for the screen pass the host draws after the camera mode (<see cref="ViewCanvasDrawer"/>).</summary>
+        public List<DebugPrimitive> ScreenPassPrimitives { get; } = new();
+
         /// <summary>
         /// Filters, resolves coordinate spaces using the two-pass SpatialAnchor cache,
         /// sorts by (DebugLayer, ZIndex) and dispatches each surviving primitive to
@@ -75,6 +79,7 @@ namespace GizmoMap.Presentation
         {
             if (zoom <= 0f) zoom = 1f;
             CardPrimitives.Clear();
+            ScreenPassPrimitives.Clear();
 
             // Enforce stateless default: fully visible unless overridden by the backend this frame.
             var activeLayers = new LayerMask256();
@@ -108,14 +113,14 @@ namespace GizmoMap.Presentation
             var sortBuffer = _sortBuffer;
             sortBuffer.Clear();
 
-            foreach (ref readonly var prim in primitives)
+            for (int pi = 0; pi < primitives.Length; pi++)
             {
-                // SpatialAnchor, meta-binding and control primitives are never dispatched directly.
-                if (prim.Shape == DebugPrimitiveShape.SpatialAnchor) continue;
-                if (prim.Shape == DebugPrimitiveShape.ContextMenuBinding) continue;
-                if (prim.Shape == DebugPrimitiveShape.InputCaptureBinding) continue;
-                if (prim.Shape == DebugPrimitiveShape.MainMenuBinding) continue;
-                if (prim.Shape == DebugPrimitiveShape.LayerControlMask) continue;
+                ref readonly var prim = ref primitives[pi];
+                // ⭐ Simulated devices S1d-1 (R3-4 / R5-4) — a HUD run is drawn only by a view bound to its source (the map's layer filters it before
+                //   this renderer, HudScopes.Keep); a renderer fed a raw frame (the standalone viewer) skips the WHOLE run here.
+                if (HudScopes.IsScope(in prim)) { pi = HudScopes.After(primitives, pi) - 1; continue; }
+                // SpatialAnchor, meta-binding and control primitives are never dispatched directly (⭐ CC-14 — the triage's own skip).
+                if (PrimitiveKind.IsMeta(prim.Shape)) continue;
 
                 // Filter: must target the 2-D map pipeline.
                 if ((prim.TargetView & PipelineTarget.Map2D) == 0) continue;
@@ -123,7 +128,7 @@ namespace GizmoMap.Presentation
                 // Filter: robust 256-bit layer mask evaluation.
                 // ⭐ CE-3149 — a PANEL (StructInspector) is not a map layer: it is exempt, or unchecking "Entities" (bit 0, the default
                 //    layer of everything that names none) would hide the layer dialog that could turn it back on.
-                if (prim.Shape != DebugPrimitiveShape.StructInspector && !activeLayers.IsSet(prim.DebugLayer)) continue;
+                if (!PrimitiveKind.IsPanel(prim.Shape) && !activeLayers.IsSet(prim.DebugLayer)) continue;
 
                 // Filter: LOD zoom culling.
                 if (prim.MinZoomLod != 0 && zoom < prim.MinZoomLod * 0.25f) continue;
@@ -132,6 +137,8 @@ namespace GizmoMap.Presentation
                 // ⭐ CE-1033 S5b (§3.6) — a card primitive is never a world shape: it is set aside for the card pass.
                 //   (A terminal that did not know the space must skip it — this one draws it, in screen space, later.)
                 if (prim.Space == CoordinateSpace.EntityCard) { CardPrimitives.Add(prim); continue; }
+                // ⭐ S1d-2 — a view-canvas primitive (a HUD) is never a world shape: the screen pass draws it after the camera mode.
+                if (prim.Space == CoordinateSpace.ViewCanvas) { ScreenPassPrimitives.Add(prim); continue; }
 
                 if (prim.Space == CoordinateSpace.EntityLocal)
                 {

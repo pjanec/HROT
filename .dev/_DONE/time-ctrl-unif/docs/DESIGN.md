@@ -321,6 +321,10 @@ The lookahead is configured via `TimeConfig.LookaheadWallTicks` (unchanged, defa
 
 ### 4.6 TimePulse Source — Orchestrator Only
 
+> ⛔ **SUPERSEDED (CE-11022, `2026-11-21`).** No node publishes or reads a `TimePulseDescriptor` any more, and there is no PLL: the slaves
+> extrapolate from the last `SwitchTimeModeEvent` anchor on the NTP-synced wall clock (`SlaveSyncController`, "No TimePulse or PLL is used").
+> The text below is the plan as written. The live model: [`docs/blueprints/DESIGN_Time_Architecture.md`](../../../../docs/blueprints/DESIGN_Time_Architecture.md) §21.
+
 The Orchestrator's `MasterSyncController` is the **sole publisher of `TimePulseDescriptor`**.
 IG, SimHost, and CGF all PLL-synchronise directly to the Orchestrator's pulses over DDS.
 

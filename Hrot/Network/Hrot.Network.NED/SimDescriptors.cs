@@ -119,6 +119,15 @@ namespace Hrot.NED.Descriptors
         public float Bottom;
         public float Top;
         public byte Kind;
+        /// <summary>⭐ CE-11051 — when it was made or last widened (sim seconds; 0 = from a save) and its blast point (terrain-local metres).</summary>
+        public double MadeAt;
+        public float BlastX;
+        public float BlastY;
+        public float BlastZ;
+        /// <summary>⭐ CE-11054 — what made it (<c>BreachCause</c>: 0 unknown, 1 detonation, 2 ram, 3 blade, 4 push), the explosive kg the breach rule used (0 = contact) and the acting vehicle's network id (0 = none).</summary>
+        public byte Cause;
+        public float ExplosiveKg;
+        public int Actor;
     }
 
     // ⭐ CE-4391 S-1 (docs/DESIGN_Terrain_Import_UTM.md §8.2 B-11) — a building's wall breaches, published by the node that decided them (it owns the entity;
@@ -144,6 +153,16 @@ namespace Hrot.NED.Descriptors
         public string Key;
 
         [DdsManaged] public List<DdsWallBreach> Breaches;
+
+        /// <summary>⭐ CE-11051 — when the building collapsed (sim seconds; 0 = not collapsed, or from a save).</summary>
+        public double CollapsedAt;
+
+        /// <summary>⭐ CE-11054 — what collapsed it (<c>BreachCause</c>), its blast point (terrain-local metres) and the explosive kg; meaningless while <see cref="Collapsed"/> is 0.</summary>
+        public byte CollapseCause;
+        public float CollapseBlastX;
+        public float CollapseBlastY;
+        public float CollapseBlastZ;
+        public float CollapseKg;
     }
 
     /// <summary>⭐ CE-5033 (glass windows GW-2) — one damaged window of <see cref="EntityWindowDamage"/>: its panel WITHIN the building (LOCAL, as a breach's), its opening on
@@ -158,6 +177,8 @@ namespace Hrot.NED.Descriptors
         public byte V0;
         public byte U1;
         public byte V1;
+        /// <summary>⭐ CE-11051 — the sim time (s) of its last hit (0 = from a save).</summary>
+        public double HitAt;
     }
 
     // ⭐ CE-5033 (docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, published by the node that decided them and applied on every
@@ -371,6 +392,28 @@ namespace Hrot.NED.Descriptors
         public float ToX;
         public float ToY;
         public float ToZ;
+    }
+
+    // ⭐ CE-4693 (BL-S3) — a bridge engineer's span (BridgeCarried), the Brain group's, applied on every other node (the mover reads the order): the MineClearing shape.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    public partial struct EntityBridgeCarried
+    {
+        [DdsKey]
+        public int EntityId;
+        public byte Count;
+        public byte Order;
+        public long BridgeType;
+        public float NearX;
+        public float NearY;
+        public float NearZ;
+        public float FarX;
+        public float FarY;
+        public float FarZ;
+        public int TargetNetId;
+        public byte Refusal;
+        public float GapM;
     }
 
     // ⭐ CE-4603 (B-6) — one cell's felled lone trunks (their centimetre keys), the felling node → every node. Reliable + TransientLocal + KeepLast(1).
@@ -1557,6 +1600,32 @@ namespace Hrot.NED.Descriptors
 
         /// <summary>The instance's args — a JSON object, <c>"{}"</c> = none.</summary>
         public string ArgsJson;
+    }
+
+    // ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md §1, §2) — one AMBIENCE LAYER: a kind (a dotted NAME, never a sample), an intensity, a radius, the sim time it ends.
+    //   Published by the node that owns the layer (its creator — no group) on change, and DISPOSED when the layer ends (the expiry system's network destroy); applied on every other node.
+    //   Positionless = heard everywhere; a positioned layer's position rides the ordinary entity transform. Reliable + TransientLocal + KeepLast(1) keyed by entity: a late joiner
+    //   hears what is sounding. SI on the wire: seconds of sim time, metres.
+    [DdsTopic]
+    [DdsIdlFile("hrot-sim-desc")]
+    [DdsQos(Reliability = DdsReliability.Reliable, Durability = DdsDurability.TransientLocal, HistoryKind = DdsHistoryKind.KeepLast, HistoryDepth = 1, AutodisposeUnregisteredInstances = false)]
+    [DdsManaged]
+    public partial struct EntityAmbience
+    {
+        [DdsKey]
+        public int EntityId;
+
+        /// <summary>The kind: a dotted name from the one list (<c>alarm.airraid</c>); a reader plays its nearest known ancestor.</summary>
+        public string Kind;
+
+        /// <summary>How strong, 0…1.</summary>
+        public float Intensity;
+
+        /// <summary>Metres within which a positioned layer is heard (ignored without a position).</summary>
+        public float Radius;
+
+        /// <summary>The sim time it ends (<c>ISimClock.TotalTime</c>, seconds); 0 = until removed.</summary>
+        public double Until;
     }
 
     // ⭐ macros S3a ③ (SR-175) — the expander's verdict on an instance: <c>MacroExpansionState</c> (0 None · 1 Expanding · 2 Done · 3 Failed) and why it failed.

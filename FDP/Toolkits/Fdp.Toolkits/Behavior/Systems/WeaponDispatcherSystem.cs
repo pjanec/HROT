@@ -142,6 +142,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   target's size for the aim point
             public void DeclareStableReads(Fdp.Core.Jobs.PhaseReadSet reads) => reads
                 .Unmanaged<Fdp.Toolkit.Combat.WeaponSystemParams>()
+                .Unmanaged<Fdp.Toolkit.Combat.Mountable>()   // ⭐ C1 — the item facts, split out of WeaponSystemParams
                 .Unmanaged<IsEmbarkedTag>()
                 .Unmanaged<PassengerBuffer>()
                 .Unmanaged<CarrierStations>()

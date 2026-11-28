@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<InjuryThresholds>();
             _world.RegisterComponent<ActorCapabilityState>();
-            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();
             _world.RegisterComponent<WeaponSystemState>();
             _world.RegisterComponent<DoorState>();
             _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
@@ -178,7 +178,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             if (_world.HasComponent<EntityInfo>(unit)) _world.SetComponent(unit, new EntityInfo { ForceId = side });
             else _world.AddComponent(unit, new EntityInfo { ForceId = side });
-            _world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode, Epoch = 1 });
+            _world.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(station), Mode = mode, Epoch = 1 });
             return unit;
         }
 

@@ -58,6 +58,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 *(Entity*)dst = p.Target;
             AimTimer(ref channel) = default;   // ⭐ CE-3136 P-3 — a new action aims afresh
             RoundsFired(ref channel) = 0;      // ⭐ CE-3136 B7
+            Burst(ref channel) = default;      // ⭐ CE-11033 — a new action opens its own bursts
 
             channel.Status = NodeStatus.Running;
         }
@@ -265,7 +266,7 @@ namespace Fdp.Toolkit.Combat.Executors
             //   at his range: held the same way, so the round leaves the moment he is clear
             //   ⭐ CE-3486 (flame F-9, Protocol III) — a flamethrower: nor while one is anywhere in the FLAME it would throw (its whole reach and cone)
             if (!bomb && (LineOfFire.BlockedByNeutral(world, platform, p.Target, HitModel.Sigma(world, platform, mountDto, HitModel.Now(world)))
-                          || LineOfFire.NeutralInFlame(world, platform, mountDto, loadedAmmo, p.Target)))
+                          || LineOfFire.NeutralInFlame(world, platform, platformMount, mountDto, loadedAmmo, p.Target)))
             {
                 channel.Status = NodeStatus.Running;
                 Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target);
@@ -292,8 +293,16 @@ namespace Fdp.Toolkit.Combat.Executors
                 return;
             }
 
+            //   ⭐ CE-11033 (§5l, R-11013) — the AI fires in short bursts: this round's place in its burst rides on the intent (the muscle copies it to the
+            //   notification); inside a burst the gap is the mount's cyclic gap, after its last round the rule's pause (never under the asked interval).
+            //   A weapon system fired through its carrier (platform != entity) keeps today's rule.
+            float gapSeconds = CooldownFor(p.CooldownSeconds, mountDto);
+            var stamp = platform == entity
+                ? FireBursts.Step(world, entity, p.Target, mountDto, false, channel.ActionInstanceId, ref Burst(ref channel), gapSeconds, out gapSeconds)
+                : default;
             world.Bus.Publish(new WeaponFireIntent
             {
+                BurstId = stamp.Id, BurstRounds = stamp.Rounds, BurstIndex = stamp.Index,
                 Shooter     = platform,        // ⭐ WS-3 — a controlled weapon system's round leaves its own muzzle
                 Target      = p.Target,
                 WeaponIndex = platformMount,
@@ -306,7 +315,7 @@ namespace Fdp.Toolkit.Combat.Executors
 
             // ⭐ CE-3136 P-5 / M8 — the total, the magazine and the loaded type are spent by the muscle's ANSWER (ShotLedger.Answer), not here
             // ⭐ CE-2199 — 0 = the mount's own rate · ⭐ CE-2323 (R-2063) — each gap his own, so men do not stay in step
-            weapon.CooldownSecondsRemaining = FirePacing.Gap(CooldownFor(p.CooldownSeconds, mountDto), platform, RoundsFired(ref channel), channel.ActionInstanceId);
+            weapon.CooldownSecondsRemaining = FirePacing.Gap(gapSeconds, platform, RoundsFired(ref channel), channel.ActionInstanceId);
 
             int fired = ++RoundsFired(ref channel);
             channel.Status = p.Rounds > 0 && fired >= p.Rounds ? NodeStatus.Success : NodeStatus.Running;
@@ -476,14 +485,20 @@ namespace Fdp.Toolkit.Combat.Executors
             float blindSigma = HitModel.Sigma(world, shooter, mountDto, HitModel.Now(world));
             if (LineOfFire.BlockedByFriendly(world, shooter, point, blindSigma)) { Say(world, entity, ActionReason.HoldFriendlyOnLine, p.Target); return; }   // ⭐ CE-8308
             if (LineOfFire.BlockedByNeutral(world, shooter, point, blindSigma)
-                || LineOfFire.NeutralInFlame(world, shooter, mountDto, loadedAmmo, point))   // ⭐ CE-3486 (flame F-9)
+                || LineOfFire.NeutralInFlame(world, shooter, mountIndex, mountDto, loadedAmmo, point))   // ⭐ CE-3486 (flame F-9) + CE-3490 BA-S1 (the mount passed)
             { Say(world, entity, ActionReason.HoldNeutralOnLine, p.Target); return; }   // ⭐ AW-20
             if (ShotLedger.Held(in weapon, out var refused)) { Say(world, entity, HoldReasonOf(refused), p.Target); return; }   // ⭐ CE-2218 → Q94 A-4: the muscle's refusal
             if (Fdp.Toolkit.Behavior.Components.EngagementAreas.IsNoFire(world, entity, point)) { SayAt(world, entity, ActionReason.HoldNoFireArea, point); return; }   // ⭐ CE-2282
             if (!RoePermitsFire(world, entity)) { Say(world, entity, ActionReason.HoldRoe, p.Target); return; }
 
+            // ⭐ CE-11033 (§5l) — suppressing fire is the 3–5 round burst with the longer pause (the brain's own entity only)
+            float blindGap = MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor;
+            var stamp = shooter == entity
+                ? FireBursts.Step(world, entity, p.Target, mountDto, true, channel.ActionInstanceId, ref Burst(ref channel), blindGap, out blindGap)
+                : default;
             world.Bus.Publish(new WeaponFireIntent
             {
+                BurstId = stamp.Id, BurstRounds = stamp.Rounds, BurstIndex = stamp.Index,
                 Shooter     = shooter,   // ⭐ WS-3 — the controlled weapon system itself, else the unit
                 Target      = Entity.Null,
                 WeaponIndex = mountIndex,
@@ -494,7 +509,7 @@ namespace Fdp.Toolkit.Combat.Executors
                 RaisedAt    = (SimInstant)(HitModel.Now(world)),   // ⭐ CE-2180
                 RequestId   = ShotLedger.Ask(ref weapon),   // ⭐⭐ Q94 A-3 — asked; the muscle's answer spends it
             });
-            weapon.CooldownSecondsRemaining = FirePacing.Gap(MathF.Max(p.CooldownSeconds, 0.1f) * BlindCooldownFactor, shooter,   // ⭐ CE-2323
+            weapon.CooldownSecondsRemaining = FirePacing.Gap(blindGap, shooter,   // ⭐ CE-2323
                                                              RoundsFired(ref channel), channel.ActionInstanceId);
             int fired = ++RoundsFired(ref channel);
             if (p.Rounds > 0 && fired >= p.Rounds) channel.Status = NodeStatus.Success;
@@ -565,6 +580,7 @@ namespace Fdp.Toolkit.Combat.Executors
             var status = world.IsComponentTypeRegistered<WeaponTaskStatus>() && world.HasComponent<WeaponTaskStatus>(part)
                 ? world.GetComponent<WeaponTaskStatus>(part) : default;
             bool mine = status.Epoch == epoch && !fresh;
+            if (accounted < 0) accounted = mine ? status.RoundsFired : 0;   // ⭐ CE-11033 — a per-shot burst state (bit 31 set) shared this int: not a count
             if (mine)
             {
                 for (int n = status.RoundsFired - accounted; n > 0 && weapon.Ammo > 0; n--)
@@ -835,6 +851,14 @@ namespace Fdp.Toolkit.Combat.Executors
                 ref var task = ref world.GetComponentRW<WeaponTask>(part);
                 if (task.Mode != WeaponTaskMode.Idle) task = new WeaponTask { Mode = WeaponTaskMode.Idle, Epoch = task.Epoch };
             }
+        }
+
+        /// <summary>⭐ <c>CE-11033</c> — the brain's burst state, bytes 28–31 of the channel state (shared with <see cref="Accounted"/>, which only
+        /// the turret path reads and resets on a fresh epoch; the per-shot path, where bursts live, never reads it).</summary>
+        private static unsafe ref FireBursts.BurstState Burst(ref WeaponChannel channel)
+        {
+            fixed (byte* s = channel.State)
+                return ref Unsafe.AsRef<FireBursts.BurstState>(s + sizeof(Entity) + sizeof(AimState) + sizeof(int));
         }
 
         /// <summary>⭐ WL-3 — rounds of the current turret epoch already spent here (bytes 28–31, after the action's round count).</summary>

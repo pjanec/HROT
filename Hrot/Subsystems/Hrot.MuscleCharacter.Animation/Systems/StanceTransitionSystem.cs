@@ -74,11 +74,17 @@ namespace Hrot.MuscleCharacter.Animation.Systems
                     Generation = (uint)((def.BackendHandle >> 32) & 0xFFFFFFFF),
                 };
 
-                _backend.RequestStanceChange(handle, targetStance, intent.BlendTime);
+                // ⭐ CE-11014 — the duration the body applies (one rule, StanceTiming) and WHEN it starts: recorded and replicated with the status, so any
+                //   reader computes the blend's progress at any instant
+                float seconds = StanceTiming.Effective(status.CurrentStance, intent.TargetStance, intent.BlendTime);
+                _backend.RequestStanceChange(handle, targetStance, seconds);
 
                 status.AckVersion = intent.Version;
                 status.Phase = StanceTransitionPhase.Transitioning;
                 status.TransitionProgress = 0f;
+                status.FromStance = status.CurrentStance;
+                status.TransitionStartedAt = (SimInstant)Fdp.Toolkit.Time.SimClock.TotalTimeOf(repo);
+                status.TransitionSeconds = new SimDuration(seconds);
             }
         }
     }

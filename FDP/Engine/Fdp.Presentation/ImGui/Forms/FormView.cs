@@ -318,8 +318,10 @@ public sealed class FormView
             for (int k = i + 1; k <= last; k++) { var r = StateOf(_state[k], world, _decl.Fields[k], editable); if (Strongest(in r) != FormMark.None) { rowState = r; break; } }
         string label = field.LabelFor != null && sel.Count > 0 ? field.LabelFor(world, sel[0]) : field.Label;
         FormRow.Begin(s.Id, label, in rowState);
+        bool act = editable && field.Action is { } fa && OfferedFor(fa, world, sel);   // ⭐ CE-11061 — the row's trailing action (Revive)
+        float actW = act ? GlyphWidgets.WidthOf(field.Action!.Icon) + ImGui.GetStyle().ItemSpacing.X : 0f;
         if (last > i) ImGui.SetNextItemWidth(Math.Max(60f, ImGui.GetContentRegionAvail().X * InlineShare));
-        else ImGui.SetNextItemWidth(-1f);
+        else ImGui.SetNextItemWidth(act ? -actW : -1f);
         DrawControl(i, world, sel, editable);
         for (int k = i + 1; k <= last; k++)
         {
@@ -330,6 +332,13 @@ public sealed class FormView
             ImGui.SameLine();
             ImGui.SetNextItemWidth(-1f);
             DrawControl(k, world, sel, editable);
+        }
+        if (act)
+        {
+            ImGui.SameLine();
+            ImGui.PushID(i);
+            if (GlyphWidgets.GlyphButton("##action", field.Action!.Icon, field.Action.Tip)) RunAction(i, world, sel);
+            ImGui.PopID();
         }
         var clicked = FormRow.End(in rowState);
         if (_trailerOn) DrawTrailer(i, field, sel);
@@ -552,6 +561,38 @@ public sealed class FormView
         if (s.Differs) return new FormRowState(DiffersFromType: true, TypeTip: s.TypeTip);   // ⭐ U-24 / S6 — the blue reset arrow
         return default;
     }
+
+    private static bool OfferedFor(FieldAction action, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        for (int k = 0; k < sel.Count; k++) if (world.IsAlive(sel[k]) && action.Offered(world, sel[k])) return true;
+        return false;
+    }
+
+    /// <summary>⭐ CE-11061 — the row's action: one <c>Submit</c> per selected entity it is offered for; the tickets mark the row until the owners answer.</summary>
+    private void RunAction(int i, EntityRepository world, IReadOnlyList<Entity> sel)
+    {
+        var field = _decl!.Fields[i]; var s = _state[i];
+        s.Refusal = null;
+        for (int k = 0; k < sel.Count; k++)
+        {
+            if (!world.IsAlive(sel[k]) || !field.Action!.Offered(world, sel[k])) continue;
+            var ticket = Submit(world, field.Action.Op(sel[k]));
+            if (ticket.Route == Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Refused)
+            {
+                s.Refusal = EditOutcomeLog.Of(world).TryGet(ticket.RequestId, out var o) && o.Reason.Length > 0 ? o.Reason : "refused";
+                continue;
+            }
+            if (ticket.Route != Fdp.Toolkit.Replication.Patching.EntityWriteRoute.Direct) s.Tickets.Add(ticket.RequestId);
+        }
+        s.Known = false;
+    }
+
+    /// <summary>Runs field <paramref name="field"/>'s action on <paramref name="selection"/>, as a click would (rails).</summary>
+    public void RunActionForTest(int field, EntityRepository world, IReadOnlyList<Entity> selection) => RunAction(field, world, selection);
+
+    /// <summary>Was field <paramref name="field"/>'s action button drawn on the last frame's selection (rails)? Asks the same test the frame does.</summary>
+    public bool ActionOfferedForTest(int field, EntityRepository world, IReadOnlyList<Entity> selection)
+        => _decl!.Fields[field].Action is { } a && OfferedFor(a, world, selection);
 
     /// <summary>Writes one value to every selected entity (one <c>Submit</c> each); the tickets mark the row until the owners answer.</summary>
     private void Commit(int i, EntityRepository world, IReadOnlyList<Entity> sel, double number, string? text)

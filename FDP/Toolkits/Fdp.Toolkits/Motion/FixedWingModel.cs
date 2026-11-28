@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Motion
     /// cruise² / (g·tan max bank)) flown kinematically at <c>CruiseSpeedMps</c> (or the route's / the intent's speed, clamped to
     /// [stall, top]), banked atan(v²κ/g) eased by a roll rate, pitched to its climb; at the end it orbits the last point (planes do not
     /// land in v1 — a Ground waypoint is flown over, <see cref="AirMotionSystem"/> warns). A point (<c>MoveTo</c>): it turns toward it at
-    /// its steepest bank and circles it once there (Arrived). No order: straight and level.
+    /// its steepest bank and circles it once there (Arrived). No order: straight and level — ⭐ CE-5046: once an order has ENDED, it holds (circles where it is).
     /// <b>Manual</b> (slice 6, E5): the mouse-aim pilot — see <see cref="Manual"/>.
     /// A dead plane falls; a plane down (<c>Airborne = 0</c>) stays down.
     /// </summary>
@@ -104,7 +104,12 @@ namespace Fdp.Toolkit.Motion
             if (intent.Mode == NavigationMode.None || intent.Mode == NavigationMode.Manual)
             {
                 if (GcasHolds(ref f, in p, ref pilot, Gcas.DefaultFloorM, dt)) return;
-                Straight(ref f, in p, dt);
+                // ⭐ CE-5046 (Air Operations §4: an attack ends with "egress route, or orbit (Hold)"; user-approved lean 2026-11-23) — a plane
+                //   whose order ENDED, with nothing next, holds: it circles where it is (B9 — planes never stop), so it stays over the battle
+                //   for the next task. ⛔ Measured before: the A-10 flew straight and level after its strike, 28 km off by 320 s. The mouse-aim
+                //   pilot's Manual (no stick input) and a plane that never had an order (IntentId 0) keep flying straight and level.
+                if (intent.Mode == NavigationMode.None && intent.IntentId != 0) Hold(ref f, in intent, in p, dt);
+                else Straight(ref f, in p, dt);
                 Track(ref f, ref pilot, 1f, dt);
                 return;
             }
@@ -518,6 +523,27 @@ namespace Fdp.Toolkit.Motion
                    arrived ? NavigationPhase.Completed : NavigationPhase.Following, 0f);
         }
 
+        /// <summary>
+        /// ⭐ CE-5046 — the no-order hold: a left-hand circle of the turn radius, anchored once per ended intent where the plane IS — the circle
+        /// tangent to its heading, so it rolls into the turn with no jump — at its height, at its own speed (stall..top).
+        /// </summary>
+        private static void Hold(ref MotionFrame f, in NavigationIntent intent, in FlightParams p, float dt)
+        {
+            ref var fol = ref AirFollowers.Of(ref f);
+            if (fol.Stage != AirStage.Holding || fol.HoldIntent != intent.IntentId)
+            {
+                float yaw = RotorcraftModel.YawOf(f.Transform.Rotation);
+                var pos = new Vector2(f.Transform.Position.X, f.Transform.Position.Y);
+                var left = new Vector2(-MathF.Sin(yaw), MathF.Cos(yaw));
+                fol.OrbitCenter = pos + left * MathF.Max(1f, p.TurnRadius);
+                fol.OrbitAngle = MathF.Atan2(pos.Y - fol.OrbitCenter.Y, pos.X - fol.OrbitCenter.X);
+                fol.Stage = AirStage.Holding;
+                fol.HoldIntent = intent.IntentId;
+            }
+            float speed = Math.Clamp(HorizontalSpeed(f) > 0.1f ? HorizontalSpeed(f) : Cruise(in p), Stall(in p), Top(in p));
+            Orbit(ref f, in p, ref fol, speed, dt);
+        }
+
         private static void Straight(ref MotionFrame f, in FlightParams p, float dt)
         {
             float speed = Math.Clamp(HorizontalSpeed(f) > 0.1f ? HorizontalSpeed(f) : Cruise(in p), Stall(in p), Top(in p));
@@ -553,7 +579,7 @@ namespace Fdp.Toolkit.Motion
         private static void Pose(ref MotionFrame f, Vector3 next, float yaw, float pitch, float roll, float dt)
         {
             float maxPitch = MaxPitchDeg * MathF.PI / 180f;
-            f.Velocity.Linear = (next - f.Transform.Position) / MathF.Max(dt, 1e-4f);
+            f.Velocity.Linear = StepVelocity.Of(f.Transform.Position, next, dt, f.Velocity.Linear);   // ⭐ CE-11057 — a too-short frame keeps the velocity
             f.Transform.Position = next;
             f.Transform.Rotation = BodyGeometry.Rotation(yaw, new RestingPose(0f, (Fdp.Core.Angle)(Math.Clamp(pitch, -maxPitch, maxPitch)), (Fdp.Core.Angle)(roll)));
             if (f.World.IsComponentTypeRegistered<FlightState>() && f.World.HasComponent<FlightState>(f.Self))

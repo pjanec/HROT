@@ -75,6 +75,12 @@ namespace Hrot.NED.Messages
         /// <summary>⭐ <c>CE-4155</c> (SR-82; R-169 — APPENDED) — a round THROWN BACK: network id of the FIRST thrower
         /// (<see cref="ShooterEntityId"/> is the last); 0 = a first throw.</summary>
         public int OriginalShooterEntityId;
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013; Weapon Layers §5l — APPENDED) — the AI's planned burst this round belongs to (0 = none), its rounds,
+        /// and this round's place (1-based). Copied to <see cref="WeaponFire"/> by the muscle.</summary>
+        public uint BurstId;
+        public byte BurstRounds;
+        public byte BurstIndex;
     }
 
     /// <summary>
@@ -124,6 +130,11 @@ namespace Hrot.NED.Messages
         //   APPENDED: an older sender reads as fired.
         public uint RequestId;
         public byte Refusal;
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013; §5l — APPENDED) — the planned burst this round belongs to (0 = none), its rounds, this round's place (1-based).</summary>
+        public uint BurstId;
+        public byte BurstRounds;
+        public byte BurstIndex;
     }
 
     // ── Near miss (CE-3064, R-206) ─────────────────────────────────────────────
@@ -205,6 +216,9 @@ namespace Hrot.NED.Messages
 
         /// <summary>0 entered, 1 left, 2 stopped (<c>ImpactKind</c>).</summary>
         public byte Kind;
+
+        /// <summary>⭐ CE-11009 (RR-9, R-11003) — what it struck (<c>Fdp.Toolkit.Combat.ImpactMaterial</c>; 0 = unknown).</summary>
+        public byte Material;
 
         /// <summary>Node that wrote this sample (CE-1148 S2, Node Roles §3.5): every node reads the topic and drops its own. 0 = unknown.</summary>
         public int SourceNodeId;

@@ -1,0 +1,155 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S5b (§5a, D-120 / D-56). The Observer carries a laser rangefinder (kit 1) with BINOCULARS STACKED on it (mounted in the rangefinder's stacking station) and linked to receive from it. A scripted trainee possesses him, aims at a marker 450 m away, ranges it through the rangefinder and SENDs, then binds his view to the STACKED binoculars. Judge: (1) the stacked binoculars are operated by the stack's operator - the Observer's station holds them; (2) the ROOT (the rangefinder) turns to the marker with the look and measures it - the laser meets THAT marker; (3) the binoculars point where the root points: the target the rangefinder sent shows on THEIR HUD dead ahead (0 degrees off the boresight). That also proves they ignore their own look while stacked (D-56): the same look applied a second time on top of the root's would put the cue tens of degrees off. Fail: the root does not follow the look, or the stacked device points elsewhere than the root. Check: scripts/scenario-regression.sh dv-stacked-devices"
+  },
+  "entities": {
+    "d5e10008-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10008-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10008-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10008-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10008-0000-4000-8000-000000000011"
+        ],
+        "Seats": [
+          0
+        ]
+      },
+      "DeviceLinks": {
+        "Peer0": "d5e10008-0000-4000-8000-000000000011"
+      }
+    },
+    "d5e10008-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 641
+      },
+      "EntityInfo": {
+        "Name": "Binoculars",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10008-0000-4000-8000-000000000010",
+        "Seat": 0
+      }
+    },
+    "d5e10008-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -131.8,
+          18.19999999999999,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

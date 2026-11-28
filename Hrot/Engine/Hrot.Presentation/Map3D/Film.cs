@@ -43,11 +43,18 @@ public sealed record FilmShot
 /// <summary>A capture asked for: the PNG's path and size; <see cref="Supersample"/> renders that many times larger and scales down.
 /// ⭐ CE-4038 B8/B9 — <see cref="Caption"/> is burned in under the picture; a <see cref="Card"/> is a title card (its text on black) instead
 /// of the scene. ⭐ CE-1305 — <see cref="Graphics"/> are the film graphics burned over the scene (under the subtitle), laid out as the screen lays them out.</summary>
+/// <para>⭐ <c>CE-11018</c> (DESIGN_Linked_Client_Director.md D-3) — <see cref="PoseOnly"/>: the map places its camera for the shot exactly as for a capture, but renders and
+/// writes NOTHING — the served frame carries the camera's pose (<see cref="FilmFrame.Camera"/>), for a linked client to render. ⛔ Refused on the 2-D map (the client
+/// renders 3-D only).</para>
 public sealed record FilmCaptureRequest(string Path, int Width, int Height, int Supersample = 1, Director.SubtitleFrame? Subtitle = null, string? Card = null,
-                                        IReadOnlyList<Director.GraphicFrame>? Graphics = null);
+                                        IReadOnlyList<Director.GraphicFrame>? Graphics = null, bool PoseOnly = false);
 
-/// <summary>A captured frame: where it was written, its size, and the sim time it shows.</summary>
-public readonly record struct FilmFrame(string Path, int Width, int Height, double SimTime);
+/// <summary>A captured frame: where it was written, its size, and the sim time it shows. ⭐ <c>CE-11018</c> — <see cref="Camera"/>: the camera it was (or, for a
+/// <see cref="FilmCaptureRequest.PoseOnly"/> request, would have been) rendered with.</summary>
+public readonly record struct FilmFrame(string Path, int Width, int Height, double SimTime)
+{
+    public Hrot.Common.Infrastructure.FilmCamera Camera { get; init; }
+}
 
 /// <summary>
 /// ⭐ <c>CE-3289</c> (§6ab) — the film's mailbox between the HTTP thread and the maps, like <see cref="RenderTelemetry"/>: the shot the
@@ -96,10 +103,44 @@ public static class FilmStudio
     }
 
     /// <summary>Gives the view back (the free camera keeps the last pose; the black clears; ⭐ CE-1304 / CE-1305 — the 3-D map and no graphics again).</summary>
-    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); _userHolds = false; _locked = false; } }
+    public static void Release() { lock (Gate) { _shot = null; _fade = 0f; _twoD = false; _graphics = Array.Empty<Director.GraphicFrame>(); _userHolds = false; _locked = false; _caption = null; } }
 
     private static bool _directorCamera = true, _userHolds, _locked;
     private static int _cut, _cutAtTake;
+
+    private static Director.SubtitleFrame? _caption;
+    private static int _captionSerial;
+    private static string _captionText = string.Empty;
+
+    /// <summary>
+    /// ⭐ CE-11035 (R-11015; DESIGN_Look_Rules_For_Renderers.md §3.4) — the subtitle on screen now (null = none), set by the director where it hands the cinema its subtitle.
+    /// The serial grows by one exactly when the TEXT shown changes (a new line; the same text again, or none, leaves it) — the suggested camera's caption serial.
+    /// Cleared by <see cref="Release"/> (the serial and the last text are kept: a client compares serials).
+    /// </summary>
+    public static Director.SubtitleFrame? Caption
+    {
+        get { lock (Gate) return _caption; }
+        set
+        {
+            lock (Gate)
+            {
+                _caption = value;
+                if (value != null && !string.Equals(value.Text, _captionText, StringComparison.Ordinal)) { _captionText = value.Text; _captionSerial++; }
+            }
+        }
+    }
+
+    /// <summary>⭐ CE-11035 — the caption as one read: its serial, the text last shown, and (alpha 0 = none on screen) position and alpha. 0 B.</summary>
+    public static void ReadCaption(out int serial, out string text, out byte position, out float alpha)
+    {
+        lock (Gate)
+        {
+            serial = _captionSerial; text = _captionText;
+            position = _caption != null ? (byte)_caption.Position : (byte)0;
+            alpha = _caption != null ? _caption.Alpha : 0f;
+        }
+    }
+
 
     /// <summary>
     /// ⭐ Seats H4 (📄 docs/UX/DESIGN_Seats_And_Hats.md §3.4; 🔒 user, 2026-11-06: "while director is playing, i still like to move around (director overrides
@@ -126,6 +167,13 @@ public static class FilmStudio
 
     /// <summary>⭐ Seats H4 — the director cut to a new camera key (the runner calls it when the key on screen changes).</summary>
     public static void NextCut() { lock (Gate) _cut++; }
+
+    /// <summary>⭐ CE-11006 (RR-6) — how many hard cuts the director has made (the suggested camera's counter).</summary>
+    public static int Cut { get { lock (Gate) return _cut; } }
+
+    /// <summary>⭐ CE-11006 (RR-6) — the director's segment on screen (null = none), for the suggested camera's take name.</summary>
+    public static string? ShotName { get { lock (Gate) return _shotName; } set { lock (Gate) _shotName = value; } }
+    private static string? _shotName;
 
     /// <summary>⭐ Seats H4 — a capture is filming the program: the user cannot take the camera (the runner sets it with the capture, <see cref="Release"/> clears it).</summary>
     public static bool CameraLocked { get { lock (Gate) return _locked; } set { lock (Gate) { _locked = value; if (value) _userHolds = false; } } }
@@ -178,7 +226,8 @@ public static class FilmStudio
             _twoD = false;
             _animateViewSwitch = true;
             _graphics = Array.Empty<Director.GraphicFrame>();
-            _directorCamera = true; _userHolds = false; _locked = false; _cut = _cutAtTake = 0;
+            _directorCamera = true; _userHolds = false; _locked = false; _cut = _cutAtTake = 0; _shotName = null;
+            _caption = null; _captionSerial = 0; _captionText = string.Empty;
             while (Waiting.Count > 0) Waiting.Dequeue().Done.TrySetCanceled();
         }
     }
@@ -189,8 +238,37 @@ public static class FilmStudio
 /// scenario's saved camera are left alone — <c>MapCameraLayer</c> never saves a driven view), but it looks AT a point
 /// (<see cref="ViewsFromEye"/> false: the weather read there, fog starting part way, as the free camera). Input is not its business.
 /// </summary>
-public sealed class FilmDirector : ICameraDriver
+public sealed class FilmDirector : ICameraDriver, ICameraSuggests
 {
+    /// <summary>⭐ CE-11006 (RR-6) — the director: a fixed key pose, or chasing its follow unit (by network id) at the shot's distance; its cut counter and
+    /// the segment on screen.</summary>
+    public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+    {
+        s.Source = Hrot.Map.Common.Components.CameraSource.Director;
+        var shot = Shot;
+        if (shot?.Pose != null) s.Mode = Hrot.Map.Common.Components.CameraMode.FixedKey;
+        else if (shot is { Follow: not 0 })
+        {
+            s.Mode = Hrot.Map.Common.Components.CameraMode.Chase;
+            s.BoundNetId = shot.Follow;
+            s.Distance = shot.Distance;
+        }
+        s.Cut = FilmStudio.Cut;
+        if (FilmStudio.ShotName is { Length: > 0 } name) s.Take = new Fdp.Core.FixedString64(name);
+        // ⭐ CE-11035 (R-11015, §3.4) — the black over the picture and the subtitle: numbers on the suggestion; the TEXT on its own managed singleton, set ONLY when the serial changes
+        s.Fade = FilmStudio.Fade;
+        FilmStudio.ReadCaption(out int serial, out string text, out byte position, out float alpha);
+        s.CaptionSerial = serial; s.CaptionPosition = position; s.CaptionAlpha = alpha;
+        if (serial != _publishedSerial || !ReferenceEquals(world, _publishedWorld) || !world.HasSingletonManaged<Hrot.Map.Common.Components.FilmCaption>())
+        {
+            world.SetSingletonManaged(new Hrot.Map.Common.Components.FilmCaption(text));
+            _publishedSerial = serial; _publishedWorld = world;
+        }
+    }
+
+    private int _publishedSerial = -1;
+    private EntityRepository? _publishedWorld;
+
     private readonly Func<EntityRepository?> _world;
 
     public FilmDirector(Func<EntityRepository?> world) => _world = world ?? throw new ArgumentNullException(nameof(world));
@@ -365,6 +443,8 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
     {
         try
         {
+            // ⭐ CE-11018 (D-3) — a linked client renders 3-D only: a 2-D view (or one switching to it) is refused with THAT reason, first
+            if (request.PoseOnly && (FilmStudio.TwoD || !_view.Is3D)) throw new InvalidOperationException(Hrot.UI.Common.Map3D.Director.RoutingFrameSink.TwoDRefused);
             // ⭐ CE-1304 P6 (§11t V6) — a 2-D map is filmed too (the 2-D map as the screen draws it, its layers the take's); ⛔ not half way through the switch
             if (_view.IsSwitching && request.Card == null) throw new InvalidOperationException("the map is switching between 2-D and 3-D — capture when it has landed");
             int ss = Math.Clamp(request.Supersample, 1, 4);
@@ -373,6 +453,15 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
                 throw new ArgumentOutOfRangeException(nameof(request), $"a frame of {request.Width}×{request.Height} ×{ss} — each side 16…{MaxSide} px");
             var camera = _view.Camera3D;
             if (ReferenceEquals(camera.Driver, _director)) _director.Place(camera);   // the shot may be newer than this frame's camera update
+            if (request.PoseOnly)
+            {
+                // ⭐ CE-11018 (D-3) — the linked client renders this frame: the pose this map would have rendered, nothing drawn or written
+                double at = _world() is { } posed ? Fdp.Toolkit.Time.SimClock.Of(posed).TotalTime : 0d;
+                Served++;
+                done.TrySetResult(new FilmFrame(request.Path, request.Width, request.Height, at)
+                    { Camera = new Hrot.Common.Infrastructure.FilmCamera(camera.Eye, camera.Forward, camera.Up, camera.FovyDegrees) });
+                return;
+            }
             var full = System.IO.Path.GetFullPath(request.Path);
             Directory.CreateDirectory(System.IO.Path.GetDirectoryName(full)!);
 
@@ -434,7 +523,8 @@ public sealed class FilmCaptureLayer : IMapLayer, IDisposable
 
             double simTime = _world() is { } world ? Fdp.Toolkit.Time.SimClock.Of(world).TotalTime : 0d;
             Served++;
-            done.TrySetResult(new FilmFrame(full, request.Width, request.Height, simTime));
+            done.TrySetResult(new FilmFrame(full, request.Width, request.Height, simTime)
+                { Camera = new Hrot.Common.Infrastructure.FilmCamera(camera.Eye, camera.Forward, camera.Up, camera.FovyDegrees) });
         }
         catch (Exception ex)
         {

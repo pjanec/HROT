@@ -27,12 +27,19 @@ public sealed class RoadNetworkGizmo : IGlobalStatelessGizmo
     public const int CurveSamples = 8;
 
 
+    /// <summary>⭐ CE-11046 (HL-2) — the net's curve samples WITH their ground heights, rebuilt only when the net or the terrain is replaced (a steady frame: 0 B, no height lookup).</summary>
+    private readonly RoadPolylineCache _cache = new();
+
+    /// <summary>⭐ CE-11046 — the cache a rail reads (rebuild count).</summary>
+    public RoadPolylineCache Cache => _cache;
+
     public void Draw(ISimulationView view, IDebugDrawBuilder draw)
     {
         if (view is not EntityRepository repo || !repo.HasSingleton<ZoneEnvironmentData>()) return;
+        if (!draw.IsLayerActive(DebugTraceLayers.Roads)) return;   // a hidden layer costs no work
         var network = repo.GetSingleton<ZoneEnvironmentData>().RoadNetwork;
         var terrain = repo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? repo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
-        Draw(network, draw, terrain);
+        _cache.Draw(in network, draw, terrain);
     }
 
     /// <summary>⭐ CE-4401 — how far above the ground a road is drawn (m): on the surface, never inside it.</summary>
@@ -62,8 +69,9 @@ public sealed class RoadNetworkGizmo : IGlobalStatelessGizmo
                 a = b;
             }
         }
+        if (!draw.IsLayerActive(DebugTraceLayers.RoadNodes)) return;   // ⭐ CE-6504
         for (int i = 0; i < network.Nodes.Length; i++)
-            draw.DrawSphere(On(terrain, network.Nodes[i].Position), 2f, NodeColor, layer: DebugTraceLayers.Roads, fillColor: NodeColor);
+            draw.DrawSphere(On(terrain, network.Nodes[i].Position), 2f, NodeColor, layer: DebugTraceLayers.RoadNodes, fillColor: NodeColor);
     }
 
     /// <summary>A road point on the ground (z 0 with no terrain).</summary>

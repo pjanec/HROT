@@ -234,4 +234,30 @@ write("pe-seen-then-hidden", "bt-range",
            {"name": "...and have forgotten him at the end (the memory faded)", **per_man("contacts", "==", 0, quantifier="all"), "atEnd": True},
        ]})
 
-print("wrote pe-one-shot-four-ears, pe-seen-shooter, pe-two-shooters, pe-shelled, pe-house-shot, pe-steps-round-corner, pe-seen-then-hidden")
+# ── P2b — the FIRST WAVEFRONT (CE-2475): a shooter behind ONE thin timber wall; the ways round (the open south door, the east / west windows)
+#    are 4.5-5 m from him. timber 20 dB x the shot's Mid band 0.6 = 12 dB straight vs a few dB round ⇒ the ear takes HIS direction ──────────
+TIMBER = {guid(8, 1): {"TkbIdentity": {"TkbType": 8818}, "TerrainFeature": {"Kind": 1, "Template": "timber-house", "HeadingDeg": 0, "Pad": 0, "Seed": 0},
+                       "SimTransform": {"Position": [300, 300, 0], "Rotation": [0, 0, 0, 1]}, "EntityInfo": {"Name": "Timber House", "ForceId": "Neutral"}}}
+ents, _ = squad_of_ears(8, [(302, 312), (306, 312)])   # 7 m north of the house; the north wall (no opening) between them and him
+ents.update(TIMBER)
+ents.update(target(8, 300, 304, 302))
+ents.update(shooter(8, 200, "Red Shooter", 304, 304.8, guid(8, 300), stay=True))
+write("pe-wall-and-door", "basic-desert",
+      "CE-2476 / CE-2475 perception suite P2b (Sensing §8.6e) - on basic-desert a 'Red Shooter' inside a one-storey TIMBER HOUSE (8 x 6 m at (300,300)), "
+      "just inside its north wall, fires at a 'Blue Target' in the same room; two passive Blue listeners stand 7 m north of the house. The sound reaches "
+      "them straight through the thin north wall AND round the house through its open south door and its east / west windows (4.5-5 m from him).",
+      "the ear takes its DIRECTION from the first wavefront - the straight way through the thin wall (12 dB) - not from the louder way round: both "
+      "listeners believe him where he is (within 2 m), never at the door or a window, and the squad holds him once. Fail: he is believed at an opening.",
+      ents,
+      {"runFor": 30, "golden": False,
+       "anchors": {"first shot": {"on": "shot", "by": "Red Shooter"}},
+       "expect": [
+           {"name": "the shooter fires", "on": "shot", "by": "Red Shooter", "n": 3},
+           {"name": "both listeners place him where he is (matched within 2 m, 5 s)", **per_man("matched", "==", 1, quantifier="all", m=2, **{"for": 5}),
+            "after": "first shot"},
+           {"name": "no listener ever places him at the door or a window (a phantom more than 2 m from him)", "never": per_man("phantom", ">", 0, m=2),
+            "after": "first shot"},
+           {"name": "the squad never counts him twice", "never": squad("duplicate", ">", 0), "after": "first shot+2"},
+       ]})
+
+print("wrote pe-one-shot-four-ears, pe-seen-shooter, pe-two-shooters, pe-shelled, pe-house-shot, pe-steps-round-corner, pe-seen-then-hidden, pe-wall-and-door")

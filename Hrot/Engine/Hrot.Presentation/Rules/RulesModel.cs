@@ -104,15 +104,22 @@ public static class RulesReader
             }
         }
         // ⭐ RV-3a — BEFORE a run no status exists: a rule entity carries only its AUTHORED params. ONE row type, two sources: the status (above) wins
-        if (includeAuthored && world.TryGetTable(typeof(BehaviorStartRecord), out _))
-            foreach (var e in world.Query().WithManaged<BehaviorStartRecord>().Build())
-            {
-                int net = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
-                if (net == 0 || seen.Contains(net)) continue;
-                var rec = ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<BehaviorStartRecord>(e);
-                if (rec == null || AuthoredRules.Parse(world, e, net, rec.BehaviorName, rec.JsonParams) is not { } a) continue;
-                list.Add(new Entry(e, net, a.Status, a.ParentNetworkId, a.SubjectNetworkId, MacroFor(e), Authored: true, MacroInstance: InstanceFor(e)));
-            }
+        // ⭐⭐ CE-3494 (S4) — an authored rule is a pending UnitIntent (edit mode: loaded or edited, not yet started) OR a start record; one reader
+        if (includeAuthored)
+        {
+            if (world.TryGetTable(typeof(UnitIntent), out _))
+                foreach (var e in world.Query().WithManaged<UnitIntent>().Build()) AddAuthored(e);
+            if (world.TryGetTable(typeof(BehaviorStartRecord), out _))
+                foreach (var e in world.Query().WithManaged<BehaviorStartRecord>().Build()) AddAuthored(e);
+        }
+        void AddAuthored(Entity e)
+        {
+            int net = NetworkIdResolver.RuntimeNetworkIdOf(world, e);
+            if (net == 0 || seen.Contains(net)) return;
+            if (RuleSentence.ParamsOf(world, e) is not { } p || AuthoredRules.Parse(world, e, net, p.Name, p.Json) is not { } a) return;
+            seen.Add(net);
+            list.Add(new Entry(e, net, a.Status, a.ParentNetworkId, a.SubjectNetworkId, MacroFor(e), Authored: true, MacroInstance: InstanceFor(e)));
+        }
         return list;
     }
 
@@ -301,12 +308,11 @@ public static class RulesModel
     {
         var pins = new List<ClockPin>();
         if (s.Deadline > 0f) pins.Add(new ClockPin(s.Deadline, $"deadline {Clock(s.Deadline)}"));
-        if (s.Role == ObjectiveRole.Trigger && world.IsAlive(entity) && world.TryGetTable(typeof(BehaviorStartRecord), out _) && world.HasManagedComponent<BehaviorStartRecord>(entity)
-            && ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<BehaviorStartRecord>(entity) is { } rec && !string.IsNullOrWhiteSpace(rec.JsonParams))
+        if (s.Role == ObjectiveRole.Trigger && world.IsAlive(entity) && RuleSentence.ParamsOf(world, entity) is { } rec && !string.IsNullOrWhiteSpace(rec.Json))   // ⭐ CE-3494 — the ONE reader
         {
             try
             {
-                using var doc = System.Text.Json.JsonDocument.Parse(rec.JsonParams);
+                using var doc = System.Text.Json.JsonDocument.Parse(rec.Json);
                 if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object)
                     foreach (var prop in doc.RootElement.EnumerateObject())
                         if (prop.NameEquals("when") || prop.Name.Equals("when", StringComparison.OrdinalIgnoreCase)) CollectClock(prop.Value, pins);

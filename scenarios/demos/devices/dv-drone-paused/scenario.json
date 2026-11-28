@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S2c (§3.13c D-110, R-4300). The dv-drone-fly start (POWER, ARM, TAKEOFF): the drone hovers 15 m over its launch point; then the run PAUSES for 120 frames and inside the pause the trainee presses CAM DOWN (paused frame 10 - the gimbal, the station's own state) and LAND (paused frame 30 - a MODE press, queued for the first live frame). Judge: (1) the station answers in pause: its gimbal (DroneStationState.CameraPitch and its DeviceView.Pitch) is tilted down at paused frame 20; (2) LAND is QUEUED (DroneStationState.Queued = the LAND bit, the command still Fly) at paused frame 60 and becomes the command after the pause, and the drone lands where it hovered; (3) the world does not move in the pause: the drone never leaves its hover point. Fail: the pause moves the drone, the gimbal waits for time, or LAND acts before time advances. Check: scripts/scenario-regression.sh dv-drone-paused"
+  },
+  "entities": {
+    "d5e10015-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 642
+      },
+      "EntityInfo": {
+        "Name": "Drone station",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10015-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "ControlledEntities": {
+        "Entity0": "d5e10015-0000-4000-8000-000000000002"
+      }
+    },
+    "d5e10015-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Operator",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10015-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10015-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -296,
+          -400,
+          0.08
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "Health": {
+        "Current": 10,
+        "Max": 10
+      },
+      "TkbIdentity": {
+        "TkbType": 407
+      },
+      "EntityInfo": {
+        "Name": "Drone",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "RemotePilot",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

@@ -47,13 +47,19 @@ public sealed class EntityAiSectionTests
         }
     }
 
+    /// <summary>⭐⭐ <c>CE-3494</c> (R-3114) — an EDIT-MODE edit is AUTHORED into the unit's <see cref="UnitIntent"/> at Superior: the section
+    /// shows it at once, but NOTHING runs until time advances; then the ingress applies it through the one gate and removes the intent.
+    /// 🔴 Red-proof: the old direct apply (AssignNow) ⇒ the "nothing runs yet" assertion.</summary>
     [Fact]
-    public void CE3043_Paused_AnEditAppliesAtOnce_ThroughTheGate_AtSuperior()
+    public void CE3494_EditMode_AnEditIsAuthoredIntoTheIntent_AndRunsOnlyWhenTimeAdvances()
     {
         var f = new Fixture();
         Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: false));
         Assert.True(f.Model.ApplySop(f.Unit, "BasicInfantrySop", "{}", running: false));
         Assert.True(f.Model.ApplyRoe(f.Unit, RoeFire.HoldFire, RoeReactions.StayOnTask, running: false));
+
+        Assert.Equal(0, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);   // nothing runs yet
+        Assert.True(f.World.HasManagedComponent<UnitIntent>(f.Unit));
 
         var now = f.Model.Read(f.Unit)!;
         Assert.Equal("Idle", now.Task);
@@ -64,11 +70,17 @@ public sealed class EntityAiSectionTests
         Assert.Equal(RoeReactions.StayOnTask, now.Reactions);
         Assert.Equal(BehaviorOrigin.Superior, now.RoeSetBy);
 
-        Assert.True(f.Model.ClearSop(f.Unit, running: false));
+        // time advances: the ingress applies the intent through the gate and removes it
+        new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(f.Registry).Execute(f.World, 0.016f);
+        Assert.False(f.World.HasManagedComponent<UnitIntent>(f.Unit));
+        Assert.True(f.Registry.TryGetId("Idle", out int idle));
+        Assert.Equal(idle, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);
+        Assert.Equal(RoeFire.HoldFire, f.Model.Read(f.Unit)!.Fire);
+
+        // a cleared slot in edit mode is simply not authored
+        Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: false));
         Assert.True(f.Model.ClearTask(f.Unit, running: false));
-        var cleared = f.Model.Read(f.Unit)!;
-        Assert.Null(cleared.Task);
-        Assert.Null(cleared.Sop);
+        Assert.Null(f.Model.PendingIntent(f.Unit));
     }
 
     /// <summary>
@@ -108,36 +120,51 @@ public sealed class EntityAiSectionTests
         Assert.True(history.Redo());
         Assert.Equal(RoeFire.HoldFire, f.Model.Read(f.Unit)!.Fire);
 
-        // a LIVE edit is not an undo step
+        // ⭐ CE-3494 §10 (R-3119) — a LIVE edit is the intent too, so it is an undo step like an authored one ⛔ SUPERSEDED: "not an undo step" (an event)
         int count = history.Count;
         Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: true));
         Assert.True(f.Model.ApplySop(f.Unit, "BasicInfantrySop", "{}", running: true));
         Assert.True(f.Model.ApplyRoe(f.Unit, RoeFire.HoldFire, RoeReactions.StayOnTask, running: true));
-        Assert.Equal(count, history.Count);
+        Assert.Equal(count + 3, history.Count);
     }
 
+    /// <summary>⭐ <c>CE-3494</c> — the authored intent still goes through the ONE gate when it is applied: a Superior intent does not replace
+    /// an Operator's running order.</summary>
     [Fact]
-    public void CE3043_Paused_TheGateStillDecides_AnOperatorsOrderIsNotReplaced()
+    public void CE3494_TheGateStillDecides_AnAuthoredIntentDoesNotReplaceAnOperatorsOrder()
     {
         var f = new Fixture();
+        var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(f.Registry);
         f.World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = f.Unit, BehaviorName = "Idle", JsonParams = "{}", Origin = BehaviorOrigin.Operator });
         f.World.Bus.SwapBuffers();
-        new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(f.Registry).Execute(f.World, 0.016f);
+        ingress.Execute(f.World, 0.016f);
 
-        Assert.False(f.Model.ApplyTask(f.Unit, "Demo_TakeCover", "{}", running: false));
-        Assert.Equal("Idle", f.Model.Read(f.Unit)!.Task);
+        Assert.True(f.Model.ApplyTask(f.Unit, "Demo_TakeCover", "{}", running: false));   // authored
+        f.World.Bus.SwapBuffers();
+        ingress.Execute(f.World, 0.016f);                                                  // applied — and refused by rank
+        Assert.True(f.Registry.TryGetId("Idle", out int idle));
+        Assert.Equal(idle, f.World.GetComponentRO<BehaviorState>(f.Unit).ActiveBehaviorHash);
     }
 
+    /// <summary>⭐⭐ <c>CE-3494</c> §10 (R-3119) — a LIVE edit (running or paused mid-run) is the unit's INTENT at origin Operator: pending (Read shows it),
+    /// no event, undoable; a live clear is a RELEASE (the slot's Clear). ⛔ SUPERSEDED: "a live edit is an event" (S1, CE3043_Running_AnEditIsAnEvent).
+    /// 🔴 Red-proof: the live branch publishing again ⇒ no pending task, an event.</summary>
     [Fact]
-    public void CE3043_Running_AnEditIsAnEvent_NotADirectWrite()
+    public void CE3494_Live_AnEditIsTheIntentAtOperator_AReleaseIsAClear()
     {
-        var f = new Fixture();
+        var history = new Hrot.Presentation.Edits.EditHistory();
+        var f = new Fixture(history);
         Assert.True(f.Model.ApplyTask(f.Unit, "Idle", "{}", running: true));
-        Assert.Null(f.Model.Read(f.Unit)!.Task);                               // nothing changed yet
+        Assert.Equal("Idle", f.Model.Read(f.Unit)!.Task);                          // pending — what the unit does next
+        var slot = f.Model.PendingIntent(f.Unit)!.Behavior!;
+        Assert.Equal(BehaviorOrigin.Operator, slot.Origin);
         f.World.Bus.SwapBuffers();
-        var sent = Assert.Single(f.World.Bus.ReadManaged<AssignBehaviorEvent>());
-        Assert.Equal("Idle", sent.BehaviorName);
-        Assert.Equal(BehaviorOrigin.Superior, sent.Origin);
+        Assert.Empty(f.World.Bus.ReadManaged<AssignBehaviorEvent>());                // no event
+        Assert.True(f.Model.ClearTask(f.Unit, running: true));
+        Assert.True(f.Model.PendingIntent(f.Unit)!.Behavior!.Clear);
+        Assert.Null(f.Model.Read(f.Unit)!.Task);
+        Assert.True(history.Undo());                                                 // undo: the order is back
+        Assert.Equal("Idle", f.Model.PendingIntent(f.Unit)!.Behavior!.Name);
     }
 
     [Fact]

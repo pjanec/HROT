@@ -359,6 +359,31 @@ namespace Fdp.Toolkit.Perception.Tests
             grid.Dispose();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-4694</c> ① — the FIRST tick of a world (an epoch move — every scenario load) already places everyone on the terrain-fitted grid: a unit at
+        /// (1500, 1500) on a 2 km terrain is in the grid after that one tick, with NO warning. 📐 stechovice-battle logged 4 455 "outside the perception grid
+        /// [0..1000]" warnings in its first tick: the epoch branch rebuilt on the composition-time placement and returned before the fit.
+        /// 🔴 Red-proof: put the epoch branch back above the fit ⇒ one warning, and the unit is not in the grid after the first tick.
+        /// </summary>
+        [Fact]
+        public void CE4694_TheFirstTickOfAWorld_IsAlreadyFittedToTheTerrain_NoWarning()
+        {
+            var world = PerceptionTestWorldFactory.Create();
+            Fdp.Toolkit.Replication.Services.WorldEpoch.Advance(world);                 // a loaded world: its epoch has moved
+            var grid  = CreateTestGrid();                                               // [0,500)²
+            var terrain = new Fdp.Toolkit.Terrain.TerrainWorld { BoundsMin = new Vector2(0f, 0f), BoundsMax = new Vector2(2000f, 2000f) };
+            var sys = new LocalGridBuilderSystem(grid, () => terrain);
+            var far = world.CreateEntity();
+            world.AddComponent(far, new SimTransform { Position = new Vector3(1500f, 1500f, 0f) });
+
+            sys.Execute(world, 0f);
+
+            Assert.Equal(0, sys.Warnings);
+            Span<(Entity entity, Vector2 pos)> hits = stackalloc (Entity, Vector2)[4];
+            Assert.Equal(1, grid.QueryNeighbors(new Vector2(1500f, 1500f), 1f, hits));
+            grid.Dispose();
+        }
+
         /// <summary>⭐ <c>CE-3110</c> I-2c (R-271) — a passenger inside an ENCLOSED vehicle is never in the perception grid (never seen,
         /// heard or found); one on an OPEN cabin is. And one that boards on the same frame another entity spawns (equal count ⇒ the
         /// incremental pass) is EVICTED. 📄 docs/DESIGN_Entity_Interactions.md §7.2a.</summary>

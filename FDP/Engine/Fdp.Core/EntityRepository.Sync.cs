@@ -93,7 +93,9 @@ namespace Fdp.Core
         private EntityRepository? _structureSource;
         private long _structureSourceClock;
 
-        private void SyncFromCore(EntityRepository source, BitMask512? mask, bool? includeTransient, Type[]? excludeTypes)
+        /// <param name="borrowSingletons">⭐ CE-11047 — false for the presentation sync (<see cref="SyncPresentationFrom"/>): it copies every singleton into
+        /// tables it OWNS (step 4, reused across syncs), so the SoD borrow below would only be replaced again — a new table per borrowed id, every tick.</param>
+        private void SyncFromCore(EntityRepository source, BitMask512? mask, bool? includeTransient, Type[]? excludeTypes, bool borrowSingletons = true)
         {
             // 0. Determine Effective Mask
             BitMask512 effectiveMask;
@@ -213,6 +215,8 @@ namespace Fdp.Core
             // could alter their behaviour (e.g. slow code paths) causing unrelated tests to fail.
             // Background readers treat these as immutable for the duration of the task; the SoD
             // contract ensures the main thread does not structurally mutate them mid-frame.
+            if (borrowSingletons)
+            {
             SyncSingletonById(source, GlobalComponentIds.SpatialGridData);
             SyncSingletonById(source, GlobalComponentIds.EqsResultPool);
             SyncSingletonById(source, GlobalComponentIds.IEqsTemplateRegistry);
@@ -225,6 +229,7 @@ namespace Fdp.Core
             SyncSingletonById(source, GlobalComponentIds.SoundEmissionRing); // ⭐ CE-3282 (Q95 C) — the lossless sound ring; BORROWED live, read by seqlock
             SyncSingletonById(source, GlobalComponentIds.WorldEpoch); // ⭐ CE-3294 — which world this is: a background system forgets the last one's entities too
             SyncSingletonById(source, GlobalComponentIds.ReplayState); // ⭐ CE-3329 P2 — is this world a replay: a background writer stands down too (borrowed: the live flag)
+            }
             CopySingletonValueById(source, GlobalComponentIds.UnderFireSightHolder); // ⭐ CE-2468 — the published under-fire sight, COPIED (not borrowed): the snapshot keeps its moment (R-219) — the EQS danger solve's CoveredByFire, the path solver's route price
 
             // 4. Sync BOTH version clocks.

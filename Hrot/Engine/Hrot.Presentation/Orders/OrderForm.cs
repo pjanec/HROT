@@ -102,6 +102,7 @@ public sealed class OrderForm : IOrderForm
             var missing = e.Missing;
             if (missing.Count > 0)
                 ImGui.TextColored(new Vector4(1f, 0.75f, 0.2f, 1f), "Missing: " + string.Join(", ", missing.Select(f => f.Name)));
+            if (e.PlanNotice is { } notice) ImGui.TextColored(new Vector4(0.95f, 0.75f, 0.2f, 1f), notice);   // ⭐ CE-3494 — C.PEND
             ImGui.BeginDisabled(missing.Count > 0);
             if (ImGui.Button("Send")) e.Send();
             ImGui.EndDisabled();

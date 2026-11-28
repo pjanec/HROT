@@ -1,0 +1,554 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: the breath's release gates on a dragon (CE-3490 BA-6, F-9 Protocol III). On basic-desert three dragons (TKB 411, 60 m up at x 100) each attack the first man of a row of three hostile riflemen at x 400: 'Held Dragon' the Held Men (y 188\u2026212) with a neutral 'Civilian' standing 1.5 m beside Held Man 1 (400, 189.5); 'Control Dragon' the same row with no civilian (y 438\u2026462); 'Forbidden Dragon' (its ROE forbids incendiaries) the Forbidden Men (y 688\u2026712). Judge: the Held Dragon holds its breath while the civilian is inside the flame it would throw (DESIGN_Breath_Attack \u00a77: the hold is the burn cone) and the civilian is never hurt; the Control Dragon burns its row and Control Man 1 dies; the Forbidden Dragon never breathes and its men are never hurt."
+ },
+ "entities": {
+  "d3490003-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     200,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 411
+   },
+   "EntityInfo": {
+    "Name": "Held Dragon",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {
+     "Target": "d3490003-0000-4000-8000-000000000011"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     400,
+     188,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Held Man 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     400,
+     200,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Held Man 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     400,
+     212,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Held Man 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000019": {
+   "SimTransform": {
+    "Position": [
+     400,
+     189.5,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Civilian",
+    "ForceId": "Neutral"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     100,
+     450,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 411
+   },
+   "EntityInfo": {
+    "Name": "Control Dragon",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {
+     "Target": "d3490003-0000-4000-8000-000000000021"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     400,
+     438,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Control Man 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000022": {
+   "SimTransform": {
+    "Position": [
+     400,
+     450,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Control Man 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000023": {
+   "SimTransform": {
+    "Position": [
+     400,
+     462,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Control Man 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000003": {
+   "SimTransform": {
+    "Position": [
+     100,
+     700,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 411
+   },
+   "EntityInfo": {
+    "Name": "Forbidden Dragon",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal",
+    "Incendiary": "IncendiaryForbidden"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {
+     "Target": "d3490003-0000-4000-8000-000000000031"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000031": {
+   "SimTransform": {
+    "Position": [
+     400,
+     688,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Forbidden Man 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000032": {
+   "SimTransform": {
+    "Position": [
+     400,
+     700,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Forbidden Man 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490003-0000-4000-8000-000000000033": {
+   "SimTransform": {
+    "Position": [
+     400,
+     712,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Forbidden Man 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  }
+ }
+}

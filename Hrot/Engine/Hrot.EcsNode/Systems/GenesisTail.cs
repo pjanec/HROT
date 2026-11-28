@@ -14,11 +14,12 @@ namespace Hrot.SimHost.Systems
     /// </remarks>
     public static class GenesisTail
     {
-        /// <summary>Registers both systems (Input phase) on <paramref name="kernel"/>, at the caller's point.</summary>
+        /// <summary>Registers the genesis materialization (Input phase) on <paramref name="kernel"/>, at the caller's point. ⭐ CE-3494 — the brain half went to BehaviorIngressSystem.</summary>
         public static void RegisterOn(ModuleHostKernel kernel, NetworkEntityMap entityMap)
         {
             kernel.RegisterGlobalSystem(new GenesisMaterializationSystem(entityMap));
-            kernel.RegisterGlobalSystem(new InitialBrainMaterializationSystem());
+            // ⛔ CE-3494 — InitialBrainMaterializationSystem is gone: BehaviorIngressSystem applies the loaded UnitIntent on the first
+            //   frame where time advances (DESIGN_Unit_Intent.md §1 R1); it started the AI on a PAUSED frame.
         }
     }
 }

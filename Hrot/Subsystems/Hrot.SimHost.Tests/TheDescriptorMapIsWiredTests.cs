@@ -326,7 +326,8 @@ public class TheDescriptorMapIsWiredTests
                     D(Hrot.NED.Descriptors.EDescriptorType.dtUnitHoldings),      // ⭐ CE-8001 — its holdings
                     D(Hrot.NED.Descriptors.EDescriptorType.dtFireState),         // ⭐ CE-4657 (thermal TD-16) — fire spots, beside Health — bound 2026-11-18, never listed
                     D(Hrot.NED.Descriptors.EDescriptorType.dtVehicleOpenings),   // ⭐ CE-4670 (VA-S2) — hatches, doors, ramps — the same
-                    D(Hrot.NED.Descriptors.EDescriptorType.dtVehicleLights) },   // ⭐ CE-4670 (VA-S3) — the lights — the same
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtVehicleLights),     // ⭐ CE-4670 (VA-S3) — the lights — the same
+                    D(Hrot.NED.Descriptors.EDescriptorType.dtBridgeCarried) },   // ⭐ CE-4693 (BL-S3) — a bridge engineer's span and order (247, sorted by ordinal)
             map.DescriptorsOf(Fdp.Core.NodeRole.Brain).ToArray());
         Assert.Equal(
             new[] { D(Hrot.NED.Descriptors.EDescriptorType.dtWorldPos), D(Hrot.NED.Descriptors.EDescriptorType.dtNavigationStatus),

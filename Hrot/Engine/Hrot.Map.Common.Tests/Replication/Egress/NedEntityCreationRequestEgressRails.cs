@@ -292,4 +292,30 @@ public class NedEntityCreationRequestEgressRails
             .MapToComponents(sample.InitialDescriptors).OfType<Fdp.Toolkit.Combat.AreaEffectCloud>());
         Assert.Equal(cloud, back);
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-11034</c> — an ambience layer asked for on one node (owner 0 ⇒ the default processor, which may be ANOTHER node) rides the forwarded request as a <c>dtAmbience</c> descriptor, and
+    /// the NED ingress's mapper rebuilds the component with every field — the <c>CE-3228</c> shape. ⛔ Without it the creator builds a bare type-8841 entity that sounds nothing.
+    /// 🔴 Mutation: the builder's <c>Ambience</c> branch removed ⇒ no descriptor ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE11034_AnAmbienceLayer_SurvivesTheWireRoundTrip()
+    {
+        var (egress, writer) = NewEgress();
+        var layer = new Fdp.Toolkit.Ambient.Ambience { Kind = new FixedString32("alarm.airraid"), Intensity = 0.8f, Radius = 800f, Until = (SimInstant)150.0 };
+
+        egress.Send(new EntityCreationRequest
+        {
+            RequestId          = Guid.NewGuid(),
+            OwnerAppInstanceId = 0,
+            TkbType            = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.AmbienceLayer),
+            InitialComponents  = new List<object> { new SimTransform { Position = new Vector3(5f, 5f, 0f) }, layer },
+        });
+
+        var sample = Assert.Single(writer.Publishes);
+        Assert.Single(sample.InitialDescriptors, d => d._d == EDescriptorType.dtAmbience);
+        var back = Assert.Single(Hrot.Map.Common.Replication.Utils.DescriptorMapper
+            .MapToComponents(sample.InitialDescriptors).OfType<Fdp.Toolkit.Ambient.Ambience>());
+        Assert.Equal(("alarm.airraid", 0.8f, 800f, 150.0), (back.Kind.ToString(), back.Intensity, back.Radius, back.Until.Seconds));
+    }
 }

@@ -654,16 +654,17 @@ namespace Fdp.Toolkit.Combat.Tests
             _world.AddComponent(target, new EntityInfo { ForceId = ForceId.Hostile });
             var (shooter, _) = SpawnShooter(Vector3.Zero, 5, 0f, target, 0.05f);
             _world.AddComponent(shooter, new EntityInfo { ForceId = ForceId.Friend });
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, mount, 0L, target), "no one in the flame");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, target), "no one in the flame");
 
             var past = Neutral(new Vector3(30f, 0f, 0f), person: true);   // 10 m BEYOND the target, inside the 40 m reach
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, mount, 0L, target), "the flame goes on past the target");
-            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, rifle, 0L, target), "a rifle is not a flame");
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, target), "the flame goes on past the target");
+            Assert.False(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, rifle, 0L, target), "a rifle is not a flame");
             Assert.False(Fdp.Toolkit.Combat.LineOfFire.BlockedByNeutral(_world, shooter, target, 0f), "the bullet's line stops at the target");
             _world.AddComponent(past, new Health { Current = 0f, Max = 100f });
 
             Neutral(new Vector3(35f, 3f, 0f), person: true);    // 3 m off the axis at 35 m: the 6° cone is ±3.7 m there
-            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, mount, 0L, new Vector3(20f, 0f, 0f)), "inside the cone, toward a point");
+            //   ⭐ CE-3490 BA-6 — the hold is the 3-D jet FlameSystem burns with: aimed at chest height (a jet aimed at the GROUND 20 m out is under it at 35 m)
+            Assert.True(Fdp.Toolkit.Combat.LineOfFire.NeutralInFlame(_world, shooter, 0, mount, 0L, new Vector3(20f, 0f, 1f)), "inside the cone, toward a point");
         }
 
         /// <summary>
@@ -3415,7 +3416,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Reg<PersonCarrier>();
             Reg<ActorCapabilityState>();
             Reg<Health>();
-            Reg<WeaponSystemParams>();
+            Reg<WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>();
             Reg<WeaponSystemState>();
         }
 
@@ -3781,7 +3782,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });
             Assert.True(WeaponSystems.CanFire(_world, m2, out why), $"held by {why}");
         }
 
@@ -3800,7 +3801,7 @@ namespace Fdp.Toolkit.Combat.Tests
 
             if (!_world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Possession.PossessedBy>())
                 _world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });
+            _world.AddComponent(gunner, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });
             Assert.Equal(gunner, WeaponSystems.ControllerOf(_world, m2));                   // seat switching: the gunner's gun
             Span<Entity> keys = stackalloc Entity[4];
             Assert.Equal(1, WeaponSystems.Controlled(_world, gunner, keys));
@@ -3809,7 +3810,7 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.True(WeaponSystems.OperatesAStation(_world, gunner));
             Assert.True(WeaponSystems.CanFire(_world, m2, out var why), $"held by {why}");
 
-            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.NodeId)(7) });   // the driver seat too
+            _world.AddComponent(pickup, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)(7) });   // the driver seat too
             Assert.Equal(pickup, WeaponSystems.ControllerOf(_world, m2));
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(pickup);
             _world.RemoveComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(gunner);                         // released
@@ -4139,5 +4140,272 @@ namespace Fdp.Toolkit.Combat.Tests
 
         private Fdp.Toolkit.Behavior.Diagnostics.ActionReason LastWeaponReason(Entity unit)
             => _world.GetComponent<Fdp.Toolkit.Behavior.Diagnostics.ActionStatus>(unit).Weapon.Reason;
+
+        // ── ⭐ CE-11033 (R-11012 / R-11013; docs/DESIGN_Weapon_Layers.md §5l) — the AI fires short bursts and stamps each round ─────────
+
+        private static Fdp.Toolkit.Tkb.Domain.WeaponMountDto BurstMount(Fdp.Toolkit.Tkb.Domain.WeaponCategory c = Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, float rpm = 700f)
+            => new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Category = c, RateOfFire = rpm };
+
+        /// <summary>A shooter at the origin with <paramref name="mount"/> on a target <paramref name="range"/> m east (moving at <paramref name="targetSpeed"/> north).</summary>
+        private (Entity Shooter, WeaponChannel Channel, Entity Target) BurstShooter(Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, float range, float targetSpeed = 0f)
+        {
+            var (shooter, channel, target) = TypedShooter(mount, range);
+            _world.AddComponent(target, new SimVelocity { Linear = new Vector3(0f, targetSpeed, 0f) });
+            _world.GetComponentRW<WeaponState>(shooter).Ammo = 5000;
+            return (shooter, channel, target);
+        }
+
+        /// <summary>Runs <paramref name="seconds"/> at 120 Hz; the rounds asked, each with the time it left.</summary>
+        private System.Collections.Generic.List<(double T, WeaponFireIntent Shot)> Rounds(Entity shooter, ref WeaponChannel channel, float seconds)
+        {
+            var list = new System.Collections.Generic.List<(double, WeaponFireIntent)>();
+            const float dt = 1f / 120f;
+            for (int f = 0; f < (int)(seconds / dt); f++)
+            {
+                Tick(shooter, ref channel, dt);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var s in _world.Bus.Read<WeaponFireIntent>()) list.Add((f * (double)dt, s));
+            }
+            return list;
+        }
+
+        private BurstPlan Plan(Fdp.Toolkit.Tkb.Domain.WeaponMountDto mount, float range, float targetSpeed, bool blind, uint id, int shooterIndexSalt = 0)
+        {
+            var (shooter, _, target) = BurstShooter(mount, range, targetSpeed);
+            return FireBursts.Choose(_world, shooter, target, mount, blind, id + (uint)shooterIndexSalt);
+        }
+
+        /// <summary>⭐ a) the §5l rules table, row by row: the rounds range and (for a burst) a pause over the cyclic gap.</summary>
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 200f, 0f, false, 1, 1)]    // beyond 150 m: a single aimed round
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 200f, 5f, false, 1, 1)]    // ... even against a mover
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 40f, 0f, false, 2, 3)]     // inside 50 m
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 100f, 3f, false, 2, 3)]    // a target moving across
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 100f, 0f, false, 1, 2)]    // the middle band, standing
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 200f, 0f, true, 3, 5)]     // blind / suppressing
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.SmallArms, 40f, 0f, true, 3, 5)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Grenade, 40f, 0f, false, 1, 1)]       // single-shot categories
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.TankGun, 40f, 0f, true, 1, 1)]
+        public void CE11033_TheRulesTable_GivesEachRowItsRoundsRange_AndAPauseOverTheCyclicGap(Fdp.Toolkit.Tkb.Domain.WeaponCategory category,
+            float range, float targetSpeed, bool blind, int min, int max)
+        {
+            var mount = BurstMount(category);
+            float cyclic = FireBursts.Cyclic(mount);
+            var seen = new System.Collections.Generic.HashSet<int>();
+            for (uint id = 1; id <= 300; id++)
+            {
+                var plan = Plan(mount, range, targetSpeed, blind, id, (int)id * 3);
+                Assert.InRange((int)plan.Rounds, min, max);
+                seen.Add(plan.Rounds);
+                if (plan.Rounds > 1)
+                {
+                    Assert.True(plan.PauseSeconds > cyclic, $"pause {plan.PauseSeconds} over the cyclic gap {cyclic}");
+                    Assert.True(plan.PauseSeconds * FirePacing.GapMin > cyclic * FirePacing.GapMax, "even jittered, the pause outlasts a jittered cyclic gap");
+                    if (blind) Assert.True(plan.PauseSeconds > cyclic + 1.5f, "suppression pauses longer");
+                }
+            }
+            Assert.Equal(max - min + 1, seen.Count);   // every count of the row occurs: the draw is not stuck
+        }
+
+        [Theory]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun)]
+        [InlineData(Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon)]
+        public void CE11033_AMachineGun_KeepsItsHeatRule_NoPlan(Fdp.Toolkit.Tkb.Domain.WeaponCategory category)
+            => Assert.Equal(0, Plan(BurstMount(category, 900f), 40f, 0f, false, 1).Rounds);
+
+        [Fact]
+        public void CE11033_ASlowRifle_FiresNoBursts()
+            => Assert.Equal(1, Plan(BurstMount(rpm: 30f), 40f, 0f, false, 1).Rounds);
+
+        /// <summary>⭐ b) a burst: rounds share one BurstId, BurstIndex counts 1..BurstRounds, the gaps inside are the jittered cyclic gap, the gap
+        /// after is the pause, and the next burst has a new BurstId. ✅ Red-proofs: id not renewed · pause not applied · index not counted.</summary>
+        [Fact]
+        public void CE11033_ABurst_SharesOneId_CountsItsRounds_FiresAtCyclic_ThenPauses_AndTheNextBurstIsNew()
+        {
+            var mount = BurstMount();
+            float cyclic = FireBursts.Cyclic(mount);
+            const double tol = 2.5 / 120.0;
+            var (shooter, channel, _) = BurstShooter(mount, 40f);
+            var rounds = Rounds(shooter, ref channel, 14f);
+            Assert.True(rounds.Count > 8, $"{rounds.Count} rounds");
+            var ids = new System.Collections.Generic.List<uint>();
+            int i = 0, bursts = 0;
+            while (i < rounds.Count)
+            {
+                var first = rounds[i].Shot;
+                Assert.NotEqual(0u, first.BurstId);
+                int n = first.BurstRounds;
+                Assert.InRange(n, 2, 3);
+                if (i + n > rounds.Count) break;   // the window ended inside this burst
+                for (int k = 0; k < n; k++)
+                {
+                    var r = rounds[i + k].Shot;
+                    Assert.Equal(first.BurstId, r.BurstId);
+                    Assert.Equal(n, r.BurstRounds);
+                    Assert.Equal(k + 1, r.BurstIndex);
+                    if (k > 0) Assert.InRange(rounds[i + k].T - rounds[i + k - 1].T, cyclic * FirePacing.GapMin - tol, cyclic * FirePacing.GapMax + tol);
+                }
+                if (i + n < rounds.Count)
+                {
+                    double pause = rounds[i + n].T - rounds[i + n - 1].T;
+                    Assert.True(pause >= 1.0 * FirePacing.GapMin - tol, $"the pause after burst {bursts}: {pause:0.000} s");   // never under the asked 1 s
+                    Assert.True(pause > cyclic * FirePacing.GapMax + tol);
+                    Assert.NotEqual(first.BurstId, rounds[i + n].Shot.BurstId);
+                }
+                Assert.DoesNotContain(first.BurstId, ids);
+                ids.Add(first.BurstId);
+                bursts++;
+                i += n;
+            }
+            Assert.True(bursts >= 3, $"{bursts} bursts");
+        }
+
+        /// <summary>⭐ The same average rate of fire as before bursts (user, 2026-11-22): over a long window a bursting man asks as many rounds as one
+        /// round per asked interval (1 s here) — near (2-3 round bursts) and the middle band (1-2). ✅ Red-proof: the rule's pause instead ⇒ red.</summary>
+        [Theory]
+        [InlineData(40f)]
+        [InlineData(100f)]
+        public void CE11033_Bursts_KeepTheAverageRateOfFire(float range)
+        {
+            var (shooter, channel, _) = BurstShooter(BurstMount(), range);
+            var rounds = Rounds(shooter, ref channel, 120f);
+            int bursts = 0;
+            foreach (var r in rounds) if (r.Shot.BurstIndex == 1 && r.Shot.BurstRounds >= 2) bursts++;
+            Assert.True(bursts >= 5, $"{bursts} bursts: the window must hold bursts");
+            double perSecond = (rounds.Count - 1) / (rounds[^1].T - rounds[0].T);
+            Assert.InRange(perSecond, 0.85, 1.15);
+        }
+
+        /// <summary>⭐ The pause rule itself, every burst length and the blind interval: N rounds take N asked intervals in all; no asked interval ⇒ the rule's pause.</summary>
+        [Theory]
+        [InlineData(2, 1.0f)] [InlineData(3, 1.0f)] [InlineData(5, 2.5f)] [InlineData(4, 1.25f)]
+        public void CE11033_ThePauseAfterABurst_MakesItTakeNAskedIntervals(int n, float asked)
+        {
+            float cyclic = FireBursts.Cyclic(BurstMount());
+            float pause = FireBursts.PauseAfter((byte)n, cyclic, asked, 9f);
+            Assert.Equal(n * asked, cyclic * (n - 1) + pause, 4);
+            Assert.Equal(2f, FireBursts.PauseAfter((byte)n, cyclic, 0f, 2f), 4);
+        }
+
+        /// <summary>A target beyond 150 m: single aimed rounds, BurstId 0, the asked interval exactly as before.</summary>
+        [Fact]
+        public void CE11033_FarTarget_SingleRounds_NoBurstStamp_TheAskedInterval()
+        {
+            var (shooter, channel, _) = BurstShooter(BurstMount(), 200f);
+            var rounds = Rounds(shooter, ref channel, 8f);
+            Assert.True(rounds.Count >= 5);
+            for (int k = 0; k < rounds.Count; k++)
+            {
+                Assert.Equal(0u, rounds[k].Shot.BurstId);
+                if (k > 0) Assert.InRange(rounds[k].T - rounds[k - 1].T, 0.8 - 0.03, 1.25 + 0.03);
+            }
+        }
+
+        /// <summary>⭐ c) the operator / player path never stamps a burst; RoundsFired and the ammunition accounting are unchanged.
+        /// ✅ Red-proof: a stamp on the operator's intent ⇒ red.</summary>
+        [Fact]
+        public void CE11033_OperatorFire_NeverCarriesABurst_AndAccountingIsUnchanged()
+        {
+            var (shooter, channel) = SpawnShooter(Vector3.Zero, 10, 0f, Entity.Null, 0.2f);
+            AskOperator(ref channel, new Vector3(40f, 5f, 1f), trigger: 1);
+            _executor.OnEnter(shooter, ref channel, _world);
+            int shots = 0;
+            for (int f = 0; f < 60; f++)
+            {
+                Tick(shooter, ref channel, 1f / 60f);
+                _world.Bus.SwapBuffers();
+                foreach (ref readonly var s in _world.Bus.Read<WeaponFireIntent>()) { Assert.Equal((0u, (byte)0, (byte)0), (s.BurstId, s.BurstRounds, s.BurstIndex)); shots++; }
+            }
+            Assert.True(shots >= 3);
+            Assert.Equal(shots, AimAndFireExecutor.RoundsFiredOf(ref channel));
+            Assert.Equal(10 - shots, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>The AI's rounds are accounted exactly as before: one RoundsFired and one round of ammunition per round of every burst.</summary>
+        [Fact]
+        public void CE11033_BurstRounds_AreAccountedOneByOne()
+        {
+            var (shooter, channel, _) = BurstShooter(BurstMount(), 40f);
+            var rounds = Rounds(shooter, ref channel, 6f);
+            Assert.Equal(rounds.Count, AimAndFireExecutor.RoundsFiredOf(ref channel));
+            Assert.Equal(5000 - rounds.Count, _world.GetComponent<WeaponState>(shooter).Ammo);
+        }
+
+        /// <summary>⭐ d) the same shooter gives the same bursts, run twice (SimRng per shooter and burst, no wall clock).</summary>
+        [Fact]
+        public void CE11033_TheSameShooter_GivesTheSameBursts_Twice()
+        {
+            System.Collections.Generic.List<(double, uint, byte, byte)> Run()
+            {
+                using var t = new AimAndFireExecutorTests();
+                var (shooter, channel, _) = t.BurstShooter(BurstMount(), 40f);
+                var l = new System.Collections.Generic.List<(double, uint, byte, byte)>();
+                foreach (var (time, s) in t.Rounds(shooter, ref channel, 10f)) l.Add((time, s.BurstId, s.BurstRounds, s.BurstIndex));
+                return l;
+            }
+            var a = Run(); var b = Run();
+            Assert.True(a.Count > 6);
+            Assert.Equal(a, b);
+        }
+
+        /// <summary>⭐ d) 0 B per steady frame for a man firing bursts (the executor, the cooldown drain, the muscle's answer are warm).</summary>
+        [Fact]
+        public void CE11033_ABurstFiringMan_AllocatesNothingInTheSteadyFrame()
+        {
+            var (shooter, channel, _) = BurstShooter(BurstMount(), 40f);
+            Rounds(shooter, ref channel, 3f);   // warm: first calls JIT and grow buffers
+            long worst = 0;
+            for (int f = 0; f < 600; f++)
+            {
+                _world.Bus.SwapBuffers();   // the event bus is not the executor's
+                long before = GC.GetAllocatedBytesForCurrentThread();
+                Ask(shooter, ref channel, 1f / 120f);
+                worst = Math.Max(worst, GC.GetAllocatedBytesForCurrentThread() - before);
+                TestMuscle.FireAll(_world);
+            }
+            Assert.Equal(0L, worst);
+        }
+
+        private static unsafe void PokeState28(ref WeaponChannel channel, uint value)
+            => Unsafe.Write(Unsafe.AsPointer(ref channel.State[28]), value);
+
+        /// <summary>⭐ CE-11033 corner — the brain's burst state shares bytes 28-31 with the turret path's <c>Accounted</c> count. Whatever the turret path
+        /// left there (a count, small or past 255), the per-shot path starts a CLEAN burst: index 1 of a 2-3 round burst, never a stray open one.
+        /// ✅ Red-proof: the validity check dropped ⇒ a count of 300 reads as an open 1-round burst ⇒ red.</summary>
+        [Theory]
+        [InlineData(0u)] [InlineData(3u)] [InlineData(300u)] [InlineData(0x0003_0201u)] [InlineData(0x7FFF_FFFFu)] [InlineData(0xFFFF_FFFFu)]
+        public void CE11033_WhatTheTurretPathLeftInTheSharedState_NeverCarriesIntoABurst(uint left)
+        {
+            var (shooter, channel, _) = BurstShooter(BurstMount(), 40f);
+            PokeState28(ref channel, left);
+            var rounds = Rounds(shooter, ref channel, 4f);
+            Assert.True(rounds.Count >= 2);
+            var first = rounds[0].Shot;
+            Assert.InRange((int)first.BurstRounds, 2, 3);
+            Assert.Equal(1, first.BurstIndex);
+            Assert.Equal(first.BurstRounds, rounds[first.BurstRounds - 1].Shot.BurstIndex);
+        }
+
+        /// <summary>⭐ CE-11033 corner, the other way — a per-shot burst state left in the shared bytes (bit 31 set) is not a turret count: the turret path
+        /// spends each round once. ✅ Red-proof: the <c>accounted &lt; 0</c> reset dropped ⇒ rounds spent in the thousands ⇒ red.</summary>
+        [Fact]
+        public void CE11033_ABurstStateLeftInTheSharedState_IsNotATurretCount()
+        {
+            var (shooter, turret, channel, _) = TurretedTank(rounds: 3, cooldown: 0.5f);
+            var muscle = new Fdp.Toolkit.Combat.Systems.WeaponTaskDispatcherSystem();
+            _executor.OnEnter(shooter, ref channel, _world);
+            const float dt = 1f / 60f;
+            int shots = 0;
+            for (int f = 0; f < 60 * 8 && channel.Status == NodeStatus.Running; f++)
+            {
+                if (f == 10) PokeState28(ref channel, 0x8003_0201u);   // after the epoch began (a fresh epoch zeroes the int): while the turret still slews
+                Tick(shooter, ref channel, dt);
+                muscle.Execute(_world, dt);
+                _world.Bus.SwapBuffers();
+                shots += _world.Bus.Read<WeaponFireIntent>().Length;
+            }
+            Assert.Equal(3, shots);
+            Assert.Equal(2, _world.GetComponent<WeaponState>(shooter).Ammo);   // 5 - 3, spent once each
+        }
     }
 }

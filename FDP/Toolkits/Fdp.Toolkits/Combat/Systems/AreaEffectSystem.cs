@@ -193,7 +193,7 @@ namespace Fdp.Toolkit.Combat.Systems
                 var tf = repo.GetComponentRO<SimTransform>(e);
                 if (nearMiss > 0f && e != evt.Target && Vector3.Distance(burst, tf.Position) <= nearMiss && IsPerson(repo, e))
                     HitModel.NearMiss(repo, cmd, e, burst, origin);   // ⭐ CE-4584 — before the damage reach: the near-miss ring may be the wider one
-                if (Vector2.Distance(new Vector2(burst.X, burst.Y), new Vector2(tf.Position.X, tf.Position.Y)) > reach + 2f) continue;
+                if (Vector2.Distance(new Vector2(burst.X, burst.Y), ReachPoint(repo, e, in tf, burst)) > reach + 2f) continue;
                 // ⭐⭐ CE-6003 (city battle O-1, Peek and Fire §9.9) — a destructible OBSTACLE is terrain: blast by charge and closeness, never the
                 //   person / hull law below (its own prism would shield its body points, and that law's blast is the same for every warhead)
                 if (TerrainObstacles.IsObstacle(repo, e)) { AssessObstacle(repo, in evt, w, burst, e, in tf, world, record); continue; }
@@ -302,6 +302,21 @@ namespace Fdp.Toolkit.Combat.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-4692</c> BL-8 (📄 docs/designs/engineering/DESIGN_Bridge_Laying.md §3) — the plan point a burst's reach is measured to: the entity's position, except for a laid bridge's DECK
+        /// (a WalkableDeck obstacle, up to tens of metres long), where it is the deck's nearest point — a charge at a span's far end must not be culled by the distance to its centre.
+        /// </summary>
+        private static Vector2 ReachPoint(EntityRepository repo, Entity e, in SimTransform tf, Vector3 burst)
+        {
+            if (repo.IsComponentTypeRegistered<StaticObstacle>() && repo.HasComponent<StaticObstacle>(e) && repo.GetComponentRO<StaticObstacle>(e).Kind == ObstacleKind.WalkableDeck
+                && repo.HasComponent<ObstacleShape>(e))
+            {
+                var near = ObstacleDamage.NearestPoint(tf.Position, TerrainObstacles.Yaw(tf.Rotation), in repo.GetComponentRO<ObstacleShape>(e), burst);
+                return new Vector2(near.X, near.Y);
+            }
+            return new Vector2(tf.Position.X, tf.Position.Y);
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-6003</c> (city battle O-1, 📄 docs/DESIGN_Peek_And_Fire.md §9.9) — a burst on a destructible static obstacle: <see cref="ObstacleDamage.BlastDamage"/>
         /// at the distance to the obstacle's NEAREST FACE (its box, not body points), through the closed barriers on the line to that face — traced to a
         /// point 2 cm outside it, so the obstacle's own prism is never crossed (as <see cref="LineClearToFace"/> does for a wall). A non-lethal warhead
@@ -312,6 +327,8 @@ namespace Fdp.Toolkit.Combat.Systems
         {
             if (NonLethalEffectOf(w.Kind) != HitEffect.Kinetic || w.ExplosiveKg <= 0f || !repo.HasComponent<ObstacleShape>(e)) return;
             var near = ObstacleDamage.NearestPoint(tf.Position, TerrainObstacles.Yaw(tf.Rotation), in repo.GetComponentRO<ObstacleShape>(e), burst);
+            if (world != null && repo.GetComponentRO<StaticObstacle>(e).Kind == ObstacleKind.WalkableDeck)
+                near.Z = world.SurfaceZ(near.X, near.Y, burst.Z);   // ⭐ CE-4692 BL-8 — a deck's nearest point is ON the deck (the entity's base may be the river bed)
             float d = Vector3.Distance(burst, near);
             float raw = ObstacleDamage.BlastDamage(w.ExplosiveKg, d);
             if (raw <= 0f) return;
@@ -577,6 +594,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 {
                     Building = group, Panel = pi, From = breach.From, To = breach.To, Bottom = breach.Bottom, Top = breach.Top,
                     Kind = (byte)breach.Kind, Shooter = evt.Shooter,
+                    BlastX = burst.X, BlastY = burst.Y, BlastZ = burst.Z,   // ⭐ CE-11051 — the debris flies away from here
+                    Cause = (byte)Terrain.BreachCause.Detonation, ExplosiveKg = w.ExplosiveKg,   // ⭐ CE-11054 — a blast, and the charge the breach rule used
                 });
                 if (FaceDistance(panel, burst) <= CraterRuleTable.Shared.WallContactM) _spentOnWall = true;   // ⭐ CE-5019 — a contact burst: no crater
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, group)} panel {pi} {breach.Kind} " +
@@ -602,7 +621,8 @@ namespace Fdp.Toolkit.Combat.Systems
                 var building = terrain.Buildings[bi];
                 if (!BreachRule.Collapses(table, building, burst, w.ExplosiveKg)) continue;
                 _collapsedNow.Add(bi);
-                repo.Bus.Publish(new BuildingDamageEvent { Building = bi, Panel = -1, Collapse = 1, Shooter = evt.Shooter });
+                repo.Bus.Publish(new BuildingDamageEvent { Building = bi, Panel = -1, Collapse = 1, Shooter = evt.Shooter, BlastX = burst.X, BlastY = burst.Y, BlastZ = burst.Z,
+                    Cause = (byte)Terrain.BreachCause.Detonation, ExplosiveKg = w.ExplosiveKg });   // ⭐ CE-11054
                 record.BuildingBreaches.Add($"{BuildingDamages.KeyOf(terrain, bi)} COLLAPSED");
                 float baseZ = building.StoreyZ.Count > 0 ? building.StoreyZ[0] : building.BaseZ;
                 float roofZ = building.StoreyZ.Count > 1 ? building.StoreyZ[building.StoreyZ.Count - 1] : baseZ + 3f;

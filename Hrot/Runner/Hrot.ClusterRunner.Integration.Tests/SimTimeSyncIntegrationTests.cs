@@ -269,4 +269,20 @@ public sealed class SimTimeSyncIntegrationTests : IDisposable
         Assert.True(s2  >= 0, $"SimHost sim time is negative after pause: {s2:F4}");
         Assert.True(player2 >= 0, $"Player sim time is negative after pause: {player2:F4}");
     }
+
+    // ── TC-SYNC-7: a rate change while running re-anchors every slave (CE-11019) ──
+
+    /// <summary>
+    /// ⭐ CE-11019 — a slave extrapolates from its last anchor at that anchor's rate. Changing the rate while running must reach every node, or
+    /// the master runs at the new rate and the slaves at the old one and drift apart by (Δrate × wall time).
+    /// </summary>
+    [Fact(Timeout = 60_000)]
+    public async Task CE11019_ARateChangeWhileRunning_KeepsAllNodesInSync()
+    {
+        Settle(SettleFrames);
+        string payload = $"{{\"TimeScale\":{0.25f.ToString("F3", System.Globalization.CultureInfo.InvariantCulture)}}}";
+        await SendTimeOpAsync(ClusterOpType.SetTimeScale, payload).ConfigureAwait(false);
+        Settle(200);   // ~1 s of wall time: a slave left at rate 1 would be ~0.75 s ahead
+        AssertAllInSync("1 s after a rate change to x0.25");
+    }
 }

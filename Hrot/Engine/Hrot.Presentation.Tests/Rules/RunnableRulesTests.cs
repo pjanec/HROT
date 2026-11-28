@@ -10,6 +10,7 @@ using Fdp.Toolkit.ScenarioRules;
 using Fdp.Toolkit.ScenarioRules.Actions;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.Presentation.Windows;
+using Hrot.Common.Messages;
 using Hrot.UI.Common.Adapters;
 using Hrot.UI.Common.Map3D;
 using Hrot.UI.Common.Rules;
@@ -362,8 +363,8 @@ public sealed class RunnableRulesTests : IDisposable
         Sent(M(1, "Side", (int)ForceId.Hostile, "to red", 1, 55));
         var store = PlayerMessages.Of(_world)!;
         Assert.Equal(55, store.All.Single().Source);
-        Assert.Empty(store.Log(new MessageViewer(0, ForceId.Friend, 0)));
-        Assert.Single(store.Log(new MessageViewer(0, ForceId.Hostile, 0)));
+        Assert.Empty(store.Log(new MessageViewer(0, ForceId.Friend, default)));
+        Assert.Single(store.Log(new MessageViewer(0, ForceId.Hostile, default)));
     }
 
     [Fact]

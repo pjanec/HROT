@@ -131,6 +131,23 @@ internal sealed class ClusterVerifyWorld : IVerifyWorld, IShotWorld, IDisposable
         return error;
     }
 
+    /// <summary>⭐ CE-3494 F3 — the <c>POST /orders</c> route, one item.</summary>
+    public string? Order(int networkId, JsonObject order)
+    {
+        var item = (JsonObject)order.DeepClone();
+        item["networkId"] = networkId;
+        var (body, error) = Post("/orders", new JsonObject { ["orders"] = new JsonArray(item) });
+        if (error != null) return error;
+        var r = (body?["results"] as JsonArray)?[0];
+        return r?["accepted"]?.GetValue<bool>() == true ? null : (r?["detail"] ?? r?["refusal"])?.ToString() ?? "refused";
+    }
+
+    /// <summary>⭐ CE-3494 F3 — the <c>POST /missions/{id}/resume</c> route.</summary>
+    public string? ResumePlan(int networkId) => Post($"/missions/{networkId}/resume", new JsonObject()).Error;
+
+    /// <summary>⭐ CE-11061 — the <c>POST /entities/{id}/revive</c> route.</summary>
+    public string? Revive(int networkId) => Post($"/entities/{networkId}/revive", new JsonObject()).Error;
+
     /// <summary>⭐ CE-9021 — the other perspectives that hold a world and may own a component (the Muscle: bodies' poses, health …).</summary>
     private static readonly string[] OwnerPerspectives = { "SimHost" };
 

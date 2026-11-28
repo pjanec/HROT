@@ -19,12 +19,7 @@ public static class SeatSwitch
     public const float EyeAboveHips = 0.72f;
 
     /// <summary>The vehicle <paramref name="unit"/> plays a seat of: itself when it has stations, else the vehicle he sits in; null otherwise.</summary>
-    public static Entity VehicleOf(EntityRepository w, Entity unit)
-    {
-        if (!w.IsAlive(unit)) return Entity.Null;
-        if (Has<CarrierStations>(w, unit) && Has<PassengerBuffer>(w, unit) && !Has<PersonCarrier>(w, unit)) return unit;
-        return Has<IsEmbarkedTag>(w, unit) ? w.GetComponentRO<IsEmbarkedTag>(unit).VehicleEntity : Entity.Null;
-    }
+    public static Entity VehicleOf(EntityRepository w, Entity unit) => Hrot.Common.Orders.DriveHandOver.VehicleOf(w, unit);
 
     /// <summary>The seats of <paramref name="vehicle"/> in order: the vehicle (its driver / pilot seat), then each operating seat's man.</summary>
     public static List<Entity> Seats(EntityRepository w, Entity vehicle)

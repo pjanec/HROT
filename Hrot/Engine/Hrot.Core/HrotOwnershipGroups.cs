@@ -57,6 +57,7 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.BladeCut);   // ⭐ CE-4601 (B-4) — the dozer's brain marks where its blade cuts (dtBladeCut); the Muscle reads it
         brain.SetBit(GlobalComponentIds.MineClearing);   // ⭐ CE-4624 MS-T4 — the clearer's tool marker (dtMineClearing), written by its brain's ClearLane (behaviors, cross-lane: it was in no group, so on a
                                                          //   split cluster the brain's write never reached the Muscle that clears)
+        brain.SetBit(GlobalComponentIds.BridgeCarried);   // ⭐ CE-4693 (BL-S3, BL-17) — the bridge engineer's span and order (dtBridgeCarried), written by its brain's LayBridge / RecoverBridge; the mover reads it
         brain.SetBit(GlobalComponentIds.RamOrder);   // ⭐ CE-4622 K-2 — the hull's ram order (dtRamOrder), written by its brain's RamTarget; the mover reads it
         brain.SetBit(GlobalComponentIds.AnimationMontageQueue);
         // ⭐ CE-513 / R-180 — an animation channel crosses nodes, so it is split: the Brain owns the REQUEST.
@@ -128,6 +129,11 @@ public static class HrotOwnershipGroups
         brain.SetBit(GlobalComponentIds.AirCombatState);
         brain.SetBit(GlobalComponentIds.MissileDefenceState);
         brain.SetBit(GlobalComponentIds.AirArena);
+        // ⭐ devices SD-S2b (§3.13c D-108) — a drone's battery: its brain node's DroneBatterySystem is the one writer; the brain behaviours read it.
+        //   No descriptor carries it yet (the binding links it to the group's anchor, R-165) — the wire topic comes with the ground station's OSD (SD-S2c / S2d).
+        brain.SetBit(GlobalComponentIds.DroneBattery);
+        // ⭐ devices SD-S2c (§3.13c D-106) — a remotely piloted drone's link: its brain (RemotePilot) writes it on itself. No descriptor yet (as DroneBattery).
+        brain.SetBit(GlobalComponentIds.DroneLink);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

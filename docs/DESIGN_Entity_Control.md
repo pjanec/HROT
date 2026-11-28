@@ -2,11 +2,15 @@
 state: LIVE
 updated: 2026-10-28 (C-3′ / R-4096 — a station never takes a unit or a seat another live station holds; same side shares a vehicle in free seats) · 2026-10-21 (§8p CE-1201 — an optional over-the-shoulder view; leans OS-1…OS-6 taken overnight) · 2026-10-21 (§8o CE-1200 — first person in a vehicle draws it, from a crew eye; BUILT) · 2026-10-20 (§8n CE-1210 designed, leans with the user; §8m CE-1207 + CE-1205 BUILT — as-built §8m.5; §8l CE-1204 BUILT — as-built §8l.5)
 build-state: BUILDING — S1 built 2026-10-11 (§9); S2 built — attack (CE-3170, §10) and menu orders (CE-3169, §11); S3 built (CE-3171, §8a design, §12 as-built); S4 built (§8b/§8c design, §13 as-built); S5 built (§8d design, §13.3 as-built, (V) screenshot §13.3); S6 operator weapons BUILT (§8e design, §13.7 as-built); S7 the pilot station BUILT (§8f); S8 SIGHT / LOCK and the part-box crosshair BUILT 2026-10-16 (§8g); S9 the FPS use key BUILDING — engine half (§8h.7, backend), the brain half (§8h.8+, behaviors) and the station (§8h.9, ui) built 2026-10-16
-current-answer: §8r (CE-4143 — a fast gun on a turret fires where you look, the L switch; APPROVED 2026-10-31, BUILT — as-built at the end of §8r) · §8q (R-4096 / C-3′ — a player never takes another live player's unit or seat; BUILT) · §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
+current-answer: ⭐ §8h.10 (CE-11041 — the drive hand-over for every station, remote seats included; BUILT 2026-11-23, as-built at the end of §8h.10, R-11019) · §8r (CE-4143 — a fast gun on a turret fires where you look, the L switch; APPROVED 2026-10-31, BUILT — as-built at the end of §8r) · §8q (R-4096 / C-3′ — a player never takes another live player's unit or seat; BUILT) · §8l (a person's switchable mouse look — CE-1204, leans for the user) · §2 decisions · §2.3 messaging (FDP events; the networkless editor) · §3 classes · §4 sequences · §5 modules · §6 manual motion · §7 slices · §9 as-built (S1) · §10 as-built (S2 attack) · §11 as-built (S2 menu orders) · §8a + §12 (S3 RTS tool) · §8b + §13 (S4 possession, manual drive) · §8d + §13.3 (S5 FPS station) · §13.4 (M-5 navmesh check) · §13.5 (the operator's stance, the RTS tool live, first-person input) · §13.6 (the menu's keys on the map, the RTS right button) · §8e + §13.7 (the operator's weapons: click = one shot, weapon/ammo keys, HUD) · §8f (the pilot station) · §8g (SIGHT or LOCK; the crosshair on the body parts — CE-1126 / CE-1127) · §8j (zoom, lean, wheel, team switch, hit feedback — §8j.5 as built) · §8k (spread ring, compass and friends, the map key, binoculars, when he falls — approved, R-1010) · §8h (the FPS use key — CE-1144; as built: §8h.7 the engine half, §8h.8+ the brain half (behaviors), §8h.9 the station)
 stale-below: nothing
-known-rot: ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
+known-rot: ⛔ 2026-11-28 (devices S1d-3, D-75 — the user dropped CE-1219) — §8k B-1 and its §8k.5 row are SUPERSEDED: the B hold, the frame's Binoculars byte, the 10° branch and the eyepiece overlay are GONE; the trainee's binoculars are a DEVICE (docs/designs/devices/DESIGN_Simulated_Devices.md §3.10 S1d-3 AS BUILT), B cycles the view's source, LMB-designate moved to the middle button through a device; LetGoOfManual still puts the held binoculars away and CE-1224 (leaders) stands. · ⛔ 2026-10-20 (live, user) — §8k.5 the map key: M in first person flashes the map and returns to 3-D (CE-2316, candidates there); and M should switch 2-D ↔ 3-D from the plain map too. · ⭐ CE-2143 (2026-10-12) — the SENDER-side mapping in §3.1 / §10 / §11 / §12 (Move → MoveToLocation, Engage/Attack → CombatPosture, Stop → Idle; the fixed Move Here · Engage · Stop menu ids 1-3) is SUPERSEDED by docs/DESIGN_Orders_Params_Entity_Classes.md §9: EntityOrders sends ORDERS (Order.<name>), the menu lists the orders the unit's class fulfils (ids 400+), RTS gestures come from [Order(Gesture)], HTTP kind = any order; the unit resolves its own behaviour (PersonMove / InfantrySquadMove …). The one-service shape, picks, possession and the rest here stand. · the station side of §3.2, §4.3, §5 and the §7 S5 row (PossessionController + PossessionTool + PossessionHudLayer) is SUPERSEDED by §8d / §13.3 — one PossessionStation layer plus FpsCameraDriver; the camera's own input pass is the exclusive focus · §3.1 and §10 map an order to a soldier behaviour inside EntityOrders (the SENDER) — OVERRULED 2026-10-12 by R-273 (behaviors): the receiver picks; how is AQ90 A1–A6, awaiting the user
 known-conflict: docs/UX/UX_Feature_Entity_Commanding.md §1 maps Engage → FireAtTarget; this design maps it to the attack order (CombatPosture with a designated target, C-5). That doc's §1 is marked accordingly.
 related-designs:
+  - DESIGN_Capability_Components.md — keeps `PossessedBy` as CONTROL and makes the station's BODY one helper over its mode (`StationBody.Of`, CC-10 … CC-13)
+  - designs/devices/DESIGN_Simulated_Devices.md — SIMULATED DEVICES: a trainee's equipment as entities (carried in this station / scope / view), a generic I/O model with adapters, the logic as a behaviour on the brain with its state in [UnitMemory], its HUD drawn by one view-HUD mechanism (§3v, §3w)
+  - docs/designs/llm-commander/DESIGN_LLM_Commander.md — a PRELIMINARY idea: a local LLM as a side's commander, built on the AI-player seam (C-9 / C-10 / C-11) over a commander bridge
+  - docs/blueprints/Architect_Question_114_Seats_On_One_Node.md — OWNS the proposed amendment of C-8 (a station = node + seat, `StationId`; several players on one editor, R-11010) — awaiting the user
   - designs/air-attack/DESIGN_Air_Combat.md — air combat: the fighter HUD and possessing an F-16 / MiG (§4d); mode 8 is AI only
   - UX/DESIGN_Editing_UX.md — §1.8 / E15: lying weapons and stones as authored start state (PK-1 / PK-2 are the runtime half)
   - docs/UX/DESIGN_Input_And_Commands.md — MenuShortcuts and the FPS keys move into the one keymap (map scope, the Embodied hat scope)
@@ -1349,6 +1353,92 @@ station's weapon list (`Hud.Slots`, §8e) already lists every own mount, so a po
 `HANDS` (`Hud.HandsKind`) instead of its category's `GRENADE`. The civilian look's armed rule (`VisualFamilies.IsSoldier`, Civilians §8.6)
 skips a hands mount explicitly — it was already unarmed by its category. Rail `PossessionStationTests.CE1168_…`, red-proved.
 
+### 8h.10 ⭐ The hand-over for EVERY station — local and remote (`CE-11041`, `2026-11-23`, ui; build-state: BUILT — as-built below the rails)
+
+🔒 User (via `unreal-ig`, [NOTE_UnrealIg_To_Ui_Remote_Drive_Handover.md](blueprints/batches/NOTE_UnrealIg_To_Ui_Remote_Drive_Handover.md)):
+*"Every piece of logic needs to be handled by HROT, so the client just sent what action was selected and the rest must happen from the HROT."*
+— then to `ui`: *"yes go ahead with 1 and 3, whatever needed for the unreal lane"* (R-11019).
+
+**Measured (`unreal-ig` live run, `ui` `a36176252`):** a remote player (the gateway's DPS seat) who taps Drive on an empty HMMWV is seated as
+its driver (`UseOutcome` Done, role Driver) — and never drives: the three steps of §8h.9 (seat → `Possess(soldier, Riding)` →
+`Possess(vehicle, Fps)`) run in `PossessionStation` (`Hrot.Presentation`, `PossessionStation.cs:305-395`), which a remote seat does not have.
+The gateway's seat is its own station (`SimNetGateway.HrotHost.HrotPlayerStation` + `PossessionFlow`) and already copies other station rules
+(`HudMounts.cs`). **U-4's reason stands:** the station orchestrates from REPLICATED state because the soldier and the vehicle may be owned by
+different brain nodes — so the fix is not to move it into a brain, but to make it ONE station-side class every station uses.
+
+**INVENTORY** (`search_graph` Class `.*(Possess|Seat|Station).*` → `PossessionStation`, `PossessionSystem`, `PossessedBy`, `SeatSwitch`,
+`CarrierSeats`, `StationClaims` …; grep `ArmDrive`/`StepHandOver`/`HeldByThis`): the hand-over exists ONCE, inside `PossessionStation`
+(`ArmDrive`, `TryGetOut`, `StepHandOver`, `ReleaseOrphanRiders`, `HeldByThis`, statics `HeldHere`, `RiderOf`, `InDriverSeat`); it needs only
+`EntityRepository`, `NetworkEntityMap`, `EntityOrders` (`Hrot.Common/Orders`) and a clock — nothing of the presentation.
+
+```mermaid
+classDiagram
+  class DriveHandOver { <<new, Hrot.Common/Orders>> +Arm(soldier, vehicle) +TryGetOut(vehicle) bool +Step(world, dt) +Step HandOverStep +static HeldHere(world, station) +static RiderOf(world, vehicle) +static InDriverSeat(world, soldier, vehicle) }
+  class EntityOrders { <<existing, Hrot.Common>> +Possess(id, mode) +Unpossess(id) +StationFor(unit) }
+  class PossessionStation { <<existing, Hrot.Presentation>> local screen }
+  class HrotPlayerStation { <<existing, gateway>> a DPS seat }
+  class PossessionFlow { <<existing, gateway>> +UnitId }
+  PossessionStation *-- DriveHandOver : one per station
+  HrotPlayerStation *-- DriveHandOver : one per seat
+  DriveHandOver ..> EntityOrders
+  HrotPlayerStation --> PossessionFlow
+  PossessionFlow ..> DriveHandOver : UnitId = HeldHere
+```
+*Caption: the same class sits in both stations — a remote seat gets the hand-over (and get-out, and the orphan-rider release) by construction;
+the gateway's seat must follow `HeldHere` so its `PlayerSlot` reports the VEHICLE after the hand-over.*
+
+```mermaid
+sequenceDiagram
+  participant C as client (Unreal)
+  participant G as HrotPlayerStation (gateway seat)
+  participant H as DriveHandOver
+  participant O as EntityOrders
+  C->>G: ControlFrame UseSeq+1, Verb Drive, target HMMWV
+  G->>O: Control(soldier, frame) (as today)
+  G->>H: Arm(soldier, HMMWV) (the verb is Drive or Pilot)
+  Note over H: AwaitBoard: the soldier shows in the driver seat (replicated)
+  H->>O: Possess(soldier, Riding)
+  Note over H: AwaitRiding: his PossessedBy reads Riding
+  H->>O: Possess(HMMWV, Fps)
+  Note over H: AwaitVehicle: HeldHere is the HMMWV
+  G-->>C: PlayerSlot.UnitId = HMMWV, OwnUnit of the HMMWV (its M2 fires from the driver, U-5 / CE-1206)
+  C->>G: Use in the vehicle (Verb GetOut)
+  G->>H: TryGetOut(HMMWV): Possess(rider, Fps), then his Get-out press
+```
+
+```mermaid
+graph TD
+  F1[editor / player frame] -->|PossessionStation.Update, every frame| H1[DriveHandOver.Step, the local station's]
+  F2[gateway's HrotHost tick, per seat] -->|HrotPlayerStation step, every gather| H2[DriveHandOver.Step, the seat's]
+  H1 --> O[EntityOrders.Possess / Unpossess]
+  H2 --> O
+  O --> P[PossessionSystem on the brain host]
+```
+*Caption: who STEPS it each frame — each station steps its own; nothing in a brain does. A seat that never steps it is the bug measured above.*
+
+| # | decision | rejected (one line) |
+|---|---|---|
+| HO-1 | move the hand-over, unchanged in behaviour, into `DriveHandOver` (`Hrot.Common/Orders`); `PossessionStation` owns one and forwards its existing API | moving it into a brain — breaks U-4 (two owner nodes); a copy in the gateway or the client — two copies drift (`HudMounts` already shows it) |
+| HO-2 | the gateway's seat owns one too: it arms it on a Drive / Pilot press and calls `TryGetOut` on a get-out in a vehicle; its `PossessionFlow.UnitId` follows `HeldHere` | a new DPS message for "drive" — the press already says it |
+| HO-3 | the lone driver works the vehicle's weapon: **already built** (U-5, `CE-1206` `WeaponSystems.CanFire` skips NeedsGunner while `PossessedBy`); the remote seat gets it from HO-2 | — |
+
+**Rails:** the station's existing hand-over rails (`PossessionStationTests` CE-1158) stay green against the moved class; a `DriveHandOver` rail
+drives the three steps from replicated state alone (no presentation); the gateway's seat rail: a Drive press → `PlayerSlot` reports the vehicle,
+W moves it, get-out returns the soldier. The `unreal-ig` check script (`scripts/unreal/hrot_drive_check.py`) re-runs the live measurement.
+
+#### 8h.10 AS-BUILT (`CE-11041`, `2026-11-23`, ui)
+
+Built as designed (HO-1); the classes and sequences above are true. The gateway half is `DD-029` in the SimNetGateway repository.
+
+| part | as built | deviation, and why |
+|---|---|---|
+| `DriveHandOver` | `Hrot/Engine/Hrot.Common/Orders/DriveHandOver.cs`: `Arm`, `TryGetOut`, `Step(dt)` (steps the hand-over, releases orphan riders, once a second), `HeldHere`, `Handing`, `GetOutRider` + `GetOutSent()` (the owner sends the rider's first-frame Get-out press), `Reset()` (a world boundary), `Current` (the step); statics `HeldHere` / `RiderOf` / `InDriverSeat` / `VehicleOf` | ⚠ **`Reset()` added** (not drawn): a seat that outlives a world must forget a hand-over that names entities of the old one. ⚠ the step is `Current` (a property cannot share the name `Step` with the method). ⚠ `SeatSwitch.VehicleOf` (Presentation) is now a one-line forward to `DriveHandOver.VehicleOf`: the orphan-rider rule needs it and Common cannot reference Presentation |
+| station identity | every instance method passes the owner's `EntityOrders` to the statics, so `PossessedBy.StationNodeId` is compared with THAT orders' `StationFor` — a seat with its own station number (the gateway's `EntityOrders { Station = … }`) works unchanged; the statics without an orders argument use this node's, as before | — |
+| `PossessionStation` | owns one (`_handOver`, over its `_world` and `Orders()`), `Update` calls `Step(dt)`; `ArmDrive` / `TryGetOut` / `Step` (now `DriveHandOver.HandOverStep`) / the statics `HeldHere` / `RiderOf` / `InDriverSeat` are thin forwards, so no caller changed | the rails' enum reference is now `DriveHandOver.HandOverStep` (the nested enum moved with the class — one definition) |
+| clock | `DriveHandOver` keeps its own `Clock` (the sum of the `dt` it is stepped with); the 15 s timeout and the 1 s orphan check run against it | — |
+
+Rails: `PossessionStationTests.DriveHandOver.cs` (`CE11041_…`, no station and no presentation: the three steps from replicated state alone, Get out, no-rider Get out, the timeout (not before 15 s), released meanwhile, the orphan rider released / kept, `HeldHere` is this station's unit only) and the station's own `CE1158_…` rails unchanged in meaning.
+
 ## 8i. S10 DECISIONS — the look modes, picking up, a vehicle with several weapons (`CE-1204` · `CE-1207` · `CE-1210`, `2026-10-19`, ui) — ✅ all three decided, not yet designed in detail
 
 Filed from the user's live tests (`2026-10-19`). Each item still gets its INVENTORY and UML here before it is built.
@@ -1645,7 +1735,7 @@ and the station keeps its own instance, so the darkening does not depend on the 
 | **M-1 the map key** (`CE-1218`) | **M** in first person: ONE still frame (axes 0, trigger up, no lean, the press counters unchanged — the brain keeps the newest frame, so he stops), then `PossessionStation.BeginMapPeek`: `MapViewSwitch.ShowPose` an overhead pose 400 m over him (the 2-D map, centred on him), the cursor freed; the driver STAYS (so the map's M / A / H shortcuts stay silent, `MenuShortcuts.cs:136`, and nothing re-enters first person); the overlay shows only *"M - back to first person"*. The station watches M through the driver's own input while the map is up; **M** ⇒ a non-overhead pose (the 3-D view, placed by the driver), the cursor locked; that frame's M does not reopen the map. Leaving first person, or the menu bringing 3-D back, ends the peek 
  ⭐ **AS-BUILT `2026-10-27` (`CE-1295`, `CE-2316`'s first cause):** the canvas runs the 3-D camera driver's input (M opens the peek) BEFORE its layers' `Update` (the station), and `IsKeyPressed` still reads true there — so the SAME press ended the peek it had begun (a one-frame flash back to 3-D). `BeginMapPeek` now arms `_peekJustBegun`; the station's end check skips the opening frame. One press = one toggle; a held key never repeats (`IsKeyPressed` is an edge). Rail `PossessionStationTests.CE1295_*` in the production frame order. 🔒 Ctrl+M (`CE-1342`) is the 2-D ↔ 3-D key everywhere else; plain M stays Move. ⭐ **`CE-1297` (`2026-10-27`):** Z (prone) is wired and reaches the frame (`CE1143_*`; the user's own `CE-1348` report used Z). What was missing: a unit that cannot change stance (`StanceTransitionSystem` acknowledges the order silently — one declared stance, or the capability lost) showed `STANCE PRONE` and did nothing; the HUD now adds `- PRONE: not for this unit` (`LogicalStance.Refuses`; sim-side capabilities, so silent on a node without them). Rail `CE1297_*` | ⭐ no new view mode: the existing `ShowPose` (an overhead pose IS the 2-D map) |
 
-| **B-1 binoculars** (`CE-1219`) | **B** held (a person) ⇒ the frame's `Binoculars` = 1 (a LEVEL, appended like the lean through `OperatorInput`, the payload, the transport both ways and the debug API's `"binoculars"`); his brain (`OperatorControlBehavior`, cross-lane — said) raises them through `HeldItems.Set` (refused without `PocketItemsDto.Binoculars`) and lowers ONLY its own binoculars when let go; `LetGoOfManual` puts them away with the body. The station: the view narrows to `HeldItems.BinocularsFovDegrees` (10°) only when the sim has them UP (the replicated posture) — never on the key alone; two eyepiece rims, `RANGE <m>` (the eye to the crosshair's point); LMB DESIGNATES instead of firing (trigger up, no shot counted): the unit under the crosshair as his men's `Target`, else the point as their `MapPoint` (`OrderDesignations`, the same values the unit menu stores), the verdict under the crosshair; *"no binoculars"* when he carries none | ⭐ the spread ring is not drawn through the binoculars (no weapon up). ✅ *(backend `CE-1224`)* every LEADER carries them — `HeldItems.Has` grants binoculars to a man whose `UnitSubordinate.Designation` is Commander / SquadLeader / TeamLeader, whatever his type; the pocket flag still grants anyone else |
+| **B-1 binoculars** (`CE-1219`) — ⛔ **SUPERSEDED `2026-11-28` (devices S1d-3, D-75): see the STATUS known-rot; the row below is HISTORY** | **B** held (a person) ⇒ the frame's `Binoculars` = 1 (a LEVEL, appended like the lean through `OperatorInput`, the payload, the transport both ways and the debug API's `"binoculars"`); his brain (`OperatorControlBehavior`, cross-lane — said) raises them through `HeldItems.Set` (refused without `PocketItemsDto.Binoculars`) and lowers ONLY its own binoculars when let go; `LetGoOfManual` puts them away with the body. The station: the view narrows to `HeldItems.BinocularsFovDegrees` (10°) only when the sim has them UP (the replicated posture) — never on the key alone; two eyepiece rims, `RANGE <m>` (the eye to the crosshair's point); LMB DESIGNATES instead of firing (trigger up, no shot counted): the unit under the crosshair as his men's `Target`, else the point as their `MapPoint` (`OrderDesignations`, the same values the unit menu stores), the verdict under the crosshair; *"no binoculars"* when he carries none | ⭐ the spread ring is not drawn through the binoculars (no weapon up). ✅ *(backend `CE-1224`)* every LEADER carries them — `HeldItems.Has` grants binoculars to a man whose `UnitSubordinate.Designation` is Commander / SquadLeader / TeamLeader, whatever his type; the pocket flag still grants anyone else |
 
 | **K-1 when he falls** (`CE-1220`) | `PossessionStation.Update`: the held unit gone AND destroyed (`CombatLife.IsDestroyed`) ⇒ `BeginFall`: the first-person driver leaves WITHOUT restoring the view, and `FallScreen` (an `ICameraDriver`) holds the 3-D view where his eyes were; the killer = the last `HitFeedback` shooter on him; the overlay fades dark red over 1 s, *"KILLED - by <name>"* (`EntityInfo.Name`, else "an unseen shooter"), and the choices: **Tab** the first living man of the fallen man's squad (`SquadRoster` — one possession), **K** a 3 s kill cam from the shooter's eye (1.7 m) toward the body, **Esc** the map as it was (`RestoreView`). A release that arrives within 1 s of a hit on him, before his death, waits up to 0.5 s for it (either may replicate first); a plain release leaves at once, as before. Knocked DOWN while held (alive, `Effects.IsKnockedDown`): the view dims, *"DOWN"* | ⭐ no new system: the death is read from what the station already sees (the release, the health, `HitFeedback`) |
 

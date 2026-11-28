@@ -386,14 +386,14 @@ namespace Fdp.Toolkit.Combat.Tests
         public void S6d_ADoorGunOnAFlyingHelicopter_ItsRoundKeepsTheHelicoptersVelocity()
         {
             _world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
-            _world.RegisterComponent<WeaponSystemParams>();
+            _world.RegisterComponent<WeaponSystemParams>(); _world.RegisterComponent<Mountable>();
             _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
             var carrier = new Vector3(70f, 0f, 0f);
             var heli = SpawnTarget(new Vector3(0f, 0f, 100f));
             _world.AddComponent(heli, new SimVelocity { Linear = carrier });
             _world.AddComponent(heli, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
             var m134 = SpawnShooter(new Vector3(3f, 1.35f, 99.3f), muzzleVelocity: 850f);
-            _world.AddComponent(m134, new WeaponSystemParams { NeedsOperator = 1 });
+            _world.AddComponent(m134, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _world.AddComponent(m134, new Fdp.Toolkit.Combat.Mountable());
             _world.AddComponent(m134, new Fdp.Toolkit.Behavior.Components.IsEmbarkedTag { VehicleEntity = heli, Seat = 9 });
             var target = SpawnTarget(new Vector3(0f, 400f, 0f));   // abeam to the left
 
@@ -1663,6 +1663,24 @@ namespace Fdp.Toolkit.Combat.Tests
             Assert.Equal(FireRefusal.CannotFire, b.Refusal);
             Assert.Equal(4u, b.RequestId);
             Assert.Equal(0, RoundsFlown());
+        }
+
+        /// <summary>⭐ <c>CE-11033</c> (R-11013; DESIGN_Weapon_Layers §5l) — the muscle copies the brain's burst stamp from the intent to the notification
+        /// (a fired round and a REFUSED one); an intent with none (a player's round) stays 0. ✅ Red-proof: drop the copy ⇒ the stamp reads 0.</summary>
+        [Fact]
+        public void CE11033_TheMuscleCopiesTheBurstStampFromTheIntentToTheNotification()
+        {
+            var shooter = SpawnShooter(Vector3.Zero);
+            var target = SpawnTarget(new Vector3(40f, 0f, 0f));
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target, BurstId = 0x1234_0502u, BurstRounds = 3, BurstIndex = 2 });
+            _world.Bus.Publish(new WeaponFireIntent { Shooter = shooter, Target = target });   // a player's round: no burst
+            _world.Bus.SwapBuffers();
+            _sys.Execute(_world, 0.016f);
+            _world.Bus.SwapBuffers();
+            var all = _world.Bus.Read<WeaponFireNotification>().ToArray();
+            Assert.Equal(2, all.Length);
+            Assert.Equal((0x1234_0502u, (byte)3, (byte)2), (all[0].BurstId, all[0].BurstRounds, all[0].BurstIndex));
+            Assert.Equal((0u, (byte)0, (byte)0), (all[1].BurstId, all[1].BurstRounds, all[1].BurstIndex));
         }
     }
 }

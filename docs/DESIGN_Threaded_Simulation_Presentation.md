@@ -2,7 +2,7 @@
 state: LIVE
 build-state: BUILT on exp/threaded-build (not merged) — §0a the architecture as it stands; ⏳ the review source (R-4220), the serial-system conversions (CE-4484/4485), the Windows numbers (CE-4489…4494)
 updated: 2026-11-13 (§0a the architecture as it stands + both pictures redrawn to the as-built, coordinator) · 2026-11-12 (§12 the experiment · §13 the shared-state analysis · §13.8 the instruments' answer)
-current-answer: ⭐⭐ §0a THE ARCHITECTURE AS IT STANDS (both pictures, every decision with its ruling and where it is built) · ⭐ §14.8 AS BUILT (the overnight build, exp/threaded-build) · §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
+current-answer: ⭐ §16 HEADLESS: NO UNSEEN DRAWING (CE-11045…11048, READY-TO-BUILD — ui) · ⭐⭐ §0a THE ARCHITECTURE AS IT STANDS (both pictures, every decision with its ruling and where it is built) · ⭐ §14.8 AS BUILT (the overnight build, exp/threaded-build) · §14 THE TARGET SHAPE (14.4 POC 3: the node COMPOSED over S works — threaded editor green twice, 0 faults; the cost to finish listed · 14.3 POC 2 as built: the sync, pure reads and the published frame proven; S must be COMPOSED as its own node — a retargeted kernel keeps ~26–28 cached queries on A) · ⭐ §13 SHARED STATE (13.8 the instruments' answer: no blocker but ONE precondition — managed reads stamp chunk versions — and publish per consumer · 13.7 the verdict: no blocker; S-1 = take the presentation out of the node frame first) · ⭐ §12 the overnight experiment's answer (invert the worlds — measured, prototyped; the user to rule) · §11 THE CRITICAL REVIEW (23 findings; the cost is large; S-0b first) · §2 the decision · §3 the diagrams · §4 the rules · §5 working memory · §6 pros and cons · §7 the measurements · §8 verification · §9 slices · §10 open
 stale-below: §1–§13 and §14.1–§14.7 are the path that led here (POCs, reviews, the target shape) — quote §0a / §14.8 for what is built
 known-rot: none
 known-conflict: FDP/Engine/Fdp.ModuleHost/docs/UserGuide/06_SimulationViewsAndExecutionModes.md shows a two-replica swap in DoubleBufferProvider — the code syncs ONE replica in place (DoubleBufferProvider.cs:63-66); this design does not rely on it
@@ -510,7 +510,7 @@ classDiagram
 |---|---|
 | composition: build the node on S and the presentation on A in the editor and the player (one place each) | the main build item; every `_world` handed to the node vs to the presentation must be chosen once |
 | the presentation mask + singleton policy + a rail that every type the presentation reads is in it | small; the X-2 list is the seed |
-| commands for the ~15 direct writes, the 20 `Edits.Submit`, the drag / rotate previews (a ghost in A) | S-3 of §9 as before — the WRITE half of the migration remains |
+| commands for the ~15 direct writes, the 20 `Edits.Submit`, the drag / rotate previews (a ghost in A) | S-3 of §9 as before — the WRITE half of the migration remains · ✅ `2026-11-25` (ui, CE-11060): `Edits.Submit`'s world-writing kinds and the inspector's `RepositoryAdapter.SetComponent` now run on S (Inventory U-2) |
 | A's own entities (effects) vs the entity-index sync | ⚠ open: an id range, or effects in a store |
 | events and edit outcomes forwarded S → A per tick | ⚠ open: the per-reader queue of R-4 becomes "copy into A's bus at the sync" |
 | ✅ the presentation mask's copy measured (X-1b) | map-wide **1.6 ms / 16 MB** per tick on the VM (~0.8 ms est. on the user's machine) — the sync is cheap enough to hold the lock for |
@@ -1006,3 +1006,86 @@ forget the presentation, because the bootstrap builds it from the one parameter.
 | ⭐ found by reading: the deploy screen looks the flow up by world (a side table on S) ⇒ `IDeployFlow` / `DeployFlows.Of`, the view staged by the capability that composes the flow | `DeployFlowView.cs`, `GameplayClientPack` |
 | `NodeRunControls.For(node)` is the UI's (the mirror when staged), `ForSimSide(node)` the node's | `NodeRunControls.cs` |
 | rails | `SharedApplicationBootstrapperTests.CE3446_*` (3), `GameplayDeployFlowTests.CE3446_*`, `PerformanceStartupTests` (the player resolves the threaded node) |
+| ⭐ **CE-11047** (`2026-11-23`, handoff ui → backend, measured by ui on headless Stechovice: 45–55 MB/s on the main thread, 74 % in the presentation sync) — ⛔ each `SyncPresentationFrom` BORROWED the twelve SoD singletons (`SyncFromCore`'s list: `SpatialGridData`, `EqsResultPool`, `IEqsTemplateRegistry`, `ICoverProvider`, `INavmeshProvider`, `RaycastBatchData`, `EqsSolverGlobalState`, `TerrainWorld`, `IGeographicTransform`, `SoundEmissionRing`, `WorldEpoch`, `ReplayState`), then `CopySingletonsFrom` replaced each borrowed slot with a NEW table — twelve tables per sync, per world. ⭐ The presentation sync no longer borrows (`borrowSingletons: false`); step 4 copies every singleton into tables the world OWNS, reused. The treatment per §13.1 / D-4: a managed service (`TerrainWorld`, `IGeographicTransform`, `INavmeshProvider`, `ICoverProvider`, `IEqsTemplateRegistry`, `SoundEmissionRing` — its seqlock ring is the same object) is **shared** — the same object in an owned table; an unmanaged per-tick value (`WorldEpoch`, `ReplayState`, `SpatialGridData`, `EqsResultPool`, `RaycastBatchData`, `EqsSolverGlobalState`) is a **copy** taken at the sync. ⛔ Not a borrow: `Publish` runs on the sim thread and `Pull` on the main thread — a borrowed slot would hand the main thread the simulation's live tables. The end state equals the old one (A held copies after every sync); only the rebuilt tables are gone. Plain `SyncFrom` (the SoD module snapshots) still borrows | `EntityRepository.TwoWorlds.cs` · `EntityRepository.Sync.cs`; rail `TwoWorldsTests.CE11047_ASteadyPresentationSync_AllocatesNothing_SharesServices_AndCopiesValues` (0 B over 50 steady syncs; the borrow back ⇒ 7 162 000 B) |
+
+## 16. ⭐ HEADLESS: NO UNSEEN DRAWING — gizmos only while someone reads them; the road overlay cached *(ui, `2026-11-23`; CE-11045 … CE-11047, CE-11048 withdrawn; build-state: BUILT — HL-1 + HL-2 `69a32c820` (§16.1), HL-3 by backend `c77363b9a` (§15.5))*
+
+🔒 User (via `unreal-ig`, [NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md](blueprints/batches/NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md),
+`e8d1a1d5f`): *"headless performance is important (for running with Unreal as presentation layer later)"* · *"it should be way more than 37FPS
+for such small amount of thinking entities."* — then to `ui`: *"follow new NOTE_UnrealIg_To_Ui_Headless_Performance_Stechovice.md"*.
+
+**Measured (`unreal-ig`, Stechovice, Ryzen 6800H, `ui` `96722b016`, 30 s sampled profile, headless editor):** ≈ 23 sim ticks/s; the main
+thread spends **52 %** in `StagedPresentation.Pull → MapPresentationStep.RunPerPulledTick → StatelessGizmoSystem` (gizmos 46 %:
+`RoadNetworkGizmo.Draw` **28.9 %**, of which `TerrainWorld.GroundHeightOf` 19.3 % — a height per curve sample of the whole net every pass;
+`DoorStates.Of` 7.2 % + `DoorLeafGizmo.Draw` 3.7 %; `IsEntityVisible` 3.2 %) and 39.8 % in the simulation (its leaf systems 18.5 ms per tick ⇒
+≈ 50 Hz possible). Garbage: ≈ 2 MB per update + ≈ 1 MB per UI frame (inspector 412 KB, event browser 385 KB, message log 165 KB); a PAUSED
+headless node burns a whole core.
+
+**Measured here (`ui`):** `MapPresentationStep.RunPerPulledTick` (`MapPresentationStep.cs:77`) is not only drawing — it publishes the gizmo
+feed, swaps the interaction bus, runs the context-action ingress, the pack's UI systems (selection, tools, the gizmo group), the host's UI
+systems (gizmo network ingress / egress), then `PublishFrame`. **Headless readers of the drawn buffer:** the debug API's `GET /panels/_gizmo`
+(`DebugApiService._gizmoFeed`) — used by rails and agents. **Not a reader:** the gateway — its `IGizmoSource` runs the product's projectors on its
+own, only while a client asks (DD-017 §3.7), never the host's buffer.
+
+```mermaid
+graph TD
+  P[StagedPresentation.Pull, every pulled tick] --> M[MapPresentationStep.RunPerPulledTick]
+  M --> I[interaction: bus swap, context ingress, selection, tools, host UI systems]
+  M --> G{gizmo DRAWING wanted?}
+  G -->|a visible view, or a reader in the last 5 s| D[StatelessGizmoSystem: every gizmo Draw]
+  G -->|headless, nobody reading| X[skipped: the buffer publishes an empty frame]
+  R[GET /panels/_gizmo] -.->|arms the 5 s keep-alive| G
+  D --> RN[RoadNetworkGizmo: the cached polyline, culled to the view]
+```
+*Caption: what keeps running headless (interaction) and what stops (drawing) — and the ONE reader that switches drawing back on. The red path
+today is the whole of D every tick, with nobody reading it.*
+
+```mermaid
+classDiagram
+  class MapPresentationStep { <<existing>> +RunPerPulledTick(dt) +DrawingWanted Func~bool~ }
+  class GizmoDrawGate { <<existing GZH-003: the TogglablePostSimulationGroup's ref-counted gate>> +Acquire() +Release() StartEnabled }
+  class RoadNetworkGizmo { <<existing>> +Draw() }
+  class RoadPolylineCache { <<new>> +For(roads, terrain) samples with heights, rebuilt on a road or terrain change }
+  class DebugApiService { <<existing>> GET /panels/_gizmo }
+  MapPresentationStep --> GizmoDrawGate
+  DebugApiService ..> GizmoDrawGate : timed Acquire on a read
+  RoadNetworkGizmo --> RoadPolylineCache
+```
+
+**⭐ MEASURED BY `ui` `2026-11-23` (headless editor, Stechovice, 4 cores, clean `b6a0c7f4c` Release; EventPipe sampled profile 30 s, layer toggles over `POST /map/layers`, allocation-tick profile 20 s)** — the
+decisions below were re-scoped on these numbers (the user: *"shouldnt you first measure and only then tell worker what to do?"*):
+
+| premise | measured | verdict |
+|---|---|---|
+| gizmo drawing ≈ half the main thread | gizmo group 41 %, map step 47 % of main-thread samples | ✅ |
+| the road overlay is the big part | `RoadNetworkGizmo` 32 %; road layer off ⇒ **12.6 → 15.5 ticks/s (+23 %)** | ✅ — almost the whole gain |
+| the other overlays (doors 7 %) | 13 more layers off ⇒ 15.0/s, no further gain | ⛔ not measurable here |
+| the group can go off headless | it holds the tool / picker arbiters too (hit-test this frame's drawing, CE-259r); the debug API selects directly, no tool / pick route | ✅ safe headless, small gain |
+| the garbage is the UI panels | 45–55 MB/s: **74 % `SyncPresentationFrom` / `StagingWorlds`** (managed singleton tables re-allocated, new component tables per sync), **21 % `GizmoFramePanel.Describe`** (every primitive as JSON every tick, no reader) | ⛔ wrong source — re-targeted (HL-3) |
+
+| # | decision | rejected (one line) |
+|---|---|---|
+| HL-1 (CE-11045) | ⭐ **REVISED `2026-11-23` — reuse GZH-003's gate, no new class; AND `GizmoFramePanel.Publish` only while the panel is read (same reader signal).** The gizmo systems already sit in a `TogglablePostSimulationGroup` with a ref-counted enable gate (`.dev/_DONE/gizmos-2-headless`; SimHost and CGF start it OFF, "headless-first"). The editor alone starts it ON (`EditorSubsystem.cs:2696`) on the premise "the editor … always has a window at startup" — false for `--mode editor --headless`. ⇒ the editor starts it `!headless`; `GET /panels/_gizmo` holds a TIMED reference (~5 s) so the route still answers; `MapSelfCheckSystem` already treats a disabled group as silent. The Player app (it runs the map step AND publishes its buffer over DDS, `PlayerApplication.cs:895`) is unchanged. ⛔ SUPERSEDED: a new `GizmoDrawGate` — a second gate beside GZH-003's | skipping the whole map step headless (`unreal-ig`'s lean) — it also runs the interaction systems; a new gate class — duplicates GZH-003 (found after the first version; the user asked whether every premise was checked) |
+| HL-2 (CE-11046) | `RoadNetworkGizmo` draws from a polyline cached per road-net generation + the GROUND's change signal (curve samples WITH their ground heights), culled to the view; 0 B and no `GroundHeightOf` on a steady frame. ⚠ the ground changes at runtime (craters / ground patches, dozer shaping, collapses) — the key must be the signal the height queries themselves use (to be found in the build, not assumed) | heights at a coarser step — still a per-frame cost and a visible change |
+| HL-3 (CE-11047) | ⭐ **RE-TARGETED `2026-11-23`**: 74 % of the headless garbage is the staged-presentation copy (`EntityRepository.SyncPresentationFrom`, `StagingWorlds.Publish` / `Pull`: managed singleton tables re-allocated, `NativeChunkTable` built per sync) — `Fdp.Core`, §15's own design ⇒ **backend**, with this profile; 21 % is `GizmoFramePanel.Describe` ⇒ folded into HL-1 (publish only for a reader). ⛔ SUPERSEDED: the three UI panels (Unreal's numbers were the WINDOWED UI) | — |
+| ~~HL-4 (CE-11048)~~ | ⛔ **WITHDRAWN `2026-11-23`** — 🔒 user: *"nothing sleeps, by design many systems run at pause"*. The paused loop stays as it is (`HROT_HEADLESS_MAX_HZ` remains the opt-in cap). ⛔ HISTORY: a PAUSED headless node sleeps between passes | — |
+
+**Rails:** headless with no reader ⇒ no gizmo `Draw` runs (a counting gizmo) and the tick rate rises (Stechovice before / after, reported);
+`GET /panels/_gizmo` still returns primitives (keep-alive); a windowed host draws every frame as before (the existing frame rails under
+`xvfb-run`); `RoadNetworkGizmo` steady frame 0 B and 0 `GroundHeightOf` calls, and its primitives equal the uncached version's (seeded nets);
+each fixed panel 0 B per steady frame.
+
+### 16.1 As-built `2026-11-23` *(ui; CE-11045 reduced, CE-11046 built, CE-11047 → backend, CE-11048 withdrawn by the user)*
+
+⛔ **SUPERSEDED while building:** the new `GizmoDrawGate` class and `StatelessGizmoSystem.DrawingWanted` of the first cut of HL-1 were dropped (one gate, not two): the existing GZH-003 gate is used.
+
+| piece | as built |
+|---|---|
+| HL-1a gate | `EditorSubsystem`: `StartEnabled = !_headless` (headless: the gizmo group starts shut like SimHost / CGF). `Hrot.Presentation/DebugApi/GizmoReadLease.cs`: a TIMED reference on `MapInteraction.Gate` — `GET /panels/_gizmo` (and `GET /panels/<host>/_gizmo`) calls `Touch()` (first read after idle `AddListener()`s), the editor's `Update` calls `Tick()` (releases after 5 s without a read). Built only when headless (a windowed editor starts open with count 0: a release would shut it). The Player is untouched. `MapSelfCheckSystem` needed no change (a disabled group is silent). |
+| HL-1a route | first read after idle answers the frame published while shut (`count 0`, `drawingStarted:true`); the next pulled tick draws, a second read returns the primitives (measured live) |
+| HL-1b feed | `MapPresentationStep.PublishGizmoFeed` (+ the editor's three direct publishes, `GizmoFeedWanted`) publish the JSON feed only while the group is enabled ⇒ no `Describe`, 0 B headless without a reader; readers of the panel address: the debug route `GET /panels/{id}` (touches the lease) and `PanelSnapshot` dumps (windowed hosts: group always enabled, unchanged) |
+| HL-2 | `RoadPolylineCache` (+ `NativeArray.Address`): samples with heights per segment, key = blob block addresses + lengths + `TerrainWorld` reference + its `Height` grid reference. Ground changes at runtime (crater bake, ground patch, breach, obstacle bake) all go through `TerrainResidency.CommitObstacles` → a NEW `TerrainWorld` over a NEW immutable `TerrainHeightGrid` (`Patched` is copy-on-write) ⇒ the key moves. Culled with `GizmoViews` (`Overlaps`), as `TrafficRoadGizmo`. |
+| rails | `GizmoReadLeaseTests` (headless draws nothing until read, 5 s keep-alive, windowed every frame, feed 0 B / not published without a reader, editor source rail), `RoadNetworkGizmoTests` (byte-equal to uncached on seeded nets, 0 B steady frame, rebuild on road / terrain / patched grid, culling) |
+| deviations | the lease is a provider on `DebugApiService` (`GizmoLeaseProvider`), not a constructor argument (the map pack is built after the service); the per-host rail is a source rail (booting the editor needs the DDS harness) |
+
+**Measured** (headless editor, Stechovice, 4 cores, Release, 30 s after play; before = `0328ce417`, after = this tree): BrainTickSystem **12.5 → 37.8 executions/s**; allocation 93 → 104 MB/s wall (3x the ticks ⇒ ≈ 7.5 → 2.75 MB per tick). Not measured here: HL-3 (CE-11047, backend).

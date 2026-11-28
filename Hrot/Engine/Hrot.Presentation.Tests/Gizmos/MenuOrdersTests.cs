@@ -13,6 +13,7 @@ using Fdp.Toolkit.Replication.Services;
 using Hrot.Common.Constants;
 using Hrot.Common.Diagnostics.Gizmos;
 using Hrot.Common.Orders;
+using Hrot.Map.Common;
 using Hrot.Core.Mission;
 using Hrot.ScenarioEditor.Map;
 using Hrot.UI.Common.Facades;
@@ -67,6 +68,13 @@ public sealed class MenuOrdersTests : IDisposable
         public Task<int> PickEntityAsync(string[]? filterPresets = null, CancellationToken ct = default) { Presets = filterPresets; return (Enemy = new()).Task; }
         public Task<IReadOnlyList<int>> PickAreaEntitiesAsync(string[]? filterPresets = null, CancellationToken ct = default)
             => Task.FromResult<IReadOnlyList<int>>(Array.Empty<int>());
+        // ⭐ CE-6500 — the two-point pick: its prompts and its live label as the menu asked
+        public TaskCompletionSource<(WorldPoint A, WorldPoint B)>? Segment;
+        public string? First, Second;
+        public Func<Vector2, Vector2, Fdp.Toolkit.Vis2D.Gizmos.SegmentHint>? Hint;
+        public Task<(WorldPoint A, WorldPoint B)> PickSegmentAsync(string? firstPrompt, string? secondPrompt,
+            Func<Vector2, Vector2, Fdp.Toolkit.Vis2D.Gizmos.SegmentHint>? hint = null, CancellationToken ct = default)
+        { First = firstPrompt; Second = secondPrompt; Hint = hint; return (Segment = new()).Task; }
     }
 
     private (MapInteraction mi, FakePick pick) Live()
@@ -340,6 +348,70 @@ public sealed class MenuOrdersTests : IDisposable
         Assert.Contains("\"Location\":[-40,120,0]", order.JsonParams);    // ⭐ S0 item 5: local metres [x, y, z] (the stub has no frame: x = the longitude field)
     }
 
+    // ── ⭐ CE-6500 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13; NOTE_Backend_To_Ui_Bridge_Laying) — Lay bridge: ONE two-point pick ─────────────────
+
+    private const int EngineerId = 99;
+
+    /// <summary>An assault bridge layer (DIS 1.1.225.9.3, TKB 118) on a flat map with a river y 60 → 60 + <paramref name="riverWidth"/>; the TKB and terrain on the world.</summary>
+    private Entity Engineer(float riverWidth = 12f)
+    {
+        if (!_w.IsComponentTypeRegistered<TkbIdentity>()) _w.RegisterComponent<TkbIdentity>();
+        _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+        string y1 = (60f + riverWidth).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-50,-50,300,300],\"groundZ\":0},\"features\":[" +
+            "{\"type\":\"Feature\",\"properties\":{\"kind\":\"surface\",\"surface\":\"water\"},\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[-50,60],[300,60],[300," + y1 + "],[-50," + y1 + "],[-50,60]]]}}]}", "river"));
+        var e = Add(EngineerId);
+        _w.SetDisType(e, new DISEntityType { Value = (1UL << 56) | (1UL << 48) | (225UL << 32) | (9UL << 24) | (3UL << 16) });
+        _w.AddComponent(e, new TkbIdentity { TkbType = (TkbTypeId)TkbEntityTypes.Engineer_AssaultBridgeLayer });
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-6500 — Lay bridge from the unit menu is ONE gesture: its two required map points make it <c>OrderPick.TwoPoints</c> (no longer the order form's
+    /// "Lay bridge…"), the pick names both banks in one banner, carries the order's live label, and on (A, B) ONE order goes with NearBank = A and FarBank = B.
+    /// 🔴 Red-proof (compiles): <c>PickOf</c> without the TwoPoints arm ⇒ Several ⇒ the order form, no segment pick ⇒ red.
+    /// </summary>
+    [Fact]
+    public void CE6500_LayBridge_IsOneTwoPointPick_ThenOneOrderWithBothBanks()
+    {
+        var engineer = Engineer();
+        Assert.True(OrderMenu.TryGetByName("LayBridge", out var lay));
+        Assert.Equal((OrderPick.TwoPoints, "NearBank"), (lay.Pick, lay.PickField));
+        var (mi, pick) = Live();
+        Assert.True(mi.Actions.TryGetHandler(lay.ActionId, out var handler));
+        handler!(_w, engineer);
+        Assert.True(mi.MenuOrders.IsPicking);
+        Assert.Equal(("the near bank", "the far bank"), (pick.First, pick.Second));
+        Assert.NotNull(pick.Hint);                                     // LayBridge's own label
+        Assert.Empty(Published(mi));
+
+        pick.Segment!.SetResult((new WorldPoint(80f, 50f, 0f), new WorldPoint(80f, 82f, 0f)));
+        var order = Assert.Single(Published(mi));
+        Assert.Equal((engineer, "Order.LayBridge"), (order.Entity, order.IntentId));
+        Assert.Contains("\"NearBank\":[80,50,0]", order.JsonParams);
+        Assert.Contains("\"FarBank\":[80,82,0]", order.JsonParams);
+    }
+
+    /// <summary>
+    /// ⭐ CE-6500 (U-2) — the label is the engineer's OWN plan (<c>BridgeLaying.PlanFor</c>, the brain's call): across a 12 m river it fits and says the gap; across a
+    /// 30 m one it says the refusal in <c>BridgeLaying.Say</c>'s words; a bank in the water says so. A unit with no bridge says it carries none.
+    /// </summary>
+    [Theory]
+    [InlineData(12f, 50f, 82f, true, "gap ")]
+    [InlineData(30f, 50f, 100f, false, "wider than")]
+    [InlineData(12f, 65f, 90f, false, "near bank is in the water")]
+    public void CE6500_TheLayBridgeLabel_IsTheEngineersOwnPlan(float river, float nearY, float farY, bool ok, string words)
+    {
+        var engineer = Engineer(river);
+        var hint = Hrot.Presentation.Orders.OrderSegmentHints.LayBridge(_w, engineer, new Vector2(80f, nearY), new Vector2(80f, farY));
+        Assert.Equal(ok, hint.Ok);
+        Assert.Contains(words, hint.Text);
+        Assert.True(Fdp.Toolkit.Terrain.BridgeLaying.PlanFor(_w, engineer, new Vector2(80f, nearY), new Vector2(80f, farY), out var plan, out _));
+        Assert.Equal(ok, plan.Ok);                                     // the same call the brain plans with
+        Assert.False(Hrot.Presentation.Orders.OrderSegmentHints.LayBridge(_w, _unit, new Vector2(80f, nearY), new Vector2(80f, farY)).Ok);   // the soldier carries no bridge
+        Assert.Null(Hrot.Presentation.Orders.OrderSegmentHints.For("Move", _w, engineer));   // an order with no label: the plain line
+    }
+
     [Fact]
     public void CE3169_Engage_PicksAnEnemy_ThenOrdersTheAttack()
     {
@@ -430,8 +502,8 @@ public sealed class MenuOrdersTests : IDisposable
     public void CE1205_AWeapon_IsNotPossessed_TheMenuSaysWhy_AndTheOrderIsRefused()
     {
         var (mi, _) = Live();
-        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
-        _w.AddComponent(_unit, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+        if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>()) _w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); if (!_w.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Mountable>()) _w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+        _w.AddComponent(_unit, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(_unit, new Fdp.Toolkit.Combat.Mountable());
         var menu = ContextMenuProjectorGizmo.MenuJsonFor(_w, _unit);
         Assert.Contains("Possess (FPS)", menu);
         Assert.Contains(Fdp.Toolkit.Behavior.Possession.Possessability.WeaponIsManned, menu);
@@ -442,6 +514,66 @@ public sealed class MenuOrdersTests : IDisposable
         _w.Bus.SwapBuffers();
         Assert.Empty(_w.Bus.Read<Fdp.Toolkit.Behavior.Possession.PossessRequestEvent>().ToArray());
         _ = mi;
+    }
+
+    /// <summary>⭐⭐ CE-3494 (R2, R8; DESIGN_Unit_Intent.md §3.2) — in EDIT mode an order AUTHORS the unit's starting task (its <c>UnitIntent</c>,
+    /// saved, started when time first advances) and publishes nothing; Release un-authors it; a unit whose task a live mission plan drives is
+    /// refused (one source for the task) — the map MENU offers no orders in edit mode at all (D15). 🔴 Red-proof: drop the edit-mode branch in
+    /// <c>EntityOrders.Publish</c> ⇒ no intent and an AssignTacticalIntentEvent on the bus.</summary>
+    [Fact]
+    public void CE3494_EditMode_AnOrderAuthorsTheIntent_ReleaseUnauthorsIt_APlannedUnitIsRefused()
+    {
+        Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Edit);
+        var orders = new EntityOrders(_w, _map, geo: null);
+        if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
+        _w.AddComponent(_unit, new BehaviorState());                                                    // ⭐ §10 — authoring happens where the brain runs
+        _w.SetAuthority<BehaviorState>(_unit, true);
+
+        var sent = orders.Hold(UnitId);
+        Assert.True(sent.Accepted, sent.Detail);
+        var intent = Assert.IsType<UnitIntent>(((Fdp.ModuleHost.Abstractions.ISimulationView)_w).GetManagedComponentRO<UnitIntent>(_unit));
+        Assert.Equal("Order.Hold", intent.Behavior!.Name);
+        Assert.Equal(BehaviorOrigin.Superior, intent.Behavior.Origin);                                  // authoring (R-193)
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());                                   // no live order
+
+        Assert.True(orders.Release(UnitId).Accepted);
+        Assert.False(_w.HasManagedComponent<UnitIntent>(_unit));                                         // un-authored
+
+        _w.RegisterComponent<MissionPlanQueue>();
+        _w.AddComponent(_unit, new MissionPlanQueue { TaskCount = 2, CurrentTask = 0 });
+        var refused = orders.Hold(UnitId);
+        Assert.Equal(OrderRefusal.DrivenByPlan, refused.Refusal);
+        Assert.False(_w.HasManagedComponent<UnitIntent>(_unit));
+        Assert.Contains("mission plan", refused.Detail);
+    }
+
+    /// <summary>⭐⭐ CE-3494 §10 (R-3119) — LIVE, a person's order is the unit's INTENT where its brain runs (origin Operator, the request id in the
+    /// slot, no event; a release is the slot's Clear); a station WITHOUT the brain sends the event as before (the egress forwards it).
+    /// 🔴 Red-proof: OwnsBrain always false ⇒ an event and no intent for the brain-owning world.</summary>
+    [Fact]
+    public void CE3494_Live_APersonsOrderIsTheIntentOnTheBrainsNode_AnEventElsewhere()
+    {
+        Hrot.Common.Editing.StationMode.Install(_w, () => Hrot.Common.Editing.EditingMode.Live);
+        var orders = new EntityOrders(_w, _map, geo: null);
+        Assert.True(orders.Hold(UnitId).Accepted);                                                       // no brain here: forwarded
+        Assert.False(_w.TryGetTable(typeof(UnitIntent), out _) && _w.HasManagedComponent<UnitIntent>(_unit));
+        _w.Bus.SwapBuffers();
+        Assert.Single(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+
+        if (!_w.IsComponentTypeRegistered<BehaviorState>()) _w.RegisterComponent<BehaviorState>();
+        _w.AddComponent(_unit, new BehaviorState());                                                    // the brain runs here
+        _w.SetAuthority<BehaviorState>(_unit, true);
+        _w.Bus.SwapBuffers();
+        Assert.True(orders.Hold(UnitId).Accepted);
+        _w.Bus.SwapBuffers();
+        Assert.Empty(_w.Bus.ReadManaged<AssignTacticalIntentEvent>());
+        var slot = Fdp.Toolkit.Behavior.UnitIntents.Pending(_w, _unit)!.Behavior!;
+        Assert.Equal("Order.Hold", slot.Name);
+        Assert.Equal(BehaviorOrigin.Operator, slot.Origin);
+        Assert.NotEqual(System.Guid.Empty, slot.RequestId);
+        Assert.True(orders.Release(UnitId).Accepted);
+        Assert.True(Fdp.Toolkit.Behavior.UnitIntents.Pending(_w, _unit)!.Behavior!.Clear);
     }
 
     /// <summary>⭐ CE-4575 (X-9) — the HTTP / MCP move (<c>EntityOrders.Move</c>) sends its point as local metres <c>[x, y, 0]</c>, the form
@@ -682,6 +814,28 @@ public sealed class MenuOrdersTests : IDisposable
         imgui.NewFrame();
         form.Draw();
         imgui.Render();
+    }
+
+    /// <summary>⭐ CE-3494 (R-3115; DESIGN_Unit_Intent.md §5 E) — the order form says when the order HOLDS a unit's mission plan: built once when
+    /// the form opens, only for a unit a live plan drives (none ⇒ no notice). 🔴 Red-proof: PlanNoticeFor returning null ⇒ the first assertion.</summary>
+    [Fact]
+    public void CE3494_TheOrderForm_SaysTheOrderHoldsThePlan_OnlyForAPlannedUnit()
+    {
+        var pick = new FakePick();
+        var form = new Hrot.Presentation.Orders.OrderForm(_w, () => pick);
+        var info = new OrderInfo("TwoPicks", typeof(TwoPicks), 0, Hrot.Map.Definitions.Behavior.Orders.OrderGesture.None,
+            OrderMenu.PickOf(typeof(TwoPicks)).Pick, null, OrderMenu.FieldsOf(typeof(TwoPicks)));
+        int[] units = { UnitId };
+        OrderDraft Draft() => OrderMenu.Draft(info, units, new OrderContext(EnemyId, null), json => Array.Empty<OrderResult>());
+
+        form.Open(Draft());
+        Assert.Null(form.Entries[0].PlanNotice);                                       // no plan: no notice
+
+        _w.RegisterComponent<MissionPlanQueue>();
+        _w.AddComponent(_unit, new MissionPlanQueue { TaskCount = 2, CurrentTask = 0 });
+        form.Open(Draft());
+        Assert.Contains("mission plan", form.Entries[1].PlanNotice);
+        DrawFrame(form);                                                               // drawn, nothing thrown
     }
 
     /// <summary>⭐ Acceptance 1 — an order with two required picks opens the form PREFILLED with the gesture's pick; a form left

@@ -15,7 +15,8 @@ namespace Hrot.NED.Descriptors
         TASK_ACTIVE,    // Currently executing
         TASK_DONE,      // Completed successfully
         TASK_FAILED,    // Failed execution
-        TASK_SKIPPED    // Skipped because a later task was forced active
+        TASK_SKIPPED,   // Skipped because a later task was forced active
+        TASK_HELD       // ⭐ CE-3494 (R-3115) — the current task, its plan HELD by an operator's order (appended: older values keep their numbers)
     }
 
     // ==============================================================================

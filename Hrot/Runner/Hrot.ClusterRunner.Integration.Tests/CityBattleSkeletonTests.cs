@@ -131,7 +131,8 @@ public sealed class CityBattleSkeletonTests : IDisposable
             ScenarioVariants.Apply(dom, v, Guid.Empty, "city-battle");
             var es = dom["entities"]!.AsObject().Select(kv => kv.Value!.AsObject()).ToList();
             string Name(System.Text.Json.Nodes.JsonObject e) => (string?)e["EntityInfo"]?["Name"] ?? "";
-            return (es.Count(e => Name(e).StartsWith("Roadblock ")), es.Count(e => Name(e).StartsWith("Civilian ")),
+            // ⭐ CE-11071 — a roadblock is its instance (its walls are scenario features named after it)
+            return (es.Count(e => Name(e).StartsWith("Roadblock ") && e["MacroInstance"] != null), es.Count(e => Name(e).StartsWith("Civilian ")),
                     (double)es.Single(e => Name(e) == "1 Coy (D)")["SimTransform"]!["Position"]![0]!);
         }
         var authored = Predict(0);

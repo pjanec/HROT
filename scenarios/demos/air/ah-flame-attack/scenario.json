@@ -1,0 +1,286 @@
+{
+ "$meta": {
+  "docType": "Hrot.Scenario",
+  "schemaVersion": 1
+ },
+ "header": {
+  "subsystemType": "Hrot.Scenario",
+  "schemaVersion": "1.0",
+  "terrainName": "basic-desert",
+  "description": "What: the FLAME HELICOPTER (TKB 412 \u2014 the AH-64 airframe with a chin flame projector and its Hydra-70 pod; CE-3490 BA-9, docs/designs/air-attack/DESIGN_Breath_Attack.md \u00a77). On basic-desert 'Flame Helicopter', 60 m up at (100, 300), is ordered AirPlatformAttack on 'Squad Man 1' of a row of four hostile riflemen at x 400, y 288\u2026312; 'Armour Hunter', the same type 60 m up at (-1200, 560), on a hostile 'T-72' at (400, 560). Judge: the Flame Helicopter strafes low and breathes, two squad men burn and Squad Man 1 dies, and it climbs back above 50 m; the Armour Hunter never breathes on the tank (an armoured hull does not burn) and fires its rockets at it instead."
+ },
+ "entities": {
+  "d3490004-0000-4000-8000-000000000001": {
+   "SimTransform": {
+    "Position": [
+     100,
+     300,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 412
+   },
+   "EntityInfo": {
+    "Name": "Flame Helicopter",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {
+     "Target": "d3490004-0000-4000-8000-000000000011"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490004-0000-4000-8000-000000000011": {
+   "SimTransform": {
+    "Position": [
+     400,
+     288,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Squad Man 1",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490004-0000-4000-8000-000000000012": {
+   "SimTransform": {
+    "Position": [
+     400,
+     296,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Squad Man 2",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490004-0000-4000-8000-000000000013": {
+   "SimTransform": {
+    "Position": [
+     400,
+     304,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Squad Man 3",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490004-0000-4000-8000-000000000014": {
+   "SimTransform": {
+    "Position": [
+     400,
+     312,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "Health": {
+    "Current": 100,
+    "Max": 100
+   },
+   "TkbIdentity": {
+    "TkbType": 2008
+   },
+   "EntityInfo": {
+    "Name": "Squad Man 4",
+    "ForceId": "Hostile"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Behavior": {
+    "Name": "HoldStance",
+    "Params": {
+     "stance": "Standing"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490004-0000-4000-8000-000000000002": {
+   "SimTransform": {
+    "Position": [
+     -1200,
+     560,
+     60
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 412
+   },
+   "EntityInfo": {
+    "Name": "Armour Hunter",
+    "ForceId": "Friend"
+   },
+   "TargetMemory": {
+    "Entries": []
+   },
+   "Sop": {
+    "Name": "InertSop",
+    "Params": {},
+    "Origin": "Superior"
+   },
+   "Roe": {
+    "Fire": "FireAtWill",
+    "Reactions": "StayOnTask",
+    "SetBy": "Operator",
+    "ForceLevel": "Lethal"
+   },
+   "Behavior": {
+    "Name": "AirPlatformAttack",
+    "Params": {
+     "Target": "d3490004-0000-4000-8000-000000000021"
+    },
+    "Origin": "Superior"
+   }
+  },
+  "d3490004-0000-4000-8000-000000000021": {
+   "SimTransform": {
+    "Position": [
+     400,
+     560,
+     0
+    ],
+    "Rotation": [
+     0,
+     0,
+     0,
+     1
+    ]
+   },
+   "TkbIdentity": {
+    "TkbType": 103
+   },
+   "EntityInfo": {
+    "Name": "T-72",
+    "ForceId": "Hostile"
+   }
+  }
+ }
+}

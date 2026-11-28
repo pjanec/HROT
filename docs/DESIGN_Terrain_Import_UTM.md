@@ -1,12 +1,14 @@
 <!--STATUS
 state: LIVE
 build-state: §11 THE IMPORTER BUILT 2026-11-10 (CE-4368, as-built table §11.4) · DESIGN — §9.6 trees APPROVED (R-4190); the source-data answers are in (§5); Q-U8 decided (R-4186: open floors + a stair ramp); §5.4 ② decided (§7, R-4187); §8 destructible buildings APPROVED (R-4188: walls + collapse as a whole-building replacement); §6 re-bases the stages on Terrain World §9
-updated: 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
-current-answer: ⭐ §12 the importer's navmesh (CE-4393) and UtmTransform (CE-4394) — BUILT, as built §12.3 (backend) · ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
+updated: 2026-11-25 (§8.3b each breach records its CAUSE, the collapse its cause / blast / kg, one outward-normal rule — CE-11054, ui) · 2026-11-25 (§11.5 the generated doors passable — 1.2 m, stairs clear, an importer revision; CE-5056, terrain) · 2026-11-24 (§8.3a the damage records carry WHEN and WHERE FROM — CE-11051, terrain) · 2026-11-10 (§8.2 the destruction build design, S-0 of CE-4391 — B-1…B-11; B-10 supersedes §8.1's NavRebuildRequester / P3-c / P3-d by the P-7a obstacle bake — coordinator) · 2026-11-10 (§11.4 as built — CE-4368) · 2026-11-09 (§8.1 L-8: the breach at runtime — sequence, modules, the P3 additions; READY-TO-BUILD — backend) · 2026-11-09 (§9 trees: questions — coordinator) · 2026-11-09 (§5 answers from the source-data session; §1 corrected — a height grid EXISTS; §2 / §3 revised — coordinator) · 2026-11-09 (first version — coordinator)
+current-answer: ⭐ §13 IMPORT ON FIRST USE (CE-11037, R-11017, BUILT — as built §13.1, ui) · ⭐ §12 the importer's navmesh (CE-4393) and UtmTransform (CE-4394) — BUILT, as built §12.3 (backend) · ⭐ §11 THE IMPORTER (design for the build, CE-4368, coordinator) · ⭐ §10 the import input set (§10.2 answers Q-X1…Q-X6 · §10.3 the real 5.5 km bounds · ⭐ §10.6 UNIQUE buildings, exact floors (R-4191; supersedes §10.4/§10.5's templates)) · §9.6 trees APPROVED (R-4190: woods polygons + 25 m density grid, lone trunks in the index, wheeled forbidden in woods, tracked slow, only lone trees destructible, no bush cover yet) · §9.5 the source-data answers · ⭐ §8.2 destructible buildings — THE BUILD DESIGN (CE-4391, READY-TO-BUILD; §8 decisions R-4188, §8.1 runtime with B-10's supersession) · §7 paths and units (DECIDED R-4187) · §7a the performance take · ⭐ §6 the prior designs this builds on (sweep 2026-11-09) · ⭐ §5 ANSWERS (source-data session) · §5.4 the two questions left · §2 the idea (UML, revised) · §3 the stages (revised) · §1 measured · §4 the questions as asked
 stale-below: nothing
 known-rot: §8.1's NavRebuildRequester and P3-c / P3-d are superseded by §8.2 B-10 (the existing P-7a obstacle bake does both); §1's grid row said the grids were FIXED at 1.5 km — they already fit the terrain (Terrain World §4.4), corrected; the first version missed DESIGN_Terrain_World §9 (sparse terrain), the World Query Seam and the built NavTileCache — §6 corrects §2 / §3; §1's first-version row "⛔ no heightmap" was WRONG (corrected by §5.3) — a single-grid ESRI ASCII height grid exists (CE-1034)
 known-conflict: none
 related-designs:
+  - DESIGN_Terrain_OSM_Bridges.md — PROPOSES the importer stage BRIDGES (after the road levelling) and importer revision 5
+  - DESIGN_Load_GeoReference_From_Nodes.md — PROPOSES the fix of CE-5060's progress half: an import-free origin read from the INPUT SET's manifest (master + node frame), the import only on the node's Terrain worker, and the import advancing LoadProgress (heartbeat)
   - DESIGN_Terrain_Base_Edits.md — OWNS converting / removing a baked-in building in the editor; reuses this design's generator and adds its ≥ 1 door rule (the importer adopts it)
   - DESIGN_Ground_Patches_And_Road_Blockage.md — OWNS the pads applied by the importer (P-1, CE-4403) and the crater as a third runtime record beside breaches and collapses (P-4)
   - PLAN_Large_Terrain.md — ORDERS this importer's stages beside the scale work (load, measure, optimise) so both lanes start at once
@@ -521,6 +523,70 @@ sequenceDiagram
 ```
 *What it shows that the prose cannot: the only thing that waits on the creation system is the FIRST breach of a building on a node; everything after is a component write, and every reader sees it through the table the frame after.*
 
+### 8.3a ✅ AS BUILT `2026-11-24` — the records carry WHEN and WHERE FROM *(CE-11051, terrain; handoff ui → terrain `HANDOFF_Ui_To_Terrain_Damage_Records_Time_And_Blast.md`)*
+
+🔒 User (via ui): *"Can't we stamp the damage records with time in HROT as well, so that we do not invent another timestamping just in the gateway? We can change the record."*
+Why: a client drawing the damage from the replicated record (the Unreal IG, through DPS) must tell a LIVE change (dust, debris, a glass burst) from the state at JOIN
+(a TransientLocal sample), and throw debris away from the blast.
+
+```mermaid
+classDiagram
+    direction LR
+    class BuildingDamage { <<existing, grows>> Building, Collapsed, Count, 16 x WallBreach ; + CollapsedAt double ; + MadeAt[16] double ; + BlastX/Y/Z[16] float }
+    class WindowDamage { <<existing, grows>> Building, Count, 64 x window ; + HitAt[64] double }
+    class BuildingDamageEvent { <<existing, grows>> breach or collapse ; + BlastX/Y/Z }
+    class BuildingDamageSystem { <<existing, the ONE writer>> stamps now = SimClock.TotalTimeOf }
+    class BuildingDamages { <<existing>> Add(d, breach, world, at, blast) }
+    class WindowDamages { <<existing>> Hit(.., at) · Break(.., at) }
+    class EntityBuildingDamage { <<wire, grows>> + CollapsedAt ; DdsWallBreach + MadeAt, BlastX/Y/Z }
+    class EntityWindowDamage { <<wire, grows>> DdsWindow + HitAt }
+    AreaEffectSystem --> BuildingDamageEvent : the burst point
+    ContactBreach --> BuildingDamageEvent : the hull's centre
+    BladeCut --> BuildingDamageEvent : the hull's centre
+    BuildingDamageSystem --> BuildingDamages : stamps a breach
+    BuildingDamageSystem --> WindowDamages : stamps a window
+    BuildingDamageSystem --> BuildingDamage : writes CollapsedAt
+    BuildingDamage ..> EntityBuildingDamage : egress / ingress
+    WindowDamage ..> EntityWindowDamage : egress / ingress
+```
+*What it shows that the prose cannot: the TIME has one source (the writer, for every producer by construction); only the BLAST POINT must come from the
+producers, because only they know it.*
+
+| # | decision | why / rejected — one line |
+|---|---|---|
+| T-1 | ⭐ **the writer stamps the time**: `BuildingDamageSystem` reads `SimClock.TotalTimeOf(repo)` once per frame (allocation-free) and stamps every record write of that frame — a breach added or widened, a collapse, a window hit | ⛔ a time on each producer's event: five producers (a blast, a ram, a drive-through, a blade, a round through a pane — the last through a parallel command buffer) would each have to remember it. The stamp is the frame the record CHANGED, ≤ 1 tick after the cause |
+| T-2 | **the blast point = the detonation's world point** (terrain-local metres, the frame of `SimTransform`); for a hull's ram, drive-through or blade: the hull's centre (debris falls away from the hull) | ⛔ the panel side + depth: the client needs a point to throw debris from; a side flag loses the angle |
+| T-3 | **per breach: made or last WIDENED** — a merge that grows a breach moves its time and blast to the widening's; a shell into the open hole changes nothing, so moves nothing (no write, no republish); a breach a merge leaves untouched keeps its own stamp through the list's reorder | — |
+| T-4 | **parallel fixed arrays** beside the breach geometry (`MadeAt[16]`, `BlastX/Y/Z[16]`, `CollapsedAt`; `HitAt[64]`), the crater record's shape (`GroundDamage.BornAt`); `WallBreach` stays geometry-only | ⛔ the stamp inside `WallBreach`: its equality is what spots "nothing new" and what every rail compares |
+| T-5 | **0 = from a SAVE**: the save does NOT store the stamps (a loaded scenario's damage is the state before the run, not a live change), so a loaded breach / window / collapse reads 0 | ⛔ saving them: the times belong to another run's clock. A recording / checkpoint restores them (the record is recorded by bytes) |
+| T-6 | **the wire carries them** (`DdsWallBreach.MadeAt, BlastX/Y/Z`, `EntityBuildingDamage.CollapsedAt`, `DdsWindow.HitAt`); the egress's change test includes them, so a new time alone republishes | recordings made before this read the old layout — R-11013's precedent, no compatibility shim |
+
+Rails (red-proved by a compiling mutation each): `BuildingDamageSystemTests.CE11051_*` (born stamped, a widening moves time and blast, the open hole moves
+nothing, an untouched breach keeps its stamp through the reorder; the steady frame 0 B), `BuildingCollapseTests.CE11051_ACollapse_CarriesTheTimeItHappened`
+(born and written in place), `WindowDamageTests.CE11051_*` (the last hit's time, through an eviction; the writer stamps), the translator suites (the
+two-worlds round trip carries every stamp; a new time alone is a change to send).
+
+### 8.3b ✅ AS BUILT `2026-11-25` — each breach records its CAUSE; the collapse its cause, blast and kg; one outward-normal rule *(CE-11054, built by `ui`; handoff `HANDOFF_Ui_To_Terrain_Breach_Cause.md` §2a)*
+
+🔒 User (via `unreal-ig`): *"pls do not forget scorched sides if the hole comes from explosion (and not from bulldozer)"*; 🔒 user: *"just pls do the terrain parts yourself if the changes are small"*.
+Same shape as §8.3a (parallel fixed arrays beside the geometry, one writer, the wire appended). `WallBreach` stays geometry-only.
+
+| # | what | where / why |
+|---|---|---|
+| C-1 | `BreachCause { Unknown = 0, Detonation = 1, Ram = 2, Blade = 3, Push = 4 }` (`Unknown` MUST be 0: an old record, a replay from before, a load of an old save reads as Unknown) | `Terrain/BuildingDamage.cs`; `Explosion` was renamed `Detonation` (HROT's own word) |
+| C-2 | per breach, beside `MadeAt` / `Blast`: `Cause[16]`, `ExplosiveKg[16]` (the warhead's kg the breach rule used; 0 for contact), `Actor[16]` (the vehicle's NETWORK id for a contact cause, via the shooter's `NetworkIdentity`; 0 for a detonation, for a hull with no id, and after a load); typed getters `CauseOf` / `ExplosiveKgOf` / `ActorOf`, `OriginOf(i)` / `SetOrigin(i, BreachOrigin)` | `BuildingDamage`; `BreachOrigin(At, Blast, Cause, ExplosiveKg, Actor)` is the one value the writer passes |
+| C-3 | per building, beside `CollapsedAt`: `CollapseCause`, `CollapseBlastX/Y/Z`, `CollapseKg` (`SetCollapse`) | from the collapse event (only blasts collapse today) |
+| C-4 | producers set it: `AreaEffectSystem` breach and collapse = `Detonation` + `w.ExplosiveKg`; `ContactBreach.Event` takes the cause: a building's bump = `Ram` (a building is only ever rammed or bladed, D-3), a blade row and `BladeCut.CutWall` = `Blade`; a FREE wall broken in `OnContact`: `Ram` when the hull's speed into it reached the row's minimum, `Push` when only the held full-throttle push broke it. **Measured:** the push path does publish `BuildingDamageEvent`s (`Cut` → `Play`), free walls only | `AreaEffectSystem`, `ContactBreach` (`Cut` / `CutAlong` / `Event` gain `cause`), `BladeCut` |
+| C-5 | the writer (`BuildingDamageSystem.OriginOf`) turns the event into the origin once, for a new record, a record that has room and a pending one alike | the actor lookup is allocation-free; steady frame stays 0 B |
+| C-6 | ⚠ **a merge is NOT a numeric max** (the order is no severity: `Detonation` 1 < `Ram` 2): `Detonation` wins if either side is one (any blast in the merged hole ⇒ scorched), else the newer breach's cause (the older one's when the newer is Unknown); `ExplosiveKg` = the larger; `Actor` = the newest contact's (the newer breach's when it names one, else the older's); time and blast stay the newer's (§8.3a T-3). A shell into the exact same hole is still "nothing changed": no write | `BuildingDamages.Add(…, in BreachOrigin)` / `MergeOrigin`; `Remap` carries origins and the collapse with the breach |
+| C-7 | **SAVED** (unlike the time: how the hole LOOKS): a breach row `[panel, from, to, bottom, top, kind(, cause(, kg))]` — the cause as text (`detonation` / `ram` / `blade` / `push`) only when known, the kg only when > 0, so a save without them is the old six-element row; the collapse `collapseCause` / `collapseKg`. ⛔ not the actor, the time or the blast point. A load restores cause and kg (time 0 = from a save); an old save reads Unknown / 0. Two slices of a distributed save merge by C-6 | `SavedBuildingDamage.Origins`, `BuildingDamageJson`, `BuildingDamageLoad.Resolve`, `TerrainObjectsSection.WriteBuildingDamage` |
+| C-8 | on the wire, appended: `DdsWallBreach.Cause`, `ExplosiveKg`, `Actor`; `EntityBuildingDamage.CollapseCause`, `CollapseBlastX/Y/Z`, `CollapseKg`; the egress change test includes them (a cause alone republishes) | `SimDescriptors.cs`, `EntityBuildingDamageTranslators` |
+| C-9 | ⭐ ONE outward-normal rule: `WallGroups.OutwardNormal(world, panel)` = the left-hand perpendicular of A→B flipped away from the building's footprint centre (`BuildingFires.Extent`); a free wall (no inside) = the left-hand perpendicular as it is. `BuildingFires.NearestBurnableWall` calls it (the side decided at its nearest point: behaviour unchanged). Beside it `WallGroups.BreachCentre(world, in breach)` = A + dir × (From + To) / 2, z = (Bottom + Top) / 2, so the gateway calls HROT for both | `Terrain/BuildingDamageSave.cs` (`WallGroups`); 0 B |
+| C-10 | ⭐ ONE opening-placement rule *(CE-11058)*: `WallGroups.OpeningSpan(world, panel, opening)` = `A + dir × At` .. `A + dir × (At + Width)` (`TerrainOpening.At` is the START along the panel) and `OpeningCentre` = its midpoint at z = (Sill + Head) / 2, 0 B; the glass pane leaves and `AimPoint.BlindAt` call it, `WindowDamage.PaneUv` is its inverse, the gateway's window `Centre` calls it | `Terrain/BuildingDamageSave.cs` (`WallGroups`), `TerrainWorld.BuildPaneLeaves`, `Combat/AimPoint.cs` |
+
+Rails (red-proved by a compiling mutation each): `BuildingDamageSystemTests.CE11054_*` (a blast = Detonation + the warhead's kg; ram / blade / push + the actor, none for a hull without an id or for a blast; the merge rule; an unstamped breach is Unknown), `BuildingCollapseTests.CE11054_*` (cause, blast point, kg — born and written in place),
+`BuildingDamageSaveTests.CE11054_*` (round trip; the actor and time are not saved; an old save; two slices), `CarKinematicsSystemTests.CE11054_EveryContactBreach_CarriesItsCause_RamPushAndBlade` (through the real contact rule), `BuildingBreachTests.CE11054_OutwardNormal_…` (each wall of a box building points away from its centre; a free wall; the breach centre; 0 B), the translator suite (the two-worlds round trip carries every new field; each alone is a change to send).
+
 ### 8.4 ✅ AS BUILT `2026-11-10` — S-2 (the collapse) *(CE-4391, coordinator)*
 
 | # | what was built | file | vs §8.2 |
@@ -766,7 +832,7 @@ the same convention as `*.world.geojson`. Headings are compass degrees: 0 = nort
 |---|---|
 | ① stable `id` | ✅ `id` = a hash of the footprint's rounded coordinates (stable across re-exports of the same source data; a building whose outline changes in the source gets a new id, which is correct) |
 | ② `material` | ✅ where the visual model makes it derivable (`brick` / `concrete` / `stone` / `wood` / `metal`); otherwise omitted → the generator's default `brick` |
-| ③ opening `width`, sill / head | ⛔ not available from the source — omitted → the generator's defaults (door 0.9 m, window 1.2 m, sill 0.9 / head 2.1) |
+| ③ opening `width`, sill / head | ⛔ not available from the source — omitted → the generator's defaults (door ~~0.9 m~~ **1.2 m** since §11.5 / CE-5056, window 1.2 m, sill 0.9 / head 2.1) |
 | ④ `version` / content hash per file | ✅ in `manifest.json`: `files: { "<path>": { sha256, rows/features, prepared } }` |
 
 ⚠ **Correction — the bounds.** The exported heights (verified tile by tile; door points sit a median 0.14 m above the ground) show that the source
@@ -1044,6 +1110,23 @@ sequenceDiagram
 
 **Measured, `full-1` after CE-4379** (same set, Release): **1 752 enterable, 48 solid** (was 1 686 / 114 — solid share **6.3 % → 2.7 %**), 83 switch-back stairs, 2 572 ramps (was 2 340), 129 shared walls merged (was 115). ⚠ The 48 left are all 3–6-storey buildings (27 of them 5-storey) whose wells run out of wall, plus one 2-storey 14.9 × 11.5 m — not yet looked at. ⏭ **`real-1` (60 of 1 805 solid, 3.3 %) is NOT in this repo: re-run `hrot-terrain-import` on it and read the `buildings:` line.**
 
+### 11.5 ✅ AS BUILT `2026-11-25` — the generated doors are passable: 1.2 m wide, stairs kept clear, an importer REVISION *(CE-5056, terrain; behaviors' note `NOTE_Behaviors_To_Terrain_Village_Doors_Impassable.md`)*
+
+🔒 User, `2026-11-25`: *"ok to 1,2"* · *"both (1) and (2) please"*. 📐 Measured on village-street (a probe: a path 1.2 m out → 1.2 m in through every ground-floor door, the
+real import, the infantry layer): **234 of 582 had no path through**. Two causes found, a third left open:
+
+| # | cause (measured) | fix | after |
+|---|---|---|---|
+| ① | a **0.9 m** door (Q-X6 ③'s default) minus the infantry erosion (0.3 m off each jamb) leaves a 0.3 m channel — two 0.15 m cells — that BREAKS on a wall rotated off the grid: blocked 20 % at 0–9°, ~70 % at 27–45° (Navigation §14 P2's "0.9 m: 5/5 alignments" was measured on axis-aligned walls only) | ⭐ `OpeningPlacer.DoorWidth` **1.2 m** (1.0 m measured: still 118 blocked) | rail `RecastNavmeshFactoryTests.CE5056_AOnePointTwoMetreDoor_IsPassable_OnAWallAtAnyAngle` (0…45°) |
+| ② | the **stair ramp** planned against the wall right behind a door (54 doors; the gun house's east door) — the plan is made before the openings and never saw them | ⭐ `StairPlanner.TryPlan(ring, heights, groundDoors)`: the input's ground doors seed `taken` with an apron (the door's width + 0.3 m each side, 1.5 m deep); a stair that cannot keep clear of every door keeps clear of ONE, then of none (as before) — so no house turns solid for it | rail `StairPlannerDoorTests` |
+| ③ | ✅ **found `2026-11-25`**: a pitched house's ROOF CAP (a solid block at the eaves, footprint = the house) cut the navmesh's ground grid under the house — and, the cells being coarse, a strip outside its walls; Recast's spans across a door showed no floor from the wall's outer half to 0.3 m beyond it. Both doors of every such house failed together | ⭐ the ground grid skips an OVERHEAD solid (base more than `StepHeight` above the ground) — Terrain World §6's existing rule for `SurfaceZ`, now on the grid too (`TerrainWorldMesh`; every terrain, no re-import needed) | rail `TerrainWorldTests.CE5056_AnOverheadBlock_*` · 56 → **18** |
+| ④ | ✅ **`2026-11-25`** (user: *"the importer generates entrance steps - ok approved"*): 17 doors sat more than 0.4 m (the infantry climb) above the ground outside — a house on a slope, its floor at the pad's base, the ground falling away downhill (up to 2.9 m) | ⭐ **`EntranceSteps`**: a ground door more than 0.3 m above the ground outside gets a ramp — the door's width, from the wall's centreline (the slab's edge, so it covers the threshold) out and down at 33°, on the FINAL ground (after the pads); written as the world's ground-relative `ramp` feature (its foot buried by the parser, TH-K) with `"steps": true` (a flight for feet: no "too steep for vehicles" warning). Importer revision 3 | rail `EntranceStepsTests` · **0 of 582** |
+| — | an import made before this keeps its doors: a first use re-imports only when the input's manifest changes (§13 F-4) | ⭐ `TerrainImporter.Revision` (2) recorded in `terrain.json` (`importerRevision`); a different (or absent ⇒ 1) revision re-imports, exactly as a changed manifest does — **bump it with any change to what the generator makes** | rail `SourceImportTests.CE5056_AnImportFromAnOlderImporterRevision_ReImportsOnce` |
+
+📐 After ① + ②: **56 of 582** (the gun house's south door, where behaviors' drill stalled, passes); after ③: **18 of 582**; after ④: **0 of 582** — 121 doors got steps, and from 0.8 m past each step's foot all 121 have a path into the room; houses: 276 enterable, 1 solid — unchanged. ⛔ Rejected: un-eroding the doorway in the bake (it
+would fix every terrain, but `RcBuilder.BuildTile` runs erosion and marking in one call — a re-plumbed Recast pipeline; kept as the fallback for ③).
+⚠ The §13 F-4 row is amended by the revision: *"a differing input re-imports"* now reads *"a differing input OR importer revision re-imports"*.
+
 ## 12. ⭐ THE IMPORTER'S NAVMESH (CE-4393) AND THE UTM FRAME (CE-4394) — as designed *(backend, `2026-11-10`; frame: HANDOFF, dispatched at `bedca0325`; build-state: BUILT — as built §12.3)*
 
 **INVENTORY** *(two explorer passes, `2026-11-10`; `scripts/cbm.sh search_graph name_pattern NavTileCache / Recast.*(Factory|Baker) / IGeographicTransform (Interface, 1) / .*Transform$ (Class, 22)` + `search_code` `HROT_NAVTILE_CACHE`, `Utm\.(ToGeodetic|FromGeodetic)` + grep `new WGS84Transform(`, `.SetOrigin(`, `RotationToHeadingDeg|HeadingDegToRotation`, `"frame"`; ⚠ `check_index_coverage` is not available through the CLI — the sets are not proven complete)*:
@@ -1266,3 +1349,106 @@ per-machine cache (`HROT_NAVTILE_CACHE`) is not on this picture: it stays loose.
 
 Rails: `NavmeshPrefillTests.APrefilledTerrains_FirstLoad_*` (now also: no loose tile, packs ≪ tiles, the report counts the packs; 🔴 no `Seal()` ⇒ loose files) and
 `NavmeshPrefillTests.CE3428_ATerrainPrefilledLoose_*` (🔴 no loose fallback ⇒ every tile bakes).
+## 13. ⭐ IMPORT ON FIRST USE — git keeps the INPUT, a machine imports it once *(ui, `2026-11-22`; CE-11037, R-11017; build-state: BUILT — as built §13.1)*
+
+🔒 User: *"automatically run the terrain import from the source data if the converted and finer height mesh is missing … the terrain loader
+would do the actual import on the first load and cache the resulting files."* The first input set in git: `assets/terrain-input/Stechovice/`
+(`unreal-ig` `db50572aa`, on `ui` as `59c97eccc`; ~3 MB as git stores it, heights at 30 m). Measured there (16 cores, Release): the import
+**27 s without the navmesh, 514 s with it** (navmesh 488 s); 4 099 buildings, heights vs the old 1 m import mean 0.52 m, max 10.8 m (an edge).
+
+**Measured seams (`ui`, `a36176252`+):** every load resolves a terrain by NAME through `TerrainCatalog.ResolveDefinition`
+(`FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainCatalog.cs:57`) — built at **12** production sites (orchestrator ×4, editor ×3, `TerrainResidency`,
+Replay Browser, tools). `TerrainImporter.ImportAsync` writes a temp folder and MOVES it into place (`TerrainImporter.cs:152-209`): a half import is
+never resolvable. The import stage runs no external tool and downloads nothing (`netconvert` / Overpass / DEM are the OSM fetch, `OsmCli`).
+`HeightStage.Resample` takes the input's own `cellSize` (`HeightStage.cs:19-33`).
+
+```mermaid
+graph TD
+  subgraph every host
+    H[orchestrator · editor · TerrainResidency · Replay Browser] -->|ResolveDefinition name| C[TerrainCatalog]
+  end
+  C -->|found in a root| D[terrain.json]
+  C -->|missing| S{TerrainSources.Resolve name}
+  S -->|no input set| N[null: as today]
+  S -->|input set found| L[lock file in the target root]
+  L --> I[TerrainImporter.ImportAsync + navmesh prefill]
+  I -->|temp folder moved into place| T[content root assets/terrain/name]
+  T --> D
+  D --> R[the load as today: its navtiles already baked]
+```
+*Caption: the one hook is INSIDE the catalog, so the 12 construction sites cannot differ — no host has to remember to pass it.*
+
+```mermaid
+classDiagram
+  class TerrainCatalog { <<existing, Fdp.Toolkits>> +ResolveDefinition(name) +ResolveFolder(name) }
+  class ITerrainSourceImport { <<new, Fdp.Toolkits>> +TryImport(name, targetRoot, progress, ct) string? }
+  class TerrainSources { <<new, Fdp.Toolkits>> +static Import ITerrainSourceImport? +InputRoots list }
+  class SourceImport { <<new, Hrot.Terrain.Import>> input roots: repo assets/terrain-input, content root terrain-input }
+  class TerrainImporter { <<existing>> +ImportAsync(set, name, replace, progress, ct) }
+  TerrainCatalog ..> TerrainSources : on a miss
+  TerrainSources o-- ITerrainSourceImport
+  ITerrainSourceImport <|.. SourceImport
+  SourceImport ..> TerrainImporter
+```
+
+```mermaid
+sequenceDiagram
+  participant H as a host
+  participant C as TerrainCatalog
+  participant S as SourceImport
+  participant I as TerrainImporter
+  H->>C: ResolveDefinition("Stechovice")
+  C->>C: no root holds it
+  C->>S: TryImport("Stechovice", first writable root)
+  S->>S: input set found, take the lock (another process waits, then finds the folder)
+  S->>I: ImportAsync(set, "Stechovice", with NavmeshPrefill)
+  I-->>S: folder moved into place, terrain.json records the manifest sha256
+  S-->>C: the definition path
+  C-->>H: terrain.json (the load continues as today)
+  Note over H,C: next time: found in the root, no import. A changed input (manifest sha256 differs) re-imports into a new version (AQ112 versions/)
+```
+
+| # | decision | rejected (one line) |
+|---|---|---|
+| F-1 | the hook is in `TerrainCatalog` itself (a process-wide `TerrainSources.Import`, set ONCE where every executable starts) | passing it to 12 constructors — the silent-default pattern (a site that forgets imports nothing) |
+| F-2 | ⭐ **the result goes to the SHARED content root — the NAS's `assets/terrain/` (`TerrainCatalog.SharedRoot`, set by `ForNode`) — when it is writable, so a terrain is imported ONCE PER MACHINE whatever staging root asks (CE-11039); only when the shared root cannot be written does it go to the first writable root (a node's private staging root). The lock file stays in whichever root is the target.** 🔒 Measured `2026-11-23`: with the first writable root as the target, `ForNode(localStagingRoot, nas)` lists the node's private staging root FIRST, so each scenario-regression verify child (its own staging root) re-imported Stechovice (~240 s) on every run. ⛔ SUPERSEDED first version: *"the catalog's first root that is writable (the content root's `assets/terrain/`; in a dev checkout the repo's, which `.gitignore` CE-4425 already ignores)"* | a new cache folder — a second place a terrain lives · importing into the staging root and copying it to the NAS — a second copy mechanism |
+| F-3 | ⭐ **the first-use import PREFILLS the navmesh** (`NavmeshPrefill`, as `hrot-terrain-import` does), inside the same lock, and the first load waits for it. 🔒 User, `2026-11-22`: *"when importing, it might be quite practical to pre-build the nav mesh, because we anyway want to cache the outcomes of the import. So why not to include the nav mesh pre-calculation into that?"* — a node's load bakes the whole mesh anyway when no tiles exist (`NavmeshPrefill`'s own doc: "so its first load bakes nothing"), so the cost is the same and is paid once, inside the cached import. ⛔ SUPERSEDED first version: no prefill, the lazy cache bakes on load | no prefill — the same bake happens at the first load, outside the import's lock and its cache |
+| F-4 | `terrain.json` records the input's `manifest.json` sha256; a differing input re-imports (the existing `versions/` swap) | comparing every file — the manifest already hashes them |
+| F-5 | one machine-wide lock file beside the target; a second process waits for it and then resolves the folder | no lock — two processes write two temp folders and race the move |
+| F-6 | an input set is found by NAME in `assets/terrain-input/<name>/` of the repo and of the content root | a registry file listing sources — a second list to keep in step |
+
+**Rails (CE-11037):** a missing terrain with an input set is imported once and then resolved without import · no input set ⇒ `null` as today ·
+a changed manifest re-imports · a crash mid-import (cancel) leaves nothing resolvable and the next call imports · two concurrent resolves import
+once · two imports of the same input are byte-identical (the cluster's nodes import alone and must agree) · every one of the 12 sites resolves
+through the hook (a rail per host kind on the constructed catalog). **Scenario:** a Stechovice scenario loads in a clean content root.
+⚠ **Risk, unmeasured:** the lazy navmesh on a 4-core VM for 4 × 4.3 km — measure on the first Stechovice scenario run.
+
+### 13.1 As built *(ui build worker, `2026-11-22`)*
+
+| piece | as built (file) | vs §13 above |
+|---|---|---|
+| seam | `ITerrainSourceImport` + static `TerrainSources.Import` (`FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainSources.cs`); `TerrainCatalog.ResolveDefinition(name)` consults it (`TerrainCatalog.cs`) | the hook is asked on a **miss** (after the kept-ground lookup, target = first WRITABLE root, probed by writing a file) **and on a hit** (target = the root holding it): F-4's changed-manifest re-import needs the hit path. It takes `(name, existingDefinition, targetRoot, catalogRoots, ct)`; the `progress` parameter of the class diagram was dropped (the catalog has none; the hook logs two lines) |
+| importer | `SourceImport` (`Hrot/Engine/Hrot.Terrain.Import/SourceImport.cs`) | F-6: input sets are found in `<root>/../terrain-input/<name>/` of the target and of every catalog root (a node's staging root finds the NAS's), then `<repo>/assets/terrain-input/<name>/`. Only names the importer accepts (`TerrainName`) are imported; `a/b` ⇒ null |
+| F-3 (revised, user) | `SourceImport.DefaultImporter` sets `NavmeshPrefill = new NavmeshPrefill()` | **measured: the load has NO lazy per-tile bake** — `RecastNavmeshFactory.Build` bakes the whole mesh at load unless the tiles are cached, so prefilling at import moves the same cost into the cached import (first load after it: 0 tiles baked) |
+| F-4 | `terrain.json` key `inputManifestSha256` (`TerrainFolderWriter.WriteTerrainJson`, written by every import) | a terrain folder with **no** recorded sha (hand-made, older import) is never touched, even if an input set has its name; an up-to-date verdict is cached per definition by file stamps (a resolve of a current terrain = two stats) |
+| F-5 | lock file `<root>/.<name>.import.lock`, `FileShare.None`, polled every 50 ms; the state is re-read inside the lock | the file is left behind (deleting a lock file is racy). In-process threads are excluded by the same file lock |
+| registration | `Hrot.ClusterRunner/Program.Main`, once, before any host (`Program.cs`) | the one place every node process (editor, player, orchestrator, replay browser, `--mode all` children) starts; the CLI tools do not register (rail `TerrainImportIsRegisteredAtStartupTests` reads Main's source) |
+
+⚠ **Behaviour to know:** a failed import (invalid set) THROWS from `ResolveDefinition` (loud, never a null); the catalog hook runs for every `ResolveDefinition` caller, including `EditorTerrainSaveService.Resolve` and `TownPlanGenerator` — a name with a committed input set imports there too.
+**Rails:** `SourceImportTests` (`Hrot.Terrain.Import.Tests`, 14) and `TerrainSourcesTests` (`Fdp.Toolkits.Tests`, 7). Two imports of one input are byte-identical (no timestamps in the folder; `terrain.hash` excluded: it caches file mtimes).
+**Measured, 4-core VM, clean content root, Release:** Stechovice import WITH the navmesh prefill **289 s** (one `ResolveDefinition`; 18 MB input → 168 MB folder, 98 navtiles files); 100 later resolves 2.8 ms total; first load's navmesh build after it **21.6 s, 0 baked, 59 834 tiles from the cache**.
+
+### 13.2 As built — F-2 revised, import once per machine *(ui build worker, `2026-11-23`; CE-11039)*
+
+| piece | as built | vs §13.1 |
+|---|---|---|
+| target | `TerrainCatalog.ImportTarget()` (`FDP/Toolkits/Fdp.Toolkits/Terrain/TerrainCatalog.cs`), in order: ① `TerrainSources.SharedImportRoot` (new, process-wide, set once in `Hrot.ClusterRunner/Program.Main` to the **source tree's `assets/terrain`** when there is one — a dev checkout; ⭐ measured: every scenario-regression verify child has its own staging root AND its own private NAS `<staging>/shared`, so the NAS alone is not machine-wide there) ② `TerrainCatalog.SharedRoot` = the NAS's `assets/terrain` (set by `ForNode`; an install with no source tree) ③ the first writable root (private fallback). Each only when a folder can be created and written in it (write probe). The catalog also LOOKS in `SharedImportRoot` after its own roots, so the next process finds the terrain without a seed in between | §13.1's *"target = first WRITABLE root"* is SUPERSEDED for node catalogs. ⛔ SUPERSEDED `2026-11-26` (CE-11061): *"the hit path (re-import into the root that holds it) is unchanged"* — a STALE hit now re-imports into the machine-wide target (row below) |
+| lock | still `<target>/.<name>.import.lock` (`SourceImport`), so it is exactly as shared as the import | unchanged |
+| ⭐ a STALE hit *(terrain, `2026-11-26`, CE-11061 (unreal-ig) / CE-5060)* | re-imports into `SharedImportTarget()` — the machine root, else the NAS's shared root, each when writable — and only without one into the root that HOLDS it (a plain catalog: unchanged). The target is asked LAZILY (`ITerrainSourceImport.TryImport(…, Func<string> targetRoot, …)`), so a CURRENT hit pays no write probe; the passed-over copy is logged once per import (*"the import at … is stale (importer revision 1, now 4…) — it is passed over for …"*). Inside the lock a current copy at the target is returned with no import, so every later run whose NAS was seeded with the stale copy resolves the machine's current one | 📐 measured: every NAS is seeded from the machine's copy (`ContentSeed`), so re-importing into the root that holds it (a private NAS, a node's staging) was thrown away with the run — each run re-imported (207 s here; twice per load and ~7 min on unreal-ig's Windows load). Rail `SourceImportTests.CE11061_AStaleImport_FoundFirstInEveryRunsPrivateNas_ReImportsOnce_IntoTheMachineRoot` (red before: run 1 re-imported into its own NAS) |
+| how staging gets a terrain | NOT changed, no second copy: `StorageGatewayModule.PrefetchScenario` mirrors `{nas}/assets/terrain/<name>` into `{node}/Terrain/<name>` with `AssetTreeSync` **only when the NAS already holds it at prefetch time**. A first-use import lands in the NAS during the load, after the prefetch, so the node resolves it from the NAS root directly (second root of the catalog); the next prefetch mirrors it into staging as for any NAS terrain | the importer never writes a staging root unless the NAS is unwritable |
+
+**Rails:** `TerrainSourcesTests.TheImportTarget_IsTheSharedRoot_WhenWritable_ElseTheFirstWritableRoot`, `.TheMachineRoot_IsTheTargetAheadOfTheNas_AndIsLookedIn`, `SourceImportTests.TwoPrivateNases_AndOneMachineRoot_ImportOnce`, `SourceImportTests.TwoStagingRoots_AndOneNas_ImportOnce`, `.AnUnwritableNas_FallsBackToTheStagingRoot`, `.ANodeCatalog_WithAStagingRoot_ImportsIntoTheSharedRoot_…` (was `…ImportsIntoIt…`).
+
+**Measured (`2026-11-23`, 4-core VM shared with a profiling editor, Debug):** a verify child run from a checkout whose `assets/terrain` lacked Stechovice imported it ONCE into that checkout's `assets/terrain` (373.7 s, prefill included); the next run logged no `[TerrainImport]` and loaded. ⚠ **Open:** the first-use import runs on the frame thread and reports nothing, so a director/verify load that triggers it fails "no progress for 30 s" (25 polls) although the import then completes — import progress / off-frame import is NOT built (filed in the report).
+
+⚠ **Found `2026-11-25` (terrain, CE-5060) — a STALE import defeats "once per machine":** the machine root's Stechovice predated `importerRevision` (⇒ 1 ≠ 4), the staging's mirrored copy was found first, and a stale HIT re-imports into the root it was FOUND in (`ResolveDefinition` → `TryImport(…, foundRoot, …)`), i.e. the run's private staging ⇒ every regression run imported again (207 s) and, with no step text reaching the director, failed its 30 s stall check. ✅ **Built `2026-11-26`** — the stale-hit row above (CE-11061). ⏳ The progress half stays open in CE-5060 — 📐 **measured `2026-11-26`: the import runs in the MASTER**, `ClusterMaster.NoteLoadGeoReference` (`ClusterMaster.GeoReference.cs:50`) resolving the terrain for its origin on the frame thread before any load step (no `LoadProgress.Current`, the gate not yet loading); the node's own resolves (`TerrainLoadStep.BeforePrepare` / `PrepareAsync`) carry the progress. Lean: the master reads the origin without importing, at round success.

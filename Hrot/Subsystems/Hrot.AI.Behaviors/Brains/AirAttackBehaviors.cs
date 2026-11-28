@@ -43,6 +43,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐⭐ CE-10003 (air combat AC-13, R-2015) — an Attack on an AIRCRAFT by a fighter with an air-to-air weapon: the dogfight
         /// (<see cref="AirCombatNodes"/>, mode 8).</summary>
         AirCombat = 8,
+        /// <summary>⭐⭐ CE-3490 (DESIGN_Breath_Attack BA-1, BA-2) — a rotorcraft with a FLAMETHROWER (a dragon's breath) STRAFES: in at 60 m, down to 12 m and
+        /// 10 m/s 80 m out, breathing while the aim is in the jet's reach, OVER the aim, out 150 m and up, and back on a line 120° round (never the same line).</summary>
+        BreathPass = 9,
+        /// <summary>⭐⭐ CE-3490 (BA-4) — the same flyer against a BURNABLE BUILDING: hovers 25 m off its nearest burnable wall, 8 m up, breathes on it 3 s,
+        /// then flies home (HoverDrop's shape).</summary>
+        BreathHover = 10,
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 — what an air attack is told: the point and the numbers of the pass (0 = automatic).</summary>
@@ -118,7 +124,7 @@ namespace Hrot.AI.Behaviors.Brains
         public byte Decoys;
         /// <summary>⭐ <c>CE-2191</c> — the stage the evasion returns to: the orbit, or (any other) a fresh run-in.</summary>
         public byte Resume;
-        /// <summary>⭐ Slice 6e (§9i D-6) — the sim time the attack began (the drone's battery counts from it).</summary>
+        /// <summary>⭐ Slice 6e (§9i D-6) — the sim time the attack began (the FPV's track sightings are timed from it; ⛔ the battery no longer — SD-S2b's <c>DroneBattery</c>).</summary>
         public SimInstant StartedAt;
         /// <summary>⭐ Slice 6e — 1 once the battery ran out: the dive is straight down.</summary>
         public byte BatteryOut;
@@ -132,6 +138,12 @@ namespace Hrot.AI.Behaviors.Brains
         public float NextSeen;
         /// <summary>⭐ MC-4a — 1 once the dive COMMITTED (time-to-go ≤ <see cref="AirAttackNodes.CommitSeconds"/>): no more re-aims.</summary>
         public byte Committed;
+        /// <summary>⭐ CE-3490 (BA-4) — a breath hover's station (25 m off the wall, 8 m up) and the point on the wall it breathes at.</summary>
+        public Vector3 HoverAt, WallAim;
+        /// <summary>⭐ CE-3490 (BA-4) — when the breath on the wall began (sim s; 0 = not yet).</summary>
+        public SimInstant BreathSince;
+        /// <summary>⭐ CE-3490 (BA-3) — 1 once the pass's line was set from a GROUP it remembers (the run-in re-picks it once, the first time it sees one).</summary>
+        public byte GroupLine;
     }
 
     /// <summary>⭐ <c>CE-2173</c> slice 5 (B4) / slice 6 / slice 6c (B12, W1) — which profile an aircraft flies (Air Operations §7, §9e):
@@ -158,7 +170,7 @@ namespace Hrot.AI.Behaviors.Brains
         public static AirAttackProfile? Pick(EntityRepository world, Entity aircraft, out byte mount, out byte gun,
                                              bool entity, StrikeTargetKind kind, ushort excluded)
         {
-            Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun);
+            Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun, out var flame);
             bool heavy = !entity && Heavy(kind);
             if (heavy) firstGun = None;   // W1: a heavy point never takes the gun
             var locomotion = Locomotions.Of(world, aircraft);
@@ -170,7 +182,11 @@ namespace Hrot.AI.Behaviors.Brains
                 gun = None;
                 return AirAttackProfile.Dive;
             }
-            if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing)
+            // ⭐⭐ CE-3490 (BA-1, BA-8) — a rotorcraft whose flame can light this target breathes on it: a building hovers, the rest strafes. The flame mount
+            //   is already in `excluded` when it cannot (BA-5, AirAttackProfiles.Unlightable) ⇒ a mixed loadout flies its other weapons' profile below
+            if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && flame != None && (entity || kind == StrikeTargetKind.Building || !heavy))
+                picked = !entity && kind == StrikeTargetKind.Building ? AirAttackProfile.BreathHover : AirAttackProfile.BreathPass;
+            else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.FixedWing)
                 picked = entity
                     ? firstGun != None ? AirAttackProfile.GunRun : rockets != None ? AirAttackProfile.RocketRun
                       : bomb != None ? AirAttackProfile.LevelBomb : null
@@ -183,7 +199,7 @@ namespace Hrot.AI.Behaviors.Brains
             else if (locomotion == Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft && bomb != None)
                 picked = AirAttackProfile.HoverDrop;      // ⭐ CE-7027 — a rotorcraft with only a drop rack (the bomber quadcopter) hovers and drops
             mount = gun = None;
-            if (picked is { } p) MountsFor(bomb, rockets, firstGun, p, out mount, out gun);
+            if (picked is { } p) MountsFor(bomb, rockets, firstGun, flame, p, out mount, out gun);
             return picked;
         }
 
@@ -214,11 +230,11 @@ namespace Hrot.AI.Behaviors.Brains
                 gun = None;
                 return DetonatesOnImpact(world, aircraft);
             }
-            Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun);
-            return MountsFor(bomb, rockets, firstGun, profile, out mount, out gun);
+            Scan(world, aircraft, excluded, out var bomb, out var rockets, out var firstGun, out var flame);
+            return MountsFor(bomb, rockets, firstGun, flame, profile, out mount, out gun);
         }
 
-        private static bool MountsFor(byte bomb, byte rockets, byte firstGun, AirAttackProfile profile, out byte mount, out byte gun)
+        private static bool MountsFor(byte bomb, byte rockets, byte firstGun, byte flame, AirAttackProfile profile, out byte mount, out byte gun)
         {
             mount = gun = None;
             switch (profile)
@@ -228,14 +244,16 @@ namespace Hrot.AI.Behaviors.Brains
                 case AirAttackProfile.RocketRun: mount = rockets; return rockets != None;
                 case AirAttackProfile.RunningFire: mount = rockets; gun = firstGun; return rockets != None || firstGun != None;
                 case AirAttackProfile.GunRun: gun = firstGun; return firstGun != None;
+                case AirAttackProfile.BreathPass or AirAttackProfile.BreathHover: mount = flame; return flame != None;   // ⭐ CE-3490
                 default: return false;
             }
         }
 
-        /// <summary>The first bomb, rocket pod and gun (machine gun or autocannon) in the aircraft's weapon suite not in <paramref name="excluded"/>.</summary>
-        private static void Scan(EntityRepository world, Entity aircraft, ushort excluded, out byte bomb, out byte rockets, out byte gun)
+        /// <summary>The first bomb, rocket pod, gun (machine gun or autocannon) and ⭐ CE-3490 flamethrower in the aircraft's weapon suite not in
+        /// <paramref name="excluded"/>.</summary>
+        private static void Scan(EntityRepository world, Entity aircraft, ushort excluded, out byte bomb, out byte rockets, out byte gun, out byte flame)
         {
-            bomb = rockets = gun = None;
+            bomb = rockets = gun = flame = None;
             for (int i = 0; i < MaxMounts; i++)
             {
                 var m = CombatTkb.MountOf(world, aircraft, i);
@@ -247,6 +265,7 @@ namespace Hrot.AI.Behaviors.Brains
                     case Fdp.Toolkit.Tkb.Domain.WeaponCategory.Rocket: if (rockets == None) rockets = (byte)i; break;
                     case Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun or Fdp.Toolkit.Tkb.Domain.WeaponCategory.Autocannon:
                         if (gun == None) gun = (byte)i; break;
+                    case Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower: if (flame == None) flame = (byte)i; break;
                 }
             }
         }
@@ -282,6 +301,37 @@ namespace Hrot.AI.Behaviors.Brains
             }
             return mask;
         }
+
+        /// <summary>
+        /// ⭐⭐ CE-3490 (DESIGN_Breath_Attack BA-5, BA-6) — the FLAMETHROWER mounts that may not breathe on this target: the ROE forbids incendiaries
+        /// (<see cref="ForceLevels.IncendiaryPermits"/>), or the flame cannot light it — an entity <see cref="Ignition.Of"/> calls none (an armoured hull, an
+        /// aircraft); a building strike on a building that does not burn (<see cref="Fdp.Toolkit.Terrain.BuildingFires.BurnableAt"/>); any other heavy point.
+        /// Passed over like a dry mount ⇒ the other weapons' profile, or none (the attack fails, logged). 0 B per call.
+        /// </summary>
+        public static ushort Unlightable(EntityRepository world, Entity aircraft, Entity target, Vector3 point, StrikeTargetKind kind)
+        {
+            ushort mask = 0;
+            for (int i = 0; i < MaxMounts; i++)
+            {
+                var m = CombatTkb.MountOf(world, aircraft, i);
+                if (m == null) break;
+                if (m.Category != Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower) continue;
+                bool barred = !ForceLevels.IncendiaryPermits(world, aircraft, 0, m);
+                if (!target.IsNull) barred |= Ignition.Of(world, target) == Ignition.Kind.None;
+                else if (kind == StrikeTargetKind.Building) barred |= BurnableBuilding(world, point) < 0;
+                else barred |= Heavy(kind);
+                if (barred) mask |= (ushort)(1 << i);
+            }
+            return mask;
+        }
+
+        /// <summary>⭐ CE-3490 (BA-4) — the burnable building at <paramref name="point"/> (index; −1 when none, or no terrain).</summary>
+        public static int BurnableBuilding(EntityRepository world, Vector3 point)
+            => world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() && world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() is { } t
+               ? Fdp.Toolkit.Terrain.BuildingFires.BurnableAt(t, new Vector2(point.X, point.Y), BuildingSearchM) : -1;
+
+        /// <summary>⭐ CE-3490 — a building strike's point may lie this far outside the footprint (m).</summary>
+        public const float BuildingSearchM = 15f;
 
         private static float InjuryRadius(EntityRepository world, long ammo)
             => ammo != 0 && CombatTkb.WarheadOf(world, ammo) is { } w ? w.BlastInjuryRadiusM : 0f;
@@ -384,6 +434,32 @@ namespace Hrot.AI.Behaviors.Brains
         public const float HoverArrivalM = 1f;
         private const byte WeaponRockets = 0, WeaponGun = 1, WeaponDone = 2;
 
+        // ⭐⭐ CE-3490 — the breath attack (docs/designs/air-attack/DESIGN_Breath_Attack.md §2, §4: starter numbers, the dr-dragon-* scenarios tune them)
+        /// <summary>BA-2 — the run-in starts this far before the aim (m), flown this high above it (m).</summary>
+        public const float BreathRunInM = 250f, BreathCruiseAgl = 60f;
+        /// <summary>BA-2 — this far before the aim (m, plus the distance it needs to slow down) it drops to <see cref="BreathAgl"/> and slows to <see cref="BreathSpeedMps"/>.</summary>
+        public const float BreathLowM = 80f, BreathAgl = 12f, BreathSpeedMps = 10f;
+        /// <summary>BA-2 — past the aim it climbs out to this far beyond it (m), then turns this far round (degrees) for the next pass.</summary>
+        public const float BreathClimbOutM = 150f, BreathTurnDeg = 120f;
+        /// <summary>BA-2 — passes that breathed nothing before the attack gives up (a held breath counts: BA-6).</summary>
+        public const int BreathMaxDryPasses = 4;
+        /// <summary>BA-3 — the hostile men remembered this near the aim (m) set the pass's line (their long axis); a point strike is done when none is left.</summary>
+        public const float BreathGroupRadiusM = 30f;
+        /// <summary>BA-4 — the hover's stand-off from the wall (m) and height above the ground (m), and how long it breathes on the wall (s; F-3's 2 s + 1).</summary>
+        public const float BreathHoverWallM = 25f, BreathHoverAgl = 8f;
+        public const double BreathOnWallSeconds = 3.0;
+        /// <summary>BA-4 — the hover's last leg starts this far further out (m), so the flyer arrives FACING the wall (its neck turns ±70°).</summary>
+        public const float BreathHoverLeadM = 40f;
+        /// <summary>A breath's fuel shots (one every <see cref="BreathIntervalS"/>; the pass stops it) — the dragon fires 10 a second.</summary>
+        public const int BreathRounds = 100;
+        public const float BreathIntervalS = 0.1f;
+        /// <summary>A hover held this long without a breath (s; a neutral at the wall, the arc) gives up.</summary>
+        public const double BreathHoverGiveUpSeconds = 30.0;
+        private const byte StageBreathToStart = 10, StageBreathIn = 11, StageBreathLow = 12, StageBreathOut = 13,
+                           StageHoverLead = 14, StageHoverStation = 15, StageHoverBreathe = 16, StageBreathHome = 17;
+
+        public static bool IsBreath(AirAttackProfile profile) => profile is AirAttackProfile.BreathPass or AirAttackProfile.BreathHover;
+
         /// <summary>⭐ Slice 6c (B12–B14) — the air attack on an ENTITY: fails (logged) when the order named none; else <see cref="Run"/>.</summary>
         public static NodeStatus Attack(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world)
         {
@@ -403,7 +479,16 @@ namespace Hrot.AI.Behaviors.Brains
             if (entity)
             {
                 // ⭐ B14 — the attack on an entity ends the moment it is destroyed; until then the point follows it (B13)
-                if (!Injury.IsInTheFight(world, p.Target) && ws.Profile != AirAttackProfile.AirCombat) { StopFire(world, self, ref ws); return NodeStatus.Success; }
+                if (!Injury.IsInTheFight(world, p.Target) && ws.Profile != AirAttackProfile.AirCombat)
+                {
+                    StopFire(world, self, ref ws);
+                    // ⭐ CE-3490 — a strafe flies its climb-out to the end first (📐 dr-dragon-attack: the target died with the dragon low over it, and the
+                    //   attack's end froze it there, mid-climb): the Out stage ends the attack on arrival
+                    if (ws.Profile == AirAttackProfile.BreathPass && ws.Stage is StageBreathIn or StageBreathLow) ClimbOut(in p, ref ws, self, world);
+                    if (ws.Profile == AirAttackProfile.BreathPass && ws.Stage == StageBreathOut)
+                        return LocomotionMoveTo.Status(world, self) == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Success;
+                    return NodeStatus.Success;
+                }
                 if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, p.Target, out var now3, out _)) p.Point = now3;
             }
             var target = p.Point;
@@ -434,6 +519,12 @@ namespace Hrot.AI.Behaviors.Brains
                     ws.Stage = StageHover;
                     if (!HoverOver(world, self, target, in p)) return NodeStatus.Failure;
                     ws.NextSteer = now + SteerPeriod;
+                }
+                else if (IsBreath(ws.Profile))
+                {
+                    // ⭐ CE-3490 — the breath's own run-in (a strafe) or its hover; it comes back here after a hover
+                    ws.Home = at;
+                    if (!StartBreath(ref p, ref ws, self, world, at, target)) return NodeStatus.Failure;
                 }
                 else if (ws.Profile == AirAttackProfile.DoorGunOrbit)
                 {
@@ -478,6 +569,7 @@ namespace Hrot.AI.Behaviors.Brains
                 ws.EvadeUntil = (SimInstant)(now + RadarClearS);
             }
             if (ws.Stage == StageRadarEvade) return RadarEvade(ref p, ref ws, self, world, at, target, now);
+            if (IsBreath(ws.Profile)) return Breath(ref p, ref ws, self, world, at, target, now, entity);   // ⭐ CE-3490
 
             if (ws.Stage == StageOrbit) return Orbit(ref p, ref ws, self, world, at, target, now, entity);
 
@@ -594,14 +686,15 @@ namespace Hrot.AI.Behaviors.Brains
         /// ⭐ Slice 6e (§9i) — the drone's attack: <b>Search</b> (a point: circle it, pick the best remembered target in the area —
         /// <see cref="DroneTargets.Pick"/>), <b>Pursue</b> (the point above the target at the cruise height), <b>Dive</b> (once the
         /// horizontal distance is within height / tan(angle): at the target's middle, full speed, re-aimed every
-        /// <see cref="DiveSteerPeriod"/>). The battery (<c>EnduranceSeconds</c>) ⇒ straight down. The Muscle's impact ends the flight.
+        /// <see cref="DiveSteerPeriod"/>). The battery empty (<c>DroneBattery</c>, SD-S2b) ⇒ straight down. The Muscle's impact ends the flight.
         /// </summary>
         private static NodeStatus Dive(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, double now)
         {
             var flight = world.HasComponent<FlightParams>(self) ? world.GetComponentRO<FlightParams>(self) : default;
             float speed = p.Speed > 0f ? p.Speed : flight.MaxSpeedMps;
             float height = p.AttackHeightAgl > 0f ? p.AttackHeightAgl : DefaultDiveHeightAgl;
-            if (ws.BatteryOut == 0 && flight.EnduranceSeconds > 0f && now - ws.StartedAt >= flight.EnduranceSeconds)
+            // ⭐ devices SD-S2b (§3.13c D-108) — the drone's ONE DroneBattery (drained airborne, frozen in pause), ⛔ no longer a clock from the attack's start
+            if (ws.BatteryOut == 0 && Fdp.Toolkit.Motion.DroneBatteries.Empty(world, self))
             {
                 ws.BatteryOut = 1;   // D-6 — whatever is below
                 ws.Stage = StageDive;
@@ -841,6 +934,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
             if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
+            if (IsBreath(ws.Profile)) return StartBreath(ref p, ref ws, self, world, at, target) ? NodeStatus.Running : NodeStatus.Failure;   // ⭐ CE-3490 BA-7
             ws.Dir = Flat(target - at);
             ws.Weapon = WeaponRockets;
             ws.Fired = 0;
@@ -992,7 +1086,9 @@ namespace Hrot.AI.Behaviors.Brains
         private static bool Choose(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world)
         {
             ushort endangering = p.DangerClose != 0 ? (ushort)0 : AirAttackProfiles.Endangering(world, self, p.Point);
-            ushort excluded = (ushort)(ws.Spent | endangering);
+            // ⭐ CE-3490 (BA-5, BA-6) — a flame that cannot light this target, or that the ROE forbids, is passed over like a dry mount
+            ushort unlightable = AirAttackProfiles.Unlightable(world, self, p.Target, p.Point, p.Kind);
+            ushort excluded = (ushort)(ws.Spent | endangering | unlightable);
             AirAttackProfile? picked;
             byte mount, gun;
             if (p.Profile == AirAttackProfile.Auto)
@@ -1001,7 +1097,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (picked == null)
             {
                 BehaviorLog.Error(self, world,
-                    endangering != 0 ? "AirAttack: every weapon left would hurt friends or neutrals near the point (order it danger close to fire)."
+                    unlightable != 0 ? "AirAttack: the flame cannot light this target (or the ROE forbids incendiaries), and no other weapon is left for it."
+                    : endangering != 0 ? "AirAttack: every weapon left would hurt friends or neutrals near the point (order it danger close to fire)."
                     : ws.Spent != 0 ? "AirAttack: no weapon left for this target."
                     : p.Profile == AirAttackProfile.Auto
                         ? "AirAttack: no attack profile for this aircraft and its weapons (a plane needs a bomb, a rocket pod or a gun; a helicopter or drone rockets, a gun or a drop rack)."
@@ -1142,6 +1239,307 @@ namespace Hrot.AI.Behaviors.Brains
             return MathF.Max(DefaultRunInM, 2.5f * r);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-3490 (BA-2…BA-4) — starts (or restarts, after an evasion) a breath attack from where the flyer is: a STRAFE flies to its run-in start on
+        /// the pass line (BA-3; straight on when already on it); a HOVER finds the building's nearest burnable wall and flies to its station 25 m off it, by
+        /// a lead point further out so it arrives facing the wall. False (logged) when there is nothing to fly to.
+        /// </summary>
+        private static bool StartBreath(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, Vector3 target)
+        {
+            ws.NextSteer = 0;
+            ws.Fire = default;
+            ws.Fired = 0;
+            if (ws.Profile == AirAttackProfile.BreathHover)
+            {
+                int building = AirAttackProfiles.BurnableBuilding(world, target);
+                var terrain = world.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? world.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
+                if (building < 0 || terrain == null
+                    || !Fdp.Toolkit.Terrain.BuildingFires.NearestBurnableWall(terrain, building, new Vector2(at.X, at.Y), out var wall, out var outward, out float midZ))
+                {
+                    BehaviorLog.Error(self, world, "AirAttack: no burnable wall at the struck building.");
+                    return false;
+                }
+                var station = wall + outward * BreathHoverWallM;
+                ws.HoverAt = new Vector3(station, Ground(world, station) + BreathHoverAgl);
+                ws.WallAim = new Vector3(wall, midZ);
+                ws.BreathSince = default;
+                ws.Dir = -outward;
+                ws.Stage = StageHoverLead;
+                var lead = station + outward * BreathHoverLeadM;
+                return LocomotionMoveTo.Issue(world, self, new Vector3(lead, ws.HoverAt.Z), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);
+            }
+            ws.Dir = PassLine(world, self, at, target, out bool group);
+            if (group) ws.GroupLine = 1;
+            var off = new Vector2(at.X - target.X, at.Y - target.Y);
+            float along = -Vector2.Dot(off, ws.Dir);                                    // > 0 ⇒ it is before the aim on the line
+            float aside = MathF.Abs(off.X * ws.Dir.Y - off.Y * ws.Dir.X);
+            if (along >= 0.5f * BreathRunInM && aside <= BreathGroupRadiusM)
+            {
+                ws.Stage = StageBreathIn;                                               // already on the line, far enough out: straight in
+                return true;
+            }
+            ws.Stage = StageBreathToStart;
+            var start = target - new Vector3(ws.Dir * BreathRunInM, 0f);
+            return LocomotionMoveTo.Issue(world, self, new Vector3(start.X, start.Y, p.Point.Z + BreathCruiseAgl), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3490 (DESIGN_Breath_Attack §0) — one tick of a breath attack. STRAFE: to the run-in start → in at 60 m → (80 m out, plus its braking
+        /// distance) down to 12 m at 10 m/s, breathing while the aim is in the jet's reach from the mouth → over the aim, out 150 m and up → the next pass
+        /// 120° round. Ends: the entity out of the fight (<see cref="Run"/>), a point with no hostile left near it after a pass that breathed, four passes
+        /// that breathed nothing, or no fuel left. HOVER: the lead point, the station, 3 s on the wall, home.
+        /// </summary>
+        private static NodeStatus Breath(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, Vector3 target, double now, bool entity)
+        {
+            if (ws.Profile == AirAttackProfile.BreathHover) return BreathHover(ref p, ref ws, self, world, at, now);
+            var aim = target + new Vector3(0f, 0f, Fdp.Toolkit.Combat.FlameJets.TargetMiddleM);   // a man's middle (the jet's aim at a unit)
+            float along = Vector2.Dot(new Vector2(target.X - at.X, target.Y - at.Y), ws.Dir);    // > 0 ⇒ the aim is still ahead
+            var beyond = target + new Vector3(ws.Dir * BreathClimbOutM, 0f);
+            switch (ws.Stage)
+            {
+                case StageBreathToStart:
+                {
+                    if (RepickLine(ref p, ref ws, self, world, at, target, now, out var repicked)) return repicked;
+                    var s = LocomotionMoveTo.Status(world, self);
+                    if (s == NodeStatus.Failure) return NodeStatus.Failure;
+                    if (s == NodeStatus.Running) return NodeStatus.Running;
+                    ws.Stage = StageBreathIn;
+                    ws.NextSteer = 0;
+                    return NodeStatus.Running;
+                }
+                case StageBreathIn:
+                    if (RepickLine(ref p, ref ws, self, world, at, target, now, out var again)) return again;
+                    if (along <= BreathLowM + LetDownDistance(world, self, at.Z - (p.Point.Z + BreathAgl)))
+                    {
+                        ws.Stage = StageBreathLow;
+                        ws.NextSteer = 0;
+                        goto case StageBreathLow;
+                    }
+                    if (now >= ws.NextSteer)
+                    {
+                        if (!LocomotionMoveTo.Issue(world, self, new Vector3(beyond.X, beyond.Y, p.Point.Z + BreathCruiseAgl), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack))
+                            return NodeStatus.Failure;
+                        ws.NextSteer = now + SteerPeriod;
+                    }
+                    return NodeStatus.Running;
+                case StageBreathLow:
+                    if (along <= 0f)
+                    {
+                        StopFire(world, self, ref ws);   // over the aim: the breath ends (a burst that left a round counts the pass as lit)
+                        ws.Stage = StageBreathOut;
+                        return LocomotionMoveTo.Issue(world, self, new Vector3(beyond.X, beyond.Y, p.Point.Z + BreathCruiseAgl), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack)
+                            ? NodeStatus.Running : NodeStatus.Failure;
+                    }
+                    if (now >= ws.NextSteer)
+                    {
+                        if (!LocomotionMoveTo.Issue(world, self, new Vector3(beyond.X, beyond.Y, p.Point.Z + BreathAgl), BreathSpeedMps, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack))
+                            return NodeStatus.Failure;
+                        ws.NextSteer = now + SteerPeriod;
+                    }
+                    return Breathe(ref p, ref ws, self, world, at, target, aim);
+                default:   // StageBreathOut — the pass is done when it is out and up
+                {
+                    var s = LocomotionMoveTo.Status(world, self);
+                    if (s == NodeStatus.Failure) return NodeStatus.Failure;
+                    if (s == NodeStatus.Running) return NodeStatus.Running;
+                    if (ws.Fired == 0 && ++ws.Passes >= BreathMaxDryPasses)
+                    {
+                        BehaviorLog.Error(self, world, $"AirAttack: {BreathMaxDryPasses} breath passes lit nothing (held, or out of reach).");
+                        return NodeStatus.Failure;
+                    }
+                    if (!entity && ws.Fired != 0 && HostilesNear(world, self, target, BreathGroupRadiusM, out _, out _) == 0) return NodeStatus.Success;
+                    // the next pass: a line 120° round — never the same line twice (BA-2)
+                    float turn = BreathTurnDeg * (MathF.PI / 180f);
+                    ws.Dir = new Vector2(ws.Dir.X * MathF.Cos(turn) - ws.Dir.Y * MathF.Sin(turn), ws.Dir.X * MathF.Sin(turn) + ws.Dir.Y * MathF.Cos(turn));
+                    ws.Fired = 0;
+                    ws.Stage = StageBreathToStart;
+                    var start = target - new Vector3(ws.Dir * BreathRunInM, 0f);
+                    return LocomotionMoveTo.Issue(world, self, new Vector3(start.X, start.Y, p.Point.Z + BreathCruiseAgl), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack)
+                        ? NodeStatus.Running : NodeStatus.Failure;
+                }
+            }
+        }
+
+        /// <summary>⭐ CE-3490 (BA-3) — the first pass's line was set before the flyer had seen anyone (📐 dr-dragon-attack: its memory was empty on the
+        /// attack's first tick, so the pass crossed the row and burnt one man): on the run-in, the first time it remembers a GROUP near the aim, the run
+        /// restarts on the group's line. Once per attack; checked every <see cref="SteerPeriod"/>, beyond the let-down.</summary>
+        private static bool RepickLine(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, Vector3 target, double now, out NodeStatus status)
+        {
+            status = NodeStatus.Running;
+            if (ws.GroupLine != 0 || now < ws.NextSteer && ws.Stage == StageBreathIn) return false;
+            if (HostilesNear(world, self, target, BreathGroupRadiusM, out _, out _) < 2) return false;
+            var line = PassLine(world, self, at, target, out bool group);
+            if (!group) return false;
+            ws.GroupLine = 1;
+            if (Vector2.Dot(line, ws.Dir) > 0.94f) return false;   // within 20°: keep the run it is on
+            status = StartBreath(ref p, ref ws, self, world, at, target) ? NodeStatus.Running : NodeStatus.Failure;
+            return true;
+        }
+
+        /// <summary>⭐ CE-3490 (BA-2) — the breath on the low leg: a held <c>FireAtPoint</c> at the aim while it is inside the jet's reach from the mouth
+        /// (<see cref="Fdp.Toolkit.Combat.ShotOrigin.From"/>, the rule the jet itself leaves by); out of reach ⇒ the burst stops. The release gates
+        /// (the ROE's incendiary rule, a neutral in the flame) are the executor's: a held breath is Running, never a failure (BA-6).</summary>
+        private static NodeStatus Breathe(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, Vector3 target, Vector3 aim)
+        {
+            float reach = BreathReach(world, self, ws.Mount);
+            var mouth = Fdp.Toolkit.Combat.ShotOrigin.From(world, self, ws.Mount, Fdp.Toolkit.Combat.ShotOrigin.Eye(world, self, out _), aim, out _);
+            if (Vector3.Distance(mouth, aim) > reach)
+            {
+                if (ws.Fire.Started != 0) StopFire(world, self, ref ws);
+                ws.Weapon = WeaponRockets;   // StopFire marks the weapon done; a breath may start again inside the reach
+                return NodeStatus.Running;
+            }
+            var fire = new FireAtPointNodeParams { Point = aim, Mount = ws.Mount, Started = ws.Fire.Started, Rounds = BreathRounds, CooldownSeconds = BreathIntervalS };
+            var status = FireAtPointNodes.FireAtPoint(ref fire, self, world);
+            ws.Fire = fire;
+            if (status == NodeStatus.Running) { Retarget(world, self, ws.Fire.Started, aim); return NodeStatus.Running; }
+            ws.Fire = default;
+            if (status == NodeStatus.Success) { ws.Fired = 1; return NodeStatus.Running; }
+            return BreathSpent(ref p, ref ws, self, world, at, target);
+        }
+
+        /// <summary>⭐ CE-3490 — the flame ran dry (or was refused): the other weapons' profile (a mixed loadout, BA-8), else the attack fails, logged.</summary>
+        private static NodeStatus BreathSpent(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, Vector3 target)
+        {
+            ws.Spent |= (ushort)(1 << ws.Mount);
+            if (!Choose(ref p, ref ws, self, world)) return NodeStatus.Failure;
+            if (IsBreath(ws.Profile)) return StartBreath(ref p, ref ws, self, world, at, target) ? NodeStatus.Running : NodeStatus.Failure;
+            ws.Dir = Flat(target - at);
+            ws.Stage = StageRunIn;
+            ws.NextSteer = 0;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>⭐ CE-3490 (BA-4) — the hover on a building: the lead point, the station (arriving facing the wall), 3 s of breath on the wall, home.</summary>
+        private static NodeStatus BreathHover(ref AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world, Vector3 at, double now)
+        {
+            var s = LocomotionMoveTo.Status(world, self);
+            switch (ws.Stage)
+            {
+                case StageHoverLead:
+                    if (s == NodeStatus.Failure) return NodeStatus.Failure;
+                    if (s == NodeStatus.Running) return NodeStatus.Running;
+                    ws.Stage = StageHoverStation;
+                    return LocomotionMoveTo.Issue(world, self, ws.HoverAt, BreathSpeedMps, HoverArrivalM, source: MoveSource.Attack) ? NodeStatus.Running : NodeStatus.Failure;
+                case StageHoverStation:
+                    if (s == NodeStatus.Failure) return NodeStatus.Failure;
+                    if (s == NodeStatus.Running) return NodeStatus.Running;
+                    ws.Stage = StageHoverBreathe;
+                    ws.BreathSince = (SimInstant)now;
+                    return NodeStatus.Running;
+                case StageHoverBreathe:
+                {
+                    int rounds = (int)MathF.Ceiling((float)(BreathOnWallSeconds / BreathIntervalS));
+                    var fire = new FireAtPointNodeParams { Point = ws.WallAim, Mount = ws.Mount, Started = ws.Fire.Started, Rounds = rounds, CooldownSeconds = BreathIntervalS };
+                    var status = FireAtPointNodes.FireAtPoint(ref fire, self, world);
+                    ws.Fire = fire;
+                    if (status == NodeStatus.Running)
+                    {
+                        if (now - (double)ws.BreathSince > BreathHoverGiveUpSeconds && Fdp.Toolkit.Combat.Executors.FireAtPointExecutor.RoundsFired(ref Channel(world, self)) == 0)
+                        {
+                            StopFire(world, self, ref ws);
+                            BehaviorLog.Error(self, world, "AirAttack: the breath on the building was held too long (a neutral in the flame, or out of the neck's arc).");
+                            return NodeStatus.Failure;
+                        }
+                        return NodeStatus.Running;
+                    }
+                    ws.Fire = default;
+                    if (status == NodeStatus.Failure) return NodeStatus.Failure;
+                    ws.Fired = 1;
+                    ws.Stage = StageBreathHome;
+                    return LocomotionMoveTo.Issue(world, self, new Vector3(ws.Home.X, ws.Home.Y, MathF.Max(ws.Home.Z, ws.HoverAt.Z)), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack)
+                        ? NodeStatus.Running : NodeStatus.Failure;
+                }
+                default:   // StageBreathHome — done on arrival
+                    return s;
+            }
+        }
+
+        private static ref Fdp.Toolkit.Behavior.Components.WeaponChannel Channel(EntityRepository world, Entity self)
+            => ref world.GetComponentRW<Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
+
+        /// <summary>⭐ CE-3490 (BA-3) — the pass's line (unit, flat): the long axis of the hostile men remembered within <see cref="BreathGroupRadiusM"/> of the aim
+        /// (a line of men burns in one pass), pointed away from the flyer; fewer than two ⇒ straight at the aim from where it is.</summary>
+        private static Vector2 PassLine(EntityRepository world, Entity self, Vector3 at, Vector3 target, out bool group)
+        {
+            group = false;
+            var toward = Flat(target - at);
+            if (HostilesNear(world, self, target, BreathGroupRadiusM, out var mean, out var cov) < 2) return toward;
+            // the principal axis of the 2×2 covariance (sxx, sxy, syy)
+            float sxx = cov.X, sxy = cov.Y, syy = cov.Z;
+            float angle = 0.5f * MathF.Atan2(2f * sxy, sxx - syy);
+            var axis = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+            float spread = MathF.Sqrt(MathF.Max(0f, 0.5f * (sxx + syy) + MathF.Sqrt(0.25f * (sxx - syy) * (sxx - syy) + sxy * sxy)));
+            if (spread < 1f) return toward;   // a knot of men, no line: straight in
+            group = true;
+            return Vector2.Dot(axis, toward) >= 0f ? axis : -axis;
+        }
+
+        /// <summary>⭐ CE-3490 — the live, identified hostile contacts in the flyer's OWN memory within <paramref name="radius"/> (flat) of <paramref name="centre"/>:
+        /// their count, mean and covariance (sxx, sxy, syy). 0 B per call.</summary>
+        private static unsafe int HostilesNear(EntityRepository world, Entity self, Vector3 centre, float radius, out Vector2 mean, out Vector3 cov)
+        {
+            mean = default;
+            cov = default;
+            if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Components.TargetMemory>()
+                || !world.HasComponent<Fdp.Toolkit.Perception.Components.TargetMemory>(self)) return 0;
+            ref readonly var memory = ref world.GetComponentRO<Fdp.Toolkit.Perception.Components.TargetMemory>(self);
+            int n = 0;
+            float sx = 0f, sy = 0f, sxx = 0f, sxy = 0f, syy = 0f;
+            for (int i = 0; i < memory.Count; i++)
+            {
+                if (Fdp.Toolkit.Perception.Components.TargetMemory.IsAnonymous(in memory, i)) continue;
+                var e = new Entity((ulong)memory.EntityIds[i]);
+                if (!world.IsAlive(e) || !Injury.IsInTheFight(world, e) || !DroneTargets.IsHostile(world, self, e)) continue;
+                float x = memory.PositionsX[i], y = memory.PositionsY[i];
+                if (new Vector2(x - centre.X, y - centre.Y).Length() > radius) continue;
+                n++; sx += x; sy += y; sxx += x * x; sxy += x * y; syy += y * y;
+            }
+            if (n == 0) return 0;
+            mean = new Vector2(sx / n, sy / n);
+            cov = new Vector3(sxx / n - mean.X * mean.X, sxy / n - mean.X * mean.Y, syy / n - mean.Y * mean.Y);
+            return n;
+        }
+
+        /// <summary>⭐ CE-3490 — the flame's reach (m): the loaded fuel's <c>FlameRangeM</c>, else the mount's range.</summary>
+        private static float BreathReach(EntityRepository world, Entity self, byte mount)
+        {
+            var m = CombatTkb.MountOf(world, self, mount);
+            if (m == null) return 0f;
+            return CombatTkb.WarheadOf(world, m) is { FlameRangeM: > 0f } w ? w.FlameRangeM : m.Range;
+        }
+
+        /// <summary>⭐ CE-3490 (BA-2) — how far before the low leg's 80 m the flyer must start down (m) to be AT 12 m and 10 m/s by then: the larger of its
+        /// braking distance from its speed now (its type's acceleration) and the ground it covers descending <paramref name="drop"/> m at its climb rate at
+        /// the breath speed. 📐 Rail-measured: started at 80 m flat, the stand-in was still 28 m up at its first breath.</summary>
+        private static float LetDownDistance(EntityRepository world, Entity self, float drop)
+        {
+            var flight = world.HasComponent<FlightParams>(self) ? world.GetComponentRO<FlightParams>(self) : default;
+            float braking = 0f;
+            if (Fdp.Toolkit.Replication.ReplicatedMotion.Of(world, self, out _, out var v))
+            {
+                float speed = new Vector2(v.X, v.Y).Length();
+                if (flight.AccelMps2 > 0f && speed > BreathSpeedMps) braking = (speed * speed - BreathSpeedMps * BreathSpeedMps) / (2f * flight.AccelMps2);
+            }
+            float climb = flight.ClimbMps > 0f ? flight.ClimbMps : DefaultLetDownMps;
+            float descent = MathF.Max(0f, drop) / climb * BreathSpeedMps;
+            return MathF.Max(braking, descent);
+        }
+
+        /// <summary>⭐ CE-3490 — the descent rate assumed when the type states no climb rate (m/s; the dragon's is 8).</summary>
+        public const float DefaultLetDownMps = 8f;
+
+        /// <summary>⭐ CE-3490 — a strafe whose target is out of the fight mid-pass flies on out and up, 150 m beyond the aim at 60 m, and the attack ends
+        /// on arrival there (<see cref="Run"/>).</summary>
+        private static void ClimbOut(in AirAttackParams p, ref AirAttackState ws, Entity self, EntityRepository world)
+        {
+            var beyond = p.Point + new Vector3(ws.Dir * BreathClimbOutM, 0f);
+            LocomotionMoveTo.Issue(world, self, new Vector3(beyond.X, beyond.Y, p.Point.Z + BreathCruiseAgl), p.Speed, AirOrderNodes.DefaultArrivalRadius, source: MoveSource.Attack);
+            ws.Stage = StageBreathOut;
+        }
+
+        private static float Ground(EntityRepository world, Vector2 at) => Fdp.Toolkit.World.WorldQuery.Of(world)?.GroundHeightAt(at.X, at.Y) ?? 0f;
+
         /// <summary>A MoveTo to (x, y) at the pass height above the ground at the TARGET (the run is flown level).</summary>
         /// <summary>⭐ <c>CE-7027</c> — HoverDrop: fly to hover over the point (an entity's point refreshed every <see cref="SteerPeriod"/>);
         /// standing over it, the weapon brain drops one round on the hover cue; then fly back home — Success on arrival there.</summary>
@@ -1257,6 +1655,9 @@ namespace Hrot.AI.Behaviors.Brains
             float kind = Fdp.Toolkit.Spatial.Eqs.VehicleCover.IsVehicle(world, target) ? 1f : PersonWeight;
             return MathF.Max(freshness, 0f) * share * kind;
         }
+
+        /// <summary>⭐ CE-3490 — <see cref="Hostile"/> for the breath attack's group line.</summary>
+        internal static bool IsHostile(EntityRepository world, Entity a, Entity b) => Hostile(world, a, b);
 
         /// <summary>Another force, not a neutral one (perception remembers every other force, neutrals included).</summary>
         private static bool Hostile(EntityRepository world, Entity a, Entity b)

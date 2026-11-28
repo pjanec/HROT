@@ -54,6 +54,12 @@ namespace Fdp.Toolkit.Tkb.Domain
                 new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried },                                          // 1 the hands
                 new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried, Stowed = true },                           // 2 the back
                 new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Carried, Stowed = true, Concealed = true, Exposed = false },   // 3 hidden
+                // ⭐ Simulated devices S1b-3 (DESIGN_Simulated_Devices §3.2, D-63) — four KIT stations APPENDED (seats 1–3 keep their indices): they accept
+                //   only a DEVICE, so carrying binoculars, a rangefinder and a radio never costs the rifle its hands, back or hidden slot.
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Device, Stowed = true },   // 4 kit 1
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Device, Stowed = true },   // 5 kit 2
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Device, Stowed = true },   // 6 kit 3
+                new SeatDto { Role = SeatRole.Station, Accepts = MountKinds.Device, Stowed = true },   // 7 kit 4
             },
             Exposure = PassengerExposure.Open,
             DiesWithCarrier = false,

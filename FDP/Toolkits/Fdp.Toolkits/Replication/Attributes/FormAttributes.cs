@@ -307,7 +307,7 @@ public static class FormAttributes
             return;
         }
         float blend = repo.GetComponentRO<StanceIntent>(entity).BlendTime;
-        StanceRequest.Set(repo, entity, stance, blend > 0f ? blend : 0.3f);
+        StanceRequest.Set(repo, entity, stance, blend > 0f ? blend : 0f);   // ⭐ CE-11014 — unset: the body applies the pair's default (StanceTiming)
     }
 
     /// <summary>The body starts IN the intent's stance: status = intent, acknowledged, no transition (used at load and by the paused set).</summary>

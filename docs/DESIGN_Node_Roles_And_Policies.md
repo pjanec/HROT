@@ -37,6 +37,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed; NodeRole is a
   docs/blueprints/Architect_Question_65_Entity_Genesis_Uniformity.md §0, §4 (Q65-A′), §5.5 (CE-143) -
   Hrot/Engine/Hrot.Core/NodeRole.cs (the enum itself)
 related-designs:
+  - DESIGN_Ned_As_The_Client_Wire.md — PROPOSES the editor (a one-node cluster) runs the NED replication module with its own role flags when the gateway asks
   - DESIGN_Glass_Windows.md — every glass rule runs on SimHost (§3.0a); the window state is replicated so every map draws the same
   - docs/DESIGN_Scenario_Macros.md — OWNS scenario macros (the expander, macro files, params + bindings, RefKey scoping); macro entities reuse IsTransient → ScenarioIgnoreTag (R-140)
   - docs/DESIGN_Scenario_Rules.md — §9.3 SR-42′: scenario-macro entities are created IsTransient (this §7.3 path) so only the macro reference is saved

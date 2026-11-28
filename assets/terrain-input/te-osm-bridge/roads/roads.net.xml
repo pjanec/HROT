@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- generated on 2026-11-26 13:32:29 by Eclipse SUMO netconvert Version 1.20.0
+<configuration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/netconvertConfiguration.xsd">
+
+    <input>
+        <node-files value="n.nod.xml"/>
+        <edge-files value="n.edg.xml"/>
+    </input>
+
+    <output>
+        <output-file value="n.net.xml"/>
+    </output>
+
+    <processing>
+        <offset.disable-normalization value="true"/>
+    </processing>
+
+    <junctions>
+        <no-turnarounds value="true"/>
+    </junctions>
+
+</configuration>
+-->
+
+<net version="1.20" junctionCornerDetail="5" limitTurnSpeed="5.50" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://sumo.dlr.de/xsd/net_file.xsd">
+
+    <location netOffset="0.00,0.00" convBoundary="-95.00,0.00,95.00,0.00" origBoundary="-95.00,0.00,95.00,0.00" projParameter="!"/>
+
+    <edge id=":b_0" function="internal">
+        <lane id=":b_0_0" index="0" speed="13.89" length="0.10" width="3.50" shape="-20.00,1.75 -20.00,1.75"/>
+    </edge>
+    <edge id=":b_1" function="internal">
+        <lane id=":b_1_0" index="0" speed="13.89" length="0.10" width="3.50" shape="-20.00,-1.75 -20.00,-1.75"/>
+    </edge>
+    <edge id=":c_0" function="internal">
+        <lane id=":c_0_0" index="0" speed="13.89" length="0.10" width="3.50" shape="20.00,1.75 20.00,1.75"/>
+    </edge>
+    <edge id=":c_1" function="internal">
+        <lane id=":c_1_0" index="0" speed="13.89" length="0.10" width="3.50" shape="20.00,-1.75 20.00,-1.75"/>
+    </edge>
+
+    <edge id="-bridge" from="c" to="b" priority="3">
+        <lane id="-bridge_0" index="0" speed="13.89" length="40.00" width="3.50" shape="20.00,1.75 -20.00,1.75"/>
+        <param key="bridge" value="yes"/>
+    </edge>
+    <edge id="-east" from="d" to="c" priority="3">
+        <lane id="-east_0" index="0" speed="13.89" length="75.00" width="3.50" shape="95.00,1.75 20.00,1.75"/>
+    </edge>
+    <edge id="-west" from="b" to="a" priority="3">
+        <lane id="-west_0" index="0" speed="13.89" length="75.00" width="3.50" shape="-20.00,1.75 -95.00,1.75"/>
+    </edge>
+    <edge id="bridge" from="b" to="c" priority="3">
+        <lane id="bridge_0" index="0" speed="13.89" length="40.00" width="3.50" shape="-20.00,-1.75 20.00,-1.75"/>
+        <param key="bridge" value="yes"/>
+    </edge>
+    <edge id="east" from="c" to="d" priority="3">
+        <lane id="east_0" index="0" speed="13.89" length="75.00" width="3.50" shape="20.00,-1.75 95.00,-1.75"/>
+    </edge>
+    <edge id="west" from="a" to="b" priority="3">
+        <lane id="west_0" index="0" speed="13.89" length="75.00" width="3.50" shape="-95.00,-1.75 -20.00,-1.75"/>
+    </edge>
+
+    <junction id="a" type="dead_end" x="-95.00" y="0.00" incLanes="-west_0" intLanes="" shape="-95.00,0.00 -95.00,3.50 -95.00,0.00"/>
+    <junction id="b" type="priority" x="-20.00" y="0.00" incLanes="-bridge_0 west_0" intLanes=":b_0_0 :b_1_0" shape="-20.00,3.50 -20.00,-3.50 -20.00,3.50">
+        <request index="0" response="00" foes="00" cont="0"/>
+        <request index="1" response="00" foes="00" cont="0"/>
+    </junction>
+    <junction id="c" type="priority" x="20.00" y="0.00" incLanes="-east_0 bridge_0" intLanes=":c_0_0 :c_1_0" shape="20.00,3.50 20.00,-3.50 20.00,3.50">
+        <request index="0" response="00" foes="00" cont="0"/>
+        <request index="1" response="00" foes="00" cont="0"/>
+    </junction>
+    <junction id="d" type="dead_end" x="95.00" y="0.00" incLanes="east_0" intLanes="" shape="95.00,0.00 95.00,-3.50 95.00,0.00"/>
+
+    <connection from="-bridge" to="-west" fromLane="0" toLane="0" via=":b_0_0" dir="s" state="M"/>
+    <connection from="-east" to="-bridge" fromLane="0" toLane="0" via=":c_0_0" dir="s" state="M"/>
+    <connection from="bridge" to="east" fromLane="0" toLane="0" via=":c_1_0" dir="s" state="M"/>
+    <connection from="west" to="bridge" fromLane="0" toLane="0" via=":b_1_0" dir="s" state="M"/>
+
+    <connection from=":b_0" to="-west" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":b_1" to="bridge" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":c_0" to="-bridge" fromLane="0" toLane="0" dir="s" state="M"/>
+    <connection from=":c_1" to="east" fromLane="0" toLane="0" dir="s" state="M"/>
+
+</net>

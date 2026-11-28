@@ -674,6 +674,62 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-8326</c> — suppressors of one squad take firing positions APART: the first man's pick is the best-ranked point and he CLAIMS it
+        /// (<c>CoverClaim</c>, PeekAndFire's mechanism); the second man, whose search ranks that SAME point first, skips it (within
+        /// <see cref="DefencePlan.DispersalMetres"/> of a squad-mate's live claim) and takes the next point 6 m away. 📐 live village-street-fight:
+        /// three riflemen of Blue Squad 2 each picked a firing position within 1–2 m of each other (≈ 394, 275), lay bunched under fire, all hit.
+        /// The second man runs in his own world carrying the first man's claim (one entity per world here — the claim is the whole interface).
+        /// 🔴 Red-proof: the Disperse skip never firing ⇒ the second man's goal is the shared point ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8326_TwoSuppressors_TakeFiringPositionsApart_TheSecondSkipsTheFirstsClaim()
+        {
+            var shared = new Vector3(10f, 10f, 0f);
+            var other = new Vector3(10f, 16f, 0f);
+            Vector3 Goal(World w, out bool claimed, Fdp.Toolkit.Combat.Components.CoverClaim? friend)
+            {
+                w.Arm();
+                w.Repo.AddComponent(w.Unit, new Hrot.MuscleCharacter.Animation.Components.StanceIntent());
+                SeesNothing(w);
+                w.Contact(armed: true);
+                w.Order("CombatPosture", Objective);
+                Assert.True(w.Registry.TryGetId("CombatPosture", out int hash));
+                if (!w.Repo.HasComponent<SimTransform>(w.Unit)) w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+                if (friend is { } fc)
+                {
+                    var mate = w.Repo.CreateEntity();
+                    w.Repo.AddComponent(mate, fc);
+                }
+                for (int i = 0; i < 10; i++)
+                {
+                    if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                    w.Tick();
+                }
+                var sensor = EqsChildSensor.Find(w.Repo, w.Unit, EqsTacticsNodes.SuppressFromSite);
+                Assert.False(sensor.IsNull, "the firing-position search on the spot is up");
+                for (int i = 0; i < 3; i++)
+                {
+                    if (w.TaskName == "CombatPosture") Block(w, hash)->Choice.Winner = (byte)Fdp.Toolkit.Utility.Posture.Suppress;
+                    w.AnswerPoints(sensor, 5, (shared.X, shared.Y), (other.X, other.Y));
+                    w.Tick();
+                }
+                Assert.Equal(Fdp.Toolkit.Navigation.NavigationConstants.ActionIdMoveTo, w.Repo.GetComponentRO<LocomotionChannel>(w.Unit).ActiveAction);
+                claimed = w.Repo.HasComponent<Fdp.Toolkit.Combat.Components.CoverClaim>(w.Unit)
+                          && w.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(w.Unit).Until > (SimInstant)w.Repo.SimulationTime;
+                return w.Destination();
+            }
+
+            var first = new World();
+            Assert.Equal(shared, Goal(first, out bool firstClaimed, null));
+            Assert.True(firstClaimed, "the first man holds a live claim on his firing position");
+            var claim = first.Repo.GetComponentRO<Fdp.Toolkit.Combat.Components.CoverClaim>(first.Unit);
+            Assert.Equal(shared, claim.Hide);
+
+            var second = new World();
+            Assert.Equal(other, Goal(second, out _, claim));
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-8311</c> (D-15) — a suppressor takes the LOWEST stance whose round reaches the hidden enemy's last-known spot: a wall 2 m in
         /// front of him, 20 m from the spot — none ⇒ prone; knee-high (0.6 m) ⇒ crouched over it; chest-high (1.2 m, a car) ⇒ standing over it;
         /// 3 m ⇒ nothing clears ⇒ prone (his rounds cannot reach it, so he does not stand in it). 📐 live bt-window-duel: crouched behind Van 1
@@ -742,6 +798,44 @@ namespace Hrot.SimHost.Tests
                 }
                 Assert.True(inAnOpening, $"eye {eyeZ}: {aim} is not inside an upstairs opening of House A");
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8317</c> (user-approved 2026-11-24) — the fire step shoots only what the man's weapons can HURT: a rifleman (5 mm penetration)
+        /// remembering only a tank (600 mm all round) holds fire; remembering the tank AND a soldier, his round goes at the soldier. 📐 live
+        /// village-street-fight: 517 rifle rounds at the M1, 158 at the T-72. 🔴 Red-proof: the CanHurt check dropped ⇒ he fires at the tank ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE8317_ARifleman_NeverFiresAtATank_HeShootsTheSoldierInstead()
+        {
+            var w = new World();
+            w.Arm();
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var rifleman = new Fdp.Interfaces.TkbTemplate("Rifleman", 78);
+            rifleman.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { new Fdp.Toolkit.Tkb.Domain.WeaponMountDto { Range = 500f, Penetration = 5f, DamagePerHit = 10f } } });
+            db.Register(rifleman);
+            var tankType = new Fdp.Interfaces.TkbTemplate("Tank", 79);
+            tankType.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { MaxHealth = 2500, ArmorFront = 600, ArmorSide = 600, ArmorRear = 600, ArmorTop = 600 });
+            db.Register(tankType);
+            w.Repo.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            w.Repo.AddComponent(w.Unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)78 });
+            var tank = w.Contact(armed: true);
+            if (!w.Repo.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()) w.Repo.RegisterComponent<CarKinem.Core.VehicleParams>();
+            w.Repo.AddComponent(tank, new CarKinem.Core.VehicleParams { Class = CarKinem.Core.VehicleClass.Tank });
+            w.Repo.AddComponent(tank, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)79 });
+
+            var ws = new EngageState();
+            Assert.True(PostureNodes.Fire(w.Repo, w.Unit, ref ws, 1f));
+            Assert.NotEqual(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, w.Repo.GetComponentRO<WeaponChannel>(w.Unit).ActiveAction);   // only a tank: hold
+            var atTank = new ThreatAim(tank, 0, default);
+            Assert.True(PeekAndFireNodes.LockTarget(w.Repo, w.Unit, in atTank).IsNull);   // ⭐ the peek-and-fire lock too: no target at all
+
+            var soldier = w.Contact(armed: true);
+            Assert.True(PostureNodes.Fire(w.Repo, w.Unit, ref ws, 1f));
+            Assert.Equal(soldier, PeekAndFireNodes.LockTarget(w.Repo, w.Unit, in atTank));   // he hides from the tank, he locks on the soldier
+            ref readonly var ch = ref w.Repo.GetComponentRO<WeaponChannel>(w.Unit);
+            Assert.Equal(Fdp.Toolkit.Combat.CombatConstants.ActionIdAimAndFire, ch.ActiveAction);
+            Assert.Equal(soldier, System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref w.Repo.GetComponentRW<WeaponChannel>(w.Unit).Params[0]).Target);
         }
 
         /// <summary>
@@ -1299,6 +1393,43 @@ namespace Hrot.SimHost.Tests
             senses.Record(Fdp.Toolkit.Perception.Events.SensorChange.Hit, w.Repo.GetSingleton<GlobalTime>().TotalTime);
             w.Repo.AddComponent(w.Unit, senses);
             Assert.Equal(Fdp.Toolkit.Tkb.Domain.StanceId.Crouched, Move(MoveGait.Tactical));    // hit, shooter unknown
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-8328</c> — contact is a UNIT state: a man with an EMPTY memory and no recent fire is NOT threatened while his squad's pool is
+        /// empty, IS threatened while it holds a live enemy within small-arms range (he moves by rushes with his squad), and is NOT when that
+        /// contact is dead, or beyond <see cref="TacticalGait.SquadContactMetres"/>. 📐 live village-street-fight: Blue Squad 1 Rifleman 3 walked
+        /// 1.9 m/s upright across the open (Threatened 0) while his squad's pool held the enemy.
+        /// 🔴 Red-proof: the squad branch skipped ⇒ the "live contact" row is not threatened ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE8328_AManWhoseSquadIsInContact_IsThreatened_EvenWithAnEmptyMemory()
+        {
+            var w = new World();
+            w.Repo.AddComponent(w.Unit, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            var commander = w.Repo.CreateEntity();
+            w.Repo.AddComponent(commander, new Fdp.Toolkit.Squad.SquadCognitiveState());
+            w.Repo.AddComponent(w.Unit, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+            var enemy = w.Repo.CreateEntity();
+            w.Repo.AddComponent(enemy, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+
+            void Pool(Entity who, Vector3 at)
+            {
+                ref var squad = ref w.Repo.GetComponentRW<Fdp.Toolkit.Squad.SquadCognitiveState>(commander);
+                var slots = System.Runtime.InteropServices.MemoryMarshal.CreateSpan(
+                    ref System.Runtime.CompilerServices.Unsafe.As<Fdp.Toolkit.Squad.SquadContactPoolSlots, Fdp.Toolkit.Squad.SquadContact>(ref squad.Contacts.Contacts), 16);
+                slots[0] = new Fdp.Toolkit.Squad.SquadContact { EntityId = (long)who.PackedValue, PositionX = at.X, PositionY = at.Y, ThreatScore = 0.9f };
+                squad.Contacts.Count = who.IsNull ? (byte)0 : (byte)1;
+            }
+
+            Assert.False(TacticalGait.Threatened(w.Repo, w.Unit), "his squad's pool is empty");
+            Pool(enemy, new Vector3(120f, 0f, 0f));
+            Assert.True(TacticalGait.Threatened(w.Repo, w.Unit), "his squad holds a live enemy in range");
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 0f;
+            Assert.False(TacticalGait.Threatened(w.Repo, w.Unit), "the contact is dead");
+            w.Repo.GetComponentRW<Fdp.Toolkit.Combat.Components.Health>(enemy).Current = 100f;
+            Pool(enemy, new Vector3(600f, 0f, 0f));
+            Assert.False(TacticalGait.Threatened(w.Repo, w.Unit), "the contact is beyond small-arms range");
         }
 
         // ── ⭐ AQ96 (CE-2319 / CE-2320) — how a soldier moves under fire: docs/blueprints/Architect_Question_96_Movement_Under_Fire.md ────

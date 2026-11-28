@@ -378,6 +378,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | Full name | Kind | Keyed | QoS | Assembly | Role |
 |---|---|---|---|---|---|
 | `Hrot.NED.Descriptors.DescriptorOptimisticLock` | descriptor | yes: entity id + descriptor type | SA | Hrot.Network.NED | Version sidecar for optimistic descriptor updates |
+| `Hrot.NED.Descriptors.EntityAmbience` | descriptor | yes: entity id | S | Hrot.Network.NED | One ambience layer (CE-11034, R-11014): `Kind` — a dotted NAME from the one list (`battle.distant`, `alarm.airraid`; never a sample; a renderer plays its nearest known ancestor), `Intensity` 0…1, `Radius` m (a positioned layer; the position is the entity's own `WorldPos`, none = heard everywhere), `Until` sim time s (0 = until removed). The instance is DISPOSED when the layer ends. 📄 designs/audio/DESIGN_Ambience.md |
 | `Hrot.NED.Descriptors.EntityAreaEffectCloud` | descriptor | yes: entity id | S | Hrot.Network.NED | Gas or smoke cloud description (+ who threw it and who threw it first: `CreatorNetworkId`, `OriginalCreatorNetworkId`, CE-4155) |
 | `Hrot.NED.Descriptors.EntityCombatProficiency` | descriptor | yes: entity id | S | Hrot.Network.NED | Soldier's combat proficiency values |
 | `Hrot.NED.Descriptors.EntityCustody` | descriptor | yes: entity id | S | Hrot.Network.NED | Person detained, restrained or searched |
@@ -569,7 +570,7 @@ are in §Concepts 8 and 9; "Keyed" names the key *concept* only. Roots scanned: 
 | `Hrot.Animation.Replication.DdsLookAtChannelIntent` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Look-at channel intent, Brain to Muscle |
 | `Hrot.Animation.Replication.DdsLookAtChannelStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Look-at channel status, Muscle to Brain |
 | `Hrot.Animation.Replication.DdsStanceIntent` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Wanted stance, Brain to Muscle |
-| `Hrot.Animation.Replication.DdsStanceStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Current stance and transition, Muscle to Brain |
+| `Hrot.Animation.Replication.DdsStanceStatus` | descriptor | yes: entity id | S | Hrot.Animation.Replication | Current stance and transition, Muscle to Brain; ⭐ CE-11014 (2026-11-20): + `TransitionStartedAt` (double, sim s), `FromStance` (byte), `TransitionSeconds` (float) — the body's transition start, origin and applied duration, so any reader computes its progress (`StanceTiming.ProgressAt`) |
 
 ### J. Other (FDP library demo topics) — 2
 
@@ -719,6 +720,7 @@ or its number differs.
 | 243 | `dtVehicleOpenings` | `Hrot.NED.Descriptors.EntityVehicleOpenings` |  |
 | 244 | `dtVehicleLights` | `Hrot.NED.Descriptors.EntityVehicleLights` |  |
 | 245 | `dtWindowDamage` | `Hrot.NED.Descriptors.EntityWindowDamage` |  |
+| 246 | `dtAmbience` | `Hrot.NED.Descriptors.EntityAmbience` |  |
 
 ## SUMO traffic — a separate protocol on the same domain
 

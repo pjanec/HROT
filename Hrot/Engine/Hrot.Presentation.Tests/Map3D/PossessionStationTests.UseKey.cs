@@ -57,7 +57,7 @@ public sealed partial class PossessionStationTests
                 () => W.RegisterComponent<Health>(), () => W.RegisterComponent<PassengerBuffer>(), () => W.RegisterComponent<CarrierSeats>(),
                 () => W.RegisterComponent<CarrierStations>(), () => W.RegisterComponent<OpenPassengerCabin>(), () => W.RegisterComponent<PersonCarrier>(),
                 () => W.RegisterComponent<IsEmbarkedTag>(), () => W.RegisterComponent<IsAssistingTag>(), () => W.RegisterComponent<InjuryThresholds>(),
-                () => W.RegisterComponent<ActorCapabilityState>(), () => W.RegisterComponent<WeaponSystemParams>(), () => W.RegisterComponent<WeaponSystemState>(),
+                () => W.RegisterComponent<ActorCapabilityState>(), () => W.RegisterComponent<WeaponSystemParams>(), () => W.RegisterComponent<Mountable>(), () => W.RegisterComponent<WeaponSystemState>(),
                 () => W.RegisterComponent<DoorState>(), () => W.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>(), () => W.RegisterComponent<TkbIdentity>(),
                 () => W.RegisterComponent<Fdp.Core.CommandHierarchy.UnitEntity>(), () => W.RegisterComponent<OperatorUseStatus>(),
             }) register();
@@ -66,7 +66,7 @@ public sealed partial class PossessionStationTests
             W.SetSingletonManaged(Map);
             W.SetSingletonManaged<ITkbDatabase>(_db);
             Me = Soldier(Vector3.Zero, 100f, 4242);
-            W.AddComponent(Me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            W.AddComponent(Me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
         }
 
         public void Dispose() => W.Dispose();
@@ -322,27 +322,27 @@ public sealed partial class PossessionStationTests
         Frame(u, sw, Key(Raylib_cs.KeyboardKey.F));
         var f = Frame(u, sw, new Input());
         Assert.Equal((1, 0, 88L), (f.UseSeq, f.UseVerb, f.UseTarget));
-        Assert.Equal(PossessionStation.HandOverStep.AwaitBoard, station.Step);
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitBoard, station.Step);
         station.Update(0.016f);
         u.ApplyPossession();
         Assert.Equal(PossessionMode.Fps, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);   // not aboard yet: nothing moves
 
         Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, u.Me, bmp, SeatRole.Driver));   // the brain boarded him
         station.Update(0.016f);
-        Assert.Equal(PossessionStation.HandOverStep.AwaitRiding, station.Step);
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitRiding, station.Step);
         station.Update(0.016f);                                                  // a frame before his Riding replicates (a network lags)
-        Assert.Equal(PossessionStation.HandOverStep.AwaitRiding, station.Step);  // the vehicle waits — possessing it now would release him
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitRiding, station.Step);  // the vehicle waits — possessing it now would release him
         u.ApplyPossession();
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);
         Assert.False(u.W.HasComponent<PossessedBy>(bmp));
         station.Update(0.016f);                                                  // he rides: now the vehicle
-        Assert.Equal(PossessionStation.HandOverStep.AwaitVehicle, station.Step);
+        Assert.Equal(DriveHandOver.HandOverStep.AwaitVehicle, station.Step);
         Assert.True(sw.Is3D);                                                    // between the two: still first person
         u.ApplyPossession();
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(u.Me).Mode);   // the vehicle's possession kept him
         station.Update(0.016f);
         station.Update(0.016f);
-        Assert.Equal((bmp, PossessionStation.HandOverStep.None), (station.Unit, station.Step));
+        Assert.Equal((bmp, DriveHandOver.HandOverStep.None), (station.Unit, station.Step));
         Assert.Equal(u.Me, PossessionStation.RiderOf(u.W, bmp));
         sw.Camera3D.Update(0.016f);
 
@@ -382,7 +382,7 @@ public sealed partial class PossessionStationTests
         Assert.Equal(PossessionMode.Riding, u.W.GetComponentRO<PossessedBy>(other).Mode);   // the rider stays held
         Assert.Equal(third, PossessionStation.HeldHere(u.W, out _));
 
-        u.W.SetComponent(third, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Riding, Epoch = 9 });
+        u.W.SetComponent(third, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Riding, Epoch = 9 });
         Assert.Equal(Entity.Null, PossessionStation.HeldHere(u.W, out _));     // only riders: nothing to drive
     }
 
@@ -398,7 +398,7 @@ public sealed partial class PossessionStationTests
     {
         using var u = new UseWorld();
         var theirs = u.Soldier(new Vector3(5f, 0f, 0f), 100f, 4343);
-        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 1 });
+        u.W.AddComponent(theirs, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(77), Mode = PossessionMode.Fps, Epoch = 1 });
         u.Soldier(new Vector3(6f, 0f, 0f), 100f, 4444);
         var orders = new EntityOrders(u.W, u.Map, geo: null);
 
@@ -429,7 +429,7 @@ public sealed partial class PossessionStationTests
             var r = u.Soldier(new Vector3(8f, 1f, 0f), 100f, netId);
             u.W.AddComponent(r, new EntityInfo { ForceId = side });
             Assert.Equal(EmbarkResult.Applied, Embarkation.TryEmbark(u.W, r, vehicle));
-            u.W.AddComponent(r, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = PossessionMode.Fps, Epoch = 1 });
+            u.W.AddComponent(r, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(station), Mode = PossessionMode.Fps, Epoch = 1 });
             return r;
         }
         var redTank = u.Vehicle(new Vector3(8f, 0f, 0f), 5001);

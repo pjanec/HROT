@@ -58,6 +58,10 @@ namespace Hrot.SimHost.Tests
             public bool Drives;
             /// <summary>⭐ CE-2230 — the crest: the unit sees the enemy exactly while its X is at least this (null = <see cref="See"/> rules).</summary>
             public float? SeesFromX;
+            /// <summary>⭐ CE-4691 — when set, whether the hull sees the enemy this step (e.g. only once it has arrived at its firing point).</summary>
+            public Func<bool>? SeesWhen;
+            /// <summary>The last move order has arrived.</summary>
+            public bool Arrived => Repo.GetComponentRO<LocomotionChannel>(Self).Status == NodeStatus.Success;
             private uint _moveInst, _fireInst;
             private int _fired;
             private long _frame;
@@ -118,6 +122,7 @@ namespace Hrot.SimHost.Tests
             {
                 Clock();
                 if (SeesFromX is float crest) See(Repo.GetComponentRO<SimTransform>(Self).Position.X >= crest);
+                if (SeesWhen is { } sight) See(sight());   // ⭐ CE-4691 — sight decided by the rail each step
                 var status = VehicleFightFromCoverNodes.VehicleFightFromCover(ref P, ref Ws, Self, Repo);
                 Repo.FlushCommandBuffers();
                 Body();
@@ -175,15 +180,20 @@ namespace Hrot.SimHost.Tests
                 }
                 ref var row = ref Repo.GetComponentRW<ActionStatus>(Self).Weapon;
                 if (Masked) { row.Reason = ActionReason.Masked; row.At = (SimInstant)Time; return; }   // ⭐ CE-2218 — the muzzle line runs into a wall: held
+                if (Aims) { row.Reason = ActionReason.Aiming; return; }   // ⭐ CE-4700 — still aiming / locking: no round yet
                 row.Reason = Guiding ? ActionReason.Guiding : ActionReason.Firing;
                 if (Guiding) return;   // a round in flight: the next is not granted
                 _fired++;
+                Unsafe.As<byte, int>(ref ch.State[24]) = _fired;   // ⭐ CE-4700 — the executor's own count (AimAndFireExecutor.RoundsFired, bytes 24–27)
                 AimedRounds++;
                 if (rounds > 0 && _fired >= rounds) ch.Status = NodeStatus.Success;
             }
 
             /// <summary>⭐ CE-2218 — the weapon holds Masked (its round would stop in front of the muzzle).</summary>
             public bool Masked;
+
+            /// <summary>⭐ CE-4700 — the weapon is still aiming (a missile locking): no round leaves.</summary>
+            public bool Aims;
 
             public bool Firing
             {
@@ -601,6 +611,7 @@ namespace Hrot.SimHost.Tests
             Assert.False(d.Sensor(VehicleFightFromCoverNodes.FiringSite).IsNull, "hidden, the node asks for a firing point");
             Assert.Equal(FindVehicleFiringPoint.BlueprintId, d.Repo.GetComponentRO<EqsSensor>(d.Sensor(VehicleFightFromCoverNodes.FiringSite)).BlueprintId);
             d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            d.SeesWhen = () => d.Arrived && d.Moves.Count >= 2 && d.Moves[^1].Item1 == FiringA;   // ⭐ CE-4691 — a hide hides: he is seen only from the firing point (seen from the hide, it fires from there — its own rail)
 
             Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
             Assert.False(d.Tracking);
@@ -639,6 +650,32 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(roundsBefore, d.AimedRounds);   // nothing spent out there
             var m = d.Memory;
             Assert.True(m.Heat[0] >= VehicleFightFromCoverNodes.Rules(Tank()).BurnHeat, $"the firing point is burned (heat {m.Heat[0]:0.##})");
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (a) (user: "remember failed hides but failed is NOT those where tank bounces the wall and recovers") — a place this
+        /// HULL failed at is matched by the hull's length: 📐 live, the M1's next hide stood 4.1 m from the one that had just failed (the 3 m
+        /// match missed it: "the same way back"). With the hull's rules a hide burned at A also covers a point 4.1 m off; the plain rules do not;
+        /// a hull with no stated size keeps the 3 m. 🔴 Red-proof: <c>Rules(p, world, self)</c> returning the plain rules ⇒ the 4.1 m point is free.
+        /// </summary>
+        [Fact]
+        public void CE5048_AFailedHide_IsMatchedByTheHullsLength()
+        {
+            var d = new Duel(Tank());
+            Assert.Equal(3f, VehicleFightFromCoverNodes.Rules(d.P, d.Repo, d.Self).MatchRadius);   // no size stated: as before
+            d.Repo.SetComponent(d.Self, new CarKinemVehicleParams { Class = CarKinemVehicleClass.Tank, Length = 7.93f, Width = 3.66f });
+            var hull = VehicleFightFromCoverNodes.Rules(d.P, d.Repo, d.Self);
+            Assert.Equal(7.93f, hull.MatchRadius, 2);
+            var failed = new Vector3(2273f, 2113f, 0f);
+            var next = new Vector3(2272f, 2109f, 0f);   // the live pair, 4.1 m apart
+            var mem = default(FiringPositionMemory);
+            PositionHeat.Add(ref mem, failed, VehicleFightFromCoverNodes.FailedHideHeat(in hull), 10.0, hull, exposure: false);
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, next, 10.5, hull), "the next hide 4.1 m off is the same spot for this hull");
+            // 📐 live: burned at the plain BurnHeat it cooled back to usable in one 60 s half-life and the M1 was sent back to it
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, failed, 10.0 + 61.0, hull), "a failed hide is still burned a minute later");
+            Assert.True(PositionHeat.IsBurnedAt(ref mem, failed, 10.0 + 300.0, hull), "and five minutes later");
+            Assert.False(PositionHeat.IsBurnedAt(ref mem, next, 10.5, VehicleFightFromCoverNodes.Rules(d.P)), "the plain 3 m rules missed it");
+            Assert.False(PositionHeat.IsBurnedAt(ref mem, failed + new Vector3(0f, -12f, 0f), 10.5, hull), "a hide 12 m along the building stays free");
         }
 
         /// <summary>
@@ -825,6 +862,52 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <c>CE-4691</c> (CE-11057 ④) — a hull that ALREADY SEES its target as it sets out for its firing point (its hide stopped hiding it — the
+        /// threat moved) stops where it is and fires: the drive-out stops the first tick it sees, as the lane and the creep do (<c>StopIfSees</c>).
+        /// 📐 Live <c>va-pop-smoke</c>: the Bradley and the tank saw each other for 6 s; the drive to a firing point 6 m off ran out of its 2.45 s
+        /// budget and the Bradley withdrew without a round. 🔴 Red-proof: the stop dropped from the drive-out ⇒ it drives on to <c>FiringA</c>.
+        /// </summary>
+        [Fact]
+        public void CE4691_SeenFromWhereItSetsOut_TheDriveOutStopsAndFires()
+        {
+            var d = new Duel(Tank());
+            d.Step();
+            d.See(false);
+            d.ToHide(HideA);
+            d.See(true);                                                     // the threat moved: the hide no longer hides
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging, 10));
+            var at = d.Repo.GetComponentRO<SimTransform>(d.Self).Position;
+            Assert.True(Vector3.Distance((Vector3)at, d.Ws.FiringPoint) < 0.01f, $"it fires from where it stood (at {at}, firing point {d.Ws.FiringPoint})");
+            Assert.NotEqual(FiringA, d.Ws.FiringPoint);                       // … never driven on to the firing point
+            d.Run(3);
+            Assert.True(d.AimedRounds > 0, "and it fires from there");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4691</c> — HIT while HIDDEN: the hide does not hide. It is given up — burned as a failed hide, matched by the hull — and the
+        /// hull drives to ANOTHER hide; a NEAR MISS (area fire round a good hide) moves nothing. 📐 Live <c>va-pop-smoke</c>: the tank was hit in a hide
+        /// the Bradley saw into, and Hidden's "under fire ⇒ stay hidden" kept it there. 🔴 Red-proof: the give-up dropped ⇒ it stays <c>Hidden</c>.
+        /// </summary>
+        [Fact]
+        public void CE4691_HitWhileHidden_TheHideIsGivenUp_ForAnother()
+        {
+            var d = new Duel(Tank());
+            d.Step();
+            d.See(false);
+            d.ToHide(HideA, HideB);
+            d.Run(1);
+            d.Sense(SensorChange.NearMiss);
+            d.Run(1);
+            Assert.Equal(VehiclePhase.Hidden, d.Ws.Phase);                    // a near miss: stays
+            d.Sense(SensorChange.Hit);
+            Assert.Equal(VehiclePhase.MoveToHide, d.RunUntil(VehiclePhase.MoveToHide, 3));
+            Assert.Equal((HideB, false), d.Moves[^1]);                        // another hide …
+            var m = d.Memory;
+            Assert.True(PositionHeat.IsBurnedAt(ref m, HideA, d.Time, VehicleFightFromCoverNodes.Rules(d.P)), "… and the hit one is burned");
+        }
+
+        /// <summary>
         /// ⭐⭐ <c>CE-2216</c> — the DRIVE OUT is part of the exposure: seen by the RPG man on my side (2 s aim ⇒ a 1.4 s budget) while still
         /// driving to the firing point, I turn back to the hide once the budget is spent, before I ever reach it. 📐 Live <c>ua-javelin-lock</c>:
         /// Javelin A saw the tank 3 s before its firing point and launched as it arrived — the clock started only at the point.
@@ -885,6 +968,28 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);
             Assert.Equal((HideA, true), d.Moves[^1]);
             Assert.True(d.AimedRounds < 10, "the fire was cut short");
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4700</c> — BEFORE ITS FIRST ROUND a near miss does not end the exposure: a missile still LOCKING stays at its firing point;
+        /// a HIT still sends it back. 📐 Live <c>ua-technical-scoot</c>: the IFV's near miss 0.4 s into the ATGM technical's exposure sent it
+        /// back every time — the Kornet never fired in 90 s. 🔴 Red-proof: <c>FiredUponSince</c> for every exposure ⇒ it withdraws on the near miss.
+        /// </summary>
+        [Fact]
+        public void CE4700_BeforeItsFirstRound_ANearMissDoesNotEndTheExposure_AHitDoes()
+        {
+            var d = new Duel(Tank() with { RoundsPerExposure = 100, ExposeSeconds = 30f }) { Aims = true };
+            d.ToHide(HideA);
+            d.Answer(VehicleFightFromCoverNodes.FiringSite, 7, FiringA);
+            Assert.Equal(VehiclePhase.Engaging, d.RunUntil(VehiclePhase.Engaging));
+            d.Step();
+            d.Sense(SensorChange.NearMiss);
+            d.Run(0.5);
+            Assert.Equal(VehiclePhase.Engaging, d.Ws.Phase);   // locking: stays
+            Assert.Equal(0, d.AimedRounds);
+            d.Sense(SensorChange.Hit);
+            d.Step();
+            Assert.Equal(VehiclePhase.Withdrawing, d.Ws.Phase);   // a hit: back
         }
 
         /// <summary>

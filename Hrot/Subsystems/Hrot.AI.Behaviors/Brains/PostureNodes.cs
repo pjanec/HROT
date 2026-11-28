@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Combat;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
@@ -107,6 +108,9 @@ namespace Hrot.AI.Behaviors.Brains
         public EqsTacticsState From;
         public byte Phase;
         public double SeekSince, StanceAt;
+        /// <summary>⭐ <c>CE-8326</c> — the firing position he claimed (<c>CoverClaim</c>) while <see cref="HasSpot"/> = 1.</summary>
+        public Vector3 Spot;
+        public byte HasSpot;
     }
 
     /// <summary>⭐⭐ <c>CE-8311</c> (D-15) — <see cref="PostureNodes.Suppress"/>'s memory: its fire and its placement.</summary>
@@ -314,13 +318,18 @@ namespace Hrot.AI.Behaviors.Brains
             if (st.Phase < 2)
             {
                 var status = EqsTacticsNodes.FiringPositionOnRemembered(ref from, ref st.From, self, world);
-                if (status == NodeStatus.Running && st.From.Moving == 1) st.Phase = 1;   // on his way, crouched (the move's gait)
+                if (status == NodeStatus.Running && st.From.Moving == 1)
+                {
+                    st.Phase = 1;   // on his way, crouched (the move's gait)
+                    st.Spot = st.From.Goal; st.HasSpot = 1;
+                }
                 else if (status != NodeStatus.Running || (st.Phase == 0 && now - st.SeekSince >= SuppressSeekSeconds))
                 {
                     EqsTacticsNodes.ReleaseSensor(ref st.From, self, world);   // there, no answer, or nothing to aim at: he holds here
                     st.Phase = 2;
                 }
             }
+            if (st.HasSpot == 1) ClaimSpot(ref st, self, world, now);
             if (st.Phase == 1 || (st.StanceAt != 0 && now - st.StanceAt < SuppressStanceSeconds)) return;
             st.StanceAt = now > 0 ? now : 1e-6;
             var stance = !threat.IsNull ? SuppressStance(world, self, threat)
@@ -328,11 +337,28 @@ namespace Hrot.AI.Behaviors.Brains
             StanceRequest.Set(world, self, stance, stance == StanceId.Prone ? GoProneSeconds : PeekAndFireNodes.StanceBlendSeconds);
         }
 
+        /// <summary>⭐ <c>CE-8326</c> — publishes / refreshes the suppressor's <c>CoverClaim</c> on his firing position (the PeekAndFire mechanism, one
+        /// implementation): <c>Since</c> carries on while the point is unchanged.</summary>
+        private static void ClaimSpot(ref SuppressPlacement st, Entity self, EntityRepository world, double now)
+        {
+            if (!world.IsComponentTypeRegistered<CoverClaim>()) return;
+            var claim = new CoverClaim { Hide = st.Spot, Peek = st.Spot, Until = (SimInstant)(now + PeekAndFireNodes.ClaimTtlSeconds), Since = (SimInstant)now };
+            if (world.HasComponent<CoverClaim>(self))
+            {
+                ref var held = ref world.GetComponentRW<CoverClaim>(self);
+                if (held.Until > now && held.Hide == st.Spot) claim.Since = held.Since;
+                held = claim;
+            }
+            else world.AddComponent(self, claim);
+        }
+
         /// <summary>⭐ <c>CE-8314</c> — leaving a suppression: the firing-position search and its move stop, and — when the placement set his stance —
         /// he gets up.</summary>
         public static void ReleaseSuppressor(ref EqsTacticsParams from, ref SuppressPlacement st, Entity self, EntityRepository world)
         {
             EqsTacticsNodes.Deactivate_FiringPosition(ref from, ref st.From, self, world);
+            if (st.HasSpot == 1 && world.IsComponentTypeRegistered<CoverClaim>() && world.HasComponent<CoverClaim>(self))
+                world.GetComponentRW<CoverClaim>(self).Until = default;   // ⭐ CE-8326 — the claim goes with the placement
             if (st.StanceAt != 0) StanceRequest.Set(world, self, StanceId.Standing, GetUpSeconds);
             st = default;
         }
@@ -829,8 +855,20 @@ namespace Hrot.AI.Behaviors.Brains
                 threat = EqsTacticsNodes.FirstAllowedRemembered(world, self);
                 if (threat.IsNull) { StopFiring(world, self, ref ws); return true; }
             }
+            // ⭐⭐ CE-8317 (user-approved 2026-11-24) — he SHOOTS only what his weapons can hurt (he still HIDES from the top threat — TopThreat is
+            //   unchanged): a tank his rifle cannot touch gives way to the first remembered enemy in his sector he CAN hurt, else he holds fire.
+            //   📐 live village-street-fight: 517 rifle rounds at the M1, 158 at the T-72, while enemy infantry was in sight
+            if (!Fdp.Toolkit.Perception.ThreatDanger.ICanHurt(world, Tkb(world), self, threat))
+            {
+                threat = EqsTacticsNodes.FirstAllowedRemembered(world, self, hurtableOnly: true);
+                if (threat.IsNull) { StopFiring(world, self, ref ws); return true; }
+            }
             return Fire(world, self, ref ws, cooldown, rounds, threat, blind);
         }
+
+        /// <summary>⭐ <c>CE-8317</c> — the TKB, or null (then every target counts as hurtable).</summary>
+        internal static Fdp.Interfaces.ITkbDatabase? Tkb(EntityRepository world)
+            => world.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? world.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null;
 
         /// <summary>
         /// ⭐ <c>CE-3158</c> G4 / L5 — the same ONE aimed step at a NAMED target (no re-ranking): what the caller checked for sight is

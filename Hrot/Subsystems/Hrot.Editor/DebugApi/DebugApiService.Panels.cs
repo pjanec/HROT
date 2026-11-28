@@ -17,6 +17,9 @@ namespace Hrot.Editor.DebugApi
     /// </summary>
     public sealed partial class DebugApiService
     {
+        // ⭐ S1d-1 — the gizmo dump's frame with every HUD run removed (grown, never shrunk)
+        private DebugPrimitive[] _unscopedFrame = Array.Empty<DebugPrimitive>();
+
         /// <summary>
         /// GET /panels — what is instrumented, what actually published this frame, and the kinds map a
         /// cross-host conformance check groups by.
@@ -91,6 +94,8 @@ namespace Hrot.Editor.DebugApi
             if (string.IsNullOrWhiteSpace(panelId))
                 return (null, "A panel id is required. List them with GET /panels.", DebugApiHints.Panel);
 
+            // ⭐ CE-11045 (HL-1b) — the map feed's panel (<host>/_gizmo) is published only while the gizmo group runs: reading it is a read of the gizmo feed (same timed reference).
+            if (panelId!.EndsWith("/" + Fdp.Diagnostics.Contracts.Panels.GizmoFrameViewModel.Kind, StringComparison.Ordinal)) GizmoLease?.Touch();
             var vm = PanelSnapshot.TryGet(panelId!);
             if (vm is null)
             {
@@ -122,6 +127,46 @@ namespace Hrot.Editor.DebugApi
         /// is projected per shape rather than serialized wholesale — a blanket dump would emit whichever
         /// field happened to alias the bytes and read as data.
         /// </remarks>
+        /// <summary>⭐ CE-11045 — the headless editor's timed reference on its gizmo gate (null: a windowed editor, or a host whose perspective coordinator holds the gate).</summary>
+        public Func<Hrot.Presentation.DebugApi.GizmoReadLease?>? GizmoLeaseProvider { get; set; }
+        private Hrot.Presentation.DebugApi.GizmoReadLease? GizmoLease => GizmoLeaseProvider?.Invoke();
+
+        private DebugPrimitive[] _hudBound = Array.Empty<DebugPrimitive>(), _hudUnbound = Array.Empty<DebugPrimitive>();
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-2 (DESIGN_Simulated_Devices §5a, the checks' <c>hud</c> cue) — the HUD run a view bound to <paramref name="source"/> (a
+        /// network id) draws in the PUBLISHED frame (<see cref="Hrot.Editor.Director.HudRuns"/> — <c>HudScopes.Keep</c>): its texts, its size; −1 with no gizmo
+        /// feed. ⭐ Touches the headless editor's gizmo gate (CE-11045) on every read, so a verifier that reads each sample keeps the projectors drawing.
+        /// </summary>
+        public int HudRun(long source, List<string> texts)
+        {
+            if (_gizmoFeed is not { } buffer) return -1;
+            GizmoLease?.Touch();
+            return Hrot.Editor.Director.HudRuns.Read(buffer.ReaderFrame(), source, texts, ref _hudBound, ref _hudUnbound);
+        }
+
+        /// <summary>⭐ S1e-2 — touches the headless editor's gizmo gate (CE-11045) so the projectors keep drawing while a verifier reads a HUD.</summary>
+        public void KeepGizmoFeedDrawing() => GizmoLease?.Touch();
+
+        /// <summary>⭐ S1e-2 — the checks' <c>field</c> cue's <c>memory</c>: the unit's <c>[UnitMemory]</c> struct by name, read on THIS host's brain world.</summary>
+        public JsonObject? UnitMemoryOf(int networkId, string type)
+            => _entityMap.TryGetEntity(networkId, out var e) ? Hrot.Editor.Director.UnitMemoryJson.Read(_world, e, type) : null;
+
+        private Hrot.Editor.Director.ScriptedStation? _scriptedStation;
+
+        /// <summary>⭐ S1e-2 — this node's station as the checks drive it (<c>do: possess / view / control</c>), on the brain world; possessing through
+        /// <see cref="PostPossess"/> (the HTTP possess: the map's own station then sends no frames that would race it, CE-1464).</summary>
+        public Hrot.Editor.Director.ScriptedStation ScriptedStation
+            => _scriptedStation ??= new Hrot.Editor.Director.ScriptedStation(() => _world, id => PostPossess(id).error, ScriptedHudFrame);
+
+        /// <summary>⭐ SD-S5v — the published gizmo frame for the scripted station's <c>do: click</c> (touches the headless gizmo gate, CE-11045).</summary>
+        private ReadOnlySpan<DebugPrimitive> ScriptedHudFrame()
+        {
+            if (_gizmoFeed is not { } buffer) return default;
+            GizmoLease?.Touch();
+            return buffer.ReaderFrame();
+        }
+
         public (JsonNode? result, string? error, string? hintCategory) GetGizmoFrame(int max = 500)
         {
             // ⭐⭐ BP-487 — `_gizmoFeed`, NOT `_primitiveBuffer`: on a cluster host the buffer belongs to the
@@ -133,7 +178,13 @@ namespace Hrot.Editor.DebugApi
                 //    the subsystem contributed no provider. The explainer distinguishes the two causes.
                 return (null, "No gizmo feed: " + GizmoFeedAbsenceReason(), DebugApiHints.Panel);
 
-            var frame = buffer.ReaderFrame();   // ⭐ POC 2 P-6 — the published frame when the kernel ticks on a worker
+            // ⭐ CE-11045 (HL-1) — a HEADLESS editor draws no gizmo nobody reads: this read takes a timed reference (5 s) on the map's gizmo gate (GizmoReadLease).
+            //   The FIRST read after an idle spell finds the frame published while the gate was shut (empty); the next pulled tick draws, so a second read returns the
+            //   primitives. `drawingStarted` says which case this was. A windowed editor / a cluster perspective has no lease: always drawing / its viewer holds the gate.
+            bool drawingStarted = GizmoLease?.Touch() ?? false;
+            // ⭐ POC 2 P-6 — the published frame when the kernel ticks on a worker; ⭐ S1d-1 (R3-4) — bound to no source: every HUD run skipped whole
+            //   (S1e's `hud` cue reads a run through a view bound to its source, never through this dump)
+            var frame = Fdp.Toolkit.Diagnostics.Gizmos.HudScopes.Unscoped(buffer.ReaderFrame(), ref _unscopedFrame);
             var items = new JsonArray();
 
             int emitted = Math.Min(frame.Length, Math.Max(1, max));
@@ -147,6 +198,7 @@ namespace Hrot.Editor.DebugApi
                 // Truncation is REPORTED, never silent: a reader that cannot tell a full frame from a
                 // clipped one would take "no more primitives" from an arbitrary cap.
                 ["emitted"]    = emitted,
+                ["drawingStarted"] = drawingStarted,   // ⭐ CE-11045 — true: this read opened a headless host's gizmo gate; read again for the primitives
                 ["truncated"]  = emitted < frame.Length,
                 ["primitives"] = items,
             }, null, null);

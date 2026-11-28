@@ -34,5 +34,8 @@ namespace Fdp.Toolkit.Combat.Contracts
 
         /// <summary>True when this notification came from network ingress.</summary>
         public bool IsRemote;
+
+        /// <summary>⭐ CE-11009 (RR-9, R-11003) — what it struck (<see cref="ImpactMaterial"/> as a byte; 0 = unknown).</summary>
+        public byte Material;
     }
 }

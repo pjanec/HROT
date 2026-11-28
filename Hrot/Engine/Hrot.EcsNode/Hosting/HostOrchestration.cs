@@ -87,6 +87,7 @@ namespace Hrot.EcsNode.Hosting
                 diagnosticsDumpHandler:  spec.DiagnosticsDump,
                 elm:                     context.BaseModules?.OfType<EntityLifecycleModule>().FirstOrDefault(),
                 terrainContent:          context.TerrainContent,
+                linkedClients:           context.LinkedClients,   // ⭐ CE-11026 — the node's registry: the load phase waits for the client it holds
                 clusterSlave:            context.ClusterSlave,   // ⭐ CE-4013 D15 — the node's ONE slave and translator
                 slaveTranslator:         networked ? context.SlaveTranslator : null,
                 scenarioHandlers:        spec.ScenarioHandlers,

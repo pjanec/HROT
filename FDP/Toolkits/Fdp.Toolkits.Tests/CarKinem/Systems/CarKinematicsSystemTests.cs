@@ -1084,6 +1084,34 @@ namespace CarKinem.Tests.Systems
         }
 
         /// <summary>
+        /// ⭐ <c>CE-5052</c> — a hull TURNING beside a building's convex corner never swings its long side onto it: 📐 live (Stechovice) a recovery reversing
+        /// while turning put a house's corner ~1 m inside an M1's left-rear quarter, between the traced corners, and held it there both ways for good.
+        /// A hull whose side already crosses the wall may still turn back out.
+        /// </summary>
+        [Fact]
+        public void CE5052_APivotBesideACorner_IsRefused_ATurnBackOut_IsNot()
+        {
+            string world = "{\"type\":\"FeatureCollection\",\"hrot\":{\"schemaVersion\":1,\"bounds\":[-100,-100,200,100],\"groundZ\":0},\"features\":[" +
+                "{\"type\":\"Feature\",\"properties\":{\"kind\":\"building\",\"height\":8,\"label\":\"Diamond\"}," +
+                "\"geometry\":{\"type\":\"Polygon\",\"coordinates\":[[[0,0],[-4.24,4.24],[-8.49,0],[-4.24,-4.24],[0,0]]]}}]}";
+            var q = new Fdp.Toolkit.Terrain.TerrainWorldQuery(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(world));
+            const float L = 7.93f, W = 3.66f;
+            var at = new Vector2(W * 0.5f + 0.1f, 2.7f);   // the left side 0.1 m east of the house's east corner, which lies 2.7 m behind the centre
+            static Vector2 Turned(float deg) { float r = -deg * MathF.PI / 180f; return new Vector2(-MathF.Sin(r), MathF.Cos(r)); }   // clockwise from north: the tail swings west
+            Assert.False(CarKinem.Controllers.HullClearance.StepBlocked(q, at, Vector2.UnitY, 0f, at + new Vector2(0f, 0.5f), Vector2.UnitY, 0f, L, W));   // straight on: free
+            foreach (float deg in new[] { 6f, 10f })
+                Assert.True(CarKinem.Controllers.HullClearance.StepBlocked(q, at, Vector2.UnitY, 0f, at, Turned(deg), 0f, L, W), $"a {deg}° pivot swung the side onto the corner");
+            Assert.False(CarKinem.Controllers.HullClearance.StepBlocked(q, at, Turned(10f), 0f, at, Turned(6f), 0f, L, W));   // already across: turning back out is free
+
+            // ⭐ the live house's case: WALL PANELS (here a garden wall's east end at x 80, y 10) — the side 0.2 m east of its end
+            var g = new Fdp.Toolkit.Terrain.TerrainWorldQuery(GardenWall(2.0f));
+            var by = new Vector2(80f + 0.2f + W * 0.5f, 10f + 2.7f);
+            Assert.False(CarKinem.Controllers.HullClearance.StepBlocked(g, by, Vector2.UnitY, 0f, by + new Vector2(0f, 0.5f), Vector2.UnitY, 0f, L, W));
+            foreach (float deg in new[] { 10f, 15f })
+                Assert.True(CarKinem.Controllers.HullClearance.StepBlocked(g, by, Vector2.UnitY, 0f, by, Turned(deg), 0f, L, W), $"a {deg}° pivot swung the side onto the wall's end");
+        }
+
+        /// <summary>
         /// ⭐ <c>CE-3286</c> — a point beside the wall that the hull's centre cannot reach (the live hide 2.25 m off the L-Block, a 7 m hull
         /// arriving nose-first, here with a 1 m radius) is REACHED when the nose meets the wall — not a hold to back out of. 🔴 Red-proof:
         /// drop the rule ⇒ never arrives.
@@ -1618,6 +1646,50 @@ namespace CarKinem.Tests.Systems
             Assert.True(turnedAt > 0f && turnedAt <= 0.7f, $"turned round in {turnedAt:F2} s");
             Assert.True(wander <= 0.05f, $"moved {wander:F2} m while turning — a person turns where he stands");
             Assert.True(repo.GetComponent<SimTransform>(e).Position.X > 15f, "then walked the path");
+            pool.Dispose();
+            repo.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4695</c> (backend, cross-lane — user "fix yourself") — NOTHING ON THE GROUND WADES INTO A RIVER FROM DRY GROUND (a man, and a tank — 📌 bl-floating-bridge): sent straight across a river (water y 10–20)
+        /// he stops at the bank and never stands in it; on dry ground the same route is walked to its end. 📌 bl-assault-crossing (measured live): crowded off a laid
+        /// bridge's ramp, a rifleman slid along the deck's side over the river bed. 🔴 Red-proof: drop the rule in <c>FinishMove</c> ⇒ he walks the river bed to y 30.
+        /// </summary>
+        [Theory]
+        [InlineData(true, VehicleClass.Pedestrian)]
+        [InlineData(false, VehicleClass.Pedestrian)]
+        [InlineData(true, VehicleClass.Tank)]
+        [InlineData(false, VehicleClass.Tank)]
+        public void CE4695_APerson_NeverWadesIntoARiver_FromDryGround(bool river, VehicleClass cls)
+        {
+            string water = river
+                ? """,{"type":"Feature","properties":{"kind":"surface","surface":"water"},"geometry":{"type":"Polygon","coordinates":[[[-20,10],[20,10],[20,20],[-20,20],[-20,10]]]}}"""
+                : "";
+            var world = Fdp.Toolkit.Terrain.TerrainWorldParser.Parse("""{"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[-50,-50,50,50],"groundZ":0},"features":[""" +
+                """{"type":"Feature","properties":{"kind":"surface","surface":"forest"},"geometry":{"type":"Polygon","coordinates":[[[40,40],[45,40],[45,45],[40,45],[40,40]]]}}""" + water + "]}", "river");
+            var route = new[] { new Vector3(0f, 0f, 0f), new Vector3(0f, 30f, 0f) };
+            var (repo, e, pool) = TrajectoryWorld(targetSpeed: 2f, startSpeed: 0f, facing: SimMath.FromYaw(MathF.PI / 2f),
+                vehicle: VehiclePresets.GetPreset(cls));
+            pool.RegisterTrajectoryWithKey(route, 9);
+            ref var tf0 = ref repo.GetComponentRW<SimTransform>(e);
+            tf0.Position = route[0];
+            ref var nav0 = ref repo.GetComponentRW<NavState>(e);
+            nav0.TrajectoryId = 9;
+            nav0.FinalDestination = route[^1];
+            nav0.ArrivalRadius = 0.5f;
+            repo.RegisterManagedComponent<Fdp.Toolkit.Terrain.TerrainWorld>();
+            repo.SetSingletonManaged(world);
+            var spatial = new SpatialHashSystem();
+            var kin     = new CarKinematicsSystem(pool);
+            float furthest = 0f;
+            for (int i = 0; i < 25 * 60; i++)
+            {
+                spatial.Execute(repo, 1f / 60f);
+                kin.Execute(repo, 1f / 60f);
+                furthest = MathF.Max(furthest, repo.GetComponent<SimTransform>(e).Position.Y);
+            }
+            if (river) Assert.True(furthest < 10f, $"{cls} waded into the river (y {furthest:F2})");
+            else Assert.True(furthest > 29f, $"on dry ground the route is walked (y {furthest:F2})");
             pool.Dispose();
             repo.Dispose();
         }
@@ -2698,11 +2770,11 @@ namespace CarKinem.Tests.Systems
             bool May() => CarKem_MayBreak(repo, e);
 
             Assert.False(May());                                                              // Manual, ManualDrive kept, nobody holds it (released)
-            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             Assert.True(May());                                                               // a player drives it
-            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 2 });
             Assert.False(May());                                                              // a rider: not the hull's controls
-            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
+            repo.SetComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 3 });
             var nav = repo.GetComponent<NavState>(e); nav.Mode = KinematicsMode.Direct; repo.SetComponent(e, nav);
             Assert.False(May());                                                              // an autonomous move (the AI corner)
             nav.Mode = KinematicsMode.Manual; repo.SetComponent(e, nav);
@@ -2816,7 +2888,7 @@ namespace CarKinem.Tests.Systems
             CarKinem.Controllers.ContactBreach.Reset();
             var (repo, e) = ManualWorld(cls, new Fdp.Toolkit.Navigation.ManualDrive { Forward = throttle });
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
-            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (NodeId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            repo.AddComponent(e, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (Fdp.Core.StationId)3, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             repo.AddComponent(e, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (TkbTypeId)9001 });
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
@@ -2981,6 +3053,44 @@ namespace CarKinem.Tests.Systems
             Assert.Equal(1.2f, one.To - one.From, 2);
             Assert.Equal(0f, BreachMiddleY(tank, one), 1);
             tank.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11054</c> — every contact breach carries its CAUSE, measured through the real contact rule: a tank at speed into a free garden wall is a RAM; the same tank RESTING against it and broken by the
+        /// held full-throttle push is a PUSH; a tank's bump on a BUILDING wall is a RAM (a building is only ever rammed or bladed, D-3); a bulldozer's blade on a building is a BLADE. Each event names the hull
+        /// as its shooter (the record turns it into the network id).
+        /// 🔴 Red-proof: drop the <c>cause</c> argument of <c>ContactBreach.Event</c> ⇒ every row Unknown; classify the held push by <c>breaks</c> after the push branch ⇒ the push row says Ram; pass Ram to the
+        /// blade cut ⇒ the dozer row says Ram.
+        /// </summary>
+        [Fact]
+        public void CE11054_EveryContactBreach_CarriesItsCause_RamPushAndBlade()
+        {
+            static void All(List<Fdp.Toolkit.Terrain.BuildingDamageEvent> breaches, Entity e, Fdp.Toolkit.Terrain.BreachCause cause)
+            {
+                Assert.NotEmpty(breaches);
+                Assert.All(breaches, b => { Assert.Equal((byte)cause, b.Cause); Assert.Equal(e, b.Shooter); Assert.Equal(0f, b.ExplosiveKg); });
+            }
+
+            var (rammer, r) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);   // at speed into a free wall
+            All(DriveInto(rammer, r, 8f).Breaches, r, Fdp.Toolkit.Terrain.BreachCause.Ram);
+            rammer.Dispose();
+
+            var (pusher, p) = Possessed(VehicleClass.Tank, 60000f, 1f, BrickGardenWallAtX15);   // resting against it: only the held push breaks it
+            var tf = pusher.GetComponent<SimTransform>(p);
+            tf.Position = new Vector3(15f - 0.15f - 0.1f - pusher.GetComponent<VehicleParams>(p).Length * 0.5f, 0f, 0f);
+            pusher.SetComponent(p, tf);
+            All(DriveInto(pusher, p, 8f).Breaches, p, Fdp.Toolkit.Terrain.BreachCause.Push);
+            pusher.Dispose();
+
+            var (tank, t) = Possessed(VehicleClass.Tank, 60000f, 1f, HouseAtX15);   // a building's bump
+            All(DriveInto(tank, t, 8f).Breaches, t, Fdp.Toolkit.Terrain.BreachCause.Ram);
+            tank.Dispose();
+
+            var (dozer, d) = Possessed(VehicleClass.Tank, 49000f, 1f, HouseAtX15);   // a bulldozer's blade on a building
+            ref var vp = ref dozer.GetComponentRW<VehicleParams>(d); vp.Width = 4.3f; vp.Length = 8f;
+            dozer.SetDisType(d, new Fdp.Core.DISEntityType { Kind = 1, Domain = 1, Country = 225, Category = 9, Subcategory = 1 });
+            All(DriveInto(dozer, d, 8f).Breaches, d, Fdp.Toolkit.Terrain.BreachCause.Blade);
+            dozer.Dispose();
         }
 
         /// <summary>

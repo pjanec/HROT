@@ -17,6 +17,9 @@ namespace CarKinem.Tests.Systems
     /// </summary>
     public class NavigationExecutionSystemTests
     {
+        /// <summary>⭐ CE-11057 — the frames at this file's 0.016 s step that reach the watchdog's 2 s rule (it decides in seconds, not frames).</summary>
+        private static readonly int FrustrationFrames = (int)System.MathF.Ceiling(NavigationExecutionSystem.FrustrationLimitSeconds / 0.016f);
+
         // ── Helpers ──────────────────────────────────────────────────────────────────────────────
 
         private static EntityRepository CreateWorld()
@@ -119,7 +122,7 @@ namespace CarKinem.Tests.Systems
 
             // Run FrustrationTickLimit + 2 ticks.
             NavigationResult? lastResult = null;
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 1; i++)
+            for (int i = 0; i <= FrustrationFrames + 1; i++)
             {
                 system.Execute(repo, 0.016f);
                 lastResult = repo.GetComponent<NavigationStatus>(entity).Result;
@@ -128,6 +131,74 @@ namespace CarKinem.Tests.Systems
             }
 
             Assert.Equal(NavResult.FailedBlocked, lastResult);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11057</c> — the frustration rule is the design's 2 SECONDS (Navigation v2 N2), whatever the frame: at a live ~7.5 ms step a mover held
+        /// under the speed rule for 1.5 s is NOT blocked (it was at 120 frames = 0.9 s), and it is after ~2 s; at the fixed 1/60 s step it still trips on
+        /// frame 121, as before. 📌 <c>fl-napalm-strike</c> live: the Late Man squeezing past a parked car was failed Blocked in under a second.
+        /// 🔴 Red-proof: the guard back on <c>Ticks &gt; FrustrationTickLimit</c> ⇒ blocked at 0.9 s ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11057_TheFrustrationRule_IsTwoSeconds_AtAnyStep()
+        {
+            using var repo = CreateWorld();
+            var system = new NavigationExecutionSystem();
+            var live = AddNavigatingEntity(repo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 5f, velocityX: 0f, intentId: 1);
+            const float LiveDt = 0.0075f;
+            for (int i = 0; i < 200; i++) system.Execute(repo, LiveDt);                         // 1.5 s
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(live).Result);
+            for (int i = 0; i < 80; i++) system.Execute(repo, LiveDt);                          // 2.1 s
+            Assert.Equal(NavResult.FailedBlocked, repo.GetComponent<NavigationStatus>(live).Result);
+
+            using var fixedRepo = CreateWorld();
+            var fixedStep = AddNavigatingEntity(fixedRepo, position: Vector2.Zero, destination: new Vector2(1000f, 0f), arrivalRadius: 5f, velocityX: 0f, intentId: 1);
+            int frame = 0;
+            while (fixedRepo.GetComponent<NavigationStatus>(fixedStep).Result == NavResult.InProgress && frame < 500) { system.Execute(fixedRepo, 1f / 60f); frame++; }
+            Assert.Equal(NavigationExecutionSystem.FrustrationTickLimit + 1, frame);           // the same frame as the frame count gave
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11076</c> ③ — a point move WAITING for its first path (the bridge holds it: mode None, speed 0, no trajectory) is not frustrated: at 2.5 s
+        /// it is still InProgress (it was <c>FailedBlocked</c> at 2 s — 📌 stechovice-battle live, every vehicle move whose answer the timed-out solver lost);
+        /// it re-asks the solver every <see cref="NavigationExecutionSystem.PathRetrySeconds"/>; it fails (unreachable, logged as no answer) only after
+        /// <see cref="NavigationExecutionSystem.PathWaitLimitSeconds"/>. Once it HAS a path, standing still is blocked after 2 s as before.
+        /// 🔴 Red-proof: drop the <c>AwaitingPath</c> branch ⇒ FailedBlocked at 2 s ⇒ red; drop the re-ask ⇒ 0 retries ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE11076_AMoveWaitingForItsFirstPath_IsNotBlocked_ItReAsks_AndFailsOnlyAtTheLimit()
+        {
+            using var repo = CreateWorldWithNavState();
+            repo.RegisterEvent<PathfindingRequestEvent>();
+            repo.RegisterEvent<MoveStartedEvent>();
+            repo.RegisterEvent<MoveCompletedEvent>();
+            var system = new NavigationExecutionSystem();
+            var e = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f);
+            var intent = repo.GetComponent<NavigationIntent>(e);
+            intent.Mode = NavMode.PathToPoint;
+            repo.SetComponent(e, intent);
+            repo.SetComponent(e, new SimVelocity());                                       // standing, as the bridge holds it
+            repo.SetComponent(e, new NavState { Mode = KinematicsMode.None, TrajectoryId = 0 });
+            const float Dt = 1f / 60f;
+
+            for (int i = 0; i < 150; i++) system.Execute(repo, Dt);                          // 2.5 s
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(e).Result);
+            Assert.Equal(0L, system.PathRetries);
+            for (int i = 0; i < 60; i++) system.Execute(repo, Dt);                           // 3.5 s: one re-ask
+            Assert.Equal(1L, system.PathRetries);
+            for (int i = 0; i < 60 * 26; i++) system.Execute(repo, Dt);                      // 29.5 s
+            Assert.Equal(NavResult.InProgress, repo.GetComponent<NavigationStatus>(e).Result);
+            Assert.Equal(9L, system.PathRetries);
+            for (int i = 0; i < 60; i++) system.Execute(repo, Dt);                           // 30.5 s
+            Assert.Equal(NavResult.FailedUnreachable, repo.GetComponent<NavigationStatus>(e).Result);
+
+            // with a path, the speed rule is the old one
+            var moving = AddNavigatingEntityWithNavState(repo, navStateProgressS: 0f, intentId: 7);
+            var mi = repo.GetComponent<NavigationIntent>(moving); mi.Mode = NavMode.PathToPoint; repo.SetComponent(moving, mi);
+            repo.SetComponent(moving, new SimVelocity());
+            repo.SetComponent(moving, new NavState { Mode = KinematicsMode.CustomTrajectory, TrajectoryId = 5 });
+            for (int i = 0; i < 130; i++) system.Execute(repo, Dt);
+            Assert.Equal(NavResult.FailedBlocked, repo.GetComponent<NavigationStatus>(moving).Result);
         }
 
         /// <summary>
@@ -406,7 +477,7 @@ namespace CarKinem.Tests.Systems
             // dt = 0.016f; after FrustrationTickLimit + 2 ticks the guard fires.
             // ElapsedSinceFirstReplan = (FrustrationTickLimit + 2) * 0.016 >> 0.01 budget.
             NavigationResult? lastResult = null;
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++)
+            for (int i = 0; i <= FrustrationFrames + 2; i++)
             {
                 system.Execute(repo, 0.016f);
                 lastResult = repo.GetComponent<NavigationStatus>(entity).Result;
@@ -443,7 +514,7 @@ namespace CarKinem.Tests.Systems
             intent.Mode = mode; intent.FinalDestination = new Vector3(3f, 2f, 0f);   // 3.6 m away, radius 5
             repo.SetComponent(entity, intent);
 
-            for (int i = 0; i <= NavigationExecutionSystem.FrustrationTickLimit + 2; i++) system.Execute(repo, 0.016f);
+            for (int i = 0; i <= FrustrationFrames + 2; i++) system.Execute(repo, 0.016f);
 
             Assert.Equal(NavResult.Arrived, repo.GetComponent<NavigationStatus>(entity).Result);
         }

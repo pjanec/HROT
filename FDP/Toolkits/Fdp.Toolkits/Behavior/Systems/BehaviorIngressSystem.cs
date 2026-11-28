@@ -37,7 +37,9 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// </para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Input)]
-    [TickMode(TickPolicy.EveryFrame)]
+    // ⭐⭐ CE-3494 (R-3114, DESIGN_Unit_Intent.md §1 R1) — nothing the AI does takes effect on a paused frame: this runs only when time
+    //   advances, applies the unit's authored intent FIRST, then every request since its last run IN ORDER (the step window).
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     [Fdp.Core.NotState("a system/module, classified on its own")]
     public class BehaviorIngressSystem : IEcsModuleSystem
     {
@@ -109,6 +111,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             _runTokens.Step(repo, deltaTime);
 
             _startedByNameThisFrame.Clear();
+            ApplyIntents(repo);   // ⭐⭐ CE-3494 (R-3114) — the unit's AUTHORED intent first, then this window's requests in order
             var events = repo.ReadManagedEvents<AssignBehaviorEvent>();
 
             foreach (var evt in events)
@@ -133,6 +136,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 JournalStarted(repo, evt.Entity, behaviorId, replaced, evt.Origin, evt.Urgency, pause, (byte)evt.Cause);
                 AfterAdmitted(repo, evt.Entity, evt.Origin, paused);
                 _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
+                if (evt.HoldsPlan) Holds?.ClearFor(evt.Entity, repo);   // ⭐⭐ CE-3494 (R-3115) — the order STARTED: now its plan is held, same call
                 InteractionOutcomes.Applied(repo, ReplyTo(evt), evt.Entity);   // ⭐ CE-4306 (F5): the order was accepted
             }
 
@@ -207,6 +211,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
                 // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
                 BehaviorOwnedParts.Release(repo, evt.Entity, repo.GetComponentRO<BehaviorState>(evt.Entity).InstanceId);
+                BehaviorChangeTrace.Note(repo, evt.Entity, evt.BehaviorHash, evt.Origin, "assign-unhosted");   // ⭐ CE-3445 — off unless HROT_TRACE_BEHAVIOR_NETIDS
                 ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 unhosted.Origin = BehaviorOriginRank.AfterAssign(evt.Origin, unhosted);   // ⭐ CE-3034 — before the hash moves
                 unhosted.Urgency = UrgencyAfterAssign(evt.Origin, ReactionUrgency.NotAReaction, unhosted.Urgency);
@@ -221,6 +226,97 @@ namespace Fdp.Toolkit.Behavior.Systems
             ApplySopEvents(repo);
         }
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> (R-3114, R-3117; <c>docs/DESIGN_Unit_Intent.md</c> §1 R1–R4, §3.1) — applies every unit's
+        /// <see cref="UnitIntent"/> (what was AUTHORED: the scenario load, the editor in edit mode, the type's defaults) through
+        /// the one gate, then removes it (pending-only, R3). ROE first, then the SOP, then the task — and the task is DROPPED when
+        /// a live mission plan drives the unit (the plan owns the task slot, R4: its first task arrives through the request chain).
+        /// ⛔ Never during a replay (the recording owns the world, R11). Runs only on an advancing frame (this system is step-only).
+        /// </summary>
+        private void ApplyIntents(EntityRepository repo)
+        {
+            if (Fdp.Toolkit.Replay.ReplayState.IsActive(repo)) return;
+            if (!repo.TryGetTable(typeof(UnitIntent), out _)) return;
+            _intentDone.Clear();
+            foreach (var entity in repo.Query().WithManaged<UnitIntent>().Build())
+                _intentDone.Add(entity);
+            for (int i = 0; i < _intentDone.Count; i++)
+            {
+                var entity = _intentDone[i];
+                var intent = ((ISimulationView)repo).GetManagedComponentRO<UnitIntent>(entity);
+                if (intent != null)
+                {
+                    if (intent.Roe is { } roe)
+                        RoeSystem.Apply(repo, new SetRoeEvent { Entity = entity, Fire = roe.Fire, Reactions = roe.Reactions, Origin = roe.SetBy,
+                                                                 ReturnFireWindowSeconds = roe.ReturnFireWindowSeconds, ForceLevel = roe.ForceLevel,
+                                                                 Incendiary = roe.Incendiary });
+                    if (intent.Sop is { } sop && repo.HasComponent<BehaviorState>(entity))
+                    {
+                        if (sop.Clear) ClearSopNow(repo, entity, sop.Origin);   // ⭐ §10 — a person's SOP clear
+                        else AssignSopNow(repo, entity, sop.Name, sop.Params, sop.Origin);
+                    }
+                    if (intent.Behavior is { } task && repo.HasComponent<BehaviorState>(entity))
+                    {
+                        // ⭐⭐ CE-3494 §10 P5 (R-3119) — a PERSON's live task (origin Operator) keeps the order path's timing and rules: the tactical
+                        //   system takes it from the intent in its own step (Simulation phase, after this one) — leave it there. Only the task slot
+                        //   stays; ROE and SOP are applied above.
+                        if (person(task) && TasksTakenByOrders)
+                        {
+                            repo.SetManagedComponent(entity, new UnitIntent { Behavior = task });
+                            IntentsApplied++;
+                            continue;
+                        }
+                        if (person(task)) PublishOrder(repo, entity, task);   // a host with no tactical system: the event the order path reads
+                        // R4 — an AUTHORED task (edit mode, a load) is dropped while a live plan drives the unit: the plan owns the slot
+                        else if (!BrainIntentReader.DrivenByMissionPlan(repo, entity))
+                        {
+                            // ⭐ CE-3494 — a task that is not a behaviour name is an ORDER (`Order.Move` — an edit-mode map order, or a hand-written
+                            //   file): the one order path resolves it per class (TacticalIntentResolution), a step later, at the same rank
+                            if (task.Clear) repo.Bus.Publish(new ClearBehaviorEvent { Entity = entity, Origin = task.Origin });
+                            else if (_registry.TryGetId(task.Name, out _)) AssignNow(repo, entity, task.Name, task.Params, task.Origin);
+                            else PublishOrder(repo, entity, task);
+                        }
+                    }
+                }
+                repo.RemoveComponent<UnitIntent>(entity);
+                IntentsApplied++;
+            }
+        }
+
+        private static bool person(IntentSlot task) => task.Origin == BehaviorOrigin.Operator;
+
+        /// <summary>⭐ CE-3494 — a task slot as the order event the tactical system reads (a person's: it clears the prior intent and holds the plan).</summary>
+        private static void PublishOrder(EntityRepository repo, Entity entity, IntentSlot task)
+        {
+            if (!repo.Bus.IsRegisteredManaged<AssignTacticalIntentEvent>()) return;
+            repo.Bus.PublishManaged(new AssignTacticalIntentEvent
+            {
+                Entity = entity, IntentId = task.Clear ? string.Empty : task.Name, JsonParams = task.Params, Origin = task.Origin,
+                Kind = task.Clear ? TacticalIntentKind.Clear : TacticalIntentKind.Assign,
+                ClearsPriorIntent = task.Origin == BehaviorOrigin.Operator, RequestId = task.RequestId,
+            });
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> §10 P5 (R-3119) — the tactical system takes a person's task from the intent in its own step (the order path's timing).
+        /// ⚠ False = this host has none: the ingress publishes the order itself. ⛔ A host that registers the tactical system must set it — <c>CgfLogicPack</c>
+        /// does, with a forwarding rail (the silent-default rule).
+        /// </summary>
+        public bool TasksTakenByOrders { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> (R-3115) — what an order with <see cref="AssignBehaviorEvent.HoldsPlan"/> holds once it has STARTED (the mission
+        /// plan, ruling 52's provider seam). ⚠ Null = nothing held (a host without planners). ⛔ A host that HAS the registry must set it (the
+        /// silent-default rule) — <c>CgfLogicPack</c> does, with a forwarding rail.
+        /// </summary>
+        public Fdp.Toolkit.Behavior.TacticalOrderMapper.IntentClearRegistry? Holds { get; set; }
+
+        /// <summary>⭐ <c>CE-3494</c> — units whose authored intent was applied since this system was built (a test / diagnostics probe).</summary>
+        public int IntentsApplied { get; private set; }
+
+        [Fdp.Core.FrameScratch("scratch — cleared at the top of each apply and filled from this frame's world")]
+        private readonly List<Entity> _intentDone = new();
+
         /// <summary>⭐ <c>CE-3034</c> — refusals by the gate since this system was built (a test / diagnostics probe).</summary>
         public int RefusedCount { get; private set; }
 
@@ -234,6 +330,18 @@ namespace Fdp.Toolkit.Behavior.Systems
                            int behaviorId = 0)
         {
             ref readonly var running = ref repo.GetComponentRO<BehaviorState>(entity);
+            // ⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.5 R7-4) — a DEVICE runs its own logic only: an assign or a clear aimed at a device is
+            //   refused from anyone but the device tick (origin Self, its AssignNow) — an order, a mission, a reaction, the editor's paused edit would
+            //   otherwise replace it (the device tick would restart it, but the device would lose its run in between).
+            if (origin != BehaviorOrigin.Self && Fdp.Toolkit.Behavior.Devices.DeviceMarker.IsDevice(repo, entity))
+            {
+                pause = false;
+                RefusedCount++;
+                _lastRefusal = BrainRefusal.ADevice;
+                BrainJournalOf.Write(repo, entity, BrainJournalKind.TaskRefused, a: behaviorId, origin: (byte)origin,
+                    urgency: (byte)urgency, cause: (byte)BrainRefusal.ADevice);
+                return false;
+            }
             // ⭐⭐ CE-4668 — a DEAD unit (Health 0) runs nothing (OVERVIEW §8a): every assign is refused, whoever sends it
             if (!Fdp.Toolkit.Combat.CombatLife.IsAlive(repo, entity))
             {
@@ -549,6 +657,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             repo.SetManagedComponent<PausedTask>(entity, null!);   // taken, not dropped: the held storage is the task's again
             if (!paused.Restart && paused.Hash != BehaviorIds.None && repo.HasComponent<BehaviorState>(entity))
             {
+                BehaviorChangeTrace.Note(repo, entity, paused.Hash, paused.Origin, "resume-paused");   // ⭐ CE-3445
                 ref var state = ref repo.GetComponentRW<BehaviorState>(entity);
                 state.ActiveBehaviorHash = paused.Hash;
                 state.InstanceId = paused.InstanceId;
@@ -670,6 +779,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
             //   ⚠ Also on a re-assign of the SAME behaviour: a new run asks its own questions.
+            BehaviorChangeTrace.Note(repo, entity, behaviorId, origin, keepsTask ? "assign-keeps-task" : "assign");   // ⭐ CE-3445
             if (!keepsTask) BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             // ⭐ CE-3034: record WHO started it (Self keeps the running origin) — read while the old run is still current.
@@ -1844,6 +1954,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
 
             // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+            BehaviorChangeTrace.Note(repo, entity, BehaviorIds.None, BehaviorOrigin.Unmarked, "clear");   // ⭐ CE-3445
             BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             behavior.ActiveBehaviorHash = BehaviorIds.None;
@@ -1980,5 +2091,39 @@ namespace Fdp.Toolkit.Behavior.Systems
         //   ⭐ RootHsmAccess.ResetInstance replaces it and routes to the size-driven
         //     HsmInstanceManager.Initialize added by O7c-③: the width comes from the SLOT, so a 64-
         //     or 256-byte machine is bound correctly for the first time.
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3445</c> (a rare 4-thread stepped divergence: a squad's first soldier changes behaviour one step late) — a DIAGNOSTIC: every behaviour
+    /// change the ingress makes on the network ids in <c>HROT_TRACE_BEHAVIOR_NETIDS</c> ("1203,1477,1686") is logged with the frame, the old and new
+    /// hash, the origin and the path. ⛔ Off unless the variable is set (read once); serial (the ingress is serial), allocation only when it logs.
+    /// </summary>
+    internal static class BehaviorChangeTrace
+    {
+        private static readonly string? Raw = System.Environment.GetEnvironmentVariable("HROT_TRACE_BEHAVIOR_NETIDS");
+        private static readonly bool All = Raw?.Trim() == "*";   // every entity (a whole-run diff)
+        private static readonly int[] Ids = All ? new[] { -1 } : Parse(Raw);
+
+        private static int[] Parse(string? v)
+        {
+            if (string.IsNullOrWhiteSpace(v)) return System.Array.Empty<int>();
+            var list = new System.Collections.Generic.List<int>();
+            foreach (var part in v.Split(',', System.StringSplitOptions.RemoveEmptyEntries))
+                if (int.TryParse(part.Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int id)) list.Add(id);
+            return list.ToArray();
+        }
+
+        public static void Note(EntityRepository repo, Entity entity, int newHash, BehaviorOrigin origin, string path)
+        {
+            if (Ids.Length == 0 || !repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                || !repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)) return;
+            int net = repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value;
+            if (!All && System.Array.IndexOf(Ids, net) < 0) return;
+            long frame = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().FrameNumber : -1;
+            double t = repo.HasSingleton<GlobalTime>() ? repo.GetSingleton<GlobalTime>().TotalTime : -1;
+            int old = repo.HasComponent<BehaviorState>(entity) ? repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash : 0;
+            Fdp.Core.Logging.FdpLog<BehaviorIngressSystem>.Info(string.Create(System.Globalization.CultureInfo.InvariantCulture,
+                $"[BehTrace] frame {frame} t {t:0.0000} net {net} (#{entity.Index}): {old} -> {newHash} origin {origin} via {path}"));
+        }
     }
 }

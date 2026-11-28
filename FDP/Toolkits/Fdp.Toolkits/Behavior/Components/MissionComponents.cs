@@ -172,6 +172,12 @@ namespace Fdp.Toolkit.Behavior.Components
         /// (a jump or a new plan) instead of advancing. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>
         public byte Halted;
 
+        /// <summary>⭐ <c>CE-483</c> — <see cref="Halted"/>: the current task's behaviour FAULTED; the operator retries it.</summary>
+        public const byte HaltedFaulted = 1;
+        /// <summary>⭐⭐ <c>CE-3494</c> (R-3115) — <see cref="Halted"/>: an operator's order HOLDS the plan (progress kept); only the user resumes it,
+        /// and Resume restarts the held task. ⚠ Every reader testing <c>Halted != 0</c> treats both alike (nothing issued, no timer).</summary>
+        public const byte HaltedHeldByOrder = 2;
+
         /// <summary>⭐ <c>R-3039</c> S1 — the mission's version for mission control's optimistic concurrency (a draft built on an older version
         /// is refused). On the mission's OWNER only (⛔ not on the wire: the translators copy named fields). Was a field of
         /// <c>MissionControlExecutionSystem</c>: a checkpoint restored into a fresh system reset it to 0 and accepted a stale draft.
@@ -189,7 +195,7 @@ namespace Fdp.Toolkit.Behavior.Components
             get
             {
                 ReadOnlySpan<MissionPhaseOutcome> o = Outcomes;
-                if (Halted != 0 && CurrentTask < TaskCount && CurrentTask < MaxTasks) return o[CurrentTask];
+                if (Halted == HaltedFaulted && CurrentTask < TaskCount && CurrentTask < MaxTasks) return o[CurrentTask];   // ⭐ CE-3494 — a HELD task has not ended: the last ended one
                 int ended = Math.Min((int)CurrentTask, MaxTasks) - 1;
                 return ended >= 0 ? o[ended] : MissionPhaseOutcome.None;
             }

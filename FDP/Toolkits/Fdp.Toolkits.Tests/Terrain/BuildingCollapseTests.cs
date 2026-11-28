@@ -127,6 +127,67 @@ namespace Fdp.Toolkit.Terrain.Tests
         /// interior passes above the mound. 🔴 Red-proof: drop the <c>CollapseBuildings</c> call ⇒ no collapse record and no lethal event; drop the footprint test on the casualty
         /// loop ⇒ the man outside is hit.
         /// </summary>
+        /// <summary>⭐ <c>CE-11051</c> — the collapse carries WHEN it happened, born so on a new record and written so on one that already holds breaches.
+        /// 🔴 Red-proof: drop <c>d.CollapsedAt = now</c> in <c>ApplyCollapse</c> ⇒ the second half reads 0.</summary>
+        [Fact]
+        public void CE11051_ACollapse_CarriesTheTimeItHappened()
+        {
+            _w.SetSingleton(new GlobalTime { TotalTime = 12.5d });
+            Burst(Bomb, new Vector3(25f, 24f, 3f + AreaEffect.BurstStandOffMetres));
+            var asked = Assert.Single(Tick()).InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(1, asked.Collapsed);
+            Assert.Equal(12.5d, asked.CollapsedAt);
+
+            // a building that already has a record (a breach) collapses later: the record is stamped in place
+            using var w2 = new CollapseOnARecord();
+            Assert.Equal(33d, w2.CollapseAt(33d));
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-11054</c> — the collapse carries WHAT collapsed it: the cause (Detonation: only blasts collapse), the blast point and the explosive kg the collapse rule used — born so on a new record, and
+        /// written so on one that already holds breaches. 🔴 Red-proof: drop <c>SetCollapse</c> in <c>ApplyCollapse</c> / <c>Request</c> ⇒ Unknown / 0 kg; drop the cause / kg from the collapse event in
+        /// <c>AreaEffectSystem.CollapseBuildings</c> ⇒ the same.
+        /// </summary>
+        [Fact]
+        public void CE11054_ACollapse_CarriesItsCauseBlastPointAndKg()
+        {
+            var burst = new Vector3(25f, 24f, 3f + AreaEffect.BurstStandOffMetres);
+            Burst(Bomb, burst);
+            var born = Assert.Single(Tick()).InitialComponents!.OfType<BuildingDamage>().Single();
+            Assert.Equal(1, born.Collapsed);
+            Assert.Equal(BreachCause.Detonation, (BreachCause)born.CollapseCause);
+            Assert.True(Vector3.Distance(burst, born.CollapseBlast) < 0.25f, $"collapse blast {born.CollapseBlast}");
+            Assert.True(born.CollapseKg >= 80f, $"the bomb's kg ({born.CollapseKg})");
+
+            // a building that already has a record (a breach) collapses later: the record is written in place
+            using var other = new BuildingCollapseTests();
+            other.Burst(Howitzer, new Vector3(25f, 19.75f, 1.0f));
+            var e = other.Materialise(Assert.Single(other.Tick()));
+            other.Burst(Bomb, burst);
+            Assert.Empty(other.Tick());
+            var d = other._w.GetComponentRO<BuildingDamage>(e);
+            Assert.Equal((1, BreachCause.Detonation, born.CollapseKg), (d.Collapsed, (BreachCause)d.CollapseCause, d.CollapseKg));
+        }
+
+        /// <summary>A second fixture: a record made by a breach first, then a collapse written into it.</summary>
+        private sealed class CollapseOnARecord : IDisposable
+        {
+            private readonly BuildingCollapseTests _t = new();
+            public double CollapseAt(double t)
+            {
+                _t._w.SetSingleton(new GlobalTime { TotalTime = 1d });
+                _t.Burst(Howitzer, new Vector3(25f, 19.75f, 1.0f));
+                var e = _t.Materialise(Assert.Single(_t.Tick()));
+                _t._w.SetSingleton(new GlobalTime { TotalTime = t });
+                _t.Burst(Bomb, new Vector3(25f, 24f, 3f + AreaEffect.BurstStandOffMetres));
+                Assert.Empty(_t.Tick());
+                var d = _t._w.GetComponentRO<BuildingDamage>(e);
+                Assert.Equal(1, d.Collapsed);
+                return d.CollapsedAt;
+            }
+            public void Dispose() => _t.Dispose();
+        }
+
         [Fact]
         public void AHeavyBombOnTheRoof_CollapsesTheBuilding_KillsTheManInside_AndSparesTheManFarOutside()
         {

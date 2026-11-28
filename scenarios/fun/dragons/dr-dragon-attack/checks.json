@@ -1,0 +1,83 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3490 (docs/designs/air-attack/DESIGN_Breath_Attack.md \u00a75): the strafe \u2014 low over the squad, burns it, climbs out between passes, never touches the far men.",
+  "runFor": 150,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "lit": {
+      "on": "field",
+      "who": "Squad Man 1",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
+    }
+  },
+  "expect": [
+    {
+      "name": "the dragon breathes",
+      "on": "field",
+      "who": "Dragon",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 600,
+      "before": 60
+    },
+    {
+      "name": "it comes down low to breathe",
+      "on": "field",
+      "who": "Dragon",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": 20,
+      "before": 60
+    },
+    {
+      "name": "Squad Man 1 burns",
+      "on": "field",
+      "who": "Squad Man 1",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "before": 60
+    },
+    {
+      "name": "a second squad man burns",
+      "on": "field",
+      "who": "*Squad Man ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "quantifier": "atLeast:2",
+      "before": 120
+    },
+    {
+      "name": "Squad Man 1 dies",
+      "on": "field",
+      "who": "Squad Man 1",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 140
+    },
+    {
+      "name": "it climbs back out above 50 m",
+      "on": "field",
+      "who": "Dragon",
+      "path": "SimTransform.Position.2",
+      "op": ">",
+      "value": 50,
+      "after": "lit"
+    },
+    {
+      "name": "the far men are never hurt",
+      "never": {
+        "on": "field",
+        "who": "*Far Man ",
+        "path": "Health.Current",
+        "op": "<",
+        "value": 100
+      }
+    }
+  ]
+}

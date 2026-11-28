@@ -3,6 +3,8 @@ using Fdp.Core;
 using Fdp.Toolkit.Animals;
 using Fdp.Toolkit.Animation;
 
+using MotionRules = Hrot.Look.Vehicles.MotionRules;
+
 namespace Hrot.UI.Common.Map3D;
 
 /// <summary>
@@ -25,24 +27,24 @@ public sealed class MotionTracker
     public const float StrideMetres = 1.6f;
 
     /// <summary>The main rotor's speed (UH-60: about 258 rpm).</summary>
-    public const float RotorRevsPerSecond = 4.3f;
+    public const float RotorRevsPerSecond = MotionRules.RotorRevsPerSecond;   // ⭐ CE-11003 (RR-3) — the shared rules
 
     /// <summary>⭐ CE-1093 (§6n N-9) — how long a helicopter's rotor keeps running after it last moved (s), how long it takes to spool up
     /// or down (s), and the smallest movement between two frames that counts (m).</summary>
-    public const float RotorRunOnSeconds = 20f, RotorSpoolSeconds = 3f, MovedMetres = 0.02f;
+    public const float RotorRunOnSeconds = MotionRules.RotorRunOnSeconds, RotorSpoolSeconds = MotionRules.RotorSpoolSeconds, MovedMetres = MotionRules.MovedMetres;
 
     /// <summary>⭐ CE-1086 — a drone's drawn prop speed (not the real ~150 rev/s, which would alias into a standstill at frame rate).</summary>
-    public const float DroneRotorRevsPerSecond = 7.3f;
+    public const float DroneRotorRevsPerSecond = MotionRules.DroneRotorRevsPerSecond;
 
     /// <summary>⭐ CE-4618 — a search radar's antenna: turns per second while the radar radiates (a ~1.7 s sweep, a short-range SAM's), spooling up and down over
     /// <see cref="RotorSpoolSeconds"/> like a rotor.</summary>
-    public const float AntennaRevsPerSecond = 0.6f;
+    public const float AntennaRevsPerSecond = MotionRules.AntennaRevsPerSecond;
 
     /// <summary>⭐ CE-4624 — a mine clearer's flail drum: turns per second while the flail is on (a flail lashes fast), spooling over <see cref="FlailSpoolSeconds"/>.</summary>
-    public const float FlailRevsPerSecond = 4f, FlailSpoolSeconds = 1f;
+    public const float FlailRevsPerSecond = MotionRules.FlailRevsPerSecond, FlailSpoolSeconds = MotionRules.FlailSpoolSeconds;
 
     /// <summary>⭐ CE-4621 — a motorcycle's lean into a turn: <c>atan(v · yawRate / g)</c>, at most <see cref="MaxBank"/> (rad, ~35°), eased with <see cref="BankSeconds"/> (s). A DRAWING only.</summary>
-    public const float MaxBank = 0.61f, BankSeconds = 0.15f;
+    public const float MaxBank = MotionRules.MaxBank, BankSeconds = MotionRules.BankSeconds;
 
     /// <summary>A position jump bigger than this between two frames is a teleport, not motion.</summary>
     public const float TeleportMetres = 40f;
@@ -152,8 +154,7 @@ public sealed class MotionTracker
         {
             case VisualFamily.WheeledCar or VisualFamily.WheeledUtility:
             {
-                float radius = MathF.Max(0.05f, ShapeKits.WheelRadiusOfHeight * size.Z);
-                st.Roll = Wrap(st.Roll + along / radius);
+                st.Roll = MotionRules.Roll(st.Roll, along, MotionRules.CarWheelRadius(size.Z));   // ⭐ CE-11003 (RR-3)
                 break;
             }
             case VisualFamily.Person when dt <= 1e-4 && planar == 0f && st.HasGait:
@@ -236,7 +237,7 @@ public sealed class MotionTracker
             case VisualFamily.Motorcycle:
             {
                 // ⭐ CE-4621 — the wheels roll on the bike's own radius; a turn banks the body: the lean a rider needs, atan(v·ω/g), left turn = the top toward the left (a NEGATIVE turn about +x)
-                st.Roll = Wrap(st.Roll + along / ShapeKits.MotoWheelRadius);
+                st.Roll = MotionRules.Roll(st.Roll, along, MotionRules.MotoWheelRadius);
                 float yaw = MathF.Atan2(forward.Y, forward.X);
                 float target = 0f;
                 if (st.HasYaw && dt > 1e-4)
@@ -244,8 +245,8 @@ public sealed class MotionTracker
                     float dyaw = yaw - st.Yaw;
                     if (dyaw > MathF.PI) dyaw -= MathF.PI * 2f; else if (dyaw < -MathF.PI) dyaw += MathF.PI * 2f;
                     float speed = along / (float)dt, rate = dyaw / (float)dt;
-                    target = Math.Clamp(-MathF.Atan(speed * rate / 9.81f), -MaxBank, MaxBank);
-                    st.Bank += (target - st.Bank) * (1f - MathF.Exp(-(float)dt / BankSeconds));
+                    target = MotionRules.BankTarget(speed, rate);   // ⭐ CE-11003 (RR-3) — the shared rule
+                    st.Bank = MotionRules.EaseBank(st.Bank, target, (float)dt);
                 }
                 else if (!st.HasYaw) st.Bank = 0f;
                 st.Yaw = yaw; st.HasYaw = true;
@@ -256,20 +257,23 @@ public sealed class MotionTracker
             {
                 // ⭐ CE-4618 — the wheels roll on the truck's own radius; the antenna spools up while the radar radiates (rotorTurning = RadarActivity.IsOn) and down
                 //   when it stops, turning by the frame clock × the sim's pace like a rotor (CE-1353) — so it is the same on every host and a paused sim stops it
-                st.Roll = Wrap(st.Roll + along / ShapeKits.SamWheelRadius);
-                float step = (float)dt / RotorSpoolSeconds;
-                st.RotorRate = rotorTurning ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
-                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * AntennaRevsPerSecond * MathF.PI * 2f * spinDt);
+                st.Roll = MotionRules.Roll(st.Roll, along, MotionRules.SamWheelRadius);
+                st.RotorRate = MotionRules.Spool(st.RotorRate, rotorTurning, (float)dt, MotionRules.RotorSpoolSeconds);
+                st.RotorAngle = MotionRules.Spin(st.RotorAngle, st.RotorRate, MotionRules.AntennaRevsPerSecond, spinDt);
                 antenna = st.RotorAngle;
+                break;
+            }
+            case VisualFamily.FloatingBridge:
+            {
+                st.Roll = MotionRules.Roll(st.Roll, along, ShapeKits.FloatingBridgeWheelRadius);   // ⭐ CE-6502 — the truck's wheels roll on its own radius
                 break;
             }
             case VisualFamily.MineClearer:
             {
                 // ⭐ CE-4624 — tracked: no wheel to roll. The flail drum spools up while the flail is on (rotorTurning = FlailActivity.IsOn) and down when it stops, turning by the frame
                 //   clock × the sim's pace like the antenna / a rotor (CE-1353) — the same on every host, and a paused sim stops it. No allocation: floats in the state.
-                float step = (float)dt / FlailSpoolSeconds;
-                st.RotorRate = rotorTurning ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
-                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * FlailRevsPerSecond * MathF.PI * 2f * spinDt);
+                st.RotorRate = MotionRules.Spool(st.RotorRate, rotorTurning, (float)dt, MotionRules.FlailSpoolSeconds);
+                st.RotorAngle = MotionRules.Spin(st.RotorAngle, st.RotorRate, MotionRules.FlailRevsPerSecond, spinDt);
                 flail = st.RotorAngle;
                 break;
             }
@@ -279,16 +283,15 @@ public sealed class MotionTracker
                 // ⭐ CE-1093 (§6n N-9) — the rotor RUNS while it is airborne or has moved in the last RotorRunOnSeconds (taking off,
                 //   landing, taxiing — the height test alone stood it still on the ground), and spools up / down over RotorSpoolSeconds
                 if (delta.LengthSquared() > MovedMetres * MovedMetres) { st.LastMoved = simTime; st.HasMoved = true; }
-                bool runs = rotorTurning || (st.HasMoved && simTime - st.LastMoved <= RotorRunOnSeconds);
-                float step = (float)dt / RotorSpoolSeconds;
-                st.RotorRate = runs ? MathF.Min(1f, st.RotorRate + step) : MathF.Max(0f, st.RotorRate - step);
-                st.RotorAngle = Wrap(st.RotorAngle + st.RotorRate * RotorRevsPerSecond * MathF.PI * 2f * spinDt);   // ⭐ CE-1353
+                bool runs = MotionRules.RotorRuns(rotorTurning, st.HasMoved, st.LastMoved, simTime);
+                st.RotorRate = MotionRules.Spool(st.RotorRate, runs, (float)dt, MotionRules.RotorSpoolSeconds);
+                st.RotorAngle = MotionRules.Spin(st.RotorAngle, st.RotorRate, MotionRules.RotorRevsPerSecond, spinDt);   // ⭐ CE-1353
                 rotor = st.RotorAngle;
                 break;
             }
             case VisualFamily.Drone when rotorTurning:
                 // ⭐ CE-1086 — small props: a visible spin, not the real ~150 rev/s (which would alias into a standstill at frame rate)
-                rotor = (float)((simTime * DroneRotorRevsPerSecond % 1.0) * MathF.PI * 2.0);
+                rotor = MotionRules.DroneProp(simTime);
                 break;
         }
 

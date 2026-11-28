@@ -28,7 +28,6 @@ namespace Hrot.SimHost.Tests
             public readonly EntityRepository Repo = new();
             public readonly BehaviorRegistry Registry;
             public readonly BehaviorIngressSystem Ingress;
-            public readonly InitialBrainMaterializationSystem Materialize = new();
             public readonly RoeSystem Roe = new();
 
             public Node(BehaviorRegistry registry)
@@ -52,11 +51,11 @@ namespace Hrot.SimHost.Tests
                 return e;
             }
 
-            /// <summary>One Input phase: materialize, ROE, ingress (events of the previous frame).</summary>
+            /// <summary>One ADVANCING Input phase: ROE, then the ingress — which applies the unit's intent first (CE-3494), then the
+            /// previous frame's events.</summary>
             public void Frame()
             {
                 Repo.Bus.SwapBuffers();
-                Materialize.Execute(Repo, 0.016f);
                 Roe.Execute(Repo, 0.016f);
                 Ingress.Execute(Repo, 0.016f);
             }
@@ -104,12 +103,12 @@ namespace Hrot.SimHost.Tests
             serializer.Deserialize(b.Repo, dom);
             var loaded = Only(b.Repo);
             if (!b.Repo.HasComponent<BehaviorState>(loaded)) b.Repo.AddComponent(loaded, new BehaviorState());
-            Assert.True(b.Repo.HasManagedComponent<InitialBrainIntent>(loaded));
+            Assert.True(b.Repo.HasManagedComponent<UnitIntent>(loaded));
 
             b.Frame();   // materialize → events
             b.Frame();   // ingress / ROE consume them
 
-            Assert.False(b.Repo.HasManagedComponent<InitialBrainIntent>(loaded));
+            Assert.False(b.Repo.HasManagedComponent<UnitIntent>(loaded));
             Assert.Equal("Idle", b.TaskName(loaded));
             Assert.Equal(BehaviorOrigin.Superior, b.Repo.GetComponent<BehaviorState>(loaded).Origin);
             Assert.True(registry.TryGetId("BasicInfantrySop", out int sopId));
@@ -151,6 +150,26 @@ namespace Hrot.SimHost.Tests
             string withRoe = serializer.SerializeEntity(a.Repo, unit, new Fdp.Toolkit.Diagnostics.DiagnosticGuidResolver(), a.Repo.GetSnapshotableMask()).ToJsonString();
             Assert.Contains("\"Roe\"", withRoe);
             Assert.Contains("HoldFire", withRoe);
+        }
+
+        /// <summary>⭐ CE-3494 §10 P7 — a pending person's order is saved like an authored task, WITHOUT its request id; a pending release saves no
+        /// task. 🔴 Red-proof: the strip removed ⇒ "RequestId" in the file.</summary>
+        [Fact]
+        public void CE3494_APendingPersonsOrderIsSavedWithoutItsRequestId_APendingReleaseSavesNoTask()
+        {
+            var registry = Production();
+            var a = new Node(registry);
+            var unit = a.Unit();
+            if (!a.Repo.TryGetTable(typeof(UnitIntent), out _)) a.Repo.RegisterManagedComponent<UnitIntent>();
+            UnitIntents.RequestTask(a.Repo, unit, "Idle", "{}", BehaviorOrigin.Operator, System.Guid.NewGuid());
+            var saved = new BrainSnapshotTranslator(registry).Extract(a.Repo, unit, new StubGuidResolver());
+            string json = ((System.Text.Json.Nodes.JsonNode)saved[BrainSnapshotTranslator.BehaviorKey]).ToJsonString();
+            Assert.Contains("Idle", json);
+            Assert.DoesNotContain("RequestId", json);
+            Assert.DoesNotContain("Clear", json);
+
+            UnitIntents.RequestClear(a.Repo, unit, BehaviorOrigin.Operator, System.Guid.Empty);
+            Assert.False(new BrainSnapshotTranslator(registry).Extract(a.Repo, unit, new StubGuidResolver()).ContainsKey(BrainSnapshotTranslator.BehaviorKey));
         }
 
         [Fact]

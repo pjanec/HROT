@@ -150,23 +150,21 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
 
     // ---- the STATE as a second source (CE-4635, docs/designs/weapons/DESIGN_Flame_Weapons.md §8) --------------------------------------------
 
-    private EntityRepository? _stateWorld;
-    private EntityQuery? _fireQuery, _jetQuery, _burnQuery, _markQuery;
     private ITkbDatabase? _looksTkb;
     private bool _looksSet;
     private EffectVisualDto? _fireLook, _smokeLook, _jetLook, _scorchLook;
     private Color _fireColour, _smokeColour, _jetColour, _scorchColour;
 
     /// <summary>The smoke a burning spot sends up, as a fraction of its flame size (a small plume: a napalm strike's big smoke is its cloud entity).</summary>
-    public const float SpotSmokeShare = 0.3f;
+    public const float SpotSmokeShare = Hrot.Look.Effects.FlameLook.SpotSmokeShare;   // ⭐ CE-11004 (RR-4) — the shared rule
 
     /// <summary>The slot a burning MAN's one fire takes in its seed (a holder's FireState has slots 0..<see cref="Fdp.Toolkit.Perception.Signatures.FireState.Capacity"/>-1).</summary>
-    public const int ManFireSlot = 7;
+    public const int ManFireSlot = Hrot.Look.Effects.FlameLook.ManFireSlot;
 
     /// <summary>How big a spot's flames are (m, the Fire look's <c>Size</c>) from its radius: <see cref="SpotSizePerRadius"/> of it — a tank wreck (half-length 3.5 m + the
     /// burn's reach, radius ≈ 4.5) keeps the 3.2 m flames its old effect entity had — within 0.3–8 m.</summary>
-    public static float SpotSize(float radius) => Math.Clamp(radius * SpotSizePerRadius, 0.3f, 8f);
-    public const float SpotSizePerRadius = 0.7f;
+    public static float SpotSize(float radius) => Hrot.Look.Effects.FlameLook.SpotSize(radius);
+    public const float SpotSizePerRadius = Hrot.Look.Effects.FlameLook.SpotSizePerRadius;
 
     private void EnsureStateLooks(ITkbDatabase? tkb)
     {
@@ -183,15 +181,7 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
 
     /// <summary>A holder's point <c>(x, y, z)</c> in the world: a vehicle's spots are in ITS frame (rotated by its <c>SimTransform</c>, then offset); a building's or a
     /// cell's record entity has an identity rotation, so the same rule is an offset (§6). A holder with no transform: the point as it is.</summary>
-    public static Vector3 HolderPoint(EntityRepository world, Entity holder, float x, float y, float z)
-    {
-        var p = new Vector3(x, y, z);
-        if (!world.HasComponent<SimTransform>(holder)) return p;
-        ref readonly var t = ref world.GetComponentRO<SimTransform>(holder);
-        Quaternion q = t.Rotation;
-        if (q.LengthSquared() < 0.5f) q = Quaternion.Identity;
-        return t.Position + Vector3.Transform(p, q);
-    }
+    public static Vector3 HolderPoint(EntityRepository world, Entity holder, float x, float y, float z) => Hrot.Look.Effects.FlameLook.HolderPoint(world, holder, x, y, z);
 
     /// <summary>
     /// ⭐⭐ CE-4635 / CE-4637 (flame weapons §8) — the STATE as a second source of <see cref="Resolved"/> items, APPENDED to <paramref name="list"/> (not cleared — call
@@ -208,93 +198,63 @@ public sealed class EffectLayer : ISceneLayer   // ⭐ CE-3289 — the world: fi
         EnsureStateLooks(tkb);
         if (!ReferenceEquals(world, _stateWorld))
         {
-            _stateWorld = world;
-            _fireQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Perception.Signatures.FireState>()
-                ? world.Query().With<Fdp.Toolkit.Perception.Signatures.FireState>().Build() : null;
-            _jetQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponPosture>() && world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.WeaponAmmo>()
-                ? world.Query().With<Fdp.Toolkit.Combat.Components.WeaponPosture>().With<Fdp.Toolkit.Combat.Components.WeaponAmmo>().With<SimTransform>().Build() : null;
-            _burnQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.EffectState>()
-                ? world.Query().With<Fdp.Toolkit.Combat.EffectState>().With<SimTransform>().Build() : null;
+            _stateWorld = world;   // the thermal pass's heat-mark query (CE-1985) — the flame rule keeps its own
             _markQuery = world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.GroundHeatMarks>()
                 ? world.Query().With<Fdp.Toolkit.Terrain.GroundHeatMarks>().Build() : null;
         }
         double now = Fdp.Toolkit.Time.SimClock.TotalTimeOf(world);   // ⭐ CE-4635 — no boxed clock per frame
         bool weather = world.IsComponentTypeRegistered<Fdp.Toolkit.Weather.WeatherConditions>();
-
-        // ---- U-2 — every burning spot of every holder ----
-        if (_fireQuery != null && _fireLook != null)
-            foreach (var e in _fireQuery)
+        // ⭐ CE-11004 (RR-4) — WHERE and HOW BIG every fire is comes from the SHARED rule (Hrot.Look.Effects.FlameLook); the map adds its looks and colours
+        int kinds = (_fireLook != null ? 1 << (int)Hrot.Look.Effects.FlameKind.Spot | 1 << (int)Hrot.Look.Effects.FlameKind.BurningPerson : 0)
+                  | (_jetLook != null ? 1 << (int)Hrot.Look.Effects.FlameKind.Jet : 0)
+                  | (_scorchLook != null ? 1 << (int)Hrot.Look.Effects.FlameKind.Scorch : 0);
+        _flameSpecs.Clear();
+        _flameMuzzle ??= (EntityRepository w, Entity e, int mount, out Vector3 forward) => MuzzleOf(w, e, mount, _tkb(), out forward);
+        _flameBody ??= (EntityRepository w, Entity e, out Vector3 feet, out float height) =>
+        {
+            feet = default; height = 1.8f;
+            if (_bodies == null || !_bodies.TryGetBox(w, e, _tkb(), out var centre, out var rotation, out var half)) return false;
+            feet = centre + Vector3.Transform(new Vector3(0f, 0f, -half.Z), rotation);
+            height = 2f * half.Z;
+            return true;
+        };
+        _flames.Resolve(world, now, _flameSpecs, _flameMuzzle, _flameBody, kinds);
+        foreach (var f in _flameSpecs)
+            switch (f.Kind)
             {
-                ref readonly var fs = ref world.GetComponentRO<Fdp.Toolkit.Perception.Signatures.FireState>(e);
-                int n = Math.Min((int)fs.Count, Fdp.Toolkit.Perception.Signatures.FireState.Capacity);
-                for (int i = 0; i < n; i++)
-                {
-                    var spot = fs.Get(i);
-                    if (!spot.IsBurning(now)) continue;
-                    AddSpot(list, world, HolderPoint(world, e, spot.X, spot.Y, spot.Z), SpotSize(spot.Radius),
-                            (float)((now - spot.Since.Seconds) / spot.Seconds), (float)(now - spot.Since.Seconds),
-                            spot.Intensity > 0f ? MathF.Min(spot.Intensity, 1f) : 1f, e.Index * 8 + i, weather);
-                }
-            }
-
-        // ---- U-1 — every lit flame jet ----
-        if (_jetQuery != null && _jetLook != null)
-            foreach (var e in _jetQuery)
-            {
-                if (!Fdp.Toolkit.Combat.FlameJets.TryGet(world, e, now, out var jet)) continue;
-                var muzzle = MuzzleOf(world, e, jet.Mount, tkb, out var forward);
-                Vector3 aim = jet.AimPoint;
-                var to = aim - muzzle;
-                float dist = to.Length();
-                Vector3 dir = dist > 0.5f ? to / dist : (forward.LengthSquared() > 1e-6f ? Vector3.Normalize(forward) : Vector3.UnitX);
-                float length = dist > 0.5f ? MathF.Min(dist, jet.RangeM) : jet.RangeM;   // ⚠ v1: no wall clipping — the simulation shortens the jet (FL-1)
-                list.Add(new Resolved(_jetLook, muzzle, muzzle + dir * length, 0f, jet.Intensity, _jetColour, Seed: e.Index * 8, Age: (float)MathF.Max(0f, (float)(now - jet.BurstStartedAt)))
-                         { HalfAngle = jet.HalfAngleRad });
-            }
-
-        // ---- U-3 — every burning man: one body-sized fire ----
-        if (_burnQuery != null && _fireLook != null)
-            foreach (var e in _burnQuery)
-            {
-                if (!Hrot.Look.People.PersonLook.IsBurning(world, e, now)) continue;
-                Vector3 feet; float height = 1.8f;
-                if (_bodies != null && _bodies.TryGetBox(world, e, tkb, out var centre, out var rotation, out var half))
-                {
-                    feet = centre + Vector3.Transform(new Vector3(0f, 0f, -half.Z), rotation);
-                    height = 2f * half.Z;
-                }
-                else feet = world.GetComponentRO<SimTransform>(e).Position;
-                AddSpot(list, world, feet, Math.Clamp(height * 0.8f, 0.6f, 2.4f), 0f, (float)(now % 3600.0), 1f, e.Index * 8 + ManFireSlot, weather, smoke: false);
-            }
-
-        // ---- U-4 — scorched ground ----
-        if (_markQuery != null && _scorchLook != null)
-            foreach (var e in _markQuery)
-            {
-                ref readonly var marks = ref world.GetComponentRO<Fdp.Toolkit.Terrain.GroundHeatMarks>(e);
-                int n = Math.Min((int)marks.Count, Fdp.Toolkit.Terrain.GroundHeatMarks.Capacity);
-                for (int i = 0; i < n; i++)
-                {
-                    var m = marks.Get(i);
-                    if (m.Kind != Fdp.Toolkit.Terrain.HeatMarkKind.BurnedArea || m.Length <= 0f || m.Width <= 0f) continue;
-                    list.Add(new Resolved(_scorchLook, new Vector3(m.At.X, m.At.Y, 0f), Vector3.Zero, 0f, 1f, _scorchColour, Seed: e.Index * 16 + i)
-                             { Rect = new Vector2(m.Length, m.Width), Heading = m.Heading });
-                }
+                case Hrot.Look.Effects.FlameKind.Spot:
+                    AddSpot(list, world, f, weather);
+                    break;
+                case Hrot.Look.Effects.FlameKind.BurningPerson:
+                    AddSpot(list, world, f, weather);
+                    break;
+                case Hrot.Look.Effects.FlameKind.Jet:
+                    list.Add(new Resolved(_jetLook!, f.At, f.To, 0f, f.Intensity, _jetColour, Seed: f.Seed, Age: f.Age) { HalfAngle = f.HalfAngle });
+                    break;
+                case Hrot.Look.Effects.FlameKind.Scorch:
+                    list.Add(new Resolved(_scorchLook!, f.At, Vector3.Zero, 0f, 1f, _scorchColour, Seed: f.Seed) { Rect = f.Rect, Heading = f.Heading });
+                    break;
             }
     }
 
-    /// <summary>One burning spot as its Fire item (and, unless <paramref name="smoke"/> is off, a small Smoke item above it).</summary>
-    private void AddSpot(List<Resolved> list, EntityRepository world, Vector3 at, float size, float phase, float age, float intensity, int seed, bool weather,
-                         bool smoke = true)
+    private EntityRepository? _stateWorld;
+    private EntityQuery? _markQuery;
+    private readonly Hrot.Look.Effects.FlameLook _flames = new();
+    [Fdp.Core.FrameScratch("flame specs: cleared before each frame's rule output")]
+    private readonly List<Hrot.Look.Effects.FlameSpec> _flameSpecs = new();
+    private Hrot.Look.Effects.FlameLook.MuzzleOf? _flameMuzzle;
+    private Hrot.Look.Effects.FlameLook.BodyOf? _flameBody;
+
+    /// <summary>One burning spot (or a burning man) as its Fire item and, when the rule says so, its small Smoke above it (<see cref="Hrot.Look.Effects.FlameLook.SpotSmoke"/>).</summary>
+    private void AddSpot(List<Resolved> list, EntityRepository world, in Hrot.Look.Effects.FlameSpec f, bool weather)
     {
-        list.Add(new Resolved(_fireLook!, at, Vector3.Zero, phase, intensity, _fireColour, Seed: seed, Age: age) { Extent = size });
-        if (!smoke || _smokeLook == null) return;
-        float fadeOut = phase < 0.7f ? 1f : Math.Clamp(1f - (phase - 0.7f) / 0.3f, 0f, 1f);
-        float smokeSize = MathF.Max(size * SpotSmokeShare, 0.25f);
-        list.Add(new Resolved(_smokeLook, at, Vector3.Zero, phase, fadeOut * intensity * 0.7f, _smokeColour, Seed: seed ^ 0x5BD1E995, Age: age)
+        list.Add(new Resolved(_fireLook!, f.At, Vector3.Zero, f.Phase, f.Intensity, _fireColour, Seed: f.Seed, Age: f.Age) { Extent = f.Size });
+        if (!f.Smoke || _smokeLook == null) return;
+        Hrot.Look.Effects.FlameLook.SpotSmoke(in f, out float smokeSize, out float opacity, out int seed);
+        list.Add(new Resolved(_smokeLook, f.At, Vector3.Zero, f.Phase, opacity, _smokeColour, Seed: seed, Age: f.Age)
                  {
                      Extent = smokeSize,
-                     Wind = weather ? Fdp.Toolkit.Weather.WeatherField.WindAt(world, at + new Vector3(0f, 0f, smokeSize * 3f)) : null,
+                     Wind = weather ? Fdp.Toolkit.Weather.WeatherField.WindAt(world, f.At + new Vector3(0f, 0f, smokeSize * 3f)) : null,
                  });
     }
 

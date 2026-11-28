@@ -39,6 +39,11 @@ namespace GizmoMap.Presentation
         public static readonly Color ButtonFill = new Color((byte)0x23, (byte)0x41, (byte)0x5F, (byte)255);
         public static readonly Color ButtonBorder = new Color((byte)0x33, (byte)0x69, (byte)0xAD, (byte)255);
 
+        /// <summary>⭐ S1d-2 — a <see cref="GizmoTextStyle.Halo"/> text's halo radius, as a fraction of its size (the mockup's 1.1 px on 11 px).</summary>
+        public const float HaloFraction = 0.1f;
+        private static readonly float[] HaloX = { 1f, -1f, 0f, 0f, 0.707f, -0.707f, 0.707f, -0.707f };
+        private static readonly float[] HaloY = { 0f, 0f, 1f, -1f, 0.707f, 0.707f, -0.707f, -0.707f };
+
         /// <summary>Box padding in screen px: 6 at the sides, 3 above and below.</summary>
         public const float PadX = 6f, PadY = 3f;
 
@@ -54,6 +59,18 @@ namespace GizmoMap.Presentation
         /// </summary>
         public static void DrawStyled(Font font, string str, Vector2 at, float px, float spacing, float scale, GizmoTextStyle style, Color color)
         {
+            if (style is GizmoTextStyle.Halo or GizmoTextStyle.HaloBold)
+            {
+                // ⭐ Simulated devices S1d-2 — a HUD readout: a dark halo round the glyphs (the mockup's stroke 2.2 at 60 %), no box; bold = the glyphs
+                //   drawn twice, a hair apart (the gizmo font has one face).
+                float r = MathF.Max(1f, px * HaloFraction);
+                var halo = new Color((byte)0, (byte)0, (byte)0, (byte)(153 * color.A / 255));
+                for (int k = 0; k < 8; k++)
+                    Raylib.DrawTextEx(font, str, at + new Vector2(HaloX[k] * r, HaloY[k] * r), px, spacing, halo);
+                if (style == GizmoTextStyle.HaloBold) Raylib.DrawTextEx(font, str, at + new Vector2(MathF.Max(0.6f, px * 0.035f), 0f), px, spacing, color);
+                Raylib.DrawTextEx(font, str, at, px, spacing, color);
+                return;
+            }
             if (style != GizmoTextStyle.Plain)
             {
                 Vector2 m = Raylib.MeasureTextEx(font, str, px, spacing);

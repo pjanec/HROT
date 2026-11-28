@@ -380,7 +380,7 @@ namespace Hrot.Editor.DebugApi
                 Scenario = o["scenario"]?.ToString() is { Length: > 0 } sc ? sc : null,
                 Take = string.IsNullOrWhiteSpace(takeName) ? "main" : takeName!,
                 ReelName = o["reel"]?.ToString() is { Length: > 0 } reel ? reel : null,
-                Dir = c.Dir, Fps = c.Fps, Width = c.Width, Height = c.Height, Supersample = c.Supersample, Captions = c.Captions, Movie = c.Movie, Encode = c.Encode,
+                Dir = c.Dir, Fps = c.Fps, Width = c.Width, Height = c.Height, Supersample = c.Supersample, Captions = c.Captions, Movie = c.Movie, Encode = c.Encode, Frames = c.Frames, Sound = c.Sound,
             };
         }
 
@@ -395,10 +395,10 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>
-        /// ⭐ CE-1306 — the capture object (<c>{dir?, fps?, size?, supersample?, captions?, movie?, encode?}</c>) as <c>/director/play</c> and <c>/director/renders</c>
+        /// ⭐ CE-1306 — the capture object (<c>{dir?, fps?, size?, supersample?, captions?, movie?, encode?, frames?}</c>) as <c>/director/play</c> and <c>/director/renders</c>
         /// read it — ONE reading. A null object: the defaults. <paramref name="error"/> names a malformed field.
         /// </summary>
-        private static (string? Dir, int Fps, int Width, int Height, int Supersample, bool Captions, string? Movie, bool Encode) CaptureFieldsOf(JsonObject? c, out string? error)
+        private static (string? Dir, int Fps, int Width, int Height, int Supersample, bool Captions, string? Movie, bool Encode, Hrot.Common.Infrastructure.FilmFrames Frames, Hrot.Common.Infrastructure.FilmSound Sound) CaptureFieldsOf(JsonObject? c, out string? error)
         {
             error = null;
             int w = 1280, h = 720;
@@ -409,10 +409,24 @@ namespace Hrot.Editor.DebugApi
             }
             int fps = (int)(TakeJson.Double(c?["fps"]) ?? 30d);
             if (error == null && fps is < 1 or > 60) error = "fps 1…60";
+            // ⭐ CE-11018 (Q113-B) — "frames": auto (the linked client when one can film, else the map) · map (always the node's own map)
+            var frames = Hrot.Common.Infrastructure.FilmFrames.Auto;
+            if (c?["frames"]?.ToString() is { } fr)
+            {
+                if (fr.Equals("map", StringComparison.OrdinalIgnoreCase)) frames = Hrot.Common.Infrastructure.FilmFrames.Map;
+                else if (!fr.Equals("auto", StringComparison.OrdinalIgnoreCase) && error == null) error = $"frames '{fr}': auto or map";
+            }
+            // ⭐ CE-11021 (Q113-E) — "sound": hrot (the map's) · client (the linked client's track)
+            var sound = Hrot.Common.Infrastructure.FilmSound.Hrot;
+            if (c?["sound"]?.ToString() is { } so)
+            {
+                if (so.Equals("client", StringComparison.OrdinalIgnoreCase)) sound = Hrot.Common.Infrastructure.FilmSound.Client;
+                else if (!so.Equals("hrot", StringComparison.OrdinalIgnoreCase) && error == null) error = $"sound '{so}': hrot or client";
+            }
             return (c?["dir"]?.ToString() is { Length: > 0 } d ? d : null, fps, w, h, (int)(TakeJson.Double(c?["supersample"]) ?? 1d),
                     c?["captions"] is not JsonValue cv || !cv.TryGetValue<bool>(out var burn) || burn,
                     c?["movie"]?.ToString(),
-                    c?["encode"] is not JsonValue ev || !ev.TryGetValue<bool>(out var enc) || enc);
+                    c?["encode"] is not JsonValue ev || !ev.TryGetValue<bool>(out var enc) || enc, frames, sound);
         }
 
         // ── play / scout / transport ──────────────────────────────────────────────────────────
@@ -460,7 +474,7 @@ namespace Hrot.Editor.DebugApi
                 if (string.IsNullOrWhiteSpace(dir) && !string.IsNullOrWhiteSpace(scenario) && body?["reel"] is null)
                     dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(store.TakePath(scenario!, takeName))!, takeName + ".render");
                 if (string.IsNullOrWhiteSpace(dir)) return Fail(400, "capture needs dir (where the frames and the movie go)");
-                capture = new CaptureOptions(System.IO.Path.GetFullPath(dir!), f.Fps, f.Width, f.Height, f.Supersample, f.Captions, f.Movie, f.Encode);
+                capture = new CaptureOptions(System.IO.Path.GetFullPath(dir!), f.Fps, f.Width, f.Height, f.Supersample, f.Captions, f.Movie, f.Encode, f.Frames, f.Sound);
             }
             double speed = TakeJson.Double(body?["speed"]) ?? 1d;
             bool loop = body?["loop"] is JsonValue lv && lv.TryGetValue<bool>(out var l) && l;

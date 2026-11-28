@@ -24,7 +24,9 @@ internal static class TerrainFolderWriter
 
     public static void WriteWorld(string path, string description, double width, double height, string? heightGrid,
                                   IReadOnlyList<(IReadOnlyList<(double X, double Y)> Ring, string? Kind)> water, IReadOnlyList<Wood> woods,
-                                  IReadOnlyList<BuiltBuilding> buildings, IReadOnlyList<WorldWall> walls, IReadOnlyList<(double X, double Y)> trees)
+                                  IReadOnlyList<BuiltBuilding> buildings, IReadOnlyList<WorldWall> walls, IReadOnlyList<(double X, double Y)> trees,
+                                  IReadOnlyList<EntranceSteps.Ramp>? entrances = null,
+                                  IReadOnlyList<(string Structure, IReadOnlyList<Fdp.Toolkit.Terrain.DeckGeometry.Part> Parts)>? bridges = null)
     {
         using var fs = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16);
         using var w = new Utf8JsonWriter(fs, new JsonWriterOptions { Indented = false });
@@ -75,6 +77,34 @@ internal static class TerrainFolderWriter
                 Feature(() => { w.WriteString("kind", "building"); w.WriteNumber("height", b.CapHeight); w.WriteNumber("baseZ", b.CapBaseZ); w.WriteNumber("floors", 0);
                                 w.WriteString("material", b.Material); w.WriteString("label", b.Id + "-roof"); }, "Polygon", () => Ring(b.Ring));
         }
+        // ⭐ CE-5056 ④ — the entrance ramps: ground-relative (each vertex's z is its height above the ground under it; the foot's 0 is buried by the parser)
+        foreach (var r in entrances ?? Array.Empty<EntranceSteps.Ramp>())
+            Feature(() => { w.WriteString("kind", "ramp"); w.WriteString("zRef", "ground"); w.WriteBoolean("steps", true); w.WriteString("label", r.Building + "-steps"); }, "Polygon", () =>
+            {
+                w.WriteStartArray("coordinates"); w.WriteStartArray();
+                void V((double X, double Y) p, double z) { w.WriteStartArray(); w.WriteNumberValue(Math.Round(p.X, 3)); w.WriteNumberValue(Math.Round(p.Y, 3)); w.WriteNumberValue(z); w.WriteEndArray(); }
+                V(r.TopA, r.TopAboveA); V(r.TopB, r.TopAboveB); V(r.FootB, 0); V(r.FootA, 0); V(r.TopA, r.TopAboveA);
+                w.WriteEndArray(); w.WriteEndArray();
+            });
+        // ⭐ CE-5057 / CE-11063 (DESIGN_Terrain_OSM_Bridges D-6) — the OSM bridges: the authored bridge's own parts (slabs, ramps) under one collapsible structure,
+        //   ground-relative (each corner's z is its height above the ground under it — the deck runs straight between the banks over the valley)
+        foreach (var (structure, parts) in bridges ?? Array.Empty<(string, IReadOnlyList<Fdp.Toolkit.Terrain.DeckGeometry.Part>)>())
+            for (int pi = 0; pi < parts.Count; pi++)
+            {
+                var q = parts[pi];
+                string kind = q.Kind == Fdp.Toolkit.Terrain.TerrainWalkableKind.Ramp ? "ramp" : "slab";
+                string label = structure + "/" + pi.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                Feature(() => { w.WriteString("kind", kind); w.WriteString("zRef", "ground"); w.WriteString("structure", structure); w.WriteString("label", label); }, "Polygon", () =>
+                {
+                    w.WriteStartArray("coordinates"); w.WriteStartArray();
+                    for (int c = 0; c <= 4; c++)
+                    {
+                        var (at, above) = q[c % 4];
+                        w.WriteStartArray(); w.WriteNumberValue(Math.Round(at.X, 3)); w.WriteNumberValue(Math.Round(at.Y, 3)); w.WriteNumberValue(Math.Round(above, 3)); w.WriteEndArray();
+                    }
+                    w.WriteEndArray(); w.WriteEndArray();
+                });
+            }
         foreach (var wl in walls)
             Feature(() => { w.WriteString("kind", wl.Kind); w.WriteNumber("height", wl.Height); w.WriteNumber("thickness", wl.Thickness); w.WriteString("material", wl.Material); },
                     "LineString", () =>
@@ -89,9 +119,14 @@ internal static class TerrainFolderWriter
         w.WriteEndObject();
     }
 
-    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null)
+    /// <summary>⭐ <c>CE-5060</c> — THE one rule for an imported terrain's origin: the geodetic point of its (0, 0) — the input set's south-west corner
+    /// (<paramref name="swX"/>, <paramref name="swY"/>) in <paramref name="frame"/>. Written by <see cref="WriteTerrainJson"/> and read ahead of an
+    /// import by <c>SourceImport.TryReadInputDefinition</c>, so both answer the same origin by construction.</summary>
+    public static (double Lat, double Lon) OriginOf(UtmFrame frame, double swX, double swY) => Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
+
+    public static void WriteTerrainJson(string path, string name, string worldFile, UtmFrame frame, double swX, double swY, string? netFile, double anchorX, double anchorY, string? roadsFile = null, string? inputManifestSha256 = null, int importerRevision = 0)
     {
-        var (lat, lon) = Utm.ToGeodetic(frame.E0 + swX, frame.N0 + swY, frame.Zone, frame.South);
+        var (lat, lon) = OriginOf(frame, swX, swY);
         using var ms = new MemoryStream();
         using (var w = new Utf8JsonWriter(ms, new JsonWriterOptions { Indented = true }))
         {
@@ -107,6 +142,9 @@ internal static class TerrainFolderWriter
             w.WriteEndObject();
             w.WriteString("name", name);
             w.WriteString("world", worldFile);
+            // ⭐ CE-11037 (UTM §13 F-4) — the sha256 of the input set's manifest.json this folder was imported from: a changed input is told by it (the manifest hashes every file)
+            if (inputManifestSha256 != null) w.WriteString("inputManifestSha256", inputManifestSha256);
+            if (importerRevision > 0) w.WriteNumber(SourceImport.RecordedRevisionKey, importerRevision);   // ⭐ CE-5056 — what generated it (a changed generator re-imports)
             if (roadsFile != null) { w.WriteStartArray("roadNetworks"); w.WriteStringValue(roadsFile); w.WriteEndArray(); }   // ⭐ CE-6001 — the vehicles' road graph, from the same net
             if (netFile != null)
             {

@@ -429,7 +429,7 @@ namespace Fdp.Toolkit.Combat.Systems
         private static void PublishImpacts(Fdp.Interfaces.IEntityCommandBuffer cmd, in BallisticProjectile proj, List<RoundImpact> impacts,
                                            System.Numerics.Vector3 end, bool groundStop)
         {
-            if (groundStop) impacts.Add(new RoundImpact(end, System.Numerics.Vector3.UnitZ, ImpactKind.Stop));
+            if (groundStop) impacts.Add(new RoundImpact(end, System.Numerics.Vector3.UnitZ, ImpactKind.Stop, ImpactMaterial.Soil));   // ⭐ CE-11009 (RR-9) — the ground
             var travel = end - proj.PreviousPosition;
             bool warhead = (proj.Warhead & WarheadRound.Area) != 0;
             float reach = System.Numerics.Vector3.Dot(end - proj.PreviousPosition, travel);
@@ -443,7 +443,7 @@ namespace Fdp.Toolkit.Combat.Systems
                     Shooter = proj.Shooter, X = i.At.X, Y = i.At.Y, Z = i.At.Z,
                     NormalX = i.Normal.X, NormalY = i.Normal.Y, NormalZ = i.Normal.Z,
                     TravelX = travel.X, TravelY = travel.Y, TravelZ = travel.Z,
-                    Ammo = proj.Ammo, Kind = (byte)i.Kind,
+                    Ammo = proj.Ammo, Kind = (byte)i.Kind, Material = (byte)i.Material,   // ⭐ CE-11009 (RR-9)
                 });
             }
             impacts.Clear();

@@ -307,6 +307,7 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<Fear>(flock) = new Fear { Value = 0.9f, FrightFrom = new Vector3(-150, 0, 0), HasFrightFrom = 1, LastFrightAt = (Fdp.Core.SimInstant)w.Repo.SimulationTime };
             w.Run(0.3);
             Assert.Equal(FlockMode.Flying, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+            Assert.True((w.Repo.GetComponentRO<AnimalState>(flock).Flags & AnimalFlags.InFlight) != 0);   // ⭐ CE-11008 (RR-8) — "flying" is state, on its flags too
             var (to, speed, _) = w.Move(flock);
             Assert.True(to.X > 200f, $"it flies away from the shot: {to}");
             Assert.Equal(Flock.FleeSpeed, speed);
@@ -314,6 +315,7 @@ namespace Hrot.SimHost.Tests
             w.Repo.GetComponentRW<Fear>(flock).Value = 0.3f;
             w.Run(0.3);
             Assert.Equal(FlockMode.Landed, w.Repo.GetComponentRO<FlockState>(flock).Mode);
+            Assert.Equal(AnimalFlags.None, w.Repo.GetComponentRO<AnimalState>(flock).Flags & AnimalFlags.InFlight);   // ⭐ CE-11008 — landed: cleared
             w.Repo.GetComponentRW<Fear>(flock).Value = 0f;
             w.Run(Flock.Recovery * AnimalBehavior.LookBackShare + 0.5);
             Assert.Equal(FlockMode.Perched, w.Repo.GetComponentRO<FlockState>(flock).Mode);
@@ -335,6 +337,7 @@ namespace Hrot.SimHost.Tests
             Assert.True(moving);
             Assert.True(Vector3.Distance(new Vector3(-100, 0, 10), to) > Fdp.Toolkit.Motion.BirdFlightModel.DescendWithinM, $"it flies past the descent distance: {to}");
             Assert.Equal(FlockMode.Flying, w.Repo.GetComponentRO<FlockState>(bird).Mode);
+            Assert.True((w.Repo.GetComponentRO<AnimalState>(bird).Flags & AnimalFlags.InFlight) != 0);   // ⭐ CE-11008 (RR-8) — a lone bird says it on its own flags
         }
 
         /// <summary>⭐ <c>CE-4649</c> part C ② (AN-20a) — a lone BIRD's collider is its BODY (radius 0.15 m = half its 0.3 m width, height 0.15 m), not the 2.5 m fallback circle that made it a 5 m barn door; (the round\'s height band follows it: RaycastSolverSystemTests CE4649). ✅ Red-proof: the animal arm of the translator removed ⇒ radius 2.5 ⇒ red.</summary>

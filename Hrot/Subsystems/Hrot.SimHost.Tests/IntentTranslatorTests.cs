@@ -35,6 +35,7 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterManagedComponent<InitialHierarchyIntent>();
             _repo.RegisterManagedComponent<InitialVehicleIntent>();
             _repo.RegisterManagedComponent<InitialRouteIntent>();
+            _repo.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();
         }
 
         public void Dispose() => _repo.Dispose();
@@ -225,5 +226,11 @@ namespace Hrot.SimHost.Tests
             var entity = _repo.CreateEntity();
             Assert.False(new PersonalRouteRefTranslator().CanTranslate(_repo, entity));
         }
+
+        //   🔴 Red-proof: without the translator the generic serializer reads Peer0's GUID as the load pass's PLACEHOLDER entity — measured, dv-linked-target's
+        //   first run sent to an entity that was no device — and the link never reaches its peer.
+
+        private const string GuidA = "378acf61-8f50-5aae-8e7d-d9abc821ae0a", GuidB = "0a64f3c2-1b2d-5c3e-9f40-5a6b7c8d9e0f";
+
     }
 }

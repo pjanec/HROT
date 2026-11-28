@@ -116,6 +116,37 @@ namespace Fdp.Diagnostics.Contracts.Tests
             Assert.Equal(2, frame.Count(p => DebugPrimitiveBuffer.IsPickTarget(in p)));   // the plain lines gave way, not the pick targets
         }
 
+        /// <summary>⭐ CC-16 — an anchor arriving at a full buffer used to be DROPPED (it was not "protected"); it evicts a plain primitive now,
+        /// like the mask and the bindings, so an entity never loses its anchor (and with it every EntityLocal primitive) to overflow.</summary>
+        [Fact]
+        public void CC16_AnAnchorArrivingAtAFullBuffer_EvictsAPlainPrimitive_InsteadOfBeingDropped()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 8);
+            for (int i = 0; i < 8; i++) Line(b, Visible);     // full
+            b.EmitRaw(DebugPrimitive.MakeSpatialAnchor(77, 1f, 2f, 3f, 0f));
+
+            var frame = b.GetFrame().ToArray();
+            Assert.Equal(8, frame.Length);
+            Assert.Contains(frame, p => p.Shape == DebugPrimitiveShape.SpatialAnchor && p.NetworkId == 77);
+            Assert.Equal(7, frame.Count(p => p.Shape == DebugPrimitiveShape.Line));
+            Assert.Equal(1, b.DroppedCount);                  // the evicted plain line
+        }
+
+        /// <summary>⭐ CC-16 — <c>MoveDefaultLayer</c> moved a pick target off layer 0 (it was not in its skip list), so a tool's pick box left the
+        /// layer the hit-test relies on.</summary>
+        [Fact]
+        public void CC16_MoveDefaultLayer_LeavesAPickTargetOnLayerZero_ButMovesAPlainPrimitive()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 8);
+            b.EmitRaw(DebugPrimitive.MakeBox2D(new Vector2(1f, 1f), new Vector2(2f, 2f), new Rgba32(0, 0, 0, 0), layer: 0, anchorId: 5));   // pick target
+            Line(b, Visible);
+            b.MoveDefaultLayer(0, 9);
+
+            var frame = b.GetFrame().ToArray();
+            Assert.Equal(0, frame.Single(p => DebugPrimitiveBuffer.IsPickTarget(in p)).DebugLayer);
+            Assert.Equal(9, frame.Single(p => p.Shape == DebugPrimitiveShape.Line).DebugLayer);
+        }
+
         [Fact]
         public void CE1071_EndFrame_ResetsTheCounts_ButKeepsTheMask()
         {
@@ -149,6 +180,125 @@ namespace Fdp.Diagnostics.Contracts.Tests
             b.Clear();
             Assert.Equal(0, b.LastFrameDropped);
             Assert.True(b.Capacity <= DebugPrimitiveBuffer.MaxCapacity);
+        }
+        // ── ⭐⭐ Simulated devices S1d-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-41 / R4-5 / R5-7 / R6-5 / R6-9, R7-13) — HUD scopes ──
+
+        private const long Device = 1001;
+
+        [Fact]
+        public void S1d1_EndScope_StampsTheRunsCount_AtTheScopesActualSlot()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 16);
+            Line(b, Visible);
+            int slot = b.BeginScope(Device);
+            Line(b, Visible); Line(b, Visible); Line(b, Visible);
+            Assert.Equal(3, b.EndScope());
+            Line(b, Visible);
+            var f = b.GetFrame();
+            Assert.Equal(1, slot);
+            Assert.Equal(DebugPrimitiveShape.HudScope, f[slot].Shape);
+            Assert.Equal(Device, f[slot].HudScopeSource);
+            Assert.Equal(3, f[slot].HudScopeCount);
+            Assert.Equal(6, f.Length);
+        }
+
+        [Fact]
+        public void S1d1_AnEmptyScope_IsDropped()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 16);
+            Line(b, Visible);
+            b.BeginScope(Device);
+            Assert.Equal(0, b.EndScope());
+            Assert.Equal(1, b.GetFrame().Length);              // the cursor rolled back: no marker left
+            Assert.Equal(1, b.EmptyScopesDropped);
+            Assert.DoesNotContain(DebugPrimitiveShape.HudScope, b.GetFrame().ToArray().Select(p => p.Shape));
+        }
+
+        [Fact]
+        public void S1d1_AScope_IsNeverRefusedByLayer()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 16);
+            b.SetActiveLayers(new LayerMask256());           // every layer hidden
+            int slot = b.BeginScope(Device);
+            Assert.Equal(0, slot);
+            Assert.Equal(DebugPrimitiveShape.HudScope, b.GetFrame()[0].Shape);
+        }
+
+        [Fact]
+        public void S1d1_AFullBuffer_TheScopeSurvivesEviction_CountsWhatWasStored_AndDroppedCountCountsTheRest()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 8);
+            for (int i = 0; i < 5; i++) Line(b, Visible);
+            int slot = b.BeginScope(Device);                  // slot 5
+            for (int i = 0; i < 4; i++) Line(b, Visible);     // two fit (6, 7), two dropped
+            b.DrawMainMenuBinding("[{\"label\":\"View\"}]"); // protected: evicts the run's LAST plain line (7) — a meta shape inside the run
+            Assert.Equal(2, b.EndScope());
+            var f = b.GetFrame();
+            Assert.Equal(5, slot);
+            Assert.Equal(DebugPrimitiveShape.HudScope, f[slot].Shape);
+            Assert.Equal(2, f[slot].HudScopeCount);           // the part that fit stays scoped (⛔ 0 would release it to every reader)
+            Assert.Equal(DebugPrimitiveShape.MainMenuBinding, f[7].Shape);
+            Assert.Equal(3, b.DroppedCount);                  // two lines that did not fit + the evicted one
+            for (int i = 0; i < 20; i++) b.EmitRaw(DebugPrimitive.MakeLayerControlMask(new LayerMask256()));   // more protected ones: the scope is never evicted
+            Assert.Equal(DebugPrimitiveShape.HudScope, b.GetFrame()[slot].Shape);
+        }
+
+        [Fact]
+        public void S1d1_AScopeOpenedOnAFullBuffer_IsNotStored_AndCounted()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 4);
+            for (int i = 0; i < 4; i++) Line(b, Visible);
+            Assert.Equal(-1, b.BeginScope(Device));
+            Line(b, Visible);
+            Assert.Equal(0, b.EndScope());
+            Assert.Equal(2, b.DroppedCount);                  // the scope and its line
+            Assert.DoesNotContain(DebugPrimitiveShape.HudScope, b.GetFrame().ToArray().Select(p => p.Shape));
+        }
+
+        [Fact]
+        public void S1d1_AReAppendedHeldPicture_IsReStampedForThisFramesSlots()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 16);
+            b.BeginScope(Device); Line(b, Visible); Line(b, Visible); b.EndScope();
+            Line(b, Visible);
+            var held = b.GetFrame().ToArray();                // [scope 2, L, L, L]
+            b.Clear();
+            Line(b, Visible); Line(b, Visible);
+            b.AppendHeld(held);
+            var f = b.GetFrame();
+            Assert.Equal(6, f.Length);
+            Assert.Equal(DebugPrimitiveShape.HudScope, f[2].Shape);
+            Assert.Equal(2, f[2].HudScopeCount);
+
+            var small = new DebugPrimitiveBuffer(capacity: 3);  // the held picture no longer fits: the scope owns only what was stored
+            small.AppendHeld(held);
+            Assert.Equal(2, small.GetFrame()[0].HudScopeCount);
+        }
+
+        [Fact]
+        public void S1d1_R7_13_AnAppendFromAnotherThreadInsideARun_IsCounted()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 64);
+            b.BeginScope(Device);
+            Line(b, Visible);
+            Assert.Equal(0, b.ForeignAppendsInScope);
+            var t = new System.Threading.Thread(() => Line(b, Visible));
+            t.Start(); t.Join();
+            b.EndScope();
+            Assert.Equal(1, b.ForeignAppendsInScope);
+            var after = new System.Threading.Thread(() => Line(b, Visible));   // no scope open: not foreign
+            after.Start(); after.Join();
+            Assert.Equal(1, b.ForeignAppendsInScope);
+        }
+
+        [Fact]
+        public void S1d1_BeginAndEndScope_AllocateNothingSteady()
+        {
+            var b = new DebugPrimitiveBuffer(capacity: 256);
+            for (int k = 0; k < 50; k++) { b.Clear(); b.BeginScope(Device); Line(b, Visible); b.EndScope(); b.BeginScope(Device); b.EndScope(); }
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            for (int k = 0; k < 500; k++) { b.Clear(); b.BeginScope(Device); Line(b, Visible); Line(b, Visible); b.EndScope(); b.BeginScope(Device); b.EndScope(); }
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
         }
     }
 }

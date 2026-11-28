@@ -64,7 +64,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var ammo = new Fdp.Toolkit.Combat.Components.WeaponAmmo { Count = 2 };                                       // two weapons
             ammo.Set(0, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 30, MaxAmmo = 30 });
             ammo.Set(1, new Fdp.Toolkit.Combat.Components.WeaponState { Ammo = 10, MaxAmmo = 10 });
@@ -161,7 +161,7 @@ public sealed partial class PossessionStationTests
             w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
             w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 300f), Rotation = Quaternion.Identity });
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = false };
             void Step(float wheel = 0f)

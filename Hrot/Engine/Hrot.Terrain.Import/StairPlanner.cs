@@ -33,6 +33,17 @@ internal static class StairPlanner
     public sealed record Plan(IReadOnlyList<Stair> Stairs, IReadOnlyList<IReadOnlyList<(double X, double Y)>>[] Floors);
 
     public static Plan? TryPlan(IReadOnlyList<(double X, double Y)> ring, IReadOnlyList<double> storeyHeights)
+        => TryPlan(ring, storeyHeights, Array.Empty<(double X, double Y)>());
+
+    /// <summary>⭐ CE-5056 — how far a ground-floor door's clear apron reaches into the room (m), and how far past each jamb along the wall.</summary>
+    public const double DoorApronDepth = 1.5, DoorApronSide = 0.3;
+
+    /// <summary>
+    /// ⭐ CE-5056 — <see cref="TryPlan(IReadOnlyList{ValueTuple{double, double}}, IReadOnlyList{double})"/> keeping a CLEAR APRON inside every ground-floor door of
+    /// <paramref name="groundDoors"/> (their points, near the wall): no stair (with its landings) may overlap it. 📐 village-street: 54 of the ground doors that had
+    /// no path through opened straight onto the stair's ramp (the gun house's east door). A building whose stair then fits nowhere is solid (counted, as before).
+    /// </summary>
+    public static Plan? TryPlan(IReadOnlyList<(double X, double Y)> ring, IReadOnlyList<double> storeyHeights, IReadOnlyList<(double X, double Y)> groundDoors)
     {
         int storeys = storeyHeights.Count;
         var stairs = new List<Stair>();
@@ -47,7 +58,8 @@ internal static class StairPlanner
             .Select(e => (E: e, L: Dist(footprint[e], footprint[(e + 1) % n])))
             .OrderByDescending(x => x.L).ThenBy(x => x.E).ToList();
 
-        var taken = new List<PathD>();   // the expanded stairwells already chosen
+        var taken = new List<PathD>();   // the expanded stairwells already chosen — and (CE-5056) every ground door's apron
+        foreach (var door in groundDoors) if (DoorApron(footprint, door) is { } apron) taken.Add(apron);
         for (int k = 0; k + 1 < storeys; k++)
         {
             double h = storeyHeights[k];
@@ -62,6 +74,24 @@ internal static class StairPlanner
             floors[k + 1] = rings;
         }
         return new Plan(stairs, floors!);
+    }
+
+    /// <summary>⭐ CE-5056 — the clear apron of the door at <paramref name="door"/>: on the footprint edge nearest it, the door's width (<see cref="OpeningPlacer.DoorWidth"/>)
+    /// plus <see cref="DoorApronSide"/> each side, from the wall <see cref="DoorApronDepth"/> into the room. Null when the footprint has no edge.</summary>
+    internal static PathD? DoorApron(PathD footprint, (double X, double Y) door)
+    {
+        int n = footprint.Count, best = -1; double bestD = double.MaxValue, bestT = 0, bestLen = 0;
+        for (int e = 0; e < n; e++)
+        {
+            var a = footprint[e]; var b = footprint[(e + 1) % n];
+            double len = Dist(a, b); if (len < 1e-6) continue;
+            double t = Math.Clamp(((door.X - a.x) * (b.x - a.x) + (door.Y - a.y) * (b.y - a.y)) / (len * len), 0, 1) * len;
+            double px = a.x + (b.x - a.x) * t / len, py = a.y + (b.y - a.y) * t / len, d = Math.Sqrt((door.X - px) * (door.X - px) + (door.Y - py) * (door.Y - py));
+            if (d < bestD) { bestD = d; best = e; bestT = t; bestLen = len; }
+        }
+        if (best < 0) return null;
+        double half = OpeningPlacer.DoorWidth / 2 + DoorApronSide;
+        return Rect(WallFrame(footprint, best, bestLen), bestT - half, bestT + half, -0.2, DoorApronDepth);
     }
 
     private delegate PointD Frame(double t, double l);

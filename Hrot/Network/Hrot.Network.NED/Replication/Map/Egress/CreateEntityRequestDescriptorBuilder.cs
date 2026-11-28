@@ -127,6 +127,13 @@ namespace Hrot.Map.Common.Replication.Egress
                             _d              = EDescriptorType.dtAreaEffectCloud,
                             AreaEffectCloud = Hrot.Map.Common.Replication.Egress.EntityAreaEffectCloudEgressTranslator.ToSample(0, cloud),
                         });
+                    // ⭐ CE-11034 — an ambience layer rides the forwarded request the same way
+                    else if (component is Fdp.Toolkit.Ambient.Ambience ambience)
+                        descriptors.Add(new EntityDescriptorUnion
+                        {
+                            _d       = EDescriptorType.dtAmbience,
+                            Ambience = Hrot.Map.Common.Replication.Egress.EntityAmbienceEgressTranslator.ToSample(0, ambience),
+                        });
                 }
 
                 if (polyline != null)

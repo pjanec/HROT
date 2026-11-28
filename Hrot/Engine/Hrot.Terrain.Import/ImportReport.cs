@@ -18,6 +18,8 @@ public sealed class ImportReport
     public int BuildingsSolid { get; set; }
     public int SolidBecauseNoStair { get; set; }
     public int RoofCaps { get; set; }
+    /// <summary>⭐ CE-5056 ④ — entrance ramps generated for raised ground-floor doors (<see cref="EntranceSteps"/>).</summary>
+    public int EntranceSteps { get; set; }
     public int SharedWallsMerged { get; set; }
 
     public int OpeningsPlaced { get; set; }
@@ -48,6 +50,8 @@ public sealed class ImportReport
 
     /// <summary>⭐ CE-4403 (P-1 part 2) — road corridors levelled into the ground: corridors, junctions, posts levelled, posts kept natural (a cut / fill over 6 m), road posts under a house (D-3).</summary>
     public int RoadCorridors { get; set; }
+    /// <summary>⭐ CE-5057 — the OSM bridges made decks (one per bridged edge chain).</summary>
+    public int Bridges { get; set; }
     public int RoadJunctions { get; set; }
     public long RoadPostsLevelled { get; set; }
     public long RoadPostsKeptNatural { get; set; }
@@ -73,11 +77,11 @@ public static class ImportReportText
     {
         var inv = System.Globalization.CultureInfo.InvariantCulture;
         w.WriteLine(string.Create(inv, $"terrain '{r.TerrainName}': heights {r.HeightCols} x {r.HeightRows} posts at 1 m ({r.HeightPostsFilled} NODATA filled)"));
-        w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs ({r.StairsSwitchBack} switch-back)"));
+        w.WriteLine(string.Create(inv, $"buildings: {r.BuildingsEnterable} enterable, {r.BuildingsSolid} solid ({r.SolidBecauseNoStair} for want of a stair), {r.RoofCaps} roof caps, {r.EntranceSteps} entrance steps, {r.SharedWallsMerged} shared walls merged, {r.Stairs} stairs ({r.StairsSwitchBack} switch-back)"));
         w.WriteLine(string.Create(inv, $"openings: {r.OpeningsPlaced} placed, {r.OpeningsDropped} dropped (off wall {r.OpeningsDroppedOffWall}, party wall {r.OpeningsDroppedOnPartyWall}, overlap {r.OpeningsDroppedOverlap}, other {r.OpeningsDroppedOther}); {r.UnassignedSkipped} unassigned points ignored"));
         w.WriteLine(string.Create(inv, $"vegetation: {r.WoodsPolygons} wood polygons + {r.WoodsFromPoints} clustered from points, {r.LoneTrees} lone trees, {r.WaterAreas} water areas, {r.Walls} walls, {r.ScrubSkipped} scrub skipped"));
         w.WriteLine(string.Create(inv, $"pads: {r.Pads} house pads, {r.PadPostsCut} posts cut, {r.PadsWidened} skirts widened for a deep cut"));
-        w.WriteLine(string.Create(inv, $"roads: {r.RoadCorridors} corridors, {r.RoadJunctions} junctions levelled ({r.RoadPostsLevelled} posts; {r.RoadPostsKeptNatural} kept natural past 6 m; {r.RoadPostsUnderHouses} under houses); {r.NetPointsElevated} net points re-elevated"));
+        w.WriteLine(string.Create(inv, $"roads: {r.RoadCorridors} corridors, {r.RoadJunctions} junctions levelled ({r.RoadPostsLevelled} posts; {r.RoadPostsKeptNatural} kept natural past 6 m; {r.RoadPostsUnderHouses} under houses); {r.NetPointsElevated} net points re-elevated; {r.Bridges} bridges"));
         if (r.NavmeshTiles > 0)
             w.WriteLine(string.Create(inv, $"navmesh: {r.NavmeshTiles} tiles ({r.NavmeshBaked} baked), {r.NavmeshFiles} files, {r.NavmeshBytes / 1e6:0.0} MB in navtiles/"));
         string stages = string.Join(", ", r.StageSeconds.Select(kv => string.Create(inv, $"{kv.Key} {kv.Value:0.0}")));

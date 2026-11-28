@@ -41,6 +41,10 @@ namespace Hrot.UI.Common.Map3D.Director
         public string? Movie { get; init; }
         /// <summary>False: the frames only, no movie (no ffmpeg).</summary>
         public bool Encode { get; init; } = true;
+        /// <summary>⭐ CE-11018 (Q113-B) — where the job's scene frames come from: auto (the node's linked client when one can film, else the map) · map.</summary>
+        public Hrot.Common.Infrastructure.FilmFrames Frames { get; init; } = Hrot.Common.Infrastructure.FilmFrames.Auto;
+        /// <summary>⭐ CE-11021 (Q113-E) — the job's soundtrack: hrot (the map's own, the default) · client (the linked client's <c>FilmTrack</c> is muxed).</summary>
+        public Hrot.Common.Infrastructure.FilmSound Sound { get; init; } = Hrot.Common.Infrastructure.FilmSound.Hrot;
         /// <summary>Stills: film seconds (else every key with <see cref="EveryKey"/>, else the take's still keys).</summary>
         public IReadOnlyList<double>? Times { get; init; }
         public bool EveryKey { get; init; }
@@ -166,6 +170,9 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>Null when this host can render, else why not (a headless host has no frame to capture).</summary>
         public string? Refusal => _sink == null ? NoRenderer : null;
+
+        /// <summary>⭐ CE-11018 — the frame sink the queue's jobs render through (rails: the pack's one sink).</summary>
+        public IFrameSink? Sink => _sink;
 
         /// <summary>Every job: the queued in order, the running one, the ended ones (the last <see cref="MaxEnded"/>).</summary>
         public IReadOnlyList<RenderJob> Jobs => _jobs;
@@ -297,7 +304,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var folder = r.Dir ?? (oneTake
                 ? Path.Combine(Path.GetDirectoryName(store.TakePath(scenario!, r.Take))!, r.Take + ".render", job.Id)
                 : Path.Combine(store.ScenariosRoot, ".renders", (string.IsNullOrEmpty(reel.Name) ? "reel" : reel.Name).Replace('/', '-'), job.Id));
-            var capture = new CaptureOptions(Path.GetFullPath(folder), r.Fps, r.Width, r.Height, r.Supersample, r.Captions, r.Movie, r.Encode);
+            var capture = new CaptureOptions(Path.GetFullPath(folder), r.Fps, r.Width, r.Height, r.Supersample, r.Captions, r.Movie, r.Encode, r.Frames, r.Sound);
             job.Dir = capture.Dir;
             job.Capture = capture;
             job.Items = reel.Items.Count;
@@ -311,6 +318,9 @@ namespace Hrot.UI.Common.Map3D.Director
             if (job.State == RenderState.Opening)
             {
                 if (--job.Settle > 0) return;
+                // ⭐ CE-11023 — an opener whose open runs through the cluster (the editor) says when its world is ready, or why it failed
+                if (Recordings?.OpenFailure is { } openFailed) { End(job, RenderState.Failed, $"recording '{job.Request.Recording}' did not open: {openFailed}"); return; }
+                if (Recordings?.Opening == true) { job.Settle = 1; return; }
                 // ⭐ CE-1305 TE-10 (§11v S2) — a stills job plans its keys through the recording's INDEX (the one resolver): wait until it is read
                 //   (it is scanned in the background after the open), at most MaxIndexWaitFrames
                 if (job.Request.Kind == RenderKind.Stills && _runner.Index?.Invoke() is { IsComplete: false } && ++job.IndexWait < MaxIndexWaitFrames) { job.Settle = 1; return; }

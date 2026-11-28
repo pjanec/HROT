@@ -333,6 +333,13 @@ namespace Fdp.Toolkit.Perception.Components
         /// from where he had last seen him and held him twice. ⚠ Two enemies closer than this are heard as one — a buddy pair, as a listener would.</summary>
         public const float KnownMoveSlackMetres = 3f;
 
+        /// <summary>⭐ <c>CE-2492</c> — how fast a man only heard may have moved since he was last heard (m/s): a brisk walk. Caps at <see cref="KnownMoveSlackMetres"/>.</summary>
+        public const float WalkMetresPerSecond = 1.5f;
+
+        /// <summary>⭐ <c>CE-2492</c> — how far apart in time two bangs heard in ONE step may be (s): the acoustic solve delivers every bang since the last
+        /// at once (📐 the batch's ages spanned 0.02–0.30 s). The walking slack counts at least this long.</summary>
+        public const float HeardBatchSeconds = 0.5f;
+
         /// <summary>⭐ <c>CE-2477</c> (Sensing §8.6e) — the tightest a fused heard circle may get, as a share of ONE hearing's circle: a lone listener
         /// localises a sound to a few degrees of bearing and judges range only by loudness, so however many shots he hears the estimate does not
         /// sharpen past ~a third of one hearing's circle (≈ 3° at the 0.15 × distance circle). 📐 pe-seen-shooter: 146 fused shots took 26 m to
@@ -359,7 +366,7 @@ namespace Fdp.Toolkit.Perception.Components
         /// Returns the slot's id. ⛔ Never an identity: the source is not known here, only "something about here".
         /// </summary>
         public static long HearContact(ref TargetMemory mem, float x, float y, float z, float radius, byte sourceClass,
-                                       float scoreBoost, uint tick, byte via = 0, long sound = 0)
+                                       float scoreBoost, uint tick, byte via = 0, long sound = 0, float stepSeconds = 1f / 60f)
         {
             radius = radius > 0f ? radius : 1f;
             bool burst = sourceClass == BurstClass;   // ⭐ R-2071 E-1 — a burst refreshes no known contact and fuses only with a burst
@@ -398,6 +405,12 @@ namespace Fdp.Toolkit.Perception.Components
                 if (burst != (mem.SourceClass[i] == BurstClass)) continue;
                 float dx = mem.PositionsX[i] - x, dy = mem.PositionsY[i] - y, d2 = dx * dx + dy * dy;
                 float reach = mem.Radius[i] + radius;
+                // ⭐ CE-2492 — a man only HEARD may have WALKED since he was last heard (📐 pe-wall-and-door: a shooter walking to his target, 1.6 m
+                //   between two shots, 0.7 m circles ⇒ held twice). Straight hearings only (a point round an opening is the way in, CE-2489), never a burst
+                //   ⭐ at least HeardBatchSeconds: one acoustic solve delivers every bang since the last, in ONE step (📐 P2b: bangs 86 and 88 in the same
+                //   step, 1.6 m apart — the elapsed steps were 0)
+                if (!burst && via == 0 && mem.Anonymous[i] == HeardStraight && tick >= mem.LastSeenTick[i])
+                    reach += MathF.Min(KnownMoveSlackMetres, WalkMetresPerSecond * MathF.Max(HeardBatchSeconds, (tick - mem.LastSeenTick[i]) * stepSeconds));
                 if (d2 <= reach * reach && d2 < bestD2) { best = i; bestD2 = d2; }
             }
             if (best >= 0)

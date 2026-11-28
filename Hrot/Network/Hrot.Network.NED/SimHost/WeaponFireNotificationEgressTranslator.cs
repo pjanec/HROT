@@ -108,6 +108,7 @@ namespace Hrot.Network.NED.SimHost
                     FiredAt         = evt.FiredAt,
                     RequestId       = evt.RequestId,        // ⭐ Q94 A-1 (R-3018)
                     Refusal         = (byte)evt.Refusal,
+                    BurstId = evt.BurstId, BurstRounds = evt.BurstRounds, BurstIndex = evt.BurstIndex,   // ⭐ CE-11033
                 });
                 SentSampleCount++;
             }

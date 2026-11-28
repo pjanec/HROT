@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using Fdp.Core;
+using MissionPlanQueue = Fdp.Toolkit.Behavior.Components.MissionPlanQueue;
+using ActiveMissionPlan = Fdp.Toolkit.Behavior.Components.ActiveMissionPlan;
 using Hrot.Core.Mission;
 using Hrot.UI.Common.Models;
 
@@ -151,6 +154,35 @@ namespace Hrot.Editor.DebugApi
             // Guid.Empty → the execution system jumps to task index 0 (start), resetting the phase clock.
             return (_missionEditor.SendControlCommandAsync(networkId, eMissionCommandType.CMD_JUMP_TO_TASK, Guid.Empty),
                     meta, null, null);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-3494</c> (R-3115) — <c>POST /missions/{networkId}/resume</c>: resume a HELD plan (an operator's order holds it) or retry a
+        /// FAULTED one — <c>CMD_JUMP_TO_TASK</c> to the CURRENT task, which restarts it; for a held plan the execution system also ends the order.
+        /// Refused when the plan is neither held nor faulted. Runs on the main thread; await the task off it.
+        /// </summary>
+        public (Task<MissionCommitResult>? commit, JsonNode? meta, string? error, string? hintCategory) BeginResumeMission(int networkId)
+        {
+            if (_missionEditor is null)
+                return (null, null, "No mission service is wired into this host, so missions cannot be resumed.", DebugApiHints.MissionTask);
+            if (!_entityMap.TryGetEntity(networkId, out var entity))
+                return (null, null, $"Entity {networkId} not found. List entities with GET /entities.", DebugApiHints.Entity);
+            var world = _world;
+            if (!world.IsComponentTypeRegistered<MissionPlanQueue>() || !world.HasComponent<MissionPlanQueue>(entity))
+                return (null, null, $"Entity {networkId} has no mission plan.", DebugApiHints.MissionTask);
+            var queue = world.GetComponentRO<MissionPlanQueue>(entity);
+            if (queue.Halted == 0)
+                return (null, null, $"Entity {networkId}'s plan is not held or halted — nothing to resume (use /run to restart it).", DebugApiHints.MissionTask);
+            var order = world.HasManagedComponent<ActiveMissionPlan>(entity)
+                ? ((Fdp.ModuleHost.Abstractions.ISimulationView)world).GetManagedComponentRO<ActiveMissionPlan>(entity)?.TaskOrder : null;
+            var taskId = order != null && queue.CurrentTask < order.Count ? order[queue.CurrentTask] : Guid.Empty;
+            var meta = new JsonObject
+            {
+                ["networkId"] = networkId,
+                ["task"]      = queue.CurrentTask,
+                ["held"]      = queue.Halted == MissionPlanQueue.HaltedHeldByOrder,
+            };
+            return (_missionEditor.SendControlCommandAsync(networkId, eMissionCommandType.CMD_JUMP_TO_TASK, taskId), meta, null, null);
         }
 
         // ── shared plumbing ─────────────────────────────────────────────────────

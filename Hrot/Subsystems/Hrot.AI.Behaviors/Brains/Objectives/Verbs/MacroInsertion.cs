@@ -62,6 +62,9 @@ namespace Hrot.AI.Behaviors.Brains.Objectives.Verbs
             return status.State;
         }
 
+        /// <summary>⭐ CE-11034 — the entity with this <see cref="EntityGuid"/> on this node, or <see cref="Entity.Null"/> (the one lookup; <c>SetAmbience</c> waits for its layer by it).</summary>
+        internal static Entity FindByGuid(EntityRepository world, Guid guid) => Find(world, guid);
+
         private static Entity Find(EntityRepository world, Guid guid)
         {
             if (!world.IsComponentTypeRegistered<EntityGuid>()) return Entity.Null;

@@ -33,7 +33,8 @@ namespace Hrot.Map.Common.ClusterLoad;
 /// never from a hand-written registration order, so <i>"this host forgot to register a step"</i> cannot be
 /// expressed — a required part with no provider throws at startup instead of being silently absent.</para>
 /// </summary>
-public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler, ILoadProgressSource
+public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHandler, ILoadProgressSource,
+                                     Fdp.Toolkit.Orchestration.Handlers.IReplayWorldLoad   // ⭐ CE-11025 — a replay open's world, through the same parts
 {
     private readonly IReadOnlyList<ILoadPartProvider> _steps;
     private readonly EntityRepository? _world;
@@ -71,8 +72,27 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         _hostLabel = hostLabel;
     }
 
-    /// <summary>⭐ <c>CE-3345</c> — the name of the load step in flight (a <see cref="LoadPart"/>), or <see langword="null"/> when no load is. While the Operating prepare is held it names the first step not yet resolved.</summary>
-    public string? CurrentLoadStep => _currentStep;
+    /// <summary>⭐ <c>CE-3345</c> — the name of the load step in flight (a <see cref="LoadPart"/>), or <see langword="null"/> when no load is. While the Operating prepare is held it names the first step not yet resolved.
+    /// <para>⭐ <c>CE-11038</c> — while a stage of the step reports how far it has got (<see cref="LoadProgress.ReportDetail"/>: the navmesh bake's tiles), the text says so —
+    /// <i>"Terrain: navmesh 12000/59834"</i> — so the ONE progress report (the heartbeat's step, the director's stall clock) moves during a long stage. ⭐ Built only when the detail
+    /// changed (once a second at most): the per-frame read allocates nothing.</para></summary>
+    public string? CurrentLoadStep
+    {
+        get
+        {
+            var step = _currentStep;
+            var detail = step == null ? null : _loadProgress?.Detail;
+            if (detail == null) return step;
+            var cached = _composed;
+            if (cached.Step == step && ReferenceEquals(cached.Detail, detail)) return cached.Text;
+            var text = step + ": " + detail;
+            _composed = (step, detail, text);
+            return text;
+        }
+    }
+
+    private volatile LoadProgress? _loadProgress;                                   // the node's progress the load in flight reports into (set at the prepare)
+    private (string? Step, string? Detail, string? Text) _composed;                 // the last composed text — a reference compare per read
 
     /// <summary>⭐ The ordered parts this chain actually runs — for rails and diagnostics.</summary>
     public IReadOnlyList<LoadPart> Parts => _steps.Select(s => s.Part).ToArray();
@@ -245,6 +265,7 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         //   a faster node's entities replicate in meanwhile (CE-2242), and that must not pass for a hung loader's progress.
         //   📄 docs/DESIGN_Cluster_Load_Phase.md §12.
         var progress = LoadProgress.Current;
+        _loadProgress = progress;
         progress?.Watch(null);
         progress?.ResetLongestSilence();
 
@@ -360,6 +381,91 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
             WorldBoundaryReset.Clear(_world, _entityMap, _hostLabel);
     }
 
+    // ── ⭐⭐ CE-11025 (Q113-J, R-11009; DESIGN_Linked_Client_Director §2e) — A REPLAY OPEN'S WORLD ───────────────────────────────────────────────
+    //    The replay handler (ReferenceReplayLoadHandler) drives these once the recording is open: its terrain (name + overlay from the recording),
+    //    then the 3-D map and the linked client — the SAME providers a live load runs, one readiness (the per-frame drain below). ⛔ Only the WORLD
+    //    parts: the knowledge base stays, and the entities come from the recording, never from a scenario.
+
+    private Guid _replayLoadId;
+    private LoadPhaseContext? _replayContext;
+    private TaskCompletionSource<object?>? _replayHold;
+
+    /// <summary>⭐ CE-11025 — the parts a replay's world runs: terrain, map, linked client, in the chain's order.</summary>
+    internal IEnumerable<ILoadPartProvider> ReplayWorldSteps
+    {
+        get
+        {
+            foreach (var step in _steps)
+                if (step.Part is LoadPart.Terrain or LoadPart.Map3D or LoadPart.LinkedClient) yield return step;
+        }
+    }
+
+    /// <inheritdoc/>
+    public async Task PrepareAsync(Guid loadId, string terrainName, string? overlayHash, CancellationToken ct)
+    {
+        var context = new LoadPhaseContext(loadId, ClusterState.LoadingReplay, ScenarioId: null, TerrainName: terrainName,
+                                           ExerciseId: default, IsNewScenario: false, OverlayHash: overlayHash);
+        _replayLoadId = loadId;
+        _replayContext = context;
+        FdpLog<LoadPhaseChain>.Info("[LoadPhase] {0}: a replay opens over terrain '{1}'{2}.", _hostLabel, terrainName,
+            overlayHash == null ? "" : $" (additions {overlayHash})");
+        foreach (var step in ReplayWorldSteps)
+        {
+            _currentStep = step.ProgressStep ?? step.Part.ToString();
+            await step.PrepareAsync(context, ct).ConfigureAwait(false);
+        }
+        _currentStep = null;
+    }
+
+    /// <inheritdoc/>
+    public void Commit(Guid loadId, EntityRepository? world)
+    {
+        if (loadId != _replayLoadId || _replayContext is not { } context) return;
+        var w = world ?? _world;
+        foreach (var step in ReplayWorldSteps)
+            step.Commit(context, w);
+        _replayHold = new TaskCompletionSource<object?>(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
+
+    /// <inheritdoc/>
+    public Task WhenReadyAsync(Guid loadId)
+        => loadId == _replayLoadId && _replayHold != null ? _replayHold.Task : Task.CompletedTask;
+
+    /// <inheritdoc/>
+    public void Abort(Guid loadId)
+    {
+        if (loadId != _replayLoadId || _replayContext is not { } context) return;
+        foreach (var step in ReplayWorldSteps) step.Abort(context);
+        EndReplayWorld();
+    }
+
+    private void EndReplayWorld()
+    {
+        _replayLoadId = Guid.Empty;
+        _replayContext = null;
+        _replayHold = null;
+        _currentStep = null;
+    }
+
+    /// <summary>⭐ CE-11025 — frame thread: the replay's world is ready when every world part says so; a failed part fails the open.</summary>
+    private void DrainReplayWorld()
+    {
+        if (_replayHold is not { } hold || _replayContext is not { } context) return;
+        foreach (var step in ReplayWorldSteps)
+        {
+            if (step.Failure is { } failure)
+            {
+                foreach (var undo in ReplayWorldSteps) undo.Abort(context);
+                EndReplayWorld();
+                hold.TrySetException(new InvalidOperationException($"[LoadPhase] {_hostLabel}: the replay's '{step.Part}' part failed — {failure}"));
+                return;
+            }
+            if (!step.IsResolved(_world)) { _currentStep = step.ProgressStep ?? step.Part.ToString(); return; }
+        }
+        EndReplayWorld();
+        hold.TrySetResult(null);
+    }
+
     /// <inheritdoc/>
     /// <remarks>
     /// ⭐⭐ Main thread, every frame. The cluster leaves <c>Loading*</c> only when <b>every</b> step says it
@@ -372,6 +478,8 @@ public sealed class LoadPhaseChain : ITickableClusterStateHandler, IIdleResetHan
         if (_changeCheck != null && _world != null && _changeCheck.IsSettling && _changeCheck.SettleStep(_world))
             FdpLog<LoadPhaseChain>.Info("[LoadPhase] {0}: unsaved-changes baseline taken after {1} frame(s){2}.", _hostLabel,
                 _changeCheck.SettledAfterFrames, _changeCheck.GaveUpSettling ? " — ⚠ the world was still moving; baselined anyway" : "");
+
+        DrainReplayWorld();   // ⭐ CE-11025
 
         if (_holdTcs == null) return;
 

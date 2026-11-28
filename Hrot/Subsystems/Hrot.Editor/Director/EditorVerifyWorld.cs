@@ -43,7 +43,41 @@ namespace Hrot.Editor.Director
 
         public JsonArray Blasts() => Service.GetDetonations(int.MaxValue)["detonations"] as JsonArray ?? new JsonArray();
 
+        /// <summary>⭐ CE-4676 — the brain node's report log, as <c>GET /squad/reports</c> serves it.</summary>
+        public bool CommanderHoldsClock() => Service.AnyCommanderHoldsClock();
+
+        public JsonArray Reports() => Service.GetSquadReports(Fdp.Toolkit.Squad.Command.SquadReportLog.Capacity, null)["reports"] as JsonArray ?? new JsonArray();
+
         public string? SetComponent(int networkId, string component, JsonObject patch)
             => Service.EditEntityComponent(networkId, component, patch.DeepClone()).error;
+
+        /// <summary>⭐ CE-3494 F3 — the <c>POST /orders</c> service, one item.</summary>
+        public string? Order(int networkId, JsonObject order)
+        {
+            var item = (JsonObject)order.DeepClone();
+            item["networkId"] = networkId;
+            var (result, error) = Service.PostOrders(new JsonObject { ["orders"] = new JsonArray(item) });
+            if (error != null) return error;
+            var r = (result?["results"] as JsonArray)?[0];
+            return r?["accepted"]?.GetValue<bool>() == true ? null : (r?["detail"] ?? r?["refusal"])?.ToString() ?? "refused";
+        }
+
+        /// <summary>⭐ CE-3494 F3 — the <c>POST /missions/{id}/resume</c> service (the command lands on the next step).</summary>
+        public string? ResumePlan(int networkId) => Service.BeginResumeMission(networkId).error;
+
+        /// <summary>⭐ CE-11061 — the <c>POST /entities/{id}/revive</c> service.</summary>
+        public string? Revive(int networkId) => Service.ReviveEntity(networkId).error;
+
+        /// <summary>⭐ S1e-2 (DESIGN_Simulated_Devices §5a) — the node's station the checks drive (possess · view · control), on the brain world.</summary>
+        public IVerifyStation? Station => _service() is { } s ? s.ScriptedStation : null;
+
+        /// <summary>⭐ S1e-2 — a unit's [UnitMemory] struct by name, read on the brain world (⛔ not <see cref="World"/> — the threaded editor's UI mirror).</summary>
+        public JsonObject? Memory(int networkId, string type) => Service.UnitMemoryOf(networkId, type);
+
+        /// <summary>⭐ S1e-2 — the HUD run a view bound to the source draws in the published gizmo frame.</summary>
+        public int HudRun(long source, System.Collections.Generic.List<string> texts) => Service.HudRun(source, texts);
+
+        /// <summary>⭐ S1e-2 — the headless editor's gizmo gate held open (a timed reference, CE-11045) while the checks read a HUD.</summary>
+        public void KeepHudFeed() => _service()?.KeepGizmoFeedDrawing();
     }
 }

@@ -79,7 +79,7 @@ namespace Hrot.Map.Common.Replication.Egress
             {
                 var w = c.Get(i);
                 int panel = terrain != null ? BuildingPanelIndex.ToLocal(terrain, w.Panel) : w.Panel;
-                list.Add(new DdsWindow { Panel = panel, Opening = w.Opening, Hits = w.Hits, U0 = w.U0, V0 = w.V0, U1 = w.U1, V1 = w.V1 });
+                list.Add(new DdsWindow { Panel = panel, Opening = w.Opening, Hits = w.Hits, U0 = w.U0, V0 = w.V0, U1 = w.U1, V1 = w.V1, HitAt = c.HitAtOf(i) });   // ⭐ CE-11051
             }
             return new EntityWindowDamage { EntityId = netId, Building = c.Building, Key = key, Windows = list };
         }
@@ -95,6 +95,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 var w = c.Get(i); var y = prev.Windows![i];
                 int panel = terrain != null ? BuildingPanelIndex.ToLocal(terrain, w.Panel) : w.Panel;
                 if (y.Panel != panel || y.Opening != w.Opening || y.Hits != w.Hits || y.U0 != w.U0 || y.V0 != w.V0 || y.U1 != w.U1 || y.V1 != w.V1) return false;
+                if (y.HitAt != c.HitAtOf(i).Seconds) return false;   // ⭐ CE-11051
             }
             return true;
         }
@@ -220,6 +221,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 var w = d.Windows![i];
                 int panel = BuildingPanelIndex.ToGlobal(terrain, building, w.Panel);
                 if (panel < 0 || w.Opening >= terrain.Panels[panel].Openings.Count || !terrain.Panels[panel].Openings[w.Opening].Glazed) continue;
+                c.SetHitAt(k, w.HitAt);   // ⭐ CE-11051
                 c.Set(k++, new WindowEntry(panel, w.Opening, w.Hits, w.U0, w.V0, w.U1, w.V1));
             }
             c.Count = (byte)k;

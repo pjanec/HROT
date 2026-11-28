@@ -19,7 +19,6 @@ namespace Hrot.AI.Behaviors.Brains
         public Vector3 Point;
         public float RadiusM;
         public float HeightAgl;
-        public SimInstant StartedAt;
         public SimInstant NextSteer;
         public byte Started;
         /// <summary>1 once its battery (or, CE-7014, its link) is gone: it comes down where it is.</summary>
@@ -29,7 +28,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// <summary>
     /// ⭐⭐ <c>CE-7028</c> (City Battle §11 R-1c) — the RECON drone over an area: it flies to the point and CIRCLES it at <see cref="DroneReconParams.HeightAgl"/>
     /// (the FPV's search orbit — straight at the point from afar, then the point 30° ahead on the circle), its camera filling its memory; at its
-    /// battery's end — or in an enemy jammer's bubble (CE-7014) — it comes down where it is. ⭐ THE OBSERVER CHAIN IS UNCHANGED: as a member of its
+    /// battery's end (its <see cref="DroneBattery"/>, SD-S2b) — or in an enemy jammer's bubble (CE-7014) — it comes down where it is. ⭐ THE OBSERVER CHAIN IS UNCHANGED: as a member of its
     /// team's squad, its memory merges into the squad's pool (<c>SquadPerceptionMergeSystem</c>), the staff SPOTs the pool up, and an
     /// indirect-fire element there becomes a FireSupport request (<c>StaffComposerSystem.ComposeSupport</c>) the HQ routes to the guns.
     /// <para>⭐ Parallel (R-4212): the drone changes only its own locomotion channel; the jammer index is the serial pre-pass's.</para>
@@ -70,11 +69,12 @@ namespace Hrot.AI.Behaviors.Brains
         {
             if (!world.HasComponent<SimTransform>(self)) return NodeStatus.Failure;
             double now = world.HasSingleton<GlobalTime>() ? world.GetSingleton<GlobalTime>().TotalTime : 0d;
-            if (p.Started == 0) { p.Started = 1; p.StartedAt = (SimInstant)now; p.NextSteer = default; }
+            if (p.Started == 0) { p.Started = 1; p.NextSteer = default; }
             Vector3 at = world.GetComponentRO<SimTransform>(self).Position;
             var flight = world.HasComponent<FlightParams>(self) ? world.GetComponentRO<FlightParams>(self) : default;
             float speed = flight.MaxSpeedMps > 0f ? flight.MaxSpeedMps : 20f;
-            if (p.Down == 0 && ((flight.EnduranceSeconds > 0f && now - p.StartedAt >= flight.EnduranceSeconds) || DroneJamming.Jammed(world, self, at)))
+            // ⭐ devices SD-S2b (§3.13c D-108) — the battery is the drone's ONE DroneBattery (drained airborne, frozen in pause), ⛔ no longer a clock from the order's start
+            if (p.Down == 0 && (DroneBatteries.Empty(world, self) || DroneJamming.Jammed(world, self, at)))
             {
                 p.Down = 1;
                 p.NextSteer = default;

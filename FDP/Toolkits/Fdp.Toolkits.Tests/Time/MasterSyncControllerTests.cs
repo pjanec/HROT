@@ -1576,5 +1576,43 @@ namespace Fdp.Toolkit.Time.Tests
             }
             finally { NLog.LogManager.Configuration = oldCfg; }
         }
+
+        /// <summary>
+        /// ⭐ CE-11019 — a slave extrapolates from the last anchor at the anchor's rate, so a rate change while running re-anchors it: one
+        /// Continuous sample at the master's own sim time carrying the new rate. The same rate again, or a change while paused, publishes nothing
+        /// (the resume carries it).
+        /// </summary>
+        [Fact]
+        public void CE11019_A_rate_change_while_running_reanchors_the_slaves_and_only_then()
+        {
+            long ticks = 0;
+            var bus  = new FdpEventBus();
+            var ctrl = CreateController(bus, tickSource: () => ticks);
+            bus.SwapBuffers();
+            bus.Read<SwitchTimeModeEvent>();
+
+            ticks = TicksFromSeconds(2.0);
+            ctrl.Update();
+            double sim = ctrl.GetCurrentState().TotalTime;
+
+            ctrl.SetTimeScale(0.5f);
+            bus.SwapBuffers();
+            var e = Assert.Single(bus.Read<SwitchTimeModeEvent>().ToArray());
+            Assert.Equal(TimeMode.Continuous, e.TargetMode);
+            Assert.Equal(0.5f, e.TimeScale);
+            Assert.Equal(sim, e.SimTimeSnapshot, 6);
+            Assert.Equal(ticks, e.BarrierWallTicks);          // the tick `sim` belongs to
+
+            ctrl.SetTimeScale(0.5f);                          // no change ⇒ nothing
+            bus.SwapBuffers();
+            Assert.Empty(bus.Read<SwitchTimeModeEvent>().ToArray());
+
+            TransitionToStepping(ctrl, bus, ref ticks);
+            bus.SwapBuffers();
+            bus.Read<SwitchTimeModeEvent>();
+            ctrl.SetTimeScale(2f);                            // paused ⇒ nothing; the resume carries it
+            bus.SwapBuffers();
+            Assert.Empty(bus.Read<SwitchTimeModeEvent>().ToArray());
+        }
     }
 }

@@ -55,7 +55,8 @@ namespace Hrot.ScenarioEditor.Map
         Hrot.UI.Common.Map2D.TerrainLayer2D? Terrain2D = null,
         Fdp.Toolkit.Vis2D.Layers.GridMapLayer? Grid = null,
         MapCursorReadout? Cursor = null,
-        Fdp.Toolkit.Vis3D.Map3DBuild? Map3D = null);
+        Fdp.Toolkit.Vis3D.Map3DBuild? Map3D = null,
+        Hrot.UI.Common.Effects.LaserLayer3D? Lasers = null);
 
     public static class MapInteractionPack
     {
@@ -651,6 +652,9 @@ namespace Hrot.ScenarioEditor.Map
                 GroundHeight = viewSwitch.Camera3D.GroundHeight,
             };
             canvas.AddLayer(projectiles);
+            // ⭐ SD-S6a (DESIGN_Simulated_Devices §3.8a D-161) — laser beams and their spots, as this view's sensor sees them (LaserVisibility decides who sees which band).
+            var lasers = new Hrot.UI.Common.Effects.LaserLayer3D(worldProvider, () => viewSwitch.Is3D ? viewSwitch.Camera3D : null);
+            canvas.AddLayer(lasers);
             var viewMode = new Hrot.UI.Common.Map3D.MapViewModeLayer(viewSwitch, bus);
             canvas.AddLayer(viewMode);
             // ⭐ CE-1033 S5 (R-260) — the scenario's camera entity, the same on every host: adopted when the scenario opens, REQUESTED
@@ -681,6 +685,7 @@ namespace Hrot.ScenarioEditor.Map
             //   leaves. Here, so no map host can lack it.
             var possession = new Hrot.UI.Common.Map3D.PossessionStation(viewSwitch, worldProvider, bodies, featureGate);   // ⭐ CE-4148 — the host's gate: the hud.* features   // ⭐ CE-1073 — the drawn heads
             stats.Possession = possession;   // ⭐ CE-1262 (AV-1) — the view snapshot names the possessed unit and its crosshair target
+            possession.ViewLayer = gizmoLayer;   // ⭐ S1d-3 (devices D-38 / D-41) — the view's source binds the gizmo layer (only that device's HUD run is drawn)
             canvas.AddLayer(possession);
             // ⭐ CE-1462 (W-B1) — the 2-D map frames its terrain when one is loaded (and when it changes), on EVERY host: here, so no host can lack it. Never a camera the user or a station owns (3-D on screen, a driver, first person).
             canvas.AddLayer(new Hrot.UI.Common.Map2D.TerrainFramingLayer(worldProvider, () => viewSwitch.Camera2D,
@@ -709,7 +714,7 @@ namespace Hrot.ScenarioEditor.Map
             // ⭐ CE-3289 (§6ab, R-3032) — the film: a director camera and a clean capture of the scene, on every map host; LAST, so its
             //   update runs after every other layer's (the frame it captures is complete) and its director wins the camera.
             canvas.AddLayer(new Hrot.UI.Common.Map3D.FilmCaptureLayer(canvas, viewSwitch, worldProvider));
-            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D, grid, cursor, map3D);
+            return new MapLayers(gizmoLayer, viewSwitch, terrain, bodies, effects, projectiles, possession, audio, terrain2D, grid, cursor, map3D, lasers);
         }
 
         public static void RegisterGizmoSchemas(GizmoMap.Presentation.GizmoSchemaRegistry registry)

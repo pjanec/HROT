@@ -133,6 +133,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     {
         Spawned = 0;
         if (view is not EntityRepository world || !world.IsComponentTypeRegistered<Lifespan>()) return;
+        _causeRegistered = world.IsComponentTypeRegistered<EffectCause>();   // ⭐ CE-11010 (RR-10)
         double now = SimClock.Of(world).TotalTime;
         // ⭐ CE-4671 LK-S1 — the player messages and the kill feed moved to HudFeedSystem (they are not effects)
         TrackStrikes(view, world, now, RecordsHits);   // ⭐ CE-4062 — BEFORE the replay gate: a replay's blows are drawn too
@@ -156,11 +157,9 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 // ⭐ CE-1115 (§9 DV-5, BS-1 §5.4b F3) — the round actually FIRED (the fire carries it); the mount's only from an older sender
                 long fired = fire.AmmoGuid != 0 ? fire.AmmoGuid : mount != null ? unchecked((long)mount.AmmoGuid) : 0L;
                 var at = view.GetComponentRO<SimTransform>(fire.Shooter).Position;
-                var toward = fire.Target != Entity.Null && view.IsAlive(fire.Target) && view.HasComponent<SimTransform>(fire.Target)
-                    ? view.GetComponentRO<SimTransform>(fire.Target).Position : Fdp.Core.WorldPoint.Zero;
-                // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream)
-                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now,
-                    StreamToward(toward, AimPointOf(view, fire.Shooter), fire.Origin != Vector3.Zero ? fire.Origin : at, fire.Velocity, mount?.Range ?? 0f));   // ⭐ CE-1357
+                // ⭐ CE-1090 — the 3-D bodies: a launcher on the shoulder; ⭐ CE-1105 — and where it was aimed (the burst stream). ⭐ CE-11001 (LR-1) —
+                //   where it points is the SHARED rule (Hrot.Look.Effects.FireStreams), so an external renderer's stream is this one
+                RecentShots.In(world).Record(fire.Shooter, fire.WeaponIndex, now, Hrot.Look.Effects.FireStreams.TowardOf(in fire, world));
                 // ⭐ CE-3248 (Civilians §7.17a TC-6) — a THROW is recorded (the body's pose reads RecentShots) and is otherwise no gunshot: no
                 //   flash at a hand, no shot sound, no blast. 📐 Before: a stone has no effects of its own, so it drew the default small flash.
                 if (Fdp.Toolkit.Combat.PersonHands.Threw(view, in fire)) continue;
@@ -168,7 +167,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
                 if (Hrot.UI.Common.Audio.SoundEvents.Of(world) is { } heard && mount?.Category != WeaponCategory.Bomb
                     && !Hrot.Look.Effects.EffectRules.IsFuelShot(mount))   // ⭐ CE-4635 — a flamethrower's fuel shot is no gunshot: its roar is a held loop (SoundSources.Movers)
                     heard.Add(new Hrot.UI.Common.Audio.SoundEvents.Shot(fire.Shooter, fire.WeaponIndex, fire.Origin != Vector3.Zero ? fire.Origin : at,
-                        fired, mount?.DamagePerHit ?? 0f, FireStreams.IsAutomatic(mount),
+                        fired, mount?.DamagePerHit ?? 0f, Hrot.Look.Effects.FireStreams.IsAutomatic(mount),
                         view.HasComponent<TkbIdentity>(fire.Shooter) ? view.GetComponentRO<TkbIdentity>(fire.Shooter).TkbType : 0L));
                 // ⭐ CE-4671 LK-S1 — the flash (none for a bomb, CE-1094, or a silent weapon, CE-4649) and what the shot throws (backblast, ground blast,
                 //   launch smoke) come from the SHARED rule; the spawner only makes the entities
@@ -283,42 +282,10 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
     private EntityRepository? _flightWorld;
     private EntityQuery? _flights;
 
-    /// <summary>Where <paramref name="shooter"/>'s weapon posture aims (its target, else its point); zero when it aims at nothing.</summary>
-    /// <summary>
-    /// ⭐ <c>CE-1357</c> — where a shot's burst stream points: its target unit; else the shooter's aim posture; else ALONG THE ROUND'S OWN
-    /// LAUNCH (<paramref name="origin"/> + its velocity's direction × the weapon's range, 50…1000 m, 300 when unstated); else nowhere.
-    /// 🔴 A weapon SYSTEM (a door M134, a pintle gun) fired at a POINT has no target and no posture of its own, so the stream was drawn to
-    /// (0,0,0): the bright stream from the door ran to the map's corner while only its real tracers flew to the aim. 🔒 User, 2026-10-25:
-    /// "the majority of the stream of tracers is rendered to the corner of the terrain (maybe 0,0,0 or something) and just few are flying to
-    /// where the aim point is". Pure.
-    /// </summary>
-    public static Vector3 StreamToward(Vector3 target, Vector3 posture, Vector3 origin, Vector3 velocity, float range)
-    {
-        // ⭐ CE-1960 — a point the round did NOT fly toward is stale (a fighter's AI attack point it has flown past, a target behind it): when the launch is
-        //   known, the target / posture point is taken only inside StreamCone of it. 🔒 User, 2026-11-17: "the tracers and the fire is directed behind the
-        //   aircraft, not from the nose in front, but from the cockpit to somewhere behind the aircraft, completely opposite direction".
-        if (target != Vector3.Zero && Along(target)) return target;
-        if (posture != Vector3.Zero && Along(posture)) return posture;
-        if (velocity.LengthSquared() < 1e-4f) return Vector3.Zero;   // nothing known: no stream (FireStreams draws none toward zero)
-        return origin + Vector3.Normalize(velocity) * (range > 0f ? Math.Clamp(range, 50f, 1000f) : 300f);
-
-        bool Along(Vector3 point)
-        {
-            var to = point - origin;
-            if (velocity.LengthSquared() < 1e-4f || to.LengthSquared() < 1e-4f) return true;   // no launch known: the point is all there is
-            return Vector3.Dot(Vector3.Normalize(to), Vector3.Normalize(velocity)) >= StreamConeCos;
-        }
-    }
-
-    /// <summary>⭐ <c>CE-1960</c> — the cosine of the widest angle (45°) between a shot's launch and the point its stream is drawn to: a fighter's lead or a
-    /// rifle's spread stays inside it; a stale aim point behind the shooter does not.</summary>
-    public const float StreamConeCos = 0.7071f;
-
-    private static Vector3 AimPointOf(ISimulationView view, Entity shooter)
-        => view is EntityRepository world && Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, shooter, out var p) ? p : Vector3.Zero;
-
     [Fdp.Core.FrameScratch("effect specs list: cleared before each rule output (103,172,195,212)")]
     private readonly List<Hrot.Look.Effects.EffectSpec> _specs = new();   // ⭐ CE-4671 LK-S1 — the rule's output, reused (0 B steady)
+    [Fdp.Core.FrameScratch("re-read from the world at the top of every Execute")]
+    private bool _causeRegistered;   // ⭐ CE-11010 (RR-10) — the world knows EffectCause
 
     /// <summary>⭐ CE-4671 LK-S1 — an effect entity for every spec the shared rule gave, in its order (the order effects were always made).</summary>
     private void SpawnAll(IEntityCommandBuffer cmd, double now)
@@ -331,6 +298,7 @@ public sealed class EffectSpawnSystem : IEcsModuleSystem
             cmd.AddComponent(e, new TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(spec.EffectType) });
             cmd.AddComponent(e, Lifespan.Starting(now, spec.Lifetime));
             if (spec.Anchor is { } a) cmd.AddComponent(e, a);
+            if (spec.Cause is { } c && _causeRegistered) cmd.AddComponent(e, c);   // ⭐ CE-11010 (RR-10) — what the hit struck, recorded with the effect
             cmd.AddComponent(e, new Fdp.Toolkit.Scenario.ScenarioIgnoreTag());   // VE-R: recorded, never saved with the scenario
             Spawned++;
         }

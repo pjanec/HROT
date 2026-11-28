@@ -157,7 +157,7 @@ namespace Fdp.Toolkit.Behavior.Possession
         {
             if (target.IsNull || target == actor || !world.IsAlive(target)) return n;
             if (Has<DoorState>(world, target)) return Doors(world, actor, target, into, n);
-            if (Embarkation.IsWeaponSystem(world, target)) return Weapon(world, actor, target, into, n);   // a weapon is never Drag / Carry
+            if (Fdp.Toolkit.Combat.Items.IsMountable(world, target)) return Weapon(world, actor, target, into, n);   // a weapon is never Drag / Carry
             if (Has<PassengerBuffer>(world, target) && !Embarkation.IsPersonCarrier(world, target)) return Vehicle(world, actor, target, into, n);
             if (Has<Health>(world, target) && load.IsNull) return Body(world, actor, target, into, n);
             if (Fdp.Toolkit.Combat.RoundPickUp.IsLying(world, target) && Fdp.Toolkit.Combat.RoundPickUp.IsHandItem(world, target))
@@ -207,7 +207,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             for (int i = 0; i < PassengerBuffer.Capacity && n < into.Length; i++)
             {
                 var thing = buffer.Passengers[i];
-                if (thing.IsNull || !stations.IsStation(i) || stations.IsConcealed(i) || !Embarkation.IsWeaponSystem(world, thing)) continue;
+                if (thing.IsNull || !stations.IsStation(i) || stations.IsConcealed(i) || !Fdp.Toolkit.Combat.Items.IsMountable(world, thing)) continue;
                 into[n++] = new UseAction(UseVerbKind.Drop, "Drop", BehaviorConstants.ActionIdPutDown, true, UseReason.Ok, thing, 0f, HoldOnly: true);
             }
             return n;
@@ -295,8 +295,8 @@ namespace Fdp.Toolkit.Behavior.Possession
         {
             // ⭐ CE-1207 (§8m PK-2) — a PORTABLE weapon (a rifle, a pistol, a launcher) lying alone is TAKEN into his first open station; a
             //   STATIC one (a tripod gun, a ZU-23) is manned (U-5). One already carried by someone is neither.
-            if (Has<Fdp.Toolkit.Combat.WeaponSystemParams>(world, weapon)
-                && world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon).Portable != (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.Static)
+            if (Has<Fdp.Toolkit.Combat.Mountable>(world, weapon)
+                && world.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(weapon).Portable != (byte)Fdp.Toolkit.Tkb.Domain.WeaponPortability.Static)
                 return Take(world, actor, weapon, into, n);
             if (!Has<PassengerBuffer>(world, weapon)) return n;
             bool reach = Distance(world, actor, weapon) <= VehicleReach;

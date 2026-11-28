@@ -14,6 +14,7 @@ namespace Hrot.SimHost.Tests
     /// that sentence are two different rails, and BOTH are needed: a generator that always returns 0 is
     /// perfectly reproducible and useless.</para>
     /// </remarks>
+    [Xunit.Collection("SimRng statics")]
     public sealed class SimRngRails
     {
         // ── Half one: the same inputs give the same answer ────────────────────────────

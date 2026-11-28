@@ -1,0 +1,246 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "basic-desert",
+    "description": "What: CE-2476 / CE-2475 perception suite P2b (Sensing \u00a78.6e) - on basic-desert a 'Red Shooter' inside a one-storey TIMBER HOUSE (8 x 6 m at (300,300)), just inside its north wall, fires at a 'Blue Target' in the same room; two passive Blue listeners stand 7 m north of the house. The sound reaches them straight through the thin north wall AND round the house through its open south door and its east / west windows (4.5-5 m from him). Judge: the ear takes its DIRECTION from the first wavefront - the straight way through the thin wall (12 dB) - not from the louder way round: both listeners believe him where he is (within 2 m), never at the door or a window, and the squad holds him once. Fail: he is believed at an opening. Check: scripts/scenario-regression.sh pe-wall-and-door"
+  },
+  "entities": {
+    "c2470008-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          302,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad",
+        "ForceId": "Friend"
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c2470008-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          302,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad Ear 1",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2470008-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "c2470008-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          306,
+          312,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Blue Squad Ear 2",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "c2470008-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "c2470008-0000-4000-8000-000000000001": {
+      "TkbIdentity": {
+        "TkbType": 8818
+      },
+      "TerrainFeature": {
+        "Kind": 1,
+        "Template": "timber-house",
+        "HeadingDeg": 0,
+        "Pad": 0,
+        "Seed": 0
+      },
+      "SimTransform": {
+        "Position": [
+          300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "EntityInfo": {
+        "Name": "Timber House",
+        "ForceId": "Neutral"
+      }
+    },
+    "c2470008-0000-4000-8000-000000000300": {
+      "SimTransform": {
+        "Position": [
+          304,
+          302,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 100000,
+        "Max": 100000
+      },
+      "TkbIdentity": {
+        "TkbType": 2003
+      },
+      "EntityInfo": {
+        "Name": "Blue Target",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Roe": {
+        "Fire": "HoldFire",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "c2470008-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          304,
+          304.8,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "Health": {
+        "Current": 1000,
+        "Max": 1000
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red Shooter",
+        "ForceId": "Hostile"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Behavior": {
+        "Name": "FireAtTarget",
+        "Params": {
+          "targetNetworkId": "c2470008-0000-4000-8000-000000000300"
+        },
+        "Origin": "Superior"
+      },
+      "Roe": {
+        "Fire": "FireAtWill",
+        "Reactions": "StayOnTask",
+        "SetBy": "Operator",
+        "ForceLevel": "Lethal"
+      }
+    }
+  }
+}

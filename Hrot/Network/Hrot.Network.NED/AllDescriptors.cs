@@ -253,6 +253,11 @@ namespace Hrot.NED.Descriptors
         // ⭐ CE-5033 (glass windows GW-2; docs/DESIGN_Glass_Windows.md D-3) — a building's damaged window panes, on its damage entity, the deciding node (no group) → every node.
         //   245 measured free on backend, ui, behaviors, coordinator 2026-11-18 (243 / 244 are backend's). ⚠ the toolkit states it too (BuildingDamageSystem.WindowDescriptorOrdinal; a rail pins it).
         dtWindowDamage                = 245,
+        // ⭐ CE-11034 (R-11014; docs/designs/audio/DESIGN_Ambience.md) — an AMBIENCE LAYER (kind, intensity, radius, end time), its creator → every node (no group; the gateway's DPS row reads it).
+        //   246 measured free on every origin branch's AllDescriptors.cs and nowhere else in the tree, 2026-11-22.
+        dtAmbience                    = 246,
+        // ⭐ CE-4693 (bridge laying BL-S3) — a bridge engineer's span and its brain's order (the Brain group → every node; the mover reads it). 247 measured free on every branch 2026-11-25.
+        dtBridgeCarried               = 247,
         // etc., all known descriptor types here
     }
 
@@ -297,6 +302,11 @@ namespace Hrot.NED.Descriptors
         //   does (Details forms Q8: a list — the wind levels, the cloud layers — is not a scalar attribute). One encoding: the dtWeather topic's.
         [DdsCase(EDescriptorType.dtWeather)]
         public EntityWeather Weather;
+
+        // ⭐ CE-11034 — an ambience layer asked for on one node and created on another (owner 0 ⇒ the default processor): the forwarded request must carry the layer,
+        //   or the creator builds a bare type-8841 entity that sounds nothing (the dtAreaEffectCloud shape).
+        [DdsCase(EDescriptorType.dtAmbience)]
+        public EntityAmbience Ambience;
 
     }
 }

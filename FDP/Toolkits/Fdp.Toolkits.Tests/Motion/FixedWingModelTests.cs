@@ -117,6 +117,25 @@ namespace Fdp.Toolkit.Tests.Motion
             Assert.True(new Vector2(end.X, end.Y).Length() >= Stall, "it circles at the end, still flying");
         }
 
+        /// <summary>⭐⭐ CE-11057 — a plane given a route while standing (velocity 0, as a scenario places it) flies its CRUISE from the order's first
+        /// frame even when that frame is a microsecond long (the master clock's resume frame): the velocity a too-short frame cannot measure is
+        /// kept, so when the brain's order lands a frame later the route still sees a plane at rest and snaps it to cruise. 📌 fl-napalm-strike live: a 3 µs frame wrote
+        /// 4.9 m/s, the route read it as "already flying", clamped the A-10 to its 60 m/s stall and it took ~20 s to reach cruise.
+        /// 🔴 Red-proof: <c>StepVelocity.Of</c> divides by max(dt, 1e-4) again ⇒ ~60 m/s after the first second.</summary>
+        [Fact]
+        public void CE11057_APlaneOrderedFromRest_FliesCruiseAtOnce_EvenAfterAMicrosecondFrame()
+        {
+            _routes.Waypoints.AddRange(new[] { Wp(0, 0), Wp(20000, 0) });
+            var plane = Plane(new Vector3(-3500, 300, 300), 0f);
+            _air.Execute(_w, 3.3e-6f);                                    // the resume frame: no order yet — it flies straight on
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.FollowRoute, IntentId = 1, RouteEntityId = 77 });   // the brain's order lands
+            for (int i = 0; i < 60; i++) _air.Execute(_w, Dt);           // one second
+            var v = _w.GetComponent<SimVelocity>(plane).Linear;
+            Assert.InRange(new Vector2(v.X, v.Y).Length(), Cruise - 1f, Cruise + 1f);
+            Assert.InRange(Vector2.Distance(new Vector2(-3500, 300), new Vector2(_w.GetComponent<SimTransform>(plane).Position.X, _w.GetComponent<SimTransform>(plane).Position.Y)),
+                           Cruise - 5f, Cruise + 5f);   // it flew ~150 m in the second, not ~60
+        }
+
         /// <summary>⭐ CE-10006 (AC-9, R-10030) — a route broken off mid-way (a transit's missile defence: a point move, then the SAME route
         /// re-issued with a new intent) RESUMES at the first waypoint not yet passed, from where the plane is — ⛔ never back to the first
         /// one; a FRESH route (another route entity) still starts at its first waypoint. ✅ Red-proof (mutant, run): the resume dropped
@@ -183,6 +202,50 @@ namespace Fdp.Toolkit.Tests.Motion
 
         /// <summary>⭐ A1 — told a point behind it and asked for 10 m/s, it never flies under its 60 m/s stall, turns to the point and
         /// circles it once there.</summary>
+        /// <summary>
+        /// ⭐ <c>CE-5046</c> (Air Operations §4 "orbit (Hold)"; the Stechovice A-10 flew 28 km off after its strike) — a plane whose order ENDED
+        /// (Mode None, the ended intent's id) holds: it stays within its turn circle of where the order ended, at its height, above stall,
+        /// with no jump; a second end anchors a new circle where it then is. A plane that never had an order (IntentId 0) still flies straight.
+        /// 🔴 Red-proof: the None branch back to Straight ⇒ the plane leaves the circle ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE5046_APlaneWhoseOrderEnded_HoldsWhereItIs_ANeverOrderedOneFliesStraight()
+        {
+            var plane = Plane(new Vector3(0, 0, 500), Cruise);
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.None, IntentId = 7 });
+            float r = _w.GetComponent<FlightParams>(plane).TurnRadius;
+            var last = _w.GetComponent<SimTransform>(plane).Position;
+            float maxStep = 0f, maxOff = 0f, minSpeed = float.MaxValue;
+            for (int i = 0; i < 60 * 90; i++)
+            {
+                _air.Execute(_w, Dt);
+                var now = _w.GetComponent<SimTransform>(plane).Position;
+                maxStep = MathF.Max(maxStep, Vector3.Distance(now, last)); last = now;
+                maxOff = MathF.Max(maxOff, new Vector2(now.X, now.Y).Length());
+                var v = _w.GetComponent<SimVelocity>(plane).Linear;
+                minSpeed = MathF.Min(minSpeed, new Vector2(v.X, v.Y).Length());
+            }
+            Assert.True(maxOff <= 2f * r + 1f, $"it left its circle: {maxOff:0} m from where the order ended (turn radius {r:0} m)");
+            Assert.True(maxStep <= 200f * Dt * 1.5f, $"a jump of {maxStep:0.0} m in one frame");
+            Assert.True(minSpeed >= Stall * 0.99f, $"flew at {minSpeed} m/s, under its {Stall} m/s stall");
+            Assert.Equal(500f, last.Z, 1);
+
+            // a SECOND end, after a point order took it 6 km west: a new circle where it then is (never back to the first one)
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.DirectPoint, IntentId = 8, FinalDestination = new Vector3(-6000, 0, 500) });
+            for (int i = 0; i < 60 * 60; i++) _air.Execute(_w, Dt);
+            var there = _w.GetComponent<SimTransform>(plane).Position;
+            _w.SetComponent(plane, new NavigationIntent { Mode = NavigationMode.None, IntentId = 9 });
+            for (int i = 0; i < 60 * 30; i++) _air.Execute(_w, Dt);
+            var held = _w.GetComponent<SimTransform>(plane).Position;
+            Assert.True(Vector2.Distance(new Vector2(held.X, held.Y), new Vector2(there.X, there.Y)) <= 2f * r + 1f, $"the second hold is not where the second order ended: {there} → {held}");
+
+            // never ordered: straight and level, as B9 says
+            var fresh = Plane(new Vector3(0, 5000, 500), Cruise);
+            for (int i = 0; i < 60 * 20; i++) _air.Execute(_w, Dt);
+            var went = _w.GetComponent<SimTransform>(fresh).Position;
+            Assert.True(went.X > Cruise * 15f && MathF.Abs(went.Y - 5000f) < 1f, $"a never-ordered plane flies straight east: {went}");
+        }
+
         [Fact]
         public void A1_APlane_ToldAPoint_TurnsToIt_AndCirclesIt()
         {

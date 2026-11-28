@@ -211,6 +211,9 @@ namespace Fdp.Toolkit.Replay
         /// <summary>⭐ AQ107 C — the terrain that was resident while recording (its metadata); empty when none / pre-dates the field.</summary>
         public string TerrainName => _playback?.Metadata.TerrainName ?? string.Empty;
 
+        /// <summary>⭐ CE-11025 — the terrain additions' content hash the recording was made with (its metadata); null for a listener or none.</summary>
+        public string? OverlayHash => string.IsNullOrEmpty(_playback?.Metadata.OverlayHash) ? null : _playback!.Metadata.OverlayHash;
+
         /// <summary>
         /// The maximum network entity ID present in the recording, as reported by
         /// the recording session's <c>AsyncRecorder</c>.

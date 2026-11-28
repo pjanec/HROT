@@ -166,6 +166,11 @@ public sealed class FormField
     /// ⛔ Only for a value no attribute can carry — an attribute field writes through <see cref="ChangeFor"/>.</summary>
     public Func<EntityRepository, Entity, double, string?, string?>? Apply { get; init; }
 
+    /// <summary>⭐ CE-11061 (docs/DESIGN_Injury_States.md §9; mockup UX/revive-visual.svg) — an ACTION button trailing the row's control (the Strength row's
+    /// Revive): drawn while the form is editable and <see cref="FieldAction.Offered"/> holds for a selected entity; a click submits its op for each such entity
+    /// through the ONE write seam, and the row's mark follows the outcome like any write. ⛔ It never changes what the field's own control writes (R-11021).</summary>
+    public FieldAction? Action { get; init; }
+
     /// <summary>The change this field writes for <paramref name="number"/> / <paramref name="text"/> — by the attribute's declared kind (§2.1: "the attribute already knows").</summary>
     public EntityAttributeChange? ChangeFor(double number, string? text)
     {
@@ -298,4 +303,20 @@ public static class FormCatalogue
         return _attributes.TryGetValue(jsonPath, out var def) ? def
              : throw new ArgumentException($"A form field writes '{jsonPath}', which is no attribute of the vocabulary — add the vocabulary row, its setter and its handler first.");
     }
+}
+
+/// <summary>
+/// ⭐ CE-11061 — a row's trailing action (<see cref="FormField.Action"/>): a coloured glyph button (Colour Icons §2) with a tooltip, offered per entity, whose
+/// click is one edit-framework op per offered entity. Built once per form declaration; drawing it allocates nothing.
+/// </summary>
+public sealed class FieldAction
+{
+    /// <summary>The glyph and its colour (a font glyph — the caller's icon constant).</summary>
+    public required NodeEditor.Core.Widgets.IconGlyph Icon { get; init; }
+    /// <summary>What the click does, in the user's words (the tooltip).</summary>
+    public required string Tip { get; init; }
+    /// <summary>Is the action offered for this entity now?</summary>
+    public required Func<EntityRepository, Entity, bool> Offered { get; init; }
+    /// <summary>The op one click submits for one offered entity.</summary>
+    public required Func<Entity, Fdp.Toolkit.Replication.Edits.EditOp> Op { get; init; }
 }

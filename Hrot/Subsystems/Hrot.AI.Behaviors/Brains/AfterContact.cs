@@ -106,10 +106,37 @@ namespace Hrot.AI.Behaviors.Brains
             for (int i = 0; i < n; i++)
             {
                 if (!Identified(world, in pool[i], out _)) continue;
-                UnderFireEvents.LearnDirect(world, side, new Vector3(pool[i].PositionX, pool[i].PositionY, pool[i].PositionZ), DirectRangeMetres, enemyStrength, now);
+                var at = new Vector3(pool[i].PositionX, pool[i].PositionY, pool[i].PositionZ);
+                UnderFireEvents.LearnDirect(world, side, at, CoveredMetres(world, commander, at), enemyStrength, now);
                 learned++;
             }
             return learned;
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> — the most an enemy position is ever taken to cover (m): small arms and a machine gun's effective reach.</summary>
+        public const float MaxCoveredMetres = 800f;
+
+        /// <summary>
+        /// ⭐ <c>CE-2496</c> (R-2145) — how far the enemy at <paramref name="enemy"/> covers: at least <see cref="DirectRangeMetres"/>, and at least as far as he
+        /// ENGAGED the squad — the farthest live member now, plus <see cref="RecordNearMetres"/> — capped at <see cref="MaxCoveredMetres"/>. 📐 of-squad-outmatched:
+        /// two machine guns engaged from ~200 m on open ground; a fixed 150 m disc let the resumed move walk back into their sight after the rally.
+        /// </summary>
+        public static float CoveredMetres(EntityRepository world, Entity commander, Vector3 enemy)
+        {
+            float far = 0f;
+            if (world.HasComponent<UnitRoster>(commander))
+            {
+                ref readonly var roster = ref world.GetComponentRO<UnitRoster>(commander);
+                for (int i = 0; i < roster.Count; i++)
+                {
+                    var m = roster.SubordinateEntities[i];
+                    if (!world.IsAlive(m) || !world.HasComponent<SimTransform>(m)) continue;
+                    Vector3 p = world.GetComponentRO<SimTransform>(m).Position;
+                    var d = p - enemy; d.Z = 0f;
+                    far = MathF.Max(far, d.Length());
+                }
+            }
+            return MathF.Min(MaxCoveredMetres, MathF.Max(DirectRangeMetres, far + RecordNearMetres));
         }
 
         /// <summary>⭐ R4 — an identified enemy of the pool stands at a fresh <c>Direct</c> record of the side; <paramref name="remembered"/> its strength.</summary>

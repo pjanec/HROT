@@ -47,6 +47,11 @@ namespace Fdp.Toolkit.Squad.Command
         public const float SupportFreshSeconds = 60f;
         /// <summary>⭐ CE-2310 (HQ-3) — an element within this of one already relayed (same flag) is the same one (m).</summary>
         public const float RelaySameMetres = 150f;
+        /// <summary>⭐ CE-4686 ① (HQ-3b) — a commander of units relays at most this many GROUND element groups up (the freshest), so a superior's
+        /// eight element slots never fill with one sender's infantry (HQ-3's reason for relaying only the support flags).</summary>
+        public const int MaxGroundRelays = 2;
+        /// <summary>⭐ CE-4686 ① (HQ-3b) — picture elements this close are ONE group (several squads reporting one enemy); the fold's own merge distance.</summary>
+        public const float GroundGroupMetres = 50f;
         /// <summary>⭐ CE-2310 (HQ-4) — fire support is asked again only this much later, or this far from the last ask.</summary>
         public const float SupportAgainSeconds = 120f, SupportAgainMetres = 300f;
         /// <summary>⭐ CE-2310 (HQ-5) — reinforcement is asked at most this often (s), with an element this near (m).</summary>
@@ -281,6 +286,11 @@ namespace Fdp.Toolkit.Squad.Command
                 || (heard.Family != (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Mortar && heard.Family != (byte)Fdp.Toolkit.Tkb.Domain.SoundFamily.Gun))
                 return false;
             if (heard.Observer.IsNull || !repo.IsAlive(heard.Observer) || !repo.HasComponent<UnitSubordinate>(heard.Observer)) return false;
+            // ⭐⭐ CE-4702 (user: "build the remaining three too") — a launch heard FROM an opening or round a corner (CE-4666 D-8: "the point is where
+            //   it came in, never where its source is") locates the corner, not the gun: no SPOT. 📐 uc-urban-battle: the Red mortar 670 m away,
+            //   heard through the streets, was SPOTted at the corners round the convoy (within 300 m of it) — the platoon's picture never went quiet,
+            //   CContact held for the rest of the run and the convoy never moved on. A launch heard straight is SPOTted as before.
+            if (heard.Via != 0) return false;
             commander = repo.GetComponentRO<UnitSubordinate>(heard.Observer).Commander;
             return !commander.IsNull;
         }
@@ -346,6 +356,7 @@ namespace Fdp.Toolkit.Squad.Command
                     }, now + ReportDelaySeconds);
                 }
             }
+            RelayGround(repo, unit, in picture, now);   // ⭐ CE-4686 ① (HQ-3b)
             var strength = StrengthOf(repo, unit);
             if (!near || (strength != StatusColour.Red && strength != StatusColour.Black)) return;
             ref var box = ref repo.GetComponentRW<ReportOutbox>(unit);
@@ -359,6 +370,86 @@ namespace Fdp.Toolkit.Squad.Command
 
         [Fdp.Core.NotState("static readonly constant array")]
         private static readonly ElementEquipment[] s_relayed = { ElementEquipment.IndirectFire, ElementEquipment.AirDefence };
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4686</c> ① (HQ-3b; user-authorised cross-lane edit, `2026-11-24`: "feel free to give the aggregated unit behavior to the backend")
+        /// — a commander of UNITS (its roster holds commanders or stochastic units: a platoon over squads, a company over platoons) has no eyes of its
+        /// own, so its superior learns of the enemy only if it RELAYS what its subordinates reported. 📌 Measured on <c>llm-company-aggregated</c>
+        /// (CE-4685): the company never heard of Red's squad — HQ-3 relays only IndirectFire / AirDefence. ⭐ Bounded, as HQ-3 asked: its picture's
+        /// fresh (<see cref="SupportFreshSeconds"/>) unflagged elements are grouped (<see cref="GroundGroupMetres"/>; the freshest element speaks
+        /// for the group, with its OWN observation time, so the superior ages it as the sender does), at most <see cref="MaxGroundRelays"/> groups,
+        /// the freshest; one is re-sent when it moved <see cref="SpotMoveMetres"/> or every <see cref="SpotRefreshSeconds"/>. ⛔ Never its own
+        /// invention: only what is in its picture. 0 B: stack spans, no LINQ.
+        /// </summary>
+        private static void RelayGround(EntityRepository repo, Entity unit, in CommandPicture picture, SimInstant now)
+        {
+            if (!CommandsUnits(repo, unit)) return;
+            int n = picture.Elements.Count;
+            if (n == 0) return;
+            Span<int> groupOf = stackalloc int[CommandPicture.MaxElements];
+            Span<int> head = stackalloc int[CommandPicture.MaxElements];   // per group: its freshest element
+            Span<byte> count = stackalloc byte[CommandPicture.MaxElements];
+            int groups = 0;
+            for (int i = 0; i < n; i++)
+            {
+                groupOf[i] = -1;
+                var e = picture.Elements.Items[i];
+                if (e.Count == 0 || now - e.ObservedAt > SupportFreshSeconds) continue;
+                if ((e.Equipment & (ElementEquipment.IndirectFire | ElementEquipment.AirDefence)) != 0) continue;   // HQ-3 relays those
+                int g = -1;
+                for (int j = 0; j < i && g < 0; j++)
+                    if (groupOf[j] >= 0 && Vector3.Distance(picture.Elements.Items[j].At, e.At) <= GroundGroupMetres) g = groupOf[j];
+                if (g < 0) { g = groups++; head[g] = i; count[g] = 0; }
+                else if (e.ObservedAt > picture.Elements.Items[head[g]].ObservedAt) head[g] = i;
+                groupOf[i] = g;
+                if (e.Count > count[g]) count[g] = e.Count;
+            }
+            for (int sent = 0; sent < MaxGroundRelays && groups > 0; sent++)
+            {
+                int best = -1;   // the freshest group not yet taken
+                for (int g = 0; g < groups; g++)
+                    if (head[g] >= 0 && (best < 0 || picture.Elements.Items[head[g]].ObservedAt > picture.Elements.Items[head[best]].ObservedAt)) best = g;
+                if (best < 0) break;
+                var e = picture.Elements.Items[head[best]];
+                head[best] = -1;
+                ref var outbox = ref repo.GetComponentRW<ReportOutbox>(unit);
+                ref var list = ref outbox.RelayedGround;
+                int known = -1;
+                for (int i = 0; i < list.Count; i++)
+                    if (Vector3.Distance(list.Items[i].At, e.At) <= GroundGroupMetres) { known = i; break; }
+                if (known >= 0 && Vector3.Distance(list.Items[known].At, e.At) <= SpotMoveMetres && now - list.Items[known].SentAt < SpotRefreshSeconds) continue;
+                var mark = new RelayedElement { At = e.At, SentAt = (SimInstant)Math.Max(now, 1e-3) };
+                if (known >= 0) list.Items[known] = mark;
+                else
+                {
+                    if (list.Count == RelayedElementList.Capacity)
+                    {
+                        for (int i = 1; i < list.Count; i++) list.Items[i - 1] = list.Items[i];
+                        list.Count--;
+                    }
+                    list.Items[list.Count++] = mark;
+                }
+                ReportQueue.Enqueue(repo, unit, new CommandReport
+                {
+                    Kind = ReportKind.Spot, At = e.At, Radius = e.Radius, Count = count[best], Size = e.Size, Activity = e.Activity,
+                    Equipment = e.Equipment, ObservedAt = e.ObservedAt,
+                }, now + ReportDelaySeconds);
+            }
+        }
+
+        /// <summary>⭐ CE-4686 ① — the commander commands UNITS (a live roster member is itself a commander, or a stochastic unit): no eyes of its own.</summary>
+        public static bool CommandsUnits(EntityRepository repo, Entity unit)
+        {
+            if (!repo.HasComponent<UnitRoster>(unit)) return false;
+            var roster = repo.GetComponentRO<UnitRoster>(unit);
+            for (int i = 0; i < roster.Count; i++)
+            {
+                var m = roster.SubordinateEntities[i];
+                if (m.IsNull || !repo.IsAlive(m)) continue;
+                if (repo.HasComponent<UnitRoster>(m) || Fdp.Toolkit.Aggregate.AggregateUnits.IsStochastic(repo, m)) return true;
+            }
+            return false;
+        }
 
         /// <summary>⭐ CE-2310 (HQ-3) — SPOT <paramref name="e"/> up, once per element place and flag.</summary>
         private static void Relay(EntityRepository repo, Entity unit, in ReportedElement e, ElementEquipment flag, SimInstant now)
@@ -675,9 +766,18 @@ namespace Fdp.Toolkit.Squad.Command
             if (same >= 0) { picture.Elements.Items[same] = element; return; }
             if (picture.Elements.Count == CommandPicture.MaxElements)   // full: the oldest observation goes
             {
-                int oldest = 0;
-                for (int i = 1; i < picture.Elements.Count; i++)
-                    if (picture.Elements.Items[i].ObservedAt < picture.Elements.Items[oldest].ObservedAt) oldest = i;
+                // ⭐ CE-4686 ① (HQ-3b) — an unflagged (ground) element goes before any IndirectFire / AirDefence one: the relayed infantry never pushes
+                //   out what the support HQ acts on (HQ-3's reason). A new flagged element may still replace the oldest of all
+                const ElementEquipment support = ElementEquipment.IndirectFire | ElementEquipment.AirDefence;
+                int oldest = -1;
+                for (int pass = 0; pass < 2 && oldest < 0; pass++)
+                    for (int i = 0; i < picture.Elements.Count; i++)
+                    {
+                        bool flagged = (picture.Elements.Items[i].Equipment & support) != 0;
+                        if (pass == 0 && flagged) continue;
+                        if (oldest < 0 || picture.Elements.Items[i].ObservedAt < picture.Elements.Items[oldest].ObservedAt) oldest = i;
+                    }
+                if ((r.Equipment & support) == 0 && (picture.Elements.Items[oldest].Equipment & support) != 0) return;   // a ground report never evicts support
                 RemoveAt(ref picture.Elements, oldest);
             }
             picture.Elements.Items[picture.Elements.Count++] = element;

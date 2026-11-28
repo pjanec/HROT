@@ -1,0 +1,1061 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "test-town",
+    "description": "What: LLM commander DUEL (DESIGN_LLM_Commander §8, §11 L-4 pre-test, backend 2026-11-23) - llm-platoon-attack with Red under a commander too: Blue's body-less Platoon (seat) over Alpha Squad and Bravo Squad (4 men each) from behind the L-Block; Red Platoon (TKB 305, Hostile, seat) over the Defenders (5 men, SquadDefend at the sheds 'house') and Reserve (4 men, just west of them), with a 'rear' place at (30,110). Two seats on one chat endpoint: the relay (scripts/llm/chat_standin.py --mode relay --per-commander) routes each side's requests to its own worker. Places by side (DESIGN_LLM_Commander §5a-5 D-2): 'house' is Neutral (both sides know it); 'objective', 'support', 'start' are Blue's (Friend); 'rear' is Red's (Hostile) - each seat is told only its own side's and the Neutral ones. Judge: both commanders open and order their squads; each side's squads report to their own commander; the fight happens and lasts; the run reaches its time limit (two seats never stop the clock). Fail: a seat that never orders, a report to the wrong commander, the run frozen. Check: HROT_COMMANDER_MIND=ChatModel + the per-commander relay (STATUS_Backend_LLM_Commander.md §Duel); the scripted mind also runs it (Red's scripted commander then advances to 'objective' - a meeting engagement, judged by the same rows)."
+  },
+  "entities": {
+    "b4676000-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          300,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Platoon",
+        "ForceId": "Friend"
+      },
+      "CommanderSeat": {
+        "Mind": "Scripted",
+        "Mode": "ThinkPause",
+        "HeartbeatSeconds": 30,
+        "SnapshotSeconds": 120
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "CommanderBrief": {
+        "Task": "seize the house (the sheds) from Red",
+        "Purpose": "open the road west for the company",
+        "Constraints": "keep both squads in the fight; do not cross the open ground east of the house without fire on it",
+        "Time": "by 00:07"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          300,
+          132,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Alpha Squad",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          295.5,
+          132,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          298.5,
+          132,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000013": {
+      "SimTransform": {
+        "Position": [
+          301.5,
+          132,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000014": {
+      "SimTransform": {
+        "Position": [
+          304.5,
+          132,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Alpha 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000010",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000020": {
+      "SimTransform": {
+        "Position": [
+          300,
+          148,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Bravo Squad",
+        "ForceId": "Friend"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000001",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000021": {
+      "SimTransform": {
+        "Position": [
+          295.5,
+          148,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 1",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000022": {
+      "SimTransform": {
+        "Position": [
+          298.5,
+          148,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 2",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000023": {
+      "SimTransform": {
+        "Position": [
+          301.5,
+          148,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 3",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000024": {
+      "SimTransform": {
+        "Position": [
+          304.5,
+          148,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Bravo 4",
+        "ForceId": "Friend"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000020",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000100": {
+      "SimTransform": {
+        "Position": [
+          64,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Defenders",
+        "ForceId": "Hostile"
+      },
+      "Behavior": {
+        "Name": "SquadDefend",
+        "Params": {
+          "Position": [
+            64,
+            108,
+            0
+          ],
+          "SearchRadius": 14,
+          "Speed": 2
+        },
+        "Origin": "Superior"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000500",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000101": {
+      "SimTransform": {
+        "Position": [
+          60,
+          107,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 1",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000102": {
+      "SimTransform": {
+        "Position": [
+          64,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 2",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "MachineGunner"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000103": {
+      "SimTransform": {
+        "Position": [
+          68,
+          107,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 3",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000104": {
+      "SimTransform": {
+        "Position": [
+          58,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 4",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000105": {
+      "SimTransform": {
+        "Position": [
+          70,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 5",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000100",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000200": {
+      "SimTransform": {
+        "Position": [
+          64,
+          108,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "house",
+        "ForceId": "Neutral"
+      },
+      "PlaceNote": {
+        "Text": "the sheds, one storey; 100 m of open ground to the east"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000201": {
+      "SimTransform": {
+        "Position": [
+          172,
+          95,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "objective",
+        "ForceId": "Friend"
+      },
+      "PlaceNote": {
+        "Text": "behind the Low Wall's east end; cover from the house, about 110 m from it"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000202": {
+      "SimTransform": {
+        "Position": [
+          160,
+          96,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "support",
+        "ForceId": "Friend"
+      },
+      "PlaceNote": {
+        "Text": "behind the Low Wall; sees the sheds' south side over the wall"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000203": {
+      "SimTransform": {
+        "Position": [
+          300,
+          140,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "start",
+        "ForceId": "Friend"
+      },
+      "PlaceNote": {
+        "Text": "behind the L-Block, out of sight of the house"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000300": {
+      "SimTransform": {
+        "Position": [
+          150,
+          101,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 1"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000301": {
+      "SimTransform": {
+        "Position": [
+          136,
+          106,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 2"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000302": {
+      "SimTransform": {
+        "Position": [
+          122,
+          99,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 3"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000303": {
+      "SimTransform": {
+        "Position": [
+          108,
+          104,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 4"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000304": {
+      "SimTransform": {
+        "Position": [
+          94,
+          98,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 5"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000305": {
+      "SimTransform": {
+        "Position": [
+          82,
+          103,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.7071068,
+          0.7071068
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8806
+      },
+      "EntityInfo": {
+        "Name": "Cover 6"
+      },
+      "ObstacleShape": {
+        "Length": 4.5,
+        "Width": 1.0,
+        "Height": 1.5
+      }
+    },
+    "b4676000-0000-4000-8000-000000000500": {
+      "SimTransform": {
+        "Position": [
+          40,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 305
+      },
+      "EntityInfo": {
+        "Name": "Red Platoon",
+        "ForceId": "Hostile"
+      },
+      "CommanderSeat": {
+        "Mind": "Scripted",
+        "Mode": "ThinkPause",
+        "HeartbeatSeconds": 30,
+        "SnapshotSeconds": 120
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "CommanderBrief": {
+        "Task": "hold the house (the sheds) against Blue's attack from the east",
+        "Purpose": "keep the road west closed to Blue's company",
+        "Constraints": "do not give up the sheds; keep a squad ready to counter-attack or to cover a withdrawal to 'rear'",
+        "Time": "until 00:07"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000110": {
+      "SimTransform": {
+        "Position": [
+          48,
+          112,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 302
+      },
+      "EntityInfo": {
+        "Name": "Reserve",
+        "ForceId": "Hostile"
+      },
+      "Sop": {
+        "Name": "BasicSquadSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000500",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000111": {
+      "SimTransform": {
+        "Position": [
+          46.0,
+          113,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 6",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000110",
+        "Designation": "SquadLeader"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000112": {
+      "SimTransform": {
+        "Position": [
+          47.5,
+          113,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 7",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000110",
+        "Designation": "MachineGunner"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000113": {
+      "SimTransform": {
+        "Position": [
+          49.0,
+          113,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 8",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000110",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000114": {
+      "SimTransform": {
+        "Position": [
+          50.5,
+          113,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Red 9",
+        "ForceId": "Hostile"
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "UnitSubordinate": {
+        "CommanderGuid": "b4676000-0000-4000-8000-000000000110",
+        "Designation": "Wingman"
+      }
+    },
+    "b4676000-0000-4000-8000-000000000204": {
+      "SimTransform": {
+        "Position": [
+          30,
+          110,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 8816
+      },
+      "EntityInfo": {
+        "Name": "rear",
+        "ForceId": "Hostile"
+      },
+      "PlaceNote": {
+        "Text": "west of the sheds, out of sight from the east"
+      }
+    }
+  }
+}

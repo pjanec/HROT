@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Fdp.Core;
 
@@ -41,6 +43,13 @@ namespace Hrot.UI.Common.Map3D.Director
         /// requests the load and does not start a take until it is built.
         /// </summary>
         Fdp.Toolkit.Vis3D.Map3DBuild? MapBuild => null;
+
+        /// <summary>⭐ <c>CE-11023</c> — what the load is doing now (the cluster's load progress, e.g. "terrain: valley"); a change counts as progress, so a
+        /// long load that advances never times out. Null = the host reports none (the entity count and the map build still count).</summary>
+        string? LoadProgress => null;
+
+        /// <summary>⭐ <c>CE-11023</c> — the cluster's ERROR state (R-3073) with its reason: a load fails at once, with it. Null = not in error.</summary>
+        string? LoadError => null;
 
         bool InPreview { get; }
         void EnterPreview(bool startPaused);
@@ -118,6 +127,40 @@ namespace Hrot.UI.Common.Map3D.Director
 
         /// <summary>A card frame: <paramref name="text"/> on black.</summary>
         Task Card(string path, int width, int height, string text);
+
+        // ── ⭐ CE-11018 (DESIGN_Linked_Client_Director.md §2b, §2c, Q113-B) — a job's frames, told as a job: Begin, each frame with its context, End. ──
+        //    All default to the map's behaviour, so a sink that only draws (FilmFrameSink) is unchanged.
+
+        /// <summary>A film job starts (a reel captured to frames, or a still). The director waits for the task before its first frame; a FAULT fails the job with its reason.</summary>
+        Task Begin(Hrot.Common.Infrastructure.FilmJob job) => Task.CompletedTask;
+
+        /// <summary>⭐ CE-11067 (unreal-ig director test H-3) — where the last job's frames went, in words ("HROT's map", "the linked client 'dps'",
+        /// "HROT's map: the linked client 'dps' cannot film now"); null before the first job. The status shows it so a fallback is never silent.</summary>
+        string? Route => null;
+
+        /// <summary>⭐ CE-11068 — the CURRENT job's frames go to a linked client (read before the job ends): its sound can be the client's. Default: the map.</summary>
+        bool FilmsOnClient => false;
+
+        /// <summary>A scene frame of the job, with what a renderer elsewhere needs besides the overlay (<see cref="FilmFrameContext"/>).</summary>
+        Task Frame(string path, int width, int height, int supersample, FilmOverlay overlay, FilmFrameContext context) => Frame(path, width, height, supersample, overlay);
+
+        /// <summary>A film frame with no new picture: a <c>Repeat</c> of the last scene (slow motion; the director copies the PNG) or <c>Silence</c> under a card.
+        /// Nothing to draw for the map; a linked client keeps its sound track in step.</summary>
+        Task Advance(Hrot.Common.Infrastructure.FilmFrameKind kind, FilmFrameContext context) => Task.CompletedTask;
+
+        /// <summary>The job ended (once per <see cref="Begin"/>, a failed or stopped one too); the result is the sound track a linked client made, or null.</summary>
+        Task<Hrot.Common.Infrastructure.FilmTrack?> End(Hrot.Common.Infrastructure.FilmJob job, Hrot.Common.Infrastructure.FilmJobOutcome outcome)
+            => Task.FromResult<Hrot.Common.Infrastructure.FilmTrack?>(null);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-11018</c> (Q113-F) — what the director knows of a film frame that a renderer elsewhere needs: the job, the film frame number, the film rate (sim seconds per
+    /// film second now), the director's steps in this item so far, and the take's layer override this frame.
+    /// </summary>
+    public sealed record FilmFrameContext(Guid JobId, int Index, double FilmRate, long Step, IReadOnlyList<string> LayersOn, IReadOnlyList<string> LayersOff)
+    {
+        /// <summary>The same context for film frame <paramref name="index"/>.</summary>
+        public FilmFrameContext At(int index) => this with { Index = index };
     }
 
     /// <summary>⭐ <c>CE-4038</c> B11 (§4c, R-4059) — the sound of the director: the take's switch, and the film's cue log while capturing.</summary>

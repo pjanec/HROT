@@ -55,18 +55,47 @@ namespace Fdp.Toolkit.Combat
         /// while a NEUTRAL person is inside the flame it would throw toward <paramref name="aim"/>: the AW-20 rule (<see cref="NeutralOnLine"/>, the
         /// shared body grid) with the line run to the jet's full REACH (the flame does not stop at the target) and the spread its cone
         /// (tan of the half-angle). False for any other mount. 0 B per call.
+        /// <para>⭐⭐ <c>CE-3490</c> BA-6 (DESIGN_Breath_Attack §2) — the flame it judges is THE jet <c>FlameSystem</c> burns with: from where it LEAVES
+        /// (<see cref="ShotOrigin.From"/> — the mouth / nozzle when the type places one, else the eye; <see cref="FlameJets.Origin"/>'s rule) along the 3-D line
+        /// to <paramref name="aim"/>, each neutral judged by <see cref="FlameCone.Contains"/> at his middle. 📐 Measured building D-1: from the body's centre
+        /// in 2-D the hold fell ~9 m short of a dragon's breath, and a flyer's slant reach was taken as flat.</para>
         /// </summary>
-        public static bool NeutralInFlame(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Vector3 aim)
+        public static bool NeutralInFlame(EntityRepository world, Entity shooter, int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Vector3 aim)
         {
             if (mount is not { Category: Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower } || !world.HasComponent<SimTransform>(shooter)) return false;
             var warhead = loadedAmmo != 0 ? CombatTkb.WarheadOf(world, loadedAmmo) : CombatTkb.WarheadOf(world, mount);
             if (warhead is not { FlameRangeM: > 0f } w) return false;
-            var a3 = world.GetComponentRO<SimTransform>(shooter).Position;
-            var d = new Vector2(aim.X - a3.X, aim.Y - a3.Y);
-            if (d.LengthSquared() < 1e-6f) return false;
-            d = Vector2.Normalize(d) * w.FlameRangeM;
-            float spread = MathF.Tan(w.FlameHalfAngleDeg * (MathF.PI / 180f));
-            return NeutralOnLine(world, shooter, Entity.Null, new Vector3(a3.X + d.X, a3.Y + d.Y, aim.Z), spread);
+            if (!world.IsComponentTypeRegistered<PhysicsCollider>() || !world.IsComponentTypeRegistered<EntityInfo>()) return false;
+            if (!world.HasComponent<EntityInfo>(shooter) || world.GetComponentRO<EntityInfo>(shooter).ForceId == ForceId.Neutral) return false;
+            var origin = ShotOrigin.From(world, shooter, mountIndex, ShotOrigin.Eye(world, shooter, out _), aim, out _);
+            var toAim = aim - origin;
+            if (toAim.LengthSquared() < 1e-6f) return false;
+            var dir = Vector3.Normalize(toAim);
+            float half = w.FlameHalfAngleDeg * (MathF.PI / 180f);
+            var end = origin + dir * w.FlameRangeM;
+            var bodies = Bodies.Of(world);
+            lock (bodies) bodies.Refresh(world);   // ⭐ CE-4516 — the lock covers only the build (as NeutralOnLine)
+            var test = new NeutralInConeTest { World = world, Shooter = shooter, Health = world.IsComponentTypeRegistered<Health>(), Origin = origin, Dir = dir,
+                                               Range = w.FlameRangeM, Half = half };
+            float pad = MathF.Max(FlameCone.StreamRadiusM, w.FlameRangeM * MathF.Tan(half));
+            return bodies.Grid.AnySegmentCandidate(new Vector2(origin.X, origin.Y), new Vector2(end.X, end.Y), bodies.Pad(pad), ref test, Bodies.EveryBodyForRails);
+        }
+
+        /// <summary>⭐ CE-3490 BA-6 — the flame-cone rule (<see cref="FlameCone.Contains"/>, the one <c>FlameSystem</c> burns by), applied LIVE to each body the frame
+        /// grid gives: a living neutral PERSON, not the shooter, not one of its own riders, his middle (<see cref="FlameJets.TargetMiddleM"/> up) in the cone.</summary>
+        private struct NeutralInConeTest : Fdp.Toolkit.Spatial.FrameEntityGrid.ICandidateTest
+        {
+            public EntityRepository World; public Entity Shooter; public bool Health; public Vector3 Origin, Dir; public float Range, Half;
+            public bool Test(Entity e)
+            {
+                var world = World;
+                if (!world.IsAlive(e) || e == Shooter || !world.HasComponent<PhysicsCollider>(e)) return false;
+                if (!Fdp.Toolkit.Perception.ThreatDanger.IsNeutral(world, e) || !PhysicsColliderReaders.IsPerson(world, e)) return false;
+                if (Health && world.HasComponent<Health>(e) && world.GetComponentRO<Health>(e).Current <= 0f) return false;
+                if (FlameJets.RidesOn(world, e, Shooter)) return false;
+                var middle = world.GetComponentRO<SimTransform>(e).Position + new Vector3(0f, 0f, FlameJets.TargetMiddleM);
+                return FlameCone.Contains(Origin, Dir, Range, Half, middle);
+            }
         }
 
         /// <summary>
@@ -105,10 +134,11 @@ namespace Fdp.Toolkit.Combat
             }
         }
 
-        /// <summary>⭐ <c>CE-3486</c> — the same, toward a target entity (its position).</summary>
-        public static bool NeutralInFlame(EntityRepository world, Entity shooter, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Entity target)
+        /// <summary>⭐ <c>CE-3486</c> — the same, toward a target entity (its middle — where <see cref="FlameJets"/> aims the jet at a unit).</summary>
+        public static bool NeutralInFlame(EntityRepository world, Entity shooter, int mountIndex, Fdp.Toolkit.Tkb.Domain.WeaponMountDto? mount, long loadedAmmo, Entity target)
             => world.IsAlive(target) && world.HasComponent<SimTransform>(target)
-               && NeutralInFlame(world, shooter, mount, loadedAmmo, world.GetComponentRO<SimTransform>(target).Position);
+               && NeutralInFlame(world, shooter, mountIndex, mount, loadedAmmo,
+                                 world.GetComponentRO<SimTransform>(target).Position + new Vector3(0f, 0f, FlameJets.TargetMiddleM));
 
         /// <summary>⭐ <c>AW-20</c> — the same hold toward a POINT (a burst at a remembered spot).</summary>
         public static bool BlockedByNeutral(EntityRepository world, Entity shooter, Vector3 point, float sigma)

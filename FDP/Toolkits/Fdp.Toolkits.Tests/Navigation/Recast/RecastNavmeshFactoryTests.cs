@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Linq;
+using System.IO;
 using System.Numerics;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Navigation.Recast;
@@ -37,6 +38,46 @@ public sealed class RecastNavmeshFactoryTests
             var n = Vector3.Cross(P(t + 1) - P(t), P(t + 2) - P(t));
             Assert.True(n.Y >= -1e-4f, $"triangle {t / 3} faces down in Recast space: {n}");
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-11038</c> — the bake tells the running load how far it has got: the tiles done, as the step's detail (<i>"navmesh 12/12"</i>), so a bake that is long on a large terrain
+    /// keeps the load's one progress report moving. 🔴 Mutation: the <c>ReportDetail</c> call in <c>RecastNavmeshBaker</c> removed ⇒ the detail stays null.
+    /// </summary>
+    [Fact]
+    public void CE11038_TheBake_ReportsItsTiles_IntoTheLoadsProgress()
+    {
+        var progress = new Fdp.Core.LoadProgress();
+        Fdp.Core.LoadProgress.Current = progress;
+        try { Bake(BlockWorld); }
+        finally { Fdp.Core.LoadProgress.Current = null; }
+        var detail = progress.Detail;
+        Assert.NotNull(detail);
+        Assert.Matches(@"^navmesh (\d+)/\1$", detail!);   // the last call (done == total) always lands
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-5060</c> — packing a prefilled terrain's tiles (<see cref="NavTilePack.Pack"/>, the prefill's last step) advances the running load's count for every
+    /// tile it reads and removes: 📐 measured 16 s with no report on Stechovice (~60 000 tiles), long enough for the master to eject a node importing on first use.
+    /// 🔴 Mutation: the read loop's <c>ReportDetail</c> removed ⇒ the count moves by less than one per tile.
+    /// </summary>
+    [Fact]
+    public void CE5060_PackingTiles_AdvancesTheLoadsCount_PerTile()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "ce5060-pack-" + Guid.NewGuid().ToString("N"));
+        string layer = Path.Combine(folder, "infantry");
+        Directory.CreateDirectory(layer);
+        const int tiles = 40;
+        for (int i = 0; i < tiles; i++) File.WriteAllBytes(Path.Combine(layer, $"{i}_{i % 7}_h{i}.navtile"), new byte[] { 1, 2, 3, (byte)i });
+        var progress = new Fdp.Core.LoadProgress();
+        Fdp.Core.LoadProgress.Current = progress;
+        try
+        {
+            long before = progress.Value;
+            Assert.True(NavTilePack.Pack(folder) > 0);
+            Assert.True(progress.Value - before >= tiles * 2, $"the count moved {progress.Value - before} for {tiles} tiles (read + remove)");
+        }
+        finally { Fdp.Core.LoadProgress.Current = null; Directory.Delete(folder, true); }
     }
 
     [Fact]
@@ -164,6 +205,34 @@ public sealed class RecastNavmeshFactoryTests
                   {"from":[10,0],"to":[10,8]},{"from":[10,8],"to":[0,8]},{"from":[0,8],"to":[0,0]}]}]}},
            "geometry":{"type":"Point","coordinates":[20,20]}}]}
         """;
+
+    /// <summary>
+    /// ⭐ <c>CE-5056</c> (behaviors' note: village-street's doors impassable) — a 1.2 m door (the importer's <c>OpeningPlacer.DoorWidth</c>) is passable on a wall at ANY angle to
+    /// the grid. 📐 At 0.9 m the infantry erosion (0.3 m off each jamb) left a 0.3 m channel — two 0.15 m cells — that broke on a rotated wall: on village-street 20 % of
+    /// the ground doors near the grid axes and ~70 % at 27–45° had no path through (the "5/5 alignments" of Navigation §14 P2 were measured on axis-aligned walls only).
+    /// </summary>
+    [Theory]
+    [InlineData(0f)] [InlineData(7f)] [InlineData(15f)] [InlineData(22f)] [InlineData(30f)] [InlineData(38f)] [InlineData(45f)]
+    public void CE5056_AOnePointTwoMetreDoor_IsPassable_OnAWallAtAnyAngle(float degrees)
+    {
+        float a = degrees * MathF.PI / 180f, c = MathF.Cos(a), s = MathF.Sin(a);
+        string P(float x, float y) => FormattableString.Invariant($"[{x * c - y * s:0.###},{x * s + y * c:0.###}]");
+        string json = """
+            {"type":"FeatureCollection","hrot":{"schemaVersion":1,"bounds":[0,0,60,60],"groundZ":0},"features":[
+              {"type":"Feature","properties":{"kind":"building","label":"R","doors":{"front":"open"},"building":{
+                 "footprint":[@A,@B,@C,@D],
+                 "storeys":[{"height":3,"walls":[
+                      {"from":@A,"to":@B,"openings":[{"kind":"door","at":4.4,"width":1.2,"doorId":"front"}]},
+                      {"from":@B,"to":@C},{"from":@C,"to":@D},{"from":@D,"to":@A}]}]}},
+               "geometry":{"type":"Point","coordinates":[30,30]}}]}
+            """.Replace("@A", P(0, 0)).Replace("@B", P(10, 0)).Replace("@C", P(10, 8)).Replace("@D", P(0, 8));
+        var world = TerrainWorldParser.Parse(json, "range");
+        var nav = (DotRecastNavmeshProvider)new RecastNavmeshFactory { Layers = NavLayerMask.Infantry }.Build(world)!;
+        // 1.5 m outside and 1.5 m inside the door's middle, along the wall's normal
+        Vector2 Local(float x, float y) => new(30f + x * c - y * s, 30f + x * s + y * c);
+        var outside = Local(5f, -1.5f); var inside = Local(5f, 1.5f);
+        Assert.True(nav.PathExists(new Vector3(outside, 0f), new Vector3(inside, 0f), (uint)NavLayerMask.Infantry), $"no path through the door at {degrees}°");
+    }
 
     [Fact]
     public void Stage5c_TheDoorwayBakesIntoDoorPolygons_AndAPathThroughItIsMarkedDoor()

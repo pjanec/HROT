@@ -402,6 +402,42 @@ public sealed class TerrainLoadStepTests : IDisposable
     }
 
     /// <summary>
+    /// ⭐ CE-11025 (Q113-J) — a REPLAY's world is the RECORDING's: its terrain and additions, never the staged scenario's (an earlier run's header
+    /// names another overlay); additions missing on this machine give the base terrain (the replay still plays); and a recording of the resident
+    /// terrain loads nothing new — the committed world is the same instance.
+    /// 🔴 Mutation: the replay reads the staged header's overlay ⇒ the "deadbeef" header throws.
+    /// </summary>
+    [Fact]
+    public void CE11025_AReplaysWorld_IsTheRecordingsTerrainAndAdditions_AndTheResidentOneLoadsNothingNew()
+    {
+        WriteBaseAndOverlay(out var overlay);
+        string hash = Path.GetFileName(overlay);
+        File.WriteAllText(Path.Combine(_tkbDir, "ScenarioHeader.json"), "{\"TerrainName\":\"other-t\",\"OverlayHash\":\"deadbeef\"}", new UTF8Encoding(false));
+        LoadPhaseContext Replay(string? overlayHash) => new(Guid.NewGuid(), ClusterState.LoadingReplay, null, "base-t", default, false, OverlayHash: overlayHash);
+
+        var (handler, holder) = NewHandler();
+        using (holder)
+        {
+            using var world = NewWorld();
+            var withAdditions = Replay(hash);
+            Prepare(handler, withAdditions);
+            handler.Commit(withAdditions, world);
+            var first = world.GetSingletonManaged<TerrainWorld>();
+            Assert.Equal(new[] { "B", "O" }, first.Prisms.Select(p => p.Label).ToArray());
+
+            var again = Replay(hash);                          // the same recording again: resident ⇒ nothing new
+            Prepare(handler, again);
+            handler.Commit(again, world);
+            Assert.Same(first, world.GetSingletonManaged<TerrainWorld>());
+
+            var missing = Replay("0123456789abcdef");          // additions not on this machine ⇒ the base, no throw
+            Prepare(handler, missing);
+            handler.Commit(missing, world);
+            Assert.Equal(new[] { "B" }, world.GetSingletonManaged<TerrainWorld>().Prisms.Select(p => p.Label).ToArray());
+        }
+    }
+
+    /// <summary>
     /// ⭐ O-2/O-4 (CE-4416/4415, DESIGN_Terrain_Authoring §18a) — <c>Prepare(name, overlayFolder)</c> stages the MERGED world (base + overlay, overlay appended); a second Prepare with the same
     /// overlay HASH is the idempotent no-op, no overlay is a real change. 🔴 Red-proof: ignore <c>overlayFolder</c> in <c>Prepare</c> ⇒ the staged world has one prism.
     /// </summary>

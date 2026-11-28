@@ -75,6 +75,13 @@ namespace Hrot.AI.Behaviors.Brains
         public static void FireAt(EntityRepository world, Entity self, ref EngageState fire, ref SimInstant retryAt, Entity air, double now)
         {
             if (!world.HasComponent<WeaponChannel>(self)) return;
+            // ⭐⭐ CE-4699 (user: "build the remaining three too") — the aircraft ALREADY ENGAGED is kept while it is still seen and in the fight:
+            //   the newest contact flips between two aircraft seen on the same tick (equal LastSeenTick, memory order by score), and every flip
+            //   restarted the aim. 📐 ua-air-defence: the Stinger's 6.33 s aim at the Apache reset to 0.05 every tick from 36 s, never finished,
+            //   and the one missile went to the UH-60 — the Apache was never warned.
+            if (!fire.Threat.IsNull && !fire.Threat.Equals(air) && Injury.IsInTheFight(world, fire.Threat)
+                && FireControlSight.SeesForAnyMount(world, self, fire.Threat))
+                air = fire.Threat;
             bool seen = !air.IsNull && FireControlSight.SeesForAnyMount(world, self, air);   // ⭐ CE-4617 (RV-1) — the one fire-control rule
             if (!seen) { PostureNodes.StopFiring(world, self, ref fire); return; }
             ref readonly var channel = ref world.GetComponentRO<WeaponChannel>(self);

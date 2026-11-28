@@ -9,7 +9,8 @@ using MissionPlan = Hrot.Core.Mission.MissionPlan;
 namespace Hrot.Editor.AiShared.Shell;
 
 /// <summary>Where a task stands in a running plan (P-7 / 7a).</summary>
-public enum OrdersTaskState { Planned, Running, Done, Failed, Halted }
+/// <remarks>⭐ CE-3494 (R-3115) — <see cref="Held"/>: the plan is HELD by an operator's order (resumed only by the user); <see cref="Halted"/>: the task's behaviour faulted (retried by the user).</remarks>
+public enum OrdersTaskState { Planned, Running, Done, Failed, Halted, Held }
 
 /// <summary>One task of a plan as the Orders tab shows it: the sentence, its state, its id (for Jump).</summary>
 public sealed record OrdersTaskRow(Guid TaskId, string Sentence, OrdersTaskState State, string? Problem);
@@ -82,7 +83,9 @@ public static class OrdersPlanModel
     {
         if (queue is not { } q || index >= q.TaskCount) return OrdersTaskState.Planned;
         if (index < q.CurrentTask) return q.Outcomes[index] == MissionPhaseOutcome.Failed ? OrdersTaskState.Failed : OrdersTaskState.Done;
-        if (index == q.CurrentTask) return q.Halted != 0 ? OrdersTaskState.Halted : OrdersTaskState.Running;
+        if (index == q.CurrentTask)
+            return q.Halted == MissionPlanQueue.HaltedHeldByOrder ? OrdersTaskState.Held   // ⭐ CE-3494
+                 : q.Halted != 0 ? OrdersTaskState.Halted : OrdersTaskState.Running;
         return OrdersTaskState.Planned;
     }
 }

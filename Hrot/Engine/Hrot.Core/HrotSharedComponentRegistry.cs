@@ -92,6 +92,8 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
+        world.RegisterComponent<Fdp.Toolkit.Motion.DroneBattery>();   // ⭐ devices SD-S2b (D-108) — a drone's one battery (DroneBatterySystem, brain group)
+        world.RegisterComponent<Fdp.Toolkit.Motion.DroneLink>();      // ⭐ devices SD-S2c (D-106) — a remotely piloted drone's link + telemetry (its brain, brain group)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
@@ -125,6 +127,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Combat.Lean>();                             // ⭐ CE-3257 — a man leaning round a corner (dtLean)
         world.RegisterComponent<Fdp.Toolkit.Civilians.HostileAct>();                    // ⭐ CE-3238 — a man's hostile act (dtHostileAct)
         world.RegisterComponent<Fdp.Toolkit.Combat.AreaEffectCloud>();                  // ⭐ CE-3219 part 3 — a gas / smoke cloud (dtAreaEffectCloud)
+        world.RegisterComponent<Fdp.Toolkit.Ambient.Ambience>();                        // ⭐ CE-11034 (R-11014) — an ambience layer: a kind, intensity, radius, end time (dtAmbience; AUTHORED too: a scenario entity)
         world.RegisterComponent<Fdp.Toolkit.Combat.EffectState>();                      // ⭐ CE-3219 — non-lethal effects (dtEffectState)
         world.RegisterComponent<Fdp.Toolkit.Physics.BodyParts.PartDamage>();   // ⭐ CE-3210 — wounds per body part (dtPartDamage)
         world.RegisterComponent<Fdp.Toolkit.Perception.Look.LookState>();      // ⭐ CE-3252 — where a person looks (dtLookState)
@@ -188,6 +191,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterEvent<Fdp.Toolkit.Terrain.UnderFireLearned>();         //   and the local event its detectors raise for the writer
         world.RegisterComponent<Fdp.Toolkit.Terrain.MinefieldLanes>();     // ⭐ CE-4624 MS-T4 — the lanes a node cleared (a runtime record), and the clearer's tool marker
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineClearing>();
+        world.RegisterComponent<Fdp.Toolkit.Terrain.BridgeCarried>();   // ⭐ CE-4693 (BL-S3) — a bridge engineer's span and its brain's order (Brain group, dtBridgeCarried): read by the mover's BridgeWorkSystem
         world.RegisterComponent<Fdp.Toolkit.Terrain.MineBreadcrumbs>();   // ⭐ CE-4624 MS-T2 (MR-5) — a unit's back-out track near a field (its brain node writes it)
         world.RegisterComponent<CarKinem.Core.RamOrder>();   // ⭐ CE-4622 K-2 — a hull's ram order (Brain group, dtRamOrder): read by the mover's avoidance and breach gate
         world.RegisterComponent<Fdp.Toolkit.Combat.CheckpointWatch>();   // ⭐ CE-4622 K-4 — a checkpoint commander's watch on its approach (brain-local; read by the ladder and the checks)
@@ -258,6 +262,18 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.SeatPresetsFilled>();   // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();    // ⭐ WS-4 (W-I)
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+        world.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();   // ⭐ Simulated devices S1a — the device marker
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInput>();  // ⭐ S1b-2 — the newest frame a device took
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();   // ⭐ S1b-3 — where a device points, relative to its mount
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.LaserPointing>();   // ⭐ S1c — a device's laser as its logic points it
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.LaserSpot>();       // ⭐ S1c — where it lands (the muscle's LaserSpotSystem writes it)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePanel>();     // ⭐ S1c — a device's generic panel outputs, on change
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.ControlledEntities>();   // ⭐ SD-S2c (D-147) — what a device commands (authored; ControlledBy indexes it)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.RemoteControl>();        // ⭐ SD-S2c (D-104) — the ground station's command on itself
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceView>();           // ⭐ SD-S2c (D-109) — the entity a view bound to the device films through
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();     // ⭐ SD-S5b — the devices a device sends to (scenario-authored)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInbox>();     // ⭐ SD-S5b — the newest two messages addressed to a device
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
         //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in

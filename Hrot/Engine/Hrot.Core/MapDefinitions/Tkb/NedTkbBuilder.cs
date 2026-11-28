@@ -207,6 +207,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ <c>CE-4693</c> (BL-S3 / BL-S4) — the type LAYS BRIDGES: which span it carries, how many, the longest gap, build and recover seconds
+        /// (<c>Engineering.BridgeLayer</c>). A type without this lays none.</summary>
+        public NedTkbBuilder WithBridgeLayer(long tkbId, Fdp.Toolkit.Tkb.Domain.BridgeLayerDto layer)
+        {
+            var template = _db.GetByType(tkbId)
+                ?? throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(layer);
+            return this;
+        }
+
         /// <summary>⭐ Airborne insertion B-5 (docs/designs/airborne/DESIGN_Airborne_Insertion.md §4) — the type JUMPS: its parachute
         /// (<c>Gen.Parachute</c>). A type without one that is made to jump gets a round canopy's defaults.</summary>
         public NedTkbBuilder WithParachute(long tkbId, Fdp.Toolkit.Tkb.Domain.ParachuteDto parachute)
@@ -453,6 +463,43 @@ namespace Hrot.Map.Definitions.Tkb
             if (template == null)
                 throw new InvalidOperationException($"Template {tkbId} not found");
             template.AddDescriptor(weaponSystem ?? throw new ArgumentNullException(nameof(weaponSystem)));
+            return this;
+        }
+
+        /// <summary>⭐⭐ Simulated devices S1e-1 (DESIGN_Simulated_Devices §3.1 R7-4) — a DEVICE type: its <c>Gen.Device</c> descriptor (the behaviour, the channel
+        /// names, the optic) and a brain WITHOUT a default behaviour (<c>BrainTier</c> BTree — the device tick starts <see cref="DeviceDefDto.Behavior"/>);
+        /// <c>DeviceTkbTranslator</c> writes its <c>Mountable</c> (kind Device) and <c>DeviceInfo</c>, and <c>BehaviorTkbTranslator</c> stamps no tactical block.</summary>
+        public NedTkbBuilder WithDevice(long tkbId, DeviceDefDto device)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(device ?? throw new ArgumentNullException(nameof(device)));
+            template.AddDescriptor(new BehaviorProfileDto
+            {
+                SimTier = BehaviorConstants.SimTierTactical,
+                BrainTier = BehaviorConstants.BrainTierBTree,
+            });
+            return this;
+        }
+
+        /// <summary>⭐ SD-S5c (devices §3.13d D-113) — a LASER TARGET DESIGNATOR type's duty cycle and default code (<c>Gen.LaserDesignator</c>).</summary>
+        public NedTkbBuilder WithLaserDesignator(long tkbId, Fdp.Toolkit.Tkb.Domain.LaserDesignatorDto designator)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(designator ?? throw new ArgumentNullException(nameof(designator)));
+            return this;
+        }
+
+        /// <summary>⭐ SD-S2c (devices §3.13c D-106) — a type flown by RADIO from a ground station: its link's range and failsafe (<c>Gen.RemoteLink</c>).</summary>
+        public NedTkbBuilder WithRemoteLink(long tkbId, Fdp.Toolkit.Tkb.Domain.RemoteLinkDto link)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(link ?? throw new ArgumentNullException(nameof(link)));
             return this;
         }
 

@@ -31,7 +31,8 @@ public interface IChordInput
 /// <list type="bullet">
 /// <item><see cref="Pressed"/> — a <see cref="KeyTrigger.Press"/> row's chord went down this frame.</item>
 /// <item><see cref="Held"/> — a <see cref="KeyTrigger.Hold"/> row's chord is held (a chord with no key is its modifier alone).</item>
-/// <item><see cref="Axis"/> — a <see cref="KeyTrigger.Axis"/> action's value: the keys' pair (any positive − any negative) plus the mouse values times their scale.</item>
+/// <item><see cref="Axis"/> — a <see cref="KeyTrigger.Axis"/> action's value: the keys' pair (any positive − any negative) plus the mouse and pad values times their scale
+/// (⭐ SD-S2a: a pad axis through the ONE <see cref="PadDeadzone"/>).</item>
 /// </list>
 /// ⭐ A row fires when the modifiers it NAMES are held (extra modifiers do not stop it — Shift+W still walks), and the row naming the MOST modifiers for a key wins, so
 /// <c>J</c> and <c>Shift+J</c> are two different actions and Shift+J is never also J.
@@ -77,9 +78,11 @@ public sealed class KeymapReader
             var row = rows[i];
             if (row.Trigger != KeyTrigger.Axis || !ModifiersMet(row.Chord, held)) continue;
             var key = row.Chord.Key;
+            if (InnerOwns(key)) continue;
             if (IsValueSource(key))
             {
                 float v = input.Value(key);
+                if (IsPadAxis(key)) v = ApplyDeadzone(v);
                 if (v != 0f && !Shadowed(row, held)) mouse += v * row.Scale;
             }
             else if (key != EditorKey.Unknown && input.IsDown(key) && !Shadowed(row, held))
@@ -116,6 +119,7 @@ public sealed class KeymapReader
             var row = rows[i];
             if (row.Trigger != trigger || !ModifiersMet(row.Chord, held)) continue;
             var key = row.Chord.Key;
+            if (InnerOwns(key)) continue;
             bool active = key == EditorKey.Unknown
                 ? trigger == KeyTrigger.Hold && row.Chord.Modifiers != KeyModifiers.None          // a modifier alone is a held thing, never a press
                 : trigger == KeyTrigger.Press ? input.IsPressed(key, allowRepeat) : input.IsDown(key);
@@ -128,7 +132,51 @@ public sealed class KeymapReader
     private static bool ModifiersMet(KeyBinding chord, KeyModifiers held) => (chord.Modifiers & ~held) == 0;
 
     private static bool IsValueSource(EditorKey key)
-        => key == EditorKey.MouseWheel || key == EditorKey.MouseWheelH || key == EditorKey.MouseDeltaX || key == EditorKey.MouseDeltaY;
+        => key == EditorKey.MouseWheel || key == EditorKey.MouseWheelH || key == EditorKey.MouseDeltaX || key == EditorKey.MouseDeltaY || IsPadAxis(key);
+
+    /// <summary>⭐ SD-S2a (devices §3.13c D-102) — a pad stick or trigger: a VALUE source the one deadzone applies to.</summary>
+    public static bool IsPadAxis(EditorKey key) => key >= EditorKey.PadLeftX && key <= EditorKey.PadTriggerR;
+
+    /// <summary>⭐ SD-S2a (D-102) — THE ONE deadzone of every pad axis: a stick resting within it reads 0.</summary>
+    public const float PadDeadzone = 0.15f;
+
+    /// <summary>⭐ SD-S2a — <paramref name="v"/> through <see cref="PadDeadzone"/>: 0 inside it, and rescaled outside so the edge of the deadzone is 0 and full
+    /// deflection still 1 (no jump as the stick leaves the dead band).</summary>
+    public static float ApplyDeadzone(float v)
+    {
+        float a = MathF.Abs(v);
+        if (a <= PadDeadzone) return 0f;
+        return MathF.CopySign(MathF.Min(1f, (a - PadDeadzone) / (1f - PadDeadzone)), v);
+    }
+
+    /// <summary>
+    /// ⭐ SD-S2a (devices §3.13c D-102 / D-38's device scope) — an INNER place of the scope chain over the same keymap: while set, a row of this reader whose
+    /// key the inner place binds (any trigger) reads as nothing — the inner scope shadows the outer, so a pad stick bound to the focused view's DEVICE does not
+    /// also walk the body. The surface sets it each frame (null: nothing shadows). 0 B.
+    /// </summary>
+    public KeymapReader? Inner { get; set; }
+
+    /// <remarks>⭐ SD-S5v (devices §3.13e D-124) — the inner places form a CHAIN (the body → the device place → the bound device TYPE's hotkey place): a key any
+    /// inner place binds is shadowed here, however deep (four levels at most — a cycle cannot loop).</remarks>
+    private bool InnerOwns(EditorKey key)
+    {
+        if (key == EditorKey.Unknown) return false;
+        var inner = Inner;
+        for (int depth = 0; depth < 4 && inner != null && !ReferenceEquals(inner, this); depth++, inner = inner.Inner)
+            if (inner.Binds(key)) return true;
+        return false;
+    }
+
+    /// <summary>Whether a row of this reader's place names <paramref name="key"/> (any action, any trigger). An index loop — 0 B.</summary>
+    public bool Binds(EditorKey key)
+    {
+        for (int i = 0; i < _keymap.Count; i++)
+        {
+            var e = _keymap[i];
+            if (e.Scope == _scope && e.Chord.Key == key && string.Equals(e.WindowKind, _qualifier, StringComparison.Ordinal)) return true;
+        }
+        return false;
+    }
 
     /// <summary>Another action's row in this place names the SAME key with MORE modifiers, all held: that row owns the input (Shift+J is not also J).</summary>
     private bool Shadowed(in KeymapEntry row, KeyModifiers held)
@@ -180,6 +228,17 @@ public sealed class ManualChordInput : IChordInput
     /// <summary>The movement this frame.</summary>
     public float DeltaY { get; set; }
 
+    // ⭐ SD-S2a — the pad's sticks and triggers (raw: the reader applies the deadzone); they stay until set again (a stick is held, not a per-frame value)
+    private readonly float[] _pad = new float[EditorKey.PadTriggerR - EditorKey.PadLeftX + 1];
+
+    /// <summary>Sets a pad axis (<see cref="EditorKey.PadLeftX"/> … <see cref="EditorKey.PadTriggerR"/>) to <paramref name="value"/>, raw; it stays until set again.</summary>
+    public ManualChordInput Pad(EditorKey axis, float value)
+    {
+        if (!KeymapReader.IsPadAxis(axis)) throw new ArgumentOutOfRangeException(nameof(axis), axis, "not a pad axis");
+        _pad[axis - EditorKey.PadLeftX] = value;
+        return this;
+    }
+
     /// <summary>Holds <paramref name="key"/> (it reads as down until <see cref="Release"/>).</summary>
     public ManualChordInput Hold(EditorKey key) { _down.Add(key); return this; }
     /// <summary>Lets go of <paramref name="key"/>.</summary>
@@ -196,6 +255,7 @@ public sealed class ManualChordInput : IChordInput
     /// <inheritdoc/>
     public float Value(EditorKey source) => source switch
     {
-        EditorKey.MouseWheel => Wheel, EditorKey.MouseWheelH => WheelH, EditorKey.MouseDeltaX => DeltaX, EditorKey.MouseDeltaY => DeltaY, _ => 0f,
+        EditorKey.MouseWheel => Wheel, EditorKey.MouseWheelH => WheelH, EditorKey.MouseDeltaX => DeltaX, EditorKey.MouseDeltaY => DeltaY,
+        _ => KeymapReader.IsPadAxis(source) ? _pad[source - EditorKey.PadLeftX] : 0f,
     };
 }

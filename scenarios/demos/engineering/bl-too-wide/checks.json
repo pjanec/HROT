@@ -1,0 +1,54 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-4693 bl-too-wide (see scenario.json's header). State only, never a time.",
+  "runFor": 60,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the order is refused: the gap is too wide",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Refusal",
+      "op": "==",
+      "value": "GapTooWide",
+      "atEnd": true
+    },
+    {
+      "name": "the measured gap is the river's 30 m",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.GapM",
+      "op": ">",
+      "value": 29,
+      "atEnd": true
+    },
+    {
+      "name": "the engineer still carries its span",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 1,
+      "atEnd": true
+    },
+    {
+      "name": "no bridge is laid (the objective 'Bridge laid' stays Active)",
+      "on": "field",
+      "who": "Bridge laid",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Active",
+      "atEnd": true
+    },
+    {
+      "name": "the engineer does not drive off to the bank",
+      "never": {
+        "on": "field",
+        "who": "Engineer",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 35
+      }
+    }
+  ]
+}

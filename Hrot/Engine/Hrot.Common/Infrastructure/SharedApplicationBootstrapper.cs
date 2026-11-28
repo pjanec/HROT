@@ -116,6 +116,9 @@ public abstract class SharedApplicationBootstrapper
         plan.Step("context", provides: new[] { "context" }, run: () =>
         {
             context = BuildContext(config, role, networkFactory);
+            // ⭐ CE-11032 — the node's behavior registry on the context, from the ONE hook every bootstrapper already overrides (null = a node with no brain)
+            if (GetBehaviorRegistry() is { } behaviorRegistry)
+                context = context with { BehaviorRegistry = behaviorRegistry };
             // ⭐⭐ CE-3446 (§15) — the threaded node's presentation side, for every host a UI draws: A exists before any registrar binds a world
             if (config.HasPresentation && Fdp.ModuleHost.ThreadedKernelGate.ComposedWorlds)
                 context = context with { Presentation = _presentation = NewStagedPresentation() };

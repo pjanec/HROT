@@ -581,12 +581,12 @@ public sealed partial class EffectTests
         var (_, tkb) = World();
         List<WeaponMountDto> Mounts(long type) => tkb.GetByType(type)!.GetDescriptor<WeaponSuiteDto>()!.Mounts;
         var ah64 = Mounts(Hrot.Map.Common.TkbEntityTypes.Heli_AH64);
-        Assert.True(FireStreams.IsAutomatic(ah64[0]));
-        Assert.False(FireStreams.IsAutomatic(ah64[1]));
-        Assert.Contains(Mounts(Hrot.Map.Common.TkbEntityTypes.Jet_AttackA10), FireStreams.IsAutomatic);
-        Assert.DoesNotContain(Mounts(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman), FireStreams.IsAutomatic);
-        Assert.False(FireStreams.IsAutomatic(Mounts(Hrot.Map.Common.TkbEntityTypes.Tank_T72)[0]));
-        Assert.False(FireStreams.IsAutomatic(null));
+        Assert.True(Hrot.Look.Effects.FireStreams.IsAutomatic(ah64[0]));
+        Assert.False(Hrot.Look.Effects.FireStreams.IsAutomatic(ah64[1]));
+        Assert.Contains(Mounts(Hrot.Map.Common.TkbEntityTypes.Jet_AttackA10), Hrot.Look.Effects.FireStreams.IsAutomatic);
+        Assert.DoesNotContain(Mounts(Hrot.Map.Common.TkbEntityTypes.Infantry_Rifleman), Hrot.Look.Effects.FireStreams.IsAutomatic);
+        Assert.False(Hrot.Look.Effects.FireStreams.IsAutomatic(Mounts(Hrot.Map.Common.TkbEntityTypes.Tank_T72)[0]));
+        Assert.False(Hrot.Look.Effects.FireStreams.IsAutomatic(null));
     }
 
     /// <summary>
@@ -599,7 +599,7 @@ public sealed partial class EffectTests
     {
         var into = new List<(Vector3 From, Vector3 To)>();
         var muzzle = new Vector3(10, 0, 5);
-        float s = FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.1, into);
+        float s = Hrot.Look.Effects.FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.1, into);
         Assert.Equal(1f - 0.1f / 0.35f, s, 3);
         Assert.Equal(19, into.Count);   // 0, 5, … 90
         for (int i = 0; i < into.Count; i++)
@@ -608,13 +608,13 @@ public sealed partial class EffectTests
             Assert.Equal(1.8f, Vector3.Distance(into[i].From, into[i].To), 2);
             Assert.Equal(0f, into[i].From.Y, 3);   // toward the aim, not the forward
         }
-        Assert.Equal(0f, FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.36, into));
+        Assert.Equal(0f, Hrot.Look.Effects.FireStreams.Dashes(muzzle, muzzle + new Vector3(300, 0, 0), Vector3.UnitY, 0.36, into));
         Assert.Empty(into);
 
-        FireStreams.Dashes(muzzle, Vector3.Zero + muzzle, Vector3.UnitY, 0.1, into);   // no aim known
+        Hrot.Look.Effects.FireStreams.Dashes(muzzle, Vector3.Zero + muzzle, Vector3.UnitY, 0.1, into);   // no aim known
         Assert.All(into, d => Assert.True(MathF.Abs(d.From.X - muzzle.X) < 1e-3f && d.To.Y > d.From.Y));
 
-        FireStreams.Dashes(muzzle, muzzle + new Vector3(12, 0, 0), Vector3.UnitY, 0.3, into);   // a target 12 m away
+        Hrot.Look.Effects.FireStreams.Dashes(muzzle, muzzle + new Vector3(12, 0, 0), Vector3.UnitY, 0.3, into);   // a target 12 m away
         Assert.All(into, d => Assert.True(d.To.X <= muzzle.X + 12f + 1e-3f));
     }
 
@@ -628,9 +628,9 @@ public sealed partial class EffectTests
         var tank = Unit(world, Hrot.Map.Common.TkbEntityTypes.Tank_T72, new Vector3(400, 0, 0));
         world.Bus.Publish(new WeaponFireNotification { Shooter = heli, Target = tank, WeaponIndex = 0 });
         Tick(world, new EffectSpawnSystem(), 0.016f);
-        var shot = Assert.Single(RecentShots.Of(world)!.Recent(7.1, FireStreams.Window));
+        var shot = Assert.Single(RecentShots.Of(world)!.Recent(7.1, Hrot.Look.Effects.FireStreams.Window));
         Assert.Equal((heli, 0, 7.0, new Vector3(400, 0, 0)), shot);
-        Assert.Empty(RecentShots.Of(world)!.Recent(7.5, FireStreams.Window));
+        Assert.Empty(RecentShots.Of(world)!.Recent(7.5, Hrot.Look.Effects.FireStreams.Window));
     }
 
     [Fact]
@@ -923,11 +923,11 @@ public sealed partial class EffectTests
         foreach (var shape in Enum.GetValues<MunitionShape>())
         {
             var look = new MunitionVisualDto { Shape = shape, Length = 0.4f, Diameter = 0.1f, Tracer = shape == MunitionShape.Bullet };
-            var r = new ProjectileLayer.Round(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
+            var r = new Hrot.Look.Effects.RoundState(look, new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, new Vector3(0, 0, 3), 1, Speed: 20f);
             if (shape == MunitionShape.Bullet) Assert.True(ProjectileLayer.TracerOf(r, out _, out _), "a tracer bullet draws its streak");
             else Assert.NotEmpty(ProjectileLayer.SolidsOf(r));
         }
-        var future = new ProjectileLayer.Round(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
+        var future = new Hrot.Look.Effects.RoundState(new MunitionVisualDto { Shape = (MunitionShape)200, Length = 0.3f, Diameter = 0.08f },
                                                new Vector3(10, 0, 3), Vector3.UnitX, false, 0f, Vector3.Zero, 1);
         Assert.NotEmpty(ProjectileLayer.SolidsOf(future));                        // an unknown, future shape: a lump, not nothing
     }
@@ -949,12 +949,12 @@ public sealed partial class EffectTests
         Round(world, MunitionTkbCatalog.TkbThrowingStar, new Vector3(20, 10, 0.1f), Vector3.Zero, Landed);
         var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 0.5f };
 
-        List<ProjectileLayer.Round> At(double t)
+        List<Hrot.Look.Effects.RoundState> At(double t)
         {
             world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t });
             return layer.Resolve();
         }
-        ProjectileLayer.Round Of(List<ProjectileLayer.Round> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
+        Hrot.Look.Effects.RoundState Of(List<Hrot.Look.Effects.RoundState> rs, MunitionShape s, bool lying) => rs.Single(r => r.Look.Shape == s && r.Lying == lying);
 
         var t1 = At(0.1);
         var t2 = At(0.2);
@@ -1005,7 +1005,7 @@ public sealed partial class EffectTests
             Ammo = MunitionTkbCatalog.TkbArrow, Warhead = (byte)(Fdp.Toolkit.Combat.Components.WarheadRound.Landed | Fdp.Toolkit.Combat.Components.WarheadRound.Sticks), PreviousPosition = place,
         });
         var layer = new ProjectileLayer(() => world, () => tkb) { GroundHeight = (_, _) => 5f };
-        List<ProjectileLayer.Round> At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); return layer.Resolve(); }
+        List<Hrot.Look.Effects.RoundState> At(double t) { world.SetSingletonUnmanaged(new GlobalTime { TotalTime = t }); return layer.Resolve(); }
 
         var vn = Vector3.Normalize(v);
         var t1 = At(0.1); var t2 = At(0.2);
@@ -1036,7 +1036,7 @@ public sealed partial class EffectTests
     public void P1_ARocketTrailsSmokeBackToItsMuzzle()
     {
         var look = new MunitionVisualDto { Shape = MunitionShape.Missile, Length = 1.2f, Diameter = 0.12f, SmokeTrail = true };
-        var r = new ProjectileLayer.Round(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
+        var r = new Hrot.Look.Effects.RoundState(look, new Vector3(40, 0, 2), Vector3.UnitX, false, 0f, new Vector3(20, 0, 2), 1);
         var trail = ProjectileLayer.TrailOf(r);
         Assert.Equal(22, trail.Count);                                          // 20 m back, one puff each 0.9 m
         Assert.All(trail, p => Assert.InRange(p.At.X, 20f, 40f));             // between the missile and its muzzle
@@ -1051,7 +1051,7 @@ public sealed partial class EffectTests
     public void P2_ATracerBulletBurnsAStreakAlongItsRealFlight_AnOrdinaryBulletDrawsNothing()
     {
         var tracerLook = new MunitionVisualDto { Shape = MunitionShape.Bullet, Tracer = true };
-        var r = new ProjectileLayer.Round(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
+        var r = new Hrot.Look.Effects.RoundState(tracerLook, new Vector3(300, 40, 2), Vector3.Normalize(new Vector3(1, 0.1f, 0)), false, 0f,
                                           Vector3.Zero, 1, Speed: 850f);
         Assert.True(ProjectileLayer.TracerOf(r, out var head, out var tail));
         Assert.Equal(r.Centre, head);
@@ -1414,10 +1414,10 @@ public sealed partial class EffectTests
         var origin = new Vector3(486f, -52f, 1625f);
         var velocity = new Vector3(1000f, 150f, 0f);                    // the round leaves the nose
         var behind = new Vector3(0f, 0f, 1300f);                        // the AI's attack point, flown past
-        var toward = Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(behind, behind, origin, velocity, 1500f);
+        var toward = Hrot.Look.Effects.FireStreams.StreamToward(behind, behind, origin, velocity, 1500f);
         Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f, $"ahead along the rounds ({toward})");
         var ahead = origin + new Vector3(600f, 120f, 30f);              // a target in front, off by its lead: kept
-        Assert.Equal(ahead, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, ahead, origin, velocity, 1500f));
+        Assert.Equal(ahead, Hrot.Look.Effects.FireStreams.StreamToward(Vector3.Zero, ahead, origin, velocity, 1500f));
     }
 
     [Fact]
@@ -1425,15 +1425,15 @@ public sealed partial class EffectTests
     {
         var origin = new Vector3(116f, 282f, 26f);
         var velocity = new Vector3(-600f, 650f, -150f);
-        var toward = Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, velocity, 1000f);
+        var toward = Hrot.Look.Effects.FireStreams.StreamToward(Vector3.Zero, Vector3.Zero, origin, velocity, 1000f);
         Assert.True(Vector3.Distance(origin, toward) > 900f, $"out along the launch ({toward})");
         Assert.True(Vector3.Dot(Vector3.Normalize(toward - origin), Vector3.Normalize(velocity)) > 0.999f);
         var target = origin + Vector3.Normalize(velocity) * 400f + new Vector3(0f, 0f, 20f);   // ⭐ CE-1960 — a unit along the launch (a point behind it no longer wins)
-        Assert.Equal(target, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(target, new Vector3(9f, 9f, 9f), origin, velocity, 1000f));   // a unit wins
-        Assert.Equal(Vector3.Zero, Hrot.UI.Common.Effects.EffectSpawnSystem.StreamToward(Vector3.Zero, Vector3.Zero, origin, Vector3.Zero, 0f));   // nothing known
+        Assert.Equal(target, Hrot.Look.Effects.FireStreams.StreamToward(target, new Vector3(9f, 9f, 9f), origin, velocity, 1000f));   // a unit wins
+        Assert.Equal(Vector3.Zero, Hrot.Look.Effects.FireStreams.StreamToward(Vector3.Zero, Vector3.Zero, origin, Vector3.Zero, 0f));   // nothing known
 
         var dashes = new System.Collections.Generic.List<(Vector3 From, Vector3 To)>();
-        Hrot.UI.Common.Effects.FireStreams.Dashes(origin, Vector3.Zero, new Vector3(0f, 1f, 0f), 0.2, dashes);
+        Hrot.Look.Effects.FireStreams.Dashes(origin, Vector3.Zero, new Vector3(0f, 1f, 0f), 0.2, dashes);
         Assert.NotEmpty(dashes);
         Assert.All(dashes, d => Assert.True(d.To.Y > origin.Y && MathF.Abs(d.To.X - origin.X) < 1e-3f, $"along the gun, not to the origin ({d.To})"));
     }

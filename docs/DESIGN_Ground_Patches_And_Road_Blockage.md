@@ -7,6 +7,8 @@ stale-below: nothing
 known-rot: none
 known-conflict: DESIGN_Terrain_Height.md TH-C ("a building stands on the LOWEST ground under its footprint") — overturned for a building that carries a pad, once G-2 is ruled
 related-designs:
+  - DESIGN_Terrain_OSM_Bridges.md — PROPOSES that the net re-elevation (G-25) takes the DECK's height on bridged edges (a per-edge override), not the levelled ground under them
+  - designs/engineering/DESIGN_Bridge_Laying.md — the laid bridge's road segment: an ADD through the same road-edit step (and its cut when it falls)
   - DESIGN_Terrain_Base_Edits.md — OWNS removing a baked-in building: its footprint is levelled by this design's `Level` shape once the building leaves the base (no longer an island)
   - DESIGN_Terrain_Editor_UX.md — CE-4594, the user-friendly way to reach and repeat the features §4d makes ready (toolbar row, sticky tools, snapping, the scatter's line, the Terrain Details tab); bound by §4d
   - DESIGN_Vehicle_Breaching.md — builds on P-0, R-4232 and P-2 here: a crushed roadblock re-opens its road; a breach is read at query time
@@ -272,6 +274,7 @@ centreline z, level across — today it cuts into the uphill side and floats ove
 | # | ✅ ruled | why |
 |---|---|---|
 | **G-21** | the importer reads the net BEFORE writing the store; per EDGE a `GroundPatch {Line, Corridor}`: the centreline profile = the ground along it, SMOOTHED over ~30 m (the 30 m DEM's ripple out, the real grade kept); LEVEL ACROSS the edge's full width (all its lanes + a 1 m shoulder); a 3 m skirt (cut uphill, fill downhill); a junction levelled flat at its z | the same patch along a line; one place for OSM and random |
+| ⭐ **G-21a** *(CE-4694 ②, as built `2026-11-25`)* | ⛔ "per EDGE" left a CLIFF down every two-way road on a cross-slope: SUMO writes a two-way road as TWO edges (one per direction), each became its own corridor levelled to its own profile, and "the nearest road wins" stepped between them along the centreline — 📐 0.6 m on Stechovice's west-bank secondary road (a vehicle climbs 0.2 m: the vehicle navmesh was cut along the road, and a bridge ramp landing on it was unreachable). ⭐ Opposite edges between the same two junctions are PAIRED into ONE corridor along their midline (half-width = both carriageways + the shoulder) when the carriageways are adjacent (mean gap ≤ their half-widths + 1 m); a divided road keeps two (its median is never levelled). Importer revision 4 (every imported terrain re-imports once). Rail `ImporterTests.CE4694_*` | one profile per ROAD, not per direction |
 | **G-22** | bridges and tunnels are skipped (the valley under a bridge stays) | — |
 | **G-23** | the corridor cut / fill is capped at ~6 m — beyond it the road keeps the natural cross-slope (no canyon) | real roads cut deep; a cap stops a pathological carve |
 | **G-24** | **road corridors are LOCKED** for every later patch: a house's skirt, a scenario shape, a ditch never alter a corridor cell (a shape that RAISES a hill across a road re-levels the touched corridors with the same function at compile, before re-elevating the net — G-16) | the road stays level whatever is added around it |

@@ -660,6 +660,9 @@ planner.*
 | **R-8305** | ⭐ the commander chooses in ONE place: `CommandOrders.Route(world, commander, member, OrderKind kind, physicalPlay, neutralJson, newOrder)` — the member is stochastic (`AggregateUnits.IsStochastic`) ⇒ `Order(kind)` (recorded `Order.<K>`, R-8301); else `Assign(physicalPlay)` with the SAME neutral json (R-8300 proves the physical plays read it). `CommandOrders.KeyFor(world, member, kind, physicalPlay)` answers the matching record key for the sites' `StillRunning` / `Gave`. A site whose order has no neutral DTO yet keeps `Assign` (kind 0) | a site needing a play-specific field the neutral DTO lacks |
 | **R-8306** | ⭐ `StochasticUnitDefend` raises `AggregateUnit.Prepared` with time in position (P-5): Hasty at once, Prepared after 10 min, Fortified after 60 min of SIM time; `PreparedSince` stamped at occupation. A lane decision for the user's review — the numbers are the doctrine's rough times for a hasty / prepared / fortified position | the user's own times |
 
+⭐ **`CE-4686` ④ (backend, `2026-11-24`): the kind Bound got its neutral DTO** — `BoundOrder { Position, SupportPoint, Speed }`, read by `PlatoonBound`,
+`BoundingOverwatch` and (by `Position`) the stochastic generic attack — 📄 `docs/DESIGN_Orders_Params_Entity_Classes.md` §16. ⚠ R-8303's remaining kinds (March, Recover, FireAndMovement, ClearBuilding, Embark) still have none.
+
 **✅ INCREMENT 1 BUILT** *(`2026-11-16`, R-8300 + R-8301 only — no site flipped, R-8304 stands)* — the UML below is as built, with these as-built rows:
 
 | what | where |

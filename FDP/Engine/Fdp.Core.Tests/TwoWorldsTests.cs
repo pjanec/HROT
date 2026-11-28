@@ -106,5 +106,44 @@ namespace Fdp.Tests
             a.SyncPresentationFrom(s, default, default);
             Assert.Equal(2, a.GetSingletonUnmanagedRO<TwClock>().T);
         }
+
+        // ⭐ CE-11047 — stand-ins at the ids a plain SyncFrom BORROWS (the SoD list in EntityRepository.Sync.cs): a managed service, two per-tick values
+        [ComponentId(GlobalComponentIds.TerrainWorld)] public sealed class TwTerrainService { public int V; }
+        [ComponentId(GlobalComponentIds.SpatialGridData)] public struct TwGrid { public int Cells; }
+        [ComponentId(GlobalComponentIds.WorldEpoch)] public struct TwEpoch { public int Value; }
+
+        /// <summary>
+        /// ⭐ CE-11047 (DESIGN_Threaded_Simulation_Presentation §13.1 / D-4) — a STEADY presentation sync allocates nothing, though the source holds
+        /// singletons at the ids a plain <c>SyncFrom</c> borrows: the presentation world keeps its OWN tables across syncs (no borrow, no rebuild); a
+        /// managed service is the SAME object (shared); a per-tick value is a COPY (a later write on S does not reach A until the next sync).
+        /// 📌 Measured by ui on headless Stechovice: the borrow, then step 4's "a borrowed slot ⇒ a new table", rebuilt twelve tables every sync.
+        /// 🔴 Red-proof: the borrow back in the presentation sync ⇒ bytes allocated every sync.
+        /// </summary>
+        [Fact]
+        public void CE11047_ASteadyPresentationSync_AllocatesNothing_SharesServices_AndCopiesValues()
+        {
+            using var a = NewA();
+            var svc = new TwTerrainService { V = 1 };
+            a.SetSingletonManaged(svc);
+            a.SetSingletonUnmanaged(new TwGrid { Cells = 64 });
+            a.SetSingletonUnmanaged(new TwEpoch { Value = 3 });
+            var e = a.CreateEntity();
+            a.AddComponent(e, new TwPos { X = 1 });
+            using var s = a.CloneForSimulation();
+            var mask = MaskOf(484);
+            for (int i = 0; i < 100; i++) { s.Tick(); a.SyncPresentationFrom(s, mask, default); }   // warm: tables made, scratch grown, the JIT's tier-up past (~30 calls)
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) { s.Tick(); a.SyncPresentationFrom(s, mask, default); }
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+            Assert.Equal(0, allocated);                                            // ⭐ steady: no table, no chunk array
+
+            Assert.Same(svc, a.GetSingletonManaged<TwTerrainService>());           // a service is shared — the same object
+            Assert.Equal(64, a.GetSingletonUnmanagedRO<TwGrid>().Cells);
+            s.SetSingletonUnmanaged(new TwEpoch { Value = 4 });                    // the simulation writes its per-tick value …
+            Assert.Equal(3, a.GetSingletonUnmanagedRO<TwEpoch>().Value);           // … ⭐ A has a COPY (not S's live table): unchanged until the sync
+            s.Tick(); a.SyncPresentationFrom(s, mask, default);
+            Assert.Equal(4, a.GetSingletonUnmanagedRO<TwEpoch>().Value);
+        }
     }
 }

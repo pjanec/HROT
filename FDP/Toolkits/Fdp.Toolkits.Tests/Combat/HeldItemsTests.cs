@@ -99,6 +99,36 @@ namespace Fdp.Toolkit.Tests.Combat
         }
 
         /// <summary>
+        /// ⭐⭐ Simulated devices S1d-3 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.10 R4-3 / R3-5) — a hand-held DEVICE in his kit gives him
+        /// binoculars to hold (a non-leader trainee of a type with none in his pockets — R4-3); a device that lies elsewhere does not; an AI leader's
+        /// pocket pair is untouched (CE-1224 needs no device, and no device of his is viewed). ✅ Red-proof: the <c>CarriedDevices.Any</c> line dropped from
+        /// <c>HeldItems.Has</c> ⇒ the carrier is refused ⇒ red.
+        /// </summary>
+        [Fact]
+        public void S1d3_ACarriedDevice_GivesHimBinocularsToHold_ALyingOneDoesNot_ALeaderKeepsHisPocketPair()
+        {
+            var repo = _world.Repo;
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Devices.DeviceInfo>()) repo.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.PassengerBuffer>()) repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
+            if (!repo.IsComponentTypeRegistered<Fdp.Core.CommandHierarchy.UnitSubordinate>()) repo.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            var device = repo.CreateEntity();
+            repo.AddComponent(device, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 78 });
+            var trainee = Man(PhoneCivType, Vector3.Zero, civilian: false);                // a type with no binoculars
+            repo.AddComponent(trainee, new Fdp.Toolkit.Behavior.Components.PassengerBuffer());
+            Assert.False(HeldItems.Has(repo, trainee, HeldItemKind.Binoculars));             // the device lies elsewhere
+            repo.GetComponentRW<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(trainee).Passengers[4] = device;   // in his first kit station
+            Assert.True(HeldItems.Set(repo, trainee, HeldItemKind.Binoculars));
+            Assert.True(Fdp.Toolkit.Behavior.Devices.CarriedDevices.Any(repo, trainee));
+            Assert.False(Fdp.Toolkit.Behavior.Devices.CarriedDevices.AnyViewed(repo, trainee));   // carried, not viewed
+
+            var leader = Man(PhoneCivType, new Vector3(5f, 0f, 0f), civilian: false);
+            repo.AddComponent(leader, new Fdp.Core.CommandHierarchy.UnitSubordinate { Designation = Fdp.Core.CommandHierarchy.TacticalDesignation.SquadLeader });
+            Assert.True(HeldItems.Set(repo, leader, HeldItemKind.Binoculars));                // his pocket pair: no device needed
+            Assert.False(Fdp.Toolkit.Behavior.Devices.CarriedDevices.AnyViewed(repo, leader));
+            Assert.True(HeldItems.BinocularsUp(repo, leader));
+        }
+
+        /// <summary>
         /// ⭐ HI-4 — binoculars UP: his visual sensor reaches twice as far through a 10° cone; down, his naked eye. And he identifies four times
         /// further: a civilian's pistol at 200 m by day (naked eye 60 m) is identified lethal through them. ✅ Red-proofs: <c>Optics</c>
         /// without the binoculars branch ⇒ 300 m ⇒ red; <c>SeeingConditions.Of</c> with optics 1 ⇒ Unidentified ⇒ red.

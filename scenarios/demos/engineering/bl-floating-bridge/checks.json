@@ -1,0 +1,86 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-4693 bl-floating-bridge (see scenario.json's header). State and objectives, never a time.",
+  "runFor": 1400,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the floating bridge is laid (objective Achieved)",
+      "on": "field",
+      "who": "Bridge laid",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the engineer laid its span",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the order was not refused",
+      "never": {
+        "on": "field",
+        "who": "Engineer",
+        "path": "BridgeCarried.Refusal",
+        "op": "!=",
+        "value": "NotRefused"
+      }
+    },
+    {
+      "name": "Tank 1 is across",
+      "on": "near",
+      "who": "Tank 1",
+      "point": [
+        80.0,
+        160.0
+      ],
+      "within": 8
+    },
+    {
+      "name": "Tank 2 is across",
+      "on": "near",
+      "who": "Tank 2",
+      "point": [
+        80.0,
+        172.0
+      ],
+      "within": 8
+    },
+    {
+      "name": "the column crossed ON the deck, up off the river bed",
+      "on": "field",
+      "who": "Tank 2",
+      "path": "SimTransform.Position.2",
+      "op": ">",
+      "value": 0.4
+    },
+    {
+      "name": "no vehicle in the river off the deck",
+      "never": {
+        "on": "field",
+        "who": "*Tank ",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 61.0,
+        "also": [
+          {
+            "path": "SimTransform.Position.1",
+            "op": "<",
+            "value": 129.0
+          },
+          {
+            "path": "SimTransform.Position.0",
+            "op": "<",
+            "value": 76.5
+          }
+        ]
+      }
+    }
+  ]
+}

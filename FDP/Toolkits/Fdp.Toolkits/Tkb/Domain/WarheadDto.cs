@@ -170,6 +170,12 @@ namespace Fdp.Toolkit.Tkb.Domain
 
         public bool HasAreaEffect => BlastInjuryRadiusM > 0f || FragmentRadiusM > 0f;
 
+        /// <summary>⭐ <c>CE-11057</c> — the burst lays a burning AREA (a napalm bomb: an incendiary with <see cref="AreaLengthM"/> × <see cref="AreaWidthM"/>).
+        /// ⭐ It bursts where it lands like any area round (<c>WarheadRound.BitsOf</c>). ⛔ Not part of <see cref="HasAreaEffect"/>, which means BLAST /
+        /// FRAGMENTS to its other readers (danger areas, the blast system, ammo choice).</summary>
+        [JsonIgnore]
+        public bool HasFireArea => Kind == WarheadKind.Incendiary && AreaLengthM > 0f && AreaWidthM > 0f;
+
         /// <summary>⭐ <c>CE-3219</c> part 3 — the burst leaves a gas / smoke cloud.</summary>
         [JsonIgnore]
         public bool HasCloud => CloudRadiusM > 0f && CloudSeconds > 0f && (Kind == WarheadKind.Irritant || Kind == WarheadKind.Smoke);

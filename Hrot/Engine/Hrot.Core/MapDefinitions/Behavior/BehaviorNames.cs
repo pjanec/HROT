@@ -400,5 +400,18 @@ namespace Hrot.Map.Definitions.Behavior
         // ⭐ rules S2-c (DESIGN_Scenario_Rules §10.11) — the trigger: the one behaviour of a Trigger entity (TKB 8861)
         /// <summary>when a condition rises: hold, wait, run a list of actions, cool down (§10.11).</summary>
         public const string Trigger = "Trigger";
+
+        // ⭐ Simulated devices S1c (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 D-57) — a DEVICE's logic: the one behaviour its type
+        //   names (DeviceInfo.Behavior), started and kept running by the device tick; offered to nothing else (Requires = DeviceInfo).
+        /// <summary>The laser rangefinder: RANGE measures (laser on until the spot answers), MODE / MENU step its modes (§3.8).</summary>
+        public const string DeviceRangefinder = "DeviceRangefinder";
+        /// <summary>⭐ S1d-3 — the binoculars: ZOOM IN / OUT step its magnification (5× / 7× / 10×); its view's field follows the step (§3.10).</summary>
+        public const string DeviceBinoculars = "DeviceBinoculars";
+        /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION's logic (TKB 642).</summary>
+        public const string DeviceDroneStation = "DeviceDroneStation";
+        /// <summary>⭐ SD-S5c (§3.13d D-113) — the LASER TARGET DESIGNATOR's logic (TKB 643): OFF · STANDBY · LASING · COOLING, the PRF code, one RANGE pulse.</summary>
+        public const string DeviceDesignator = "DeviceDesignator";
+        /// <summary>⭐ SD-S2c (§3.13c D-104 / D-107) — a drone flown THROUGH a ground station: its own brain reads the station's command (never possessed).</summary>
+        public const string RemotePilot = "RemotePilot";
     }
 }

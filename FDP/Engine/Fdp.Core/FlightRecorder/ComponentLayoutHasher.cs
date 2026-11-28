@@ -58,7 +58,9 @@ namespace Fdp.Core.FlightRecorder
                 hash = FnvMix(hash, (byte)'|');
 
                 // 2. Fold in the full type name of the field.
-                hash = HashString(hash, field.FieldType.FullName ?? field.FieldType.Name);
+                // ⭐ CE-11027 — a type that says it must hash as another (StationId as NodeId) folds in THAT name: a retype that keeps the bytes keeps old recordings valid
+                var named = field.FieldType.GetCustomAttribute<LayoutHashAsAttribute>(inherit: false)?.As ?? field.FieldType;
+                hash = HashString(hash, named.FullName ?? named.Name);
                 hash = FnvMix(hash, (byte)'|');
 
                 // 3. Fold in the field's byte offset within the struct.

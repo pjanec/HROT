@@ -19,6 +19,15 @@ namespace Hrot.Map.Definitions.Behavior
         [JsonPropertyName("Objective")]
         public PointLink Objective;
 
+        /// <summary>⭐ CE-4686 ④ — the neutral Bound order's place (<c>BoundOrder.Position</c>): the objective when <see cref="Objective"/> is unset.</summary>
+        [JsonPropertyName("Position")]
+        public PointLink Position;
+
+        /// <summary>⭐ CE-4686 ④ — the neutral Bound order's support point (<c>BoundOrder.SupportPoint</c>): accepted, UNUSED at a squad (its two teams
+        /// bound in turn from where it stands).</summary>
+        [JsonPropertyName("SupportPoint")]
+        public PointLink SupportPoint;
+
         /// <summary>How far one bound carries the moving element (m); 0 = 30.</summary>
         [JsonPropertyName("BoundMetres")]
         public float BoundMetres;

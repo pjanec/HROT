@@ -10,6 +10,7 @@ using Fdp.Toolkit.Combat.Executors;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Radar;
 using Hrot.AI.Behaviors.Brains;
+using Hrot.AI.Behaviors.Orders;
 using Xunit;
 
 namespace Hrot.SimHost.Tests
@@ -608,7 +609,7 @@ namespace Hrot.SimHost.Tests
         /// 10 right) and a Door station operated by him (9, 11) holding an M134, its arc 20…160° on its side. The M134s are mounts 32 / 33.</summary>
         private Entity SpawnDoorHeli(Vector3 at, out Entity leftGun, out Entity rightGun, out Entity leftGunner, out Entity rightGunner)
         {
-            Reg<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            Reg<Fdp.Toolkit.Combat.WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>();
             Reg<IsEmbarkedTag>();
             Reg<PassengerBuffer>();
             Reg<CarrierStations>();
@@ -644,7 +645,7 @@ namespace Hrot.SimHost.Tests
                 _w.AddComponent(r, new IsEmbarkedTag { VehicleEntity = e, Seat = seat, Exposed = 1 });
                 if (gun)
                 {
-                    _w.AddComponent(r, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 });
+                    _w.AddComponent(r, new Fdp.Toolkit.Combat.WeaponSystemParams { NeedsOperator = 1 }); _w.AddComponent(r, new Fdp.Toolkit.Combat.Mountable());
                     _w.AddComponent(r, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(DoorGun) });
                     _w.AddComponent(r, new WeaponState { Ammo = 3000, MuzzleVelocity = DoorGunMuzzle });
                 }
@@ -1205,6 +1206,8 @@ namespace Hrot.SimHost.Tests
             _w.AddComponent(e, new Health { Current = 10, Max = 10 });
             _w.SetAuthority<SimTransform>(e, true);   // the air system moves only owned bodies
             _w.AddComponent(e, new EntityInfo { ForceId = ForceId.Hostile });
+            // ⭐ devices SD-S2b (D-108) — a drone with an endurance has its ONE battery, full (the flight translator gives a drone type one); FlyDrone drains it
+            if (enduranceSeconds > 0f) _w.AddComponent(e, new Fdp.Toolkit.Motion.DroneBattery { Remaining01 = 1f });
             return e;
         }
 
@@ -1253,6 +1256,7 @@ namespace Hrot.SimHost.Tests
                     ArrivalRadius = move.ArrivalRadius, IntentId = ++_droneIntent,
                 };
             _air.Execute(_w, Dt);
+            if (_w.HasComponent<Fdp.Toolkit.Motion.DroneBattery>(e)) Fdp.Toolkit.Motion.DroneBatterySystem.Drain(_w, e, Dt);   // ⭐ SD-S2b — the brain's battery step
             var status = _w.GetComponentRO<NavigationStatus>(e);
             _w.GetComponentRW<LocomotionChannel>(e).Status = status.Result == NavigationResult.Arrived && status.IntentId == intent.IntentId
                 ? NodeStatus.Success : NodeStatus.Running;
@@ -1540,7 +1544,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// ⭐ §9i ② (the search) — with nothing remembered in the area the drone CIRCLES the point at the cruise height (150 m round it), it
-        /// does not hover on it; ⭐ ③ the battery — at <c>EnduranceSeconds</c> it dives straight down where it is.
+        /// does not hover on it; ⭐ ③ the battery — at <c>EnduranceSeconds</c> airborne its <c>DroneBattery</c> is empty (SD-S2b) and it dives straight down where it is.
         /// ✅ Red-proofs (mutants): the circle steered at the point ⇒ it hovers over it ⇒ red; no battery ⇒ it circles on ⇒ red.
         /// </summary>
         [Fact]
@@ -1902,6 +1906,230 @@ namespace Hrot.SimHost.Tests
             Assert.False(MissileDefence.RadarTracked(_w, jet));
             _w.GetComponentRW<RadarWarning>(jet).Emitter = ground;
             Assert.True(MissileDefence.RadarTracked(_w, jet));
+        }
+        // ─────────────────────────── ⭐⭐ CE-3490 — the breath attack (docs/designs/air-attack/DESIGN_Breath_Attack.md) ───────────────────────────
+        private const long Dragonish = 9480, FlameHeli = 9481, DragonFuel = 9482;
+        private const string Houses = """
+            { "type": "FeatureCollection", "features": [
+              { "type": "Feature", "properties": { "kind": "building", "label": "Timber",
+                  "building": { "footprint": [[0,0],[8,0],[8,6],[0,6]], "material": "timber",
+                    "storeys": [ { "height": 2.8, "walls": [
+                      { "from": [0,0], "to": [8,0], "thickness": 0.2 }, { "from": [8,0], "to": [8,6], "thickness": 0.2 },
+                      { "from": [8,6], "to": [0,6], "thickness": 0.2 }, { "from": [0,6], "to": [0,0], "thickness": 0.2 } ] } ] } },
+                "geometry": { "type": "Point", "coordinates": [0, 0] } },
+              { "type": "Feature", "properties": { "kind": "building", "label": "Brick",
+                  "building": { "footprint": [[0,0],[8,0],[8,6],[0,6]], "material": "brick",
+                    "storeys": [ { "height": 2.8, "walls": [
+                      { "from": [0,0], "to": [8,0], "thickness": 0.3 }, { "from": [8,0], "to": [8,6], "thickness": 0.3 },
+                      { "from": [8,6], "to": [0,6], "thickness": 0.3 }, { "from": [0,6], "to": [0,0], "thickness": 0.3 } ] } ] } },
+                "geometry": { "type": "Point", "coordinates": [0, 300] } } ] }
+            """;
+
+        /// <summary>A dragon-like flyer: a rotorcraft whose only weapon is a flamethrower (mount 0, a 50 m / 9° fuel); <paramref name="withGun"/> adds a
+        /// machine gun (mount 1) — a "flame helicopter" (BA-8).</summary>
+        private Entity SpawnFlyer(Vector3 at, bool withGun = false)
+        {
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            if (!db.TryGetByType(Dragonish, out _))
+            {
+                var fuel = new Fdp.Interfaces.TkbTemplate("test dragon fire", DragonFuel);
+                fuel.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WarheadDto { Kind = Fdp.Toolkit.Tkb.Domain.WarheadKind.Incendiary, FlameRangeM = 50f, FlameHalfAngleDeg = 9f,
+                                                                           FlameIntensity = 1f, BurnSeconds = 60f });
+                db.Register(fuel);
+                Fdp.Toolkit.Tkb.Domain.WeaponMountDto Breath() => new() { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.Flamethrower, AmmoGuid = DragonFuel,
+                                                                           Range = 50f, InitialAmmunition = 600 };
+                var d = new Fdp.Interfaces.TkbTemplate("test dragon", Dragonish);
+                d.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { Breath() } });
+                db.Register(d);
+                var h = new Fdp.Interfaces.TkbTemplate("test flame helicopter", FlameHeli);
+                h.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.WeaponSuiteDto { Mounts = { Breath(), new Fdp.Toolkit.Tkb.Domain.WeaponMountDto
+                    { Category = Fdp.Toolkit.Tkb.Domain.WeaponCategory.MachineGun, Range = 1000f, InitialAmmunition = 4000, DamagePerHit = 30 } } });
+                db.Register(h);
+            }
+            var e = SpawnPlane(at, withGun ? FlameHeli : Dragonish, 600, Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft);
+            _w.AddComponent(e, new EntityInfo { ForceId = ForceId.Friend });
+            return e;
+        }
+
+        private Entity SpawnMan(Vector3 at, ForceId force = ForceId.Hostile)
+        {
+            var m = SpawnGround(at, 100f, vehicle: false, force);
+            _w.AddComponent(m, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Pedestrian });
+            return m;
+        }
+
+        private void UseHouses() => _w.SetSingletonManaged(Fdp.Toolkit.Terrain.TerrainWorldParser.Parse(Houses, "range"));
+
+        /// <summary>The stand-in rotorcraft: straight at the MoveTo at its speed (35 m/s when none), the climb at up to 8 m/s, a hover on its arrival radius.</summary>
+        private void FlyRotor(Entity e)
+        {
+            var move = MoveOf(e);
+            ref var tr = ref _w.GetComponentRW<SimTransform>(e);
+            var to = move.Destination - tr.Position;
+            var flat = new Vector2(to.X, to.Y);
+            float speed = move.Speed > 0f ? move.Speed : 35f;
+            Vector3 v = Vector3.Zero;
+            if (flat.Length() > MathF.Max(move.ArrivalRadius, 0.25f))
+            {
+                v = new Vector3(Vector2.Normalize(flat) * MathF.Min(speed, flat.Length() / Dt), 0f);
+                tr.Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.Atan2(v.Y, v.X));
+            }
+            if (MathF.Abs(to.Z) > 0.05f) v.Z = MathF.Sign(to.Z) * MathF.Min(MathF.Abs(to.Z) / Dt, 8f);
+            bool arrived = flat.Length() <= MathF.Max(move.ArrivalRadius, 0.25f) && MathF.Abs(to.Z) <= 1f;
+            _w.GetComponentRW<LocomotionChannel>(e).Status = arrived ? NodeStatus.Success : NodeStatus.Running;
+            _w.GetComponentRW<SimVelocity>(e).Linear = v;
+            tr.Position += v * Dt;
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3490 BA-1 / BA-5 / BA-8 — the breath is picked for what the flame can light: a dragon against a MAN strafes (BreathPass), against a
+        /// TIMBER house hovers (BreathHover); against a BRICK house, an ARMOURED car or under a ROE forbidding incendiaries it has no profile and the attack
+        /// fails at once (it never flies off to breathe on nothing). A flame helicopter with a gun breathes on the man and flies RunningFire at the armoured car.
+        /// 🔴 Red-proofs: <c>Unlightable</c> returning 0 ⇒ the dragon "attacks" the brick house and the armoured car ⇒ red; the Pick's breath branch removed ⇒
+        /// no profile for the man ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheBreath_IsPickedForWhatTheFlameCanLight()
+        {
+            UseHouses();
+            var dragon = SpawnFlyer(new Vector3(-300f, 0f, 60f));
+            var man = SpawnMan(new Vector3(0f, -50f, 0f));
+            var armoured = SpawnGround(new Vector3(0f, -80f, 0f), 1000f, vehicle: true, ForceId.Hostile);
+            var db = (Fdp.Toolkit.Tkb.TkbDatabase)_w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>();
+            var hull = new Fdp.Interfaces.TkbTemplate("test armoured car", 9483);
+            hull.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.CombatPlatformDefDto { ArmorFront = 60f, ArmorSide = 45f, ArmorRear = 30f });
+            db.Register(hull);
+            _w.AddComponent(armoured, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)9483L });
+
+            AirAttackProfile? Flown(Entity flyer, Entity target, Vector3 point, StrikeTargetKind kind)
+            {
+                var p = new AirAttackParams { Target = target, Point = target.IsNull ? point : _w.GetComponentRO<SimTransform>(target).Position, Kind = kind };
+                var ws = default(AirAttackState);
+                return AirAttackNodes.Run(ref p, ref ws, flyer, _w) == NodeStatus.Failure ? null : ws.Profile;
+            }
+            Assert.Equal(AirAttackProfile.BreathPass, Flown(dragon, man, default, StrikeTargetKind.Unspecified));
+            Assert.Equal(AirAttackProfile.BreathHover, Flown(dragon, Entity.Null, new Vector3(4f, 3f, 0f), StrikeTargetKind.Building));
+            Assert.Null(Flown(dragon, Entity.Null, new Vector3(4f, 303f, 0f), StrikeTargetKind.Building));   // brick never burns
+            Assert.Null(Flown(dragon, armoured, default, StrikeTargetKind.Unspecified));                     // an armoured hull never burns
+
+            var heli = SpawnFlyer(new Vector3(-300f, 20f, 60f), withGun: true);
+            Assert.Equal(AirAttackProfile.BreathPass, Flown(heli, man, default, StrikeTargetKind.Unspecified));
+            Assert.Equal(AirAttackProfile.RunningFire, Flown(heli, armoured, default, StrikeTargetKind.Unspecified));   // its gun for what the flame cannot light
+
+            _w.AddComponent(dragon, new Roe { Incendiary = RoeIncendiary.IncendiaryForbidden });
+            Assert.Null(Flown(dragon, man, default, StrikeTargetKind.Unspecified));                          // BA-6: the ROE forbids the breath
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3490 BA-2 — the STRAFE: from 600 m out the dragon runs in at 60 m, drops to ~12 m and 10 m/s before the man, breathes ONLY while he is inside
+        /// the 50 m reach (every fuel shot from ≤ 52 m, at 15 m up or lower), flies OVER him, climbs out to ≥ 50 m 150 m beyond, and comes back on a line 120°
+        /// round — the second pass never on the first's line. 🔴 Red-proofs: the reach check dropped ⇒ shots from 200 m ⇒ red; the 120° turn dropped (the same
+        /// line again) ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheBreathPass_StrafesLowOverTheMan_BreathesInReach_ClimbsOut_AndComesBack120DegreesRound()
+        {
+            var dragon = SpawnFlyer(new Vector3(-600f, 0f, 60f));
+            var man = SpawnMan(Vector3.Zero);
+            var p = new AirAttackParams { Target = man, Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            uint entered = 0;
+            var shots = new System.Collections.Generic.List<(int Mount, float Distance)>();
+            var firstDir = Vector2.Zero;
+            float lowestBreathZ = float.MaxValue, highestBreathZ = 0f, climbOutZ = 0f;
+            int passesSeen = 0;
+            for (int frame = 0; frame < 60 * 120 && passesSeen < 2; frame++)
+            {
+                int before = shots.Count;
+                byte stage = ws.Stage;
+                var status = Step(ref p, ref ws, dragon, executor, ref entered, shots, dragon);
+                Assert.True(status == NodeStatus.Running, $"frame {frame}: {status} at stage {ws.Stage} (was {stage}), at {_w.GetComponentRO<SimTransform>(dragon).Position}, shots {shots.Count}, passes {ws.Passes}");
+                var at = _w.GetComponentRO<SimTransform>(dragon).Position;
+                if (shots.Count > before) { lowestBreathZ = MathF.Min(lowestBreathZ, at.Z); highestBreathZ = MathF.Max(highestBreathZ, at.Z); }
+                if (firstDir == Vector2.Zero && ws.Dir != Vector2.Zero) firstDir = ws.Dir;
+                if (stage == 13 && ws.Stage == 10)   // out → the next run-in: a pass is done
+                {
+                    passesSeen++;
+                    climbOutZ = MathF.Max(climbOutZ, at.Z);
+                }
+                FlyRotor(dragon);
+            }
+            Assert.Equal(2, passesSeen);
+            Assert.NotEmpty(shots);
+            foreach (var (_, d) in shots) Assert.True(d <= 52f, $"a breath from {d:0} m — outside the 50 m reach");
+            Assert.True(highestBreathZ <= 15f, $"breathed from {highestBreathZ:0.0} m up");
+            Assert.True(climbOutZ >= 50f, $"climbed out only to {climbOutZ:0} m");
+            float cos = Vector2.Dot(firstDir, ws.Dir);
+            Assert.True(MathF.Abs(cos - MathF.Cos(2f * 120f * MathF.PI / 180f)) < 0.05f, $"third line {ws.Dir} vs first {firstDir}");
+        }
+
+        /// <summary>
+        /// ⭐ CE-3490 BA-3 — the line through a GROUP: five hostile men it remembers standing in a north–south row put the pass ALONG the row (a line of men burns
+        /// in one pass), though the dragon comes from the west; one man alone ⇒ straight in from where it is. 🔴 Red-proof: the group line dropped ⇒ the pass
+        /// runs west–east ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_ThePass_RunsAlongTheRowOfMenItRemembers()
+        {
+            var dragon = SpawnFlyer(new Vector3(-600f, 10f, 60f));
+            var row = new Entity[5];
+            for (int i = 0; i < row.Length; i++) row[i] = SpawnMan(new Vector3(0f, -20f + 10f * i, 0f));
+            Remember(dragon, row);
+            var p = new AirAttackParams { Point = Vector3.Zero };
+            var ws = default(AirAttackState);
+            Assert.Equal(NodeStatus.Running, AirAttackNodes.Run(ref p, ref ws, dragon, _w));
+            Assert.Equal(AirAttackProfile.BreathPass, ws.Profile);
+            Assert.True(MathF.Abs(ws.Dir.Y) > 0.99f, $"the pass runs {ws.Dir}, not along the row");
+
+            var lone = SpawnFlyer(new Vector3(-600f, 0f, 60f));
+            Remember(lone, row[2]);
+            var p2 = new AirAttackParams { Point = Vector3.Zero };
+            var ws2 = default(AirAttackState);
+            AirAttackNodes.Run(ref p2, ref ws2, lone, _w);
+            Assert.True(ws2.Dir.X > 0.99f, $"a lone man: straight in, got {ws2.Dir}");
+        }
+
+        /// <summary>
+        /// ⭐⭐ CE-3490 BA-4 — the HOVER on a timber house: the dragon arrives at its station 25 m off the nearest burnable wall, 8 m up, FACING the wall, breathes
+        /// on the wall for 3 s (30 fuel shots, every one aimed at the wall), and flies home — Success there. 🔴 Red-proofs: the stand-off at the building's
+        /// centre instead of its wall ⇒ red; the breath's 3 s cut to one shot ⇒ red.
+        /// </summary>
+        [Fact]
+        public void CE3490_TheBreathHover_StandsOffTheTimberWall_Breathes3Seconds_AndFliesHome()
+        {
+            UseHouses();
+            var home = new Vector3(-200f, 3f, 40f);
+            var dragon = SpawnFlyer(home);
+            var p = new AirAttackParams { Point = new Vector3(4f, 3f, 0f), Kind = StrikeTargetKind.Building };
+            var ws = default(AirAttackState);
+            var executor = new FireAtPointExecutor();
+            uint entered = 0;
+            var shots = new System.Collections.Generic.List<(int Mount, float Distance)>();
+            Vector3 breathAt = default;
+            var facing = Vector2.Zero;
+            NodeStatus status = NodeStatus.Running;
+            for (int frame = 0; frame < 60 * 120 && status == NodeStatus.Running; frame++)
+            {
+                int before = shots.Count;
+                status = Step(ref p, ref ws, dragon, executor, ref entered, shots, dragon);
+                if (shots.Count > before && before == 0)
+                {
+                    breathAt = _w.GetComponentRO<SimTransform>(dragon).Position;
+                    facing = new Vector2(Vector3.Transform(Vector3.UnitX, _w.GetComponentRO<SimTransform>(dragon).Rotation).X,
+                                         Vector3.Transform(Vector3.UnitX, _w.GetComponentRO<SimTransform>(dragon).Rotation).Y);
+                }
+                FlyRotor(dragon);
+            }
+            Assert.True(status == NodeStatus.Success, $"{status} at stage {ws.Stage}, at {_w.GetComponentRO<SimTransform>(dragon).Position}, shots {shots.Count}, hover {ws.HoverAt} wall {ws.WallAim}");
+            Assert.Equal(30, shots.Count);
+            // the west wall (x = 0) is the nearest from the west: the station 25 m off it, 8 m up, facing east
+            Assert.InRange(breathAt.X, -26.5f, -23.5f);
+            Assert.InRange(breathAt.Z, 6.5f, 9.5f);
+            Assert.True(facing.X > 0.9f, $"facing {facing}, not the wall");
+            foreach (var (_, d) in shots) Assert.InRange(d, 23f, 27f);   // every shot at the wall, 25 m off
+            var end = _w.GetComponentRO<SimTransform>(dragon).Position;
+            Assert.True(new Vector2(end.X - home.X, end.Y - home.Y).Length() <= AirOrderNodes.DefaultArrivalRadius + 1f, $"ended at {end}");
         }
     }
 }

@@ -29,6 +29,7 @@ public sealed class RulesModelTests : IDisposable
         _world.RegisterComponent<MacroOrigin>();
         _world.RegisterManagedComponent<MacroInstance>();
         _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.BehaviorStartRecord>();
+        _world.RegisterManagedComponent<Fdp.Toolkit.Behavior.Components.UnitIntent>();   // ⭐ CE-3494
         _world.RegisterComponent<EntityInfo>();
     }
 
@@ -362,6 +363,28 @@ public sealed class RulesModelTests : IDisposable
         _byId[id] = e;
         _world.AddComponent(e, new NetworkIdentity(id));
         _world.AddComponent(e, new EntityInfo { Name = new FixedString64(name), ForceId = side });
+    }
+
+    /// <summary>⭐⭐ CE-3494 (S4) — in edit mode nothing runs before the first step, so a loaded or edited rule is only its PENDING
+    /// <c>UnitIntent</c>: it is still a row, read from the intent (the ONE reader, <c>RuleSentence.ParamsOf</c>), and the intent wins over a
+    /// start record on the same entity (it is what runs NEXT). 🔴 Red-proof: drop the intent pass in <c>RulesModel</c> ⇒ no row.</summary>
+    [Fact]
+    public void CE3494_AnAuthoredRuleThatIsOnlyAnIntent_HasARow_AndTheIntentWinsOverTheStartRecord()
+    {
+        var e = _world.CreateEntity();
+        _byId[30] = e;
+        _world.AddComponent(e, new NetworkIdentity(30));
+        _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.UnitIntent
+        {
+            Behavior = new Fdp.Toolkit.Behavior.Components.IntentSlot { Name = "ReachArea", Params = """{"common":{"title":"From the intent"}}""" },
+        });
+        var row = Assert.Single(Build().Rows);
+        Assert.Equal(30, row.NetworkId);
+        Assert.Equal("ReachArea", RuleSentence.ParamsOf(_world, e)!.Value.Name);
+
+        _world.SetManagedComponent(e, new Fdp.Toolkit.Behavior.Components.BehaviorStartRecord { BehaviorName = "Count", JsonParams = """{"common":{"title":"Running"}}""", InstanceId = 1 });
+        Assert.Equal("ReachArea", RuleSentence.ParamsOf(_world, e)!.Value.Name);   // the pending intent is what runs next
+        Assert.Single(Build().Rows);                                               // one row, not two
     }
 
     /// <summary>One row type, two sources: with no status the row is read from the authored <c>common</c> block — tree from <c>parent</c>, title, subject, group, state <i>Authored</i> (grey), no past, every action disabled with the reason. ✅ Red-proof: the authored pass dropped from <c>RulesReader.Read</c> ⇒ no rows ⇒ red.</summary>

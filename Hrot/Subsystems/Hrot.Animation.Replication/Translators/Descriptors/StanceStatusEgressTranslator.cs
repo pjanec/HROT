@@ -26,7 +26,7 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
     private readonly IAnimDdsWriter<DdsStanceStatus> _writer;
     private readonly NetworkEntityMap _entityMap;
     [Fdp.Core.ProtocolCache("last-published value for egress change detection; empty republishes")]
-    private readonly Dictionary<Entity, (StanceTransitionPhase, StanceId, uint)> _lastPublished = new();
+    private readonly Dictionary<Entity, (StanceTransitionPhase, StanceId, uint, double)> _lastPublished = new();   // ⭐ CE-11014 — a new transition start republishes
     private int _worldEpoch;
 
     public string TopicName { get; } = CycloneDDS.Schema.DdsTopicName.Of<DdsStanceStatus>();
@@ -72,7 +72,8 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
             if (_lastPublished.TryGetValue(entity, out var last)
                 && last.Item1 == status.Phase
                 && last.Item2 == status.CurrentStance
-                && last.Item3 == status.AckVersion)
+                && last.Item3 == status.AckVersion
+                && last.Item4 == status.TransitionStartedAt.Seconds)
             {
                 DirtyFalsePositiveCount++;
                 continue;
@@ -87,9 +88,12 @@ internal sealed class StanceStatusEgressTranslator : INetworkTranslator
                 Phase = (byte)status.Phase,
                 TransitionProgress = status.TransitionProgress,
                 AckVersion = status.AckVersion,
+                TransitionStartedAt = status.TransitionStartedAt.Seconds,   // ⭐ CE-11014
+                FromStance = (byte)status.FromStance,
+                TransitionSeconds = status.TransitionSeconds.Seconds,
             });
             SentSampleCount++;
-            _lastPublished[entity] = (status.Phase, status.CurrentStance, status.AckVersion);
+            _lastPublished[entity] = (status.Phase, status.CurrentStance, status.AckVersion, status.TransitionStartedAt.Seconds);
         }
     }
 }

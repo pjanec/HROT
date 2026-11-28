@@ -52,6 +52,19 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <paramref name="width"/> along it — touches no solid of <paramref name="world"/> that overlaps [at.Z, at.Z + height] (height ≤ 0 ⇒
         /// any). Sampled every <see cref="SampleStep"/> over the box.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (b) (user-approved 2026-11-23: "size the hides for tank — tank know how big it is"; Exposure Cycle §3 known-rot) — does the
+        /// hull fit at <paramref name="at"/> in the pose it ARRIVES in: its length along <paramref name="heading"/> (the way it drives in), its box
+        /// grown by <see cref="Margin"/> on every side for an arrival that is never exact. 📐 Measured on the Stechovice M1: hides sized for a SIDE-ON
+        /// park (<see cref="Clear"/> with the cover's normal) were driven to nose-first, held at the wall, backed out and driven into again.
+        /// </summary>
+        public static bool FitsArriving(TerrainWorld world, Vector3 at, Vector2 heading, float length, float width, float height)
+        {
+            if (heading.LengthSquared() < 1e-6f) return Clear(world, at, Vector2.UnitX, length + 2f * Margin, width + 2f * Margin, height);
+            var h = Vector2.Normalize(heading);
+            return Clear(world, at, new Vector2(h.Y, -h.X), length + 2f * Margin, width + 2f * Margin, height);   // Clear's length runs across its normal ⇒ the normal ⟂ the heading
+        }
+
         public static bool Clear(TerrainWorld world, Vector3 at, Vector2 towardCover, float length, float width, float height)
         {
             if (towardCover.LengthSquared() < 1e-6f) towardCover = Vector2.UnitX;
@@ -68,15 +81,10 @@ namespace Fdp.Toolkit.Spatial.Eqs
             return true;
         }
 
+        // ⭐ CE-5044 — through the world's spatial index (TerrainWorld.InsideFootprint — the same box, height band and polygon rule): this was a scan of
+        //   every prism per hull sample, 333 k on Stechovice, the EQS solver's top cost there (handoff ui → terrain; the CE-4366 fix of the
+        //   cover build, this caller missed). A deck above the hull (TopZ ≤ z or BaseZ ≥ z + height) is not in the way.
         private static bool Solid(TerrainWorld world, Vector2 p, float z, float height)
-        {
-            foreach (var prism in world.Prisms)
-            {
-                if (p.X < prism.Min.X || p.Y < prism.Min.Y || p.X > prism.Max.X || p.Y > prism.Max.Y) continue;
-                if (height > 0f && (prism.TopZ <= z || prism.BaseZ >= z + height)) continue;   // a deck above the hull is not in the way
-                if (PolygonMath.Contains(prism.Footprint, p)) return true;
-            }
-            return false;
-        }
+            => height > 0f ? world.InsideFootprint(p.X, p.Y, z, z + height) : world.InsideFootprint(p.X, p.Y);
     }
 }

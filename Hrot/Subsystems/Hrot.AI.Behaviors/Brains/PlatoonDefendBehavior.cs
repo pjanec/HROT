@@ -85,6 +85,12 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>⭐ <c>CE-3361</c> ② (DA-67) — this slot's FIGHTING members when the plan was made (the defence began): the fall-back judges what the DEFENCE
         /// has cost against it, not the colour a squad already carried in (0 = not recorded: the colour rule).</summary>
         public fixed byte Baseline[Capacity];
+        /// <summary>⭐ <c>CE-8327</c> — the point this slot's squad was last sent a <c>SquadDefend</c> to (<see cref="Sent"/> = 1): a re-send to the same
+        /// point (a flank turn re-plans the posts) is flagged <c>InPlace</c> so the squad takes posts where it stands instead of marching to the centre.</summary>
+        public fixed float SentX[Capacity];
+        public fixed float SentY[Capacity];
+        public fixed byte Sent[Capacity];
+        public const float SamePointMetres = 0.5f;
 
         public Vector3 Point(int slot) => new(X[slot], Y[slot], Z[slot]);
 
@@ -169,10 +175,17 @@ namespace Hrot.AI.Behaviors.Brains
         public const float PositionsTimeoutSeconds = 5f;
 
         [StructLayout(LayoutKind.Sequential)]
-        public struct PlatoonDefendBlackboard
+        public struct PlatoonDefendBlackboard : IPlayRoles
         {
             public PlatoonDefencePlan Plan;
             public PlatoonDefendState Keep;
+
+            /// <summary>⭐ CE-4686 ② — the slot's role, read from the plan (never changed).</summary>
+            public unsafe string? RoleOf(int slot) => slot < 0 || slot >= PlatoonDefencePlan.Capacity ? null : Plan.Role[slot] switch
+            {
+                PlatoonDefencePlan.Line => PlayRoleWords.Line, PlatoonDefencePlan.Reserve => PlayRoleWords.Reserve,
+                PlatoonDefencePlan.Op => PlayRoleWords.Observation, _ => null,
+            };
         }
 
         [BehaviorResolver(BehaviorNames.PlatoonDefend)]
@@ -425,6 +438,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (p.Withdrawing[slot] != 0 && p.Falling == 0)   // ⭐ CE-7032 (City Battle §3a) — the OP withdraws under cover, not a walk
                 {
                     p.Withdrawing[slot] = 2;
+                    p.Sent[slot] = 0;   // ⭐ CE-8327 — a withdrawal is not a Defend send: the defend after it marches in
                     CommandOrders.Route(world, self, squad, OrderKind.BreakContact, BehaviorNames.BreakContact,
                                         JsonSerializer.Serialize(new BreakContactOrder { To = p.Point(slot), Speed = p.Speed }, json), newOrder: true);   // ⭐ R-8305
                     Sector(ref p, slot, world, squad);
@@ -432,13 +446,20 @@ namespace Hrot.AI.Behaviors.Brains
                     continue;
                 }
                 if (p.Falling != 0 && p.Role[slot] == PlatoonDefencePlan.Line)   // ⭐ E-3a (DA-68) — the line bounds back
+                {
+                    p.Sent[slot] = 0;   // ⭐ CE-8327
                     CommandOrders.Route(world, self, squad, OrderKind.BreakContact, BehaviorNames.BreakContact,
                                         JsonSerializer.Serialize(new BreakContactOrder { To = p.FallBackTo, Speed = p.Speed }, json), newOrder: true);   // ⭐ R-8305
+                }
                 else
                 {
                     var order = p.Falling != 0   // ⭐ E-3a (DA-69) — the reserve (and an OP) covers at the fall-back point
                         ? new DefendOrder { Position = p.FallBackTo, SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove }
                         : new DefendOrder { Position = p.Point(slot), SearchRadius = p.Radius[slot], Speed = p.Speed, ShootAndMoveSeconds = p.ShootAndMove };
+                    // ⭐ CE-8327 — a re-send to the point it was last sent: the squad is already there, posts from where it stands
+                    var to = order.Position.Local;
+                    order.InPlace = p.Sent[slot] != 0 && MathF.Abs(to.X - p.SentX[slot]) <= PlatoonDefencePlan.SamePointMetres && MathF.Abs(to.Y - p.SentY[slot]) <= PlatoonDefencePlan.SamePointMetres;
+                    p.SentX[slot] = to.X; p.SentY[slot] = to.Y; p.Sent[slot] = 1;
                     CommandOrders.Route(world, self, squad, OrderKind.Defend, BehaviorNames.SquadDefend, JsonSerializer.Serialize(order, json), newOrder: true);   // ⭐ R-8305
                 }
                 Sector(ref p, slot, world, squad);

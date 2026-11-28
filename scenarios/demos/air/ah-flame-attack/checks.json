@@ -1,0 +1,83 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-3490 (docs/designs/air-attack/DESIGN_Breath_Attack.md \u00a75): the flame helicopter \u2014 its breath on men, its rockets on armour.",
+  "runFor": 120,
+  "golden": {
+    "every": 10
+  },
+  "anchors": {
+    "lit": {
+      "on": "field",
+      "who": "Squad Man 1",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100
+    }
+  },
+  "expect": [
+    {
+      "name": "the flame helicopter breathes",
+      "on": "field",
+      "who": "Flame Helicopter",
+      "path": "WeaponAmmo.Ammo0",
+      "op": "<",
+      "value": 600,
+      "before": 60
+    },
+    {
+      "name": "it comes down low to breathe",
+      "on": "field",
+      "who": "Flame Helicopter",
+      "path": "SimTransform.Position.2",
+      "op": "<",
+      "value": 20,
+      "before": 60
+    },
+    {
+      "name": "a second squad man burns",
+      "on": "field",
+      "who": "*Squad Man ",
+      "path": "Health.Current",
+      "op": "<",
+      "value": 100,
+      "quantifier": "atLeast:2",
+      "before": 90
+    },
+    {
+      "name": "Squad Man 1 dies",
+      "on": "field",
+      "who": "Squad Man 1",
+      "path": "Health.Current",
+      "op": "<=",
+      "value": 0,
+      "before": 110
+    },
+    {
+      "name": "it climbs back out above 50 m",
+      "on": "field",
+      "who": "Flame Helicopter",
+      "path": "SimTransform.Position.2",
+      "op": ">",
+      "value": 50,
+      "after": "lit"
+    },
+    {
+      "name": "the armour hunter fires its rockets",
+      "on": "field",
+      "who": "Armour Hunter",
+      "path": "WeaponAmmo.Ammo1",
+      "op": "<",
+      "value": 38,
+      "before": 90
+    },
+    {
+      "name": "the armour hunter never breathes on the tank",
+      "never": {
+        "on": "field",
+        "who": "Armour Hunter",
+        "path": "WeaponAmmo.Ammo0",
+        "op": "<",
+        "value": 600
+      }
+    }
+  ]
+}

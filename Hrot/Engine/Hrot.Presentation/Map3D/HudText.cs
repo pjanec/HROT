@@ -50,6 +50,43 @@ public static class HudText
         return s_font;
     }
 
+    // ── ⭐ S1d-3 — the HUD's colour icons (R-4139: FontAwesome glyphs drawn in the colour of their meaning) ─────────────────────────────────────────
+    /// <summary>FontAwesome solid: the eye.</summary>
+    public const string Eye = "\uf06e";
+    /// <summary>FontAwesome solid: the binoculars.</summary>
+    public const string Binoculars = "\uf1e5";
+    /// <summary>FontAwesome solid: the crosshairs.</summary>
+    public const string Crosshairs = "\uf05b";
+    /// <summary>FontAwesome solid: the video camera (⭐ SD-S2d — the drone ground station's VIEW label).</summary>
+    public const string Video = "\uf03d";
+
+    private static Font? s_icons;
+    private static bool s_iconsTried;
+
+    /// <summary>The HUD's icon face (FontAwesome solid, the few glyphs above), loaded on first use; null ⇒ no icons (the label still reads).</summary>
+    public static Font? Icons()
+    {
+        if (s_iconsTried) return s_icons;
+        s_iconsTried = true;
+        try
+        {
+            var bytes = EmbeddedFontResources.GetFontAwesomeSolidTtfBytes();
+            int[] cps = { 0xf06e, 0xf1e5, 0xf05b, 0xf03d };
+            var font = Raylib.LoadFontFromMemory(".ttf", bytes, BakeSize, cps, cps.Length);
+            if (font.Texture.Id == 0) return null;
+            Raylib.SetTextureFilter(font.Texture, TextureFilter.Bilinear);
+            s_icons = font;
+        }
+        catch (Exception) { s_icons = null; }
+        return s_icons;
+    }
+
+    /// <summary>One icon of <see cref="Icons"/> at <paramref name="size"/> px, its top-left at (<paramref name="x"/>, <paramref name="y"/>).</summary>
+    public static void DrawIcon(string glyph, float x, float y, float size, Color colour)
+    {
+        if (Icons() is { } f) Raylib.DrawTextEx(f, glyph, new Vector2(x, y), size, 0f, colour);
+    }
+
     /// <summary>The width (px) of <paramref name="text"/> at the HUD size.</summary>
     public static float Measure(Font? font, string text) => Measure(font, text, PossessionStation.HudFontSize);
 

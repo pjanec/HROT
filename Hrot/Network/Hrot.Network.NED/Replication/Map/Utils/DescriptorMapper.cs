@@ -92,6 +92,10 @@ namespace Hrot.Map.Common.Replication.Utils
                         result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
                         break;
 
+                    case EDescriptorType.dtAmbience:   // ⭐ CE-11034 — a forwarded request carries its ambience layer
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityAmbienceIngressTranslator.FromSample(in d.Ambience));
+                        break;
+
                     case EDescriptorType.dtEntityGuid:   // ⭐ CE-4153 — the entity's stable scenario key travels with its creation request
                         result.Add(Hrot.Map.Common.Replication.Ingress.EntityStableGuidIngressTranslator.ComponentFrom(in d.StableGuid));
                         break;
@@ -221,6 +225,10 @@ namespace Hrot.Map.Common.Replication.Utils
 
                     case EDescriptorType.dtAreaEffectCloud:   // ⭐ CE-3228 — a forwarded request carries its cloud
                         result.Add(Hrot.Map.Common.Replication.Ingress.EntityAreaEffectCloudIngressTranslator.FromSample(in d.AreaEffectCloud));
+                        break;
+
+                    case EDescriptorType.dtAmbience:   // ⭐ CE-11034 — a forwarded request carries its ambience layer
+                        result.Add(Hrot.Map.Common.Replication.Ingress.EntityAmbienceIngressTranslator.FromSample(in d.Ambience));
                         break;
 
                     case EDescriptorType.dtEntityInfo:

@@ -107,7 +107,9 @@ namespace Hrot.NED.Messages
         public int UseTarget;
         /// <summary>⭐ CE-1212 (appended after UseTarget; DESIGN_Entity_Control §8j L-1) — the lean the operator holds (LeanSide).</summary>
         public byte Lean;
-        /// <summary>⭐ CE-1219 (appended after Lean; §8k B-1) — 1 while his binoculars are held up.</summary>
+        /// <summary>⛔ CE-1219 (appended after Lean; §8k B-1) — was "1 while his binoculars are held up". ⭐ Devices S1d-3 (D-75): IGNORED — the sim frame
+        /// has no binoculars level any more (the trainee's binoculars are a DEVICE, raised while a view shows it). ⚠ Kept on the WIRE only because the
+        /// external Unreal station (<c>tools/unreal/…/HrotDpsStation.cpp</c>) writes this DDS type's layout; it goes with that client's own CE-1219 removal.</summary>
         public byte Binoculars;
         /// <summary>⭐ CE-4143 (appended after Binoculars; DESIGN_Entity_Control §8r) — the look ray: origin (the camera eye) …</summary>
         public float LookFromX, LookFromY, LookFromZ;

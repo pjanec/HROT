@@ -162,7 +162,7 @@ sequenceDiagram
   participant AS as assault squad
   PA->>SBF: SupportByFire(support point, the objective's reported posts)
   SBF->>M: hold at the point (CombatPosture)
-  Note over SBF: centre within 12 m, or 60 s on the way
+  Note over SBF: on its posts at the point, or STUCK (no ground gained for 20 s, CE-5051 / R-2150)
   SBF->>M: Suppress post i mod n (no target: the point)
   SBF-->>PA: PROGRESS Set
   PA->>AS: bound to the assault point
@@ -219,6 +219,15 @@ sequenceDiagram
   S->>M: Hold at HIS post, post set (CombatPosture)
   S->>M: phase 1 - Suppress a reported post from where he is
 ```
+⭐⭐ **`CE-8319` (`2026-11-24`, the as-built — the diagram above is the D-11 B first cut):** ① the plan starts only ONCE THE SQUAD IS AT THE POINT
+(its men's centre within 20 m) — `DefencePlan.Step` asks its window / roof / cover searches round the crew's first live man, so planned from where the
+squad STOOD it posted every man in the house it was leaving; ② on the way each man heads for his own spot on a line across the line of fire at the point
+(5 m apart), never one shared point; ③ it opens fire (phase 1) once its men are ON THEIR POSTS, not when its centre nears the point — phase 1 orders
+every man to Suppress where he stands, so the fire began before the posts were reached; the 60 s timeout stays the fallback; ④ a squad ALREADY at the
+point when ordered (its own position, a SHIFT) fires at once, as before. 📐 Why: live `village-street-mg-flank` — support point (411,245), every man
+posted where he stood at (372,272–278): 150 m from the gun, across the street, 0 hits in 207 rounds; the gun fell to the assault's rifles.
+Rail `SquadManeuverTests.D11B_*` (spots on the line, no search while away), red-proved; the CE-2436 / CE-4667 rails occupy their posts first (`OnPosts`). ⑤ **2-D points go on the GROUND**: an order's point has Z 0 — on village-street (ground ≈ 176 m) the men's moves to their spots aimed under the ground and never started, and the Suppress rounds at the reported post flew 176 m under the gun (220 of 262 "expired"); the spots take the world's stand height (`IWorldQuery.TryStandAt`), and a round at a reported point is grounded and then aimed by THE blind aim (`SuppressNodes.AimAtReported` → `AimPoint.BlindAt`, CE-8315: through the building's opening). ⑥ the post plan looks **40 m** round the support point (was 20): the point lies on the axis, often in a street, with the nearest houses 25–30 m off. 📐 After ①–⑥ on `village-street-mg-flank`: the gun engages at 10 s and is answered at once, the assault flanks south and silences the gunner at 95 s, the house is cleared by 240 s, Blue loses nobody. Rail `SuppressNodesTests.CE8319_*` (the grounded aim), red-proved.
+
 *What the picture shows that prose hid:* no second planner — the base of fire is a defence crew whose sector is its targets; the ONE change
 to the plan is that the crew, not the engagement area, says where the posts face (`IDefenceCrew.Facing`; a defence's crew still answers
 its engagement area — unchanged).

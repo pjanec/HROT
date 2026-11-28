@@ -35,7 +35,42 @@ namespace Fdp.Toolkit.Spatial.Eqs
                     if (view.HasComponent<SensorContactList>(children[k]))
                         Add(view, in view.GetComponentRO<SensorContactList>(children[k]), factionFilter, ids, ref threats);
             }
+            // ⭐ CE-2496 — a squad COMMANDER has no eyes of his own: his squad's merged pool is what he knows (identified enemies only — a heard,
+            //   anonymous contact has no body to see from). 📐 of-squad-outmatched: the squad's retreat query hid from the top threat alone and
+            //   rallied in the second machine gun's sight; the exposure test saw no threats at all (flags never meaningful).
+            //   ⭐ and a squad MEMBER knows what his squad knows: a squad play asks the terrain from its first live man (SquadManeuverRunner.AskTerrain),
+            //   whose own sensor lists were empty there.
+            if (view.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(self))
+                AddPool(view, in view.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(self).Contacts, factionFilter, ids, ref threats);
+            else if (view.HasComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>(self))
+            {
+                var commander = view.GetComponentRO<Fdp.Core.CommandHierarchy.UnitSubordinate>(self).Commander;
+                if (!commander.IsNull && view.IsAlive(commander) && view.HasComponent<Fdp.Toolkit.Squad.SquadCognitiveState>(commander))
+                    AddPool(view, in view.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(commander).Contacts, factionFilter, ids, ref threats);
+            }
             return threats;
+        }
+
+        /// <summary>⭐ <c>CE-2496</c> — adds the identified enemies of a squad's merged pool (<see cref="Fdp.Toolkit.Squad.SquadContacts.IsEnemy"/>) not yet counted.</summary>
+        private static void AddPool(ISimulationView view, in Fdp.Toolkit.Squad.SquadContactPool pool, uint factionFilter, Span<long> ids, ref int threats)
+        {
+            var slots = Fdp.Toolkit.Squad.SquadContacts.Slots(in pool);
+            for (int i = 0; i < pool.Count && threats < ids.Length; i++)
+            {
+                ref readonly var c = ref slots[i];
+                if ((c.Flags & Fdp.Toolkit.Squad.SquadContact.AnonymousFlag) != 0 || c.EntityId <= 0) continue;
+                if (!Fdp.Toolkit.Squad.SquadContacts.IsEnemy(view, in c)) continue;
+                long id = c.EntityId;
+                if (ids.Slice(0, threats).Contains(id)) continue;
+                var t = new Entity((ulong)id);
+                if (!view.HasComponent<SimTransform>(t)) continue;
+                if (factionFilter != 0)
+                {
+                    if (!view.HasComponent<EntityInfo>(t)) continue;
+                    if ((factionFilter & (1u << (int)view.GetComponentRO<EntityInfo>(t).ForceId)) == 0) continue;
+                }
+                ids[threats++] = id;
+            }
         }
 
         /// <summary>Adds the acquired, live, placed, faction-matching contacts of one list that are not yet counted.</summary>

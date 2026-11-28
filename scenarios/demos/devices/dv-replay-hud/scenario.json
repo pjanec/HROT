@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S1 (§5a, R3-3 / R5-8). The dv-paused-operation run - the Observer ranges a marker 450 m away and opens the rangefinder's menu INSIDE a 120-frame pause - recorded FULL and REVIEWED: at 4 s the check enters a During Action Review, looks back at every earlier second, returns to live and runs on (scripts: --verify dv-replay-hud --verify-review-at 4). Judge: (1) live, the device answers in pause exactly as dv-paused-operation (menu open, the range measured as a PREVIEW, the HUD shows it); (2) the review shows the live world at every second looked back at - the device's recorded state the HUD is drawn from (its panel with the range text, its spot, its pose) included - and the return gives the world back. Not judged yet: the HUD's TEXT in the review at a paused wall-clock frame. Fail: a difference between the review and the live run. Check: scripts/scenario-regression.sh dv-replay-hud"
+  },
+  "entities": {
+    "d5e10006-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10006-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10006-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10006-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "d5e10006-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          318.2,
+          318.2,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

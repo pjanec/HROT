@@ -123,6 +123,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>The aimed fire · the gun kept on the threat while hidden.</summary>
         public EngageState Fire;
         public TrackTargetNodeParams Track;
+        /// <summary>⭐ <c>CE-4691</c> — when it reached its hide (sim s): a hit or a launch at it SINCE then means the hide does not hide.</summary>
+        public SimInstant HiddenAt;
+        /// <summary>⭐ <c>CE-4700</c> — 1 once the gun fired a round in THIS exposure (cleared when the exposure begins): before it, a near miss
+        /// does not end the exposure — only a hit or a launch at it does.</summary>
+        public byte FiredHere;
     }
 
     /// <summary>
@@ -131,7 +136,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// the RPG man first, by danger to its own armour (V1) — and withdraws before the enemy's aim time runs out: REVERSE into the same hide
     /// (a tank) or SCOOT on to the next (a light vehicle). 📄 docs/designs/vehicle-tactics/DESIGN_Vehicle_Exposure_Cycle.md §4.
     /// <para>The sibling of <see cref="PeekAndFireNodes"/>: the same steps (<see cref="EqsTacticsNodes.TopAim"/>, <see cref="PostureNodes.Keep"/>,
-    /// <c>PostureNodes.Fire</c>, <see cref="FiringPositionMemory"/> heat, <see cref="PeekAndFireNodes.ClaimedByAFriend"/>) — its own phases.</para>
+    /// <c>PostureNodes.Fire</c>, <see cref="FiringPositionMemory"/> heat, <see cref="PeekAndFireNodes.ClaimedByAFriend(EntityRepository, Entity, System.Numerics.Vector3, double)"/>) — its own phases.</para>
     /// </summary>
     public static class VehicleFightFromCoverNodes
     {
@@ -226,6 +231,29 @@ namespace Hrot.AI.Behaviors.Brains
             HeatPenalty = 0.3f, MatchRadius = 3f,
         };
 
+        /// <summary>How many cooling half-lives a FAILED hide stays burned (<see cref="FailedHideHeat"/>): ten — 10 min at the 60 s half-life.</summary>
+        public const int FailedHideHalfLives = 10;
+
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (a) — the heat a FAILED hide is burned with: it stays burned while its heat is at least <c>ReuseHeat</c> (half the burn),
+        /// so <c>BurnHeat · 2^(n−1)</c> keeps it burned for n half-lives. 📐 Measured live: burned at the plain <c>BurnHeat</c> it cooled under
+        /// <c>ReuseHeat</c> in exactly one half-life — the M1 was sent back to the SAME failed hide 60 s later. A place the hull cannot reach does
+        /// not get reachable by cooling (an exposure's heat does: that is what the half-life is for).
+        /// </summary>
+        public static float FailedHideHeat(in HeatRules r) => r.BurnHeat * (1 << (FailedHideHalfLives - 1));
+
+        /// <summary>
+        /// ⭐ <c>CE-5048</c> (a) — the same rules, a place matched by THIS hull: two points closer than its length are one parking spot for it.
+        /// 📐 Measured on the Stechovice M1: a hide failed and the next hide the search answered stood 4.1 m from it (the 3 m match missed it)
+        /// — the same house, the same approach, "going almost exactly the same way back".
+        /// </summary>
+        public static HeatRules Rules(in VehicleFightFromCoverParams p, EntityRepository world, Entity self)
+        {
+            var r = Rules(in p);
+            if (Fdp.Toolkit.Spatial.Eqs.VehicleFootprint.Hull(world, self, out float length, out _, out _)) r.MatchRadius = MathF.Max(r.MatchRadius, length);
+            return r;
+        }
+
         /// <summary>D-J — the resolved withdraw mode: as authored, else from the hull (front ≥ 2 × side ⇒ reverse).</summary>
         public static bool Scoots(in VehicleFightFromCoverParams p, EntityRepository world, Entity self)
         {
@@ -318,6 +346,9 @@ namespace Hrot.AI.Behaviors.Brains
                 case VehiclePhase.Watching:    Watching(ref ws, in p, ref mem, self, world, now, in threat); break;
                 case VehiclePhase.Withdrawing: Withdrawing(ref ws, in p, self, world, now); break;
             }
+            // ⭐ CE-4698 — tell the crew whether the hull can back out of sight (the smoke side step reads it); written only when it changes
+            byte noHide = (byte)(ws.Phase == VehiclePhase.StandAndFight ? 1 : 0);
+            if (mem.NoHide != noHide) mem.NoHide = noHide;
             Claim(ref ws, self, world, now);
             return NodeStatus.Running;
         }
@@ -325,7 +356,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>Leaving the node: its sensors go, its fire, its tracking and its move stop. ⭐ The position memory stays.</summary>
         [BTreeDeactivator("Hrot.AI.Behaviors.Brains.VehicleFightFromCoverNodes.VehicleFightFromCover")]
         public static void Deactivate_VehicleFightFromCover(ref VehicleFightFromCoverParams p, ref VehicleFightFromCoverState ws, Entity self, EntityRepository world)
-            => Release(ref ws, self, world);
+        {
+            Release(ref ws, self, world);
+            ref var mem = ref UnitMemory.Ref<FiringPositionMemory>(world, self);
+            if (mem.NoHide != 0) mem.NoHide = 0;   // ⭐ CE-4698 — out of the cycle the crew's smoke is its own again
+        }
 
         // ── the phases ──────────────────────────────────────────────────────────────────────────────
 
@@ -382,8 +417,11 @@ namespace Hrot.AI.Behaviors.Brains
             if (status == NodeStatus.Running) return;
             ws.Moving = 0;
             if (status == NodeStatus.Success) { EnterHidden(ref ws, in p, self, world, now); return; }
-            // an unreachable hide: heat it so a second failure burns it (PeekAndFire's G2 rule)
-            PositionHeat.Add(ref mem, ws.HidePoint, PeekAndFireNodes.UnreachableHeat * Rules(in p).BurnHeat, now, Rules(in p), exposure: false);
+            // ⭐ CE-5048 (a) (user, 2026-11-23: "remember failed hides but failed is NOT those where tank bounces the wall and recovers") — the move
+            //   FAILED (the motion gave up after its recoveries — a bounce it recovered from never reaches here): never this spot again, matched
+            //   by the hull's length. ⛔ Was PeekAndFire's G2 heat (a second failure burns), matched at 3 m — the next hide 4 m off was a new place
+            var hullRules = Rules(in p, world, self);
+            PositionHeat.Add(ref mem, ws.HidePoint, FailedHideHeat(in hullRules), now, hullRules, exposure: false);
             ws.Phase = VehiclePhase.Choose;
         }
 
@@ -391,6 +429,16 @@ namespace Hrot.AI.Behaviors.Brains
                                    Entity self, EntityRepository world, double now, in ThreatAim threat)
         {
             if (Disarmed(world, self)) return;   // ⭐ CE-2197 — a broken gun stays in its hide
+            // ⭐⭐ CE-4691 (user: "giving up the non-functional hide is for sure a good idea") — HIT, or a missile launched at it, while HIDDEN: the hide does not hide
+            //   (📐 va-pop-smoke: the tank was hit in a hide the Bradley saw into, and Hidden's "under fire ⇒ stay" kept it there). Burn the hide as a failed one
+            //   (never this spot again for a while) and choose another — the hide query asks again from where the threats are now.
+            if (HitSince(world, self, (double)ws.HiddenAt) || LaunchedAtMe(world, self, ws.HiddenAt))
+            {
+                var hullRules = Rules(in p, world, self);
+                PositionHeat.Add(ref mem, ws.HidePoint, FailedHideHeat(in hullRules), now, hullRules, exposure: false);
+                ws.Phase = VehiclePhase.Choose;
+                return;
+            }
 
             // T4 — the gun stays on the threat while hidden (an entity only: a heard point has nothing to track)
             if (!threat.IsPoint && !threat.Entity.IsNull)
@@ -472,6 +520,7 @@ namespace Hrot.AI.Behaviors.Brains
             }
             // at the firing point: the exposure is real — count it, heat the point, set the budget
             ws.ExposedAt = (SimInstant)now;
+            ws.FiredHere = 0;   // ⭐ CE-4700
             ws.ExposedTick = Fdp.Toolkit.Perception.PerceptionClock.Now(world);   // ⭐ CE-3292 — compared with LastSeenTick
             ws.ExposuresHere++;
             ws.Exposures++;
@@ -575,7 +624,13 @@ namespace Hrot.AI.Behaviors.Brains
                 var creep = LocomotionMoveTo.Status(world, self);
                 return creep == NodeStatus.Running ? NodeStatus.Running : NodeStatus.Success;
             }
+            // ⭐⭐ CE-4691 (CE-11057 ④) — the drive OUT stops the first tick it sees its target, as the lane and the creep do (StopIfSees — the ONE step):
+            //   a hull that already sees him from where it sets out (its hide stopped hiding it — the threat moved) fires from there. 📐 Live va-pop-smoke:
+            //   the Bradley and the tank saw each other (3/3 body points, both ways) for 6 s; the drive-out to a firing point 6 m off, starting with a
+            //   turn, ran out of its 2.45 s budget before arriving and withdrew — never a round; the golden's TOW had been fired by chance on the way back
+            //   (only while the drive RUNS: an arrival keeps its firing point and takes the path below, unchanged)
             var status = MoveStatus(world, self, ws.FiringPoint);   // the arrival test (CE-2205) — unchanged
+            if (status == NodeStatus.Running && StopIfSees(ref ws, self, world, in threat, at3)) return TurnOntoArc(ref ws, in p, self, world, in threat, at3);
             if (status != NodeStatus.Success) return status;
             var target = PeekAndFireNodes.LockTarget(world, self, in threat);
             if (dir == Vector2.Zero || target.IsNull) return NodeStatus.Success;   // nothing to look for: as before
@@ -640,7 +695,16 @@ namespace Hrot.AI.Behaviors.Brains
             // the aimed-fire executor's own answer (its status row): a guided round in flight holds the gunner (W-12c) — the one reader (CE-2228)
             bool guiding = PeekAndFireNodes.Guiding(world, self);
             bool done = channel.ActiveAction != CombatConstants.ActionIdAimAndFire || channel.Status != NodeStatus.Running;
-            bool hit = FiredUponSince(world, self, ws.ExposedAt);
+            if (!done && ws.FiredHere == 0)
+            {
+                var ch = channel;   // a copy: RoundsFiredOf reads the channel state by ref
+                if (AimAndFireExecutor.RoundsFiredOf(ref ch) > 0) ws.FiredHere = 1;
+            }
+            // ⭐⭐ CE-4700 (user: "build both backend fixes") — before its FIRST round of this exposure (still braking, aiming, locking) or while
+            //   it GUIDES, only a HIT ends the exposure; a near miss does not. 📐 ua-technical-scoot: the ATGM technical reached its firing point
+            //   at 15.3 s still braking (HoldMoving) and the IFV's near miss at 15.7 s sent it back — the Kornet never fired in 90 s. The
+            //   budget (his aim time) and ExposeSeconds still bound the exposure. ⛔ SUPERSEDED: a near miss withdrew at once, fired or not.
+            bool hit = ws.FiredHere == 0 || guiding ? HitSince(world, self, (double)ws.ExposedAt) : FiredUponSince(world, self, ws.ExposedAt);
             bool overBudget = ws.SeenSince > 0 && now - ws.SeenSince >= ws.Budget;
             bool overTime = now - ws.ExposedAt >= p.ExposeSeconds;
             bool launch = LaunchHeard(world, self, ws.ExposedTick, in threat) || LaunchedAtMe(world, self, ws.ExposedAt);   // ⭐ CE-4670 VA-S5
@@ -765,6 +829,7 @@ namespace Hrot.AI.Behaviors.Brains
             var rng = SimRng.FromSim(self.Index, HideSite ^ (ws.Exposures * 7919), (float)now);
             ws.PhaseUntil = (SimInstant)(now + p.HideSecondsMin + rng.NextSingle() * (p.HideSecondsMax - p.HideSecondsMin));
             ws.Waiting = 0;
+            ws.HiddenAt = (SimInstant)now;   // ⭐ CE-4691
             ws.Phase = VehiclePhase.Hidden;
         }
 
@@ -883,7 +948,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (!sensor.IsValid || !world.IsAlive(sensor.ChildId) || !world.HasComponent<EqsCognitiveBuffer>(sensor.ChildId)) return false;
             ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(sensor.ChildId);
             if (!buffer.IsReady || buffer.Count == 0) return false;
-            var rules = Rules(in p);
+            var rules = Rules(in p, world, self);   // ⭐ CE-5048 (a) — a burned place is matched by the hull's length
             var span = buffer.GetSpanRO()[..buffer.Count];
             float best = float.NegativeInfinity;
             for (int i = 0; i < span.Length; i++)
@@ -939,6 +1004,10 @@ namespace Hrot.AI.Behaviors.Brains
                && Magazine.Reloading(world.GetComponentRO<WeaponState>(gun));   // ⭐ WS-4 — own gun or the controlled station weapon
 
         private static bool UnderFire(EntityRepository world, Entity self, double since) => FiredUponSince(world, self, since);
+
+        /// <summary>⭐ <c>CE-4691</c> — HIT since <paramref name="since"/> (a near miss is not: area fire round a good hide must not move it).</summary>
+        private static bool HitSince(EntityRepository world, Entity self, double since)
+            => RecentSensesOf.WithinSince(world, self, SensorChange.Hit, Now(world) - since + 1e-6, since);
 
         private static bool FiredUponSince(EntityRepository world, Entity self, double since)
         {

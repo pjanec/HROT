@@ -1,0 +1,71 @@
+{
+  "schemaVersion": 1,
+  "name": "te-osm-bridge",
+  "frame": {
+    "utm": {
+      "zone": 33,
+      "hemisphere": "N",
+      "e0": 500000,
+      "n0": 5430000
+    }
+  },
+  "axes": "x east, y north, z up (absolute); headings compass degrees, 0 = north, clockwise",
+  "bounds": [
+    -100,
+    -100,
+    100,
+    100
+  ],
+  "sumoAnchor": [
+    0,
+    0
+  ],
+  "generator": {
+    "name": "mini"
+  },
+  "files": {
+    "buildings/buildings.geojson": {
+      "sha256": "40c4f12562d56f517a54822c0d60ac6bffcd08b0c015b9c133f80d020c83172e",
+      "bytes": 199,
+      "features": 0
+    },
+    "buildings/unassigned.geojson": {
+      "sha256": "40c4f12562d56f517a54822c0d60ac6bffcd08b0c015b9c133f80d020c83172e",
+      "bytes": 199,
+      "features": 0
+    },
+    "heights/heights.f32": {
+      "sha256": "abbfc91f4c777b21db0656d3021dc9db647fdd526f265771e710e61f87bf1b96",
+      "bytes": 161604,
+      "rows": 201,
+      "cols": 201
+    },
+    "heights/heights.hdr": {
+      "sha256": "3be985889a7eb04ba08b92dc548c2db2cc9ebe0814b78b338a5a55e9ecc6e313",
+      "bytes": 177
+    },
+    "heights/heights.json": {
+      "sha256": "378db08fb68266c2ff546ae1f4dc42e8c31fb9d1a1b1655b021d2e0e17e8b249",
+      "bytes": 359
+    },
+    "roads/roads.net.xml": {
+      "sha256": "4b0eba127ae9e03e04a85f9a55c2d8dd99e0bd2678a987ef79be0290e989eb6f",
+      "bytes": 4345
+    },
+    "trees/trees.csv": {
+      "sha256": "b57ff3beefb16fcdee4a605a79d94d3b353b6958380d258e64d3be195d60f161",
+      "bytes": 13,
+      "rows": 0
+    },
+    "walls/walls.geojson": {
+      "sha256": "507ae38e11f5897a0c9fafe5e5d84f2ee8aa7825388cfcaf010adef3e0ceacaf",
+      "bytes": 213,
+      "features": 0
+    },
+    "water/water.geojson": {
+      "sha256": "6fb623deb37cbf4cf8aa05e1328fc720fc282317e23f399168a6c696baece58b",
+      "bytes": 346,
+      "features": 1
+    }
+  }
+}

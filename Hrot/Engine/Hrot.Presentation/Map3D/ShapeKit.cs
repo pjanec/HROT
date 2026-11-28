@@ -3,6 +3,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Tkb.Domain;
 using Hrot.MuscleCharacter.Animation.Components;
 using Fdp.Toolkit.Combat.Components;
+using PostureBlend = Hrot.Look.People.PostureBlend;
 
 namespace Hrot.UI.Common.Map3D;
 
@@ -91,32 +92,6 @@ public enum PartRole : byte
     Neck,
 }
 
-/// <summary>
-/// ⭐ CE-1033 S4 (docs/DESIGN_Map_3D_Mode.md §6, "things come alive") — the moving parts' pose for one frame: the main-rotor
-/// angle, the wheels' roll angle (radians) and the limb swing (radians, + = the left leg forward). Default: all still.
-/// </summary>
-/// <para>⭐ WL-6 (docs/DESIGN_Weapon_Layers.md W-13e) — and the block figure's UPPER BODY (<see cref="KitPart.Upper"/> parts): <paramref name="Lean"/>
-/// tilts it forward about the hip (radians; a run, and an aim pitched down), <paramref name="Twist"/> turns it about the vertical
-/// (radians, counter-clockwise; an aim to the side), about a hip at <paramref name="HipZ"/> of the figure's height.</para>
-/// <para>⭐ WL-6c — the gait itself: <paramref name="Stride"/> (0..1, how much the figure is walking or running) and its
-/// <paramref name="GaitPhase"/> (radians; <c>Swing = amplitude · sin(phase)</c>); <paramref name="KneeFlexL"/> / <paramref name="KneeFlexR"/>
-/// bend each shin back about its knee (radians) — the foot lifting as the leg swings through.</para>
-/// <para>⭐ WL-6d — <paramref name="Moving"/> (0..1, from the speed alone — a crawl is too slow to read as a walk) and the
-/// <paramref name="CrawlPhase"/> (radians, one cycle per <c>MotionTracker.CrawlMetres</c>).</para>
-/// <para>⭐ CE-1204 (docs/DESIGN_Entity_Control.md §8l LK-5) — <paramref name="HeadTurn"/>: the HEAD (the <see cref="FaceOn.Front"/> part)
-/// turns about its own vertical axis by this much off the torso (radians, counter-clockwise), before the torso's <paramref name="Twist"/>
-/// carries it — so the head points where his eyes do (the replicated look's head yaw).</para>
-/// <para>⭐ CE-4623 (animals, AU-3) — <paramref name="Gait"/> + <paramref name="GaitPhase"/> + <paramref name="Swing"/> (the amplitude) give each quadruped leg its own swing
-/// (<see cref="QuadrupedGaits.LegAngle"/>); <paramref name="Tuck"/> (0..1) draws the legs folded up in a jump; <paramref name="Wing"/> is a bird's wing angle (radians);
-/// <paramref name="Head"/> an animal's head pitch about its withers (+ = down).</para>
-/// <para>⭐ CE-4624 — <paramref name="Flail"/>: the mine clearer's flail drum angle (radians) about its lateral axis (+ = the top turning forward, <see cref="PartRole.FlailDrum"/>).</para>
-public readonly record struct MotionPose(float Rotor, float WheelRoll, float Swing, float Lean = 0f, float Twist = 0f, float HipZ = 0.5f,
-                                         float Stride = 0f, float GaitPhase = 0f, float KneeFlexL = 0f, float KneeFlexR = 0f,
-                                         float Moving = 0f, float CrawlPhase = 0f, float HeadTurn = 0f, float Antenna = 0f, float Bank = 0f,
-                                         float Wing = 0f, float Head = 0f, float Tuck = 0f, QuadGait Gait = QuadGait.Stand, float Flail = 0f)
-{
-    public static readonly MotionPose Still = default;
-}
 
 /// <summary>
 /// ⭐ CE-1033 — the pose of a kit's articulated parts: turret azimuth RELATIVE TO THE HULL (radians, counter-clockwise seen from
@@ -328,7 +303,7 @@ public static class ShapeKits
     public const float TailRotorRatio = 4.7f;
 
     /// <summary>The wheels' radius on a wheeled kit, as a fraction of the type's height (the wheel cylinders' diameter is 0.42).</summary>
-    public const float WheelRadiusOfHeight = 0.21f;
+    public const float WheelRadiusOfHeight = Hrot.Look.Vehicles.MotionRules.WheelRadiusOfHeight;   // ⭐ CE-11003 (RR-3) — the shared value
 
     internal static KitPart Cone(PartAxis axis, float cx, float cy, float cz, float ex, float ey, float ez, ColourRole c)
         => new(PartShape.Cone, new Vector3(cx, cy, cz), new Vector3(ex, ey, ez), c, axis);
@@ -736,10 +711,133 @@ public static class ShapeKits
     /// (<see cref="PartRole.FlailDrum"/>) turn on <see cref="MotionPose.Flail"/>.</summary>
     public static readonly ShapeKit MineClearer = new(MineClearerParts(), default);
 
+    // ── ⭐ CE-6502 (docs/designs/engineering/DESIGN_Bridge_Laying.md §13 U-6; mockup UX/bridge-laying-ui-visual.svg ④) — the two bridge engineers ─────────────────────
+    //    Each kit's metres ARE the TKB's box (NedTkbCatalog: 118 13.4 × 4.0 × 4.0 m, 119 11.0 × 2.6 × 3.5 m). The SPAN parts carry KitPart.Round 0: the layer draws them while the
+    //    engineer carries a span (rounds = Full) and leaves them out once it is laid (BridgeLayerLook NoSpan ⇒ rounds 0) — the launcher canisters' one rule, no new hiding path.
+    private const float BlL = 13.4f, BlW = 4.0f, BlH = 4.0f, FbL = 11.0f, FbW = 2.6f, FbH = 3.5f;
+    /// <summary>The floating-bridge truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>).</summary>
+    public const float FloatingBridgeWheelRadius = 0.55f;
+    /// <summary>The <see cref="KitPart.Round"/> every span part carries: drawn while rounds &gt; 0 (a span on board), left out at 0.</summary>
+    public const int BridgeSpanRound = 0;
+
+    private static KitPart Bl(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, bool span = false)
+    {
+        var p = Box(cx / BlL, cy / BlW, cz / BlH, lx / BlL, ly / BlW, lz / BlH, c);
+        return span ? p with { Round = BridgeSpanRound } : p;
+    }
+
+    private static KitPart Fb(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, bool span = false, float pitch = 0f)
+    {
+        var p = Box(cx / FbL, cy / FbW, cz / FbH, lx / FbL, ly / FbW, lz / FbH, c, pitch);
+        return span ? p with { Round = BridgeSpanRound } : p;
+    }
+
+    private static KitPart[] BridgeLayerParts()
+    {
+        var p = new List<KitPart>(40);
+        foreach (float s in new[] { 1f, -1f })   // the tank chassis' two track units: 7.6 m, seven road wheels each
+        {
+            p.Add(Bl(0f, s * 1.5f, 0.45f, 7.6f, 0.75f, 0.9f, ColourRole.Dark));
+            for (int i = 0; i < 7; i++)
+                p.Add(Cyl(PartAxis.Y, (-3.0f + i) / BlL, s * 1.9f / BlW, 0.45f / BlH, 0f, 0.06f / BlW, 0.62f / BlH, ColourRole.Metal));
+        }
+        p.Add(Bl(0f, 0f, 1.35f, 7.6f, 3.0f, 1.0f, ColourRole.Body));          // the hull
+        p.Add(Bl(2.6f, 0f, 2.15f, 1.6f, 1.6f, 0.6f, ColourRole.Body));        // the driver's / commander's cupola block, front
+        p.Add(Bl(3.42f, 0f, 2.2f, 0.04f, 1.2f, 0.25f, ColourRole.Glass));     // its vision block
+        p.Add(Bl(-3.0f, 0f, 2.15f, 1.2f, 2.6f, 0.6f, ColourRole.Dark));       // the launching arm's frame at the rear, under the span's hinge
+        p.Add(Bl(3.9f, 0f, 1.1f, 0.25f, 3.0f, 0.8f, ColourRole.Dark));        // the stabiliser blade across the front
+        // the folded scissor span on the roof: two halves stacked, the length of the TKB's box, the deck's width; their hinge plates at the ends
+        p.Add(Bl(0f, 0f, 2.75f, 13.4f, 4.0f, 0.45f, ColourRole.Metal, span: true));
+        p.Add(Bl(0f, 0f, 3.25f, 13.4f, 4.0f, 0.45f, ColourRole.Metal, span: true));
+        foreach (float s in new[] { 1f, -1f })
+            p.Add(Bl(0f, s * 1.98f, 3.0f, 13.0f, 0.06f, 0.95f, ColourRole.Dark, span: true));   // the treadway's side girders
+        p.Add(Bl(6.6f, 0f, 3.0f, 0.2f, 3.6f, 0.95f, ColourRole.Dark, span: true));               // the folded ends
+        p.Add(Bl(-6.6f, 0f, 3.0f, 0.2f, 3.6f, 0.95f, ColourRole.Dark, span: true));
+        return p.ToArray();
+    }
+
+    private static KitPart FbTyre(float x, float y)
+        => Cyl(PartAxis.Y, x / FbL, y / FbW, FloatingBridgeWheelRadius / FbH, 0f, 0.45f / FbW, 2f * FloatingBridgeWheelRadius / FbH, ColourRole.Dark);
+
+    private static KitPart FbSpoke(float x, float y)   // the bar across the wheel, so the roll shows
+        => new(PartShape.Box, new Vector3(x / FbL, y / FbW, FloatingBridgeWheelRadius / FbH), new Vector3(1.15f / FbL, 0.5f / FbW, 0.12f / FbH), ColourRole.Metal, Role: PartRole.WheelSpoke);
+
+    private static KitPart[] FloatingBridgeParts()
+    {
+        var p = new List<KitPart>(40);
+        foreach (float x in new[] { 4.0f, 2.5f, -2.0f, -3.5f })   // four axles
+            foreach (float s in new[] { 1f, -1f })
+            {
+                p.Add(FbTyre(x, s * 1.05f));
+                p.Add(FbSpoke(x, s * 1.05f));
+            }
+        p.Add(Fb(0f, 0f, 1.05f, 10.6f, 1.9f, 0.5f, ColourRole.Dark));       // the chassis frame
+        p.Add(Fb(-1.2f, 0f, 1.45f, 7.6f, 2.5f, 0.3f, ColourRole.Body));     // the bed
+        // the cab, forward
+        p.Add(Fb(4.45f, 0f, 2.05f, 2.0f, 2.5f, 1.7f, ColourRole.Body));
+        p.Add(Fb(5.47f, 0f, 2.45f, 0.04f, 2.1f, 0.7f, ColourRole.Glass));    // the windscreen
+        p.Add(Fb(4.55f, 1.26f, 2.45f, 1.2f, 0.04f, 0.6f, ColourRole.Glass));
+        p.Add(Fb(4.55f, -1.26f, 2.45f, 1.2f, 0.04f, 0.6f, ColourRole.Glass));
+        p.Add(Fb(5.42f, 0f, 1.35f, 0.12f, 2.5f, 0.3f, ColourRole.Dark));     // the front bumper
+        p.Add(Fb(-0.4f, 0f, 1.85f, 0.4f, 0.5f, 0.5f, ColourRole.Dark, pitch: -35f));   // the hydraulic launching arm's foot
+        // the folded ribbon bay on the bed: a block the bed's length and width, the W of its folded pontoons on each side
+        p.Add(Fb(-1.4f, 0f, 2.45f, 6.8f, 2.6f, 1.7f, ColourRole.Metal, span: true));
+        foreach (float s in new[] { 1f, -1f })
+            for (int k = 0; k < 4; k++)
+                p.Add(Fb(-4.2f + k * 1.85f, s * 1.27f, 2.6f, 1.9f, 0.05f, 0.08f, ColourRole.Dark, span: true, pitch: k % 2 == 0 ? 28f : -28f));   // the pontoons' folds
+        p.Add(Fb(-1.4f, 0f, 3.32f, 6.8f, 2.4f, 0.06f, ColourRole.Dark, span: true));   // the roadway's top
+        return p.ToArray();
+    }
+
+    // ── ⭐ CE-6503 (DESIGN_Bridge_Laying §13.4; mockup UX/laid-bridge-visual.svg) — the LAID bridges: the terrain draws the deck slab and its ramps (where units stand, U-7);
+    //    these kits draw only what makes it read as a bridge, on it and under it. x along the deck (the entity's heading), z up from the BANK (the entity stands at the bank's height),
+    //    every part a fraction of the entity's ObstacleShape (Length between the deck ends, Width, Height above the banks) — so a short or a long laid deck fits.
+    private const float LaL = 26f, LaW = 4f, LaH = 1.2f, LfL = 100f, LfW = 4.5f, LfH = 0.6f;
+    private static KitPart La(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c) => Box(cx / LaL, cy / LaW, cz / LaH, lx / LaL, ly / LaW, lz / LaH, c);
+    private static KitPart Lf(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c) => Box(cx / LfL, cy / LfW, cz / LfH, lx / LfL, ly / LfW, lz / LfH, c);
+
+    private static KitPart[] LaidAssaultBridgeParts()
+    {
+        var p = new List<KitPart>(8);
+        foreach (float s in new[] { 1f, -1f })
+            p.Add(La(0f, s * 1.85f, 1.25f, 26f, 0.3f, 0.7f, ColourRole.Metal));    // a side girder: 0.3 m below the deck's top to 0.4 m above it
+        p.Add(La(0f, 0f, 1.0f, 0.35f, 4.0f, 0.9f, ColourRole.Dark));                // the scissor hinge at mid-span, under the deck
+        p.Add(La(12.875f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));          // the end plates, flush with the deck's ends
+        p.Add(La(-12.875f, 0f, 1.25f, 0.25f, 4.0f, 0.7f, ColourRole.Dark));
+        p.Add(La(0f, 0f, 1.22f, 26f, 0.7f, 0.04f, ColourRole.Dark));                // the gap between the two treadways
+        return p.ToArray();
+    }
+
+    /// <summary>The floating bridge's bays (pontoon sections) along its deck.</summary>
+    public const int FloatingBridgeBays = 10;
+
+    private static KitPart[] LaidFloatingBridgeParts()
+    {
+        var p = new List<KitPart>(32);
+        float bay = LfL / FloatingBridgeBays;
+        for (int k = 0; k < FloatingBridgeBays; k++)
+            p.Add(Lf(-LfL / 2f + bay * (k + 0.5f), 0f, 0.2f, bay - 0.7f, 5.4f, 0.75f, ColourRole.Body));   // a pontoon bay: half in the water, wider than the deck
+        for (int k = 1; k < FloatingBridgeBays; k++)
+            p.Add(Lf(-LfL / 2f + bay * k, 0f, 0.62f, 0.25f, 4.5f, 0.08f, ColourRole.Dark));                 // the joint between two bays, on the deck
+        foreach (float s in new[] { 1f, -1f })
+            p.Add(Lf(0f, s * 2.2f, 0.7f, 100f, 0.15f, 0.22f, ColourRole.Metal));                           // a curb along the edge
+        return p.ToArray();
+    }
+
+    /// <summary>⭐ CE-6503 — a laid assault bridge's details (the terrain draws its deck): girders, hinge, end plates, treadways.</summary>
+    public static readonly ShapeKit LaidAssaultBridge = new(LaidAssaultBridgeParts(), default);
+    /// <summary>⭐ CE-6503 — a laid floating bridge's details: the pontoon bays, the joints, the curbs.</summary>
+    public static readonly ShapeKit LaidFloatingBridge = new(LaidFloatingBridgeParts(), default);
+
+    /// <summary>⭐ CE-6502 — the assault bridge layer (x forward): tracks, hull, the folded span on the roof (<see cref="BridgeSpanRound"/>).</summary>
+    public static readonly ShapeKit BridgeLayer = new(BridgeLayerParts(), default);
+    /// <summary>⭐ CE-6502 — the floating-bridge truck (x forward): four axles that roll, a cab, the folded ribbon bay on the bed (<see cref="BridgeSpanRound"/>).</summary>
+    public static readonly ShapeKit FloatingBridge = new(FloatingBridgeParts(), default);
+
     // ── ⭐ CE-4618 (docs/designs/air-attack/DESIGN_Radar_SAM.md §5 U-1) — the RADAR SAM truck: an 8×8 carrier, a cab, a four-canister launcher on a turntable, a radar mast ─────
     private const float SaL = 9.1f, SaW = 2.8f, SaH = 4.2f;   // a short-range radar SAM on an 8×8 truck (Tor / Pantsir-like, generic): the TKB's own box (type 114: 9.1 × 2.8 × 4.2 m) — so the kit's metres ARE metres
     /// <summary>The SAM truck's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>; the car kits' radius is a fraction of THEIR height).</summary>
-    public const float SamWheelRadius = 0.6f;
+    public const float SamWheelRadius = Hrot.Look.Vehicles.MotionRules.SamWheelRadius;   // ⭐ CE-11003 (RR-3)
     // the turntable's axis, the cradle's hinge (x, z) — ⭐ the TKB's own TurretDto (NedTkbCatalog.RadarSam: PivotX −1.5, PivotZ 2.6, TrunnionX 0.4 ⇒ hinge x −1.1), so the kit
     // WITHOUT a TKB and the kit placed FROM the TKB (KitFromTkb) are the same picture — and the radar mast
     private const float SamAxisX = -1.5f, SamTrunnionX = -1.1f, SamTrunnionZ = 2.6f, SamMastX = 2.5f;
@@ -814,7 +912,7 @@ public static class ShapeKits
     // ── ⭐ CE-4621 (docs/designs/vehicle-tactics/DESIGN_Motorcycle.md §2a, U-2) — the MOTORCYCLE: two wheels, a tank, a long seat, a rack; the riders are men drawn at the seats ─────
     private const float MoL = 2.1f, MoW = 0.8f, MoH = 1.2f;   // backend's type 115: 2.1 m long, 0.8 m across the bars, 1.2 m to the bars (the riders sit above)
     /// <summary>The motorcycle's wheel radius (m) — what its wheels roll on (<see cref="MotionTracker"/>), a 0.62 m tyre.</summary>
-    public const float MotoWheelRadius = 0.31f;
+    public const float MotoWheelRadius = Hrot.Look.Vehicles.MotionRules.MotoWheelRadius;   // ⭐ CE-11003 (RR-3)
 
     /// <summary>A motorcycle box from METRES (x forward, y left, z up from the ground).</summary>
     private static KitPart Mo(float cx, float cy, float cz, float lx, float ly, float lz, ColourRole c, float pitch = 0f)
@@ -878,6 +976,10 @@ public static class ShapeKits
         VisualFamily.Bulldozer => Bulldozer,                 // ⭐ CE-6007
         VisualFamily.AirDefenceVehicle => AirDefenceVehicle, // ⭐ CE-4618
         VisualFamily.MineClearer => MineClearer,             // ⭐ CE-4624
+        VisualFamily.BridgeLayer => BridgeLayer,             // ⭐ CE-6502
+        VisualFamily.FloatingBridge => FloatingBridge,       // ⭐ CE-6502
+        VisualFamily.LaidAssaultBridge => LaidAssaultBridge,     // ⭐ CE-6503
+        VisualFamily.LaidFloatingBridge => LaidFloatingBridge,   // ⭐ CE-6503
         VisualFamily.Motorcycle => Motorcycle,               // ⭐ CE-4621
         VisualFamily.Dragon => DragonKits.Flying,            // ⭐ CE-4634 — the layer picks the folded kit when it stands (DragonKits.For)
         VisualFamily.Cattle or VisualFamily.Sheep or VisualFamily.Horse or VisualFamily.Dog or VisualFamily.Cat or VisualFamily.Bird
@@ -904,6 +1006,10 @@ public static class ShapeKits
         VisualFamily.AttackHelicopter => new Vector3(AhL, AhW, AhH),   // ⭐ CE-1103 — the AH-64's box (the TKB's own wins)
         VisualFamily.Bulldozer => new Vector3(8.0f, 4.3f, 4.0f),       // ⭐ CE-6007 — a D9: 8 m with the blade, the blade 4.3 m wide, 4 m to the ROPS
         VisualFamily.MineClearer => new Vector3(McL, McW, McH),         // ⭐ CE-4624 — 9.2 × 3.5 × 3.3 m: the tracks + the flail's reach, the flail's width, the launcher rail's top (the TKB's own wins)
+        VisualFamily.BridgeLayer => new Vector3(BlL, BlW, BlH),         // ⭐ CE-6502 — 13.4 × 4.0 × 4.0 m: the folded span's length and width, to its top (the TKB's own wins)
+        VisualFamily.FloatingBridge => new Vector3(FbL, FbW, FbH),
+        VisualFamily.LaidAssaultBridge => new Vector3(LaL, LaW, LaH),     // ⭐ CE-6503 — the TKB 8825 deck; the entity's ObstacleShape wins
+        VisualFamily.LaidFloatingBridge => new Vector3(LfL, LfW, LfH),    // ⭐ CE-6503 — the TKB 8826 deck      // ⭐ CE-6502 — 11.0 × 2.6 × 3.5 m (the TKB's own wins)
         VisualFamily.AirDefenceVehicle => new Vector3(SaL, SaW, SaH),   // ⭐ CE-4618 — 9.1 × 2.8 × 4.2 m (the TKB's box, to the antenna's top; the TKB's own wins)
         VisualFamily.Dragon => DragonKits.Size,   // ⭐ CE-4634 — the TKB 411 box: 20 m long, 26 m span, 6 m tall (the TKB's own wins)
         VisualFamily.Motorcycle => new Vector3(MoL, MoW, MoH),   // ⭐ CE-4621 — 2.1 × 0.8 × 1.15 m (to the bars; the TKB's own wins)
@@ -1154,7 +1260,7 @@ public static partial class BlockFigure
     ];
 
     /// <summary>⭐ WL-6c — how much lower the athletic fighting stance carries the hips (m): knees bent, weight forward.</summary>
-    public const float AthleticDrop = 0.10f;
+    public const float AthleticDrop = Hrot.Look.People.UpperBody.AthleticDrop;   // ⭐ CE-11002 (RR-2) — the shared value
     private static readonly Vector3 Drop = new(0f, 0f, -AthleticDrop);
 
     /// <summary>⭐ WL-6c — the ATHLETIC FIGHTING STANCE of an aimed soldier standing still: hips lower, knees bent, the support (left)
@@ -2011,108 +2117,6 @@ public static partial class BlockFigure
 }
 
 /// <summary>
-/// ⭐ WL-6b (docs/DESIGN_Weapon_Layers.md §5h) — the picture's own timing of a weapon-posture change, on SIMULATION time (a pause
-/// freezes it, every host shows the same): the rifle moves from the old posture to the new one over <see cref="Seconds"/>, and an aimed
-/// upper body turns and pitches toward its aim with a <see cref="AimSeconds"/> time constant instead of jumping. The posture itself is
-/// the weapon brain's (R-272), replicated; nothing here is sent — like <see cref="DeathFall"/>, a unit first seen (a load, a late host,
-/// a replay jump) is simply in its posture, and a clock that goes back snaps.
-/// </summary>
-public sealed class PostureBlend
-{
-    /// <summary>How long the rifle takes to move between two postures (s, sim time).</summary>
-    public const float Seconds = 0.3f;
-
-    /// <summary>The aim angles' time constant (s, sim time): about 95 % of a turn is done in three of these.</summary>
-    public const float AimSeconds = 0.12f;
-
-    /// <summary>⭐ CE-1204 (§8l LK-5) — the drawn head's time constant (s, sim time): a glance turns the head, never snaps it.</summary>
-    public const float HeadSeconds = 0.15f;
-
-    private struct State
-    {
-        public WeaponPostureKind From, To;
-        public double ChangedAt;
-        public float Twist, Pitch;
-        public double AimAt;
-        public bool HasAim;
-        public float Head;
-        public double HeadAt;
-        public bool HasHead;
-    }
-
-    private readonly Dictionary<Entity, State> _states = new();
-    private readonly List<Entity> _gone = new();
-
-    /// <summary>Where <paramref name="e"/>'s rifle is this frame: between <c>From</c> and <c>To</c>, <c>T</c> of the way (1 = there).</summary>
-    public (WeaponPostureKind From, WeaponPostureKind To, float T) Posture(Entity e, WeaponPostureKind now, double simTime)
-    {
-        if (!_states.TryGetValue(e, out var st))
-        {
-            st = new State { From = now, To = now, ChangedAt = double.NegativeInfinity };
-            _states[e] = st;
-            return (now, now, 1f);
-        }
-        if (now != st.To)
-        {
-            // a change mid-blend starts from whichever end the rifle was nearer
-            float done = Progress(st, simTime);
-            st.From = done < 0.5f ? st.From : st.To;
-            st.To = now;
-            st.ChangedAt = simTime;
-            _states[e] = st;
-        }
-        return (st.From, st.To, Progress(st, simTime));
-    }
-
-    private static float Progress(in State st, double simTime)
-        => double.IsNegativeInfinity(st.ChangedAt) || simTime < st.ChangedAt ? 1f
-         : (float)Math.Clamp((simTime - st.ChangedAt) / Seconds, 0.0, 1.0);
-
-    /// <summary>The aim angles this frame, eased toward <paramref name="twist"/> / <paramref name="pitch"/> (0 when not aimed, so the
-    /// body turns back). Must follow <see cref="Posture"/> for the same entity in the frame.</summary>
-    public (float Twist, float Pitch) Aim(Entity e, float twist, float pitch, double simTime)
-    {
-        if (!_states.TryGetValue(e, out var st)) st = new State { From = WeaponPostureKind.AtEase, To = WeaponPostureKind.AtEase, ChangedAt = double.NegativeInfinity };
-        double dt = simTime - st.AimAt;
-        if (!st.HasAim || dt < 0 || dt > 1.0)
-        {
-            st.Twist = twist; st.Pitch = pitch;   // first seen, a clock jump, or a long gap: no easing
-        }
-        else if (dt > 0)
-        {
-            float k = 1f - MathF.Exp(-(float)dt / AimSeconds);
-            st.Twist += (twist - st.Twist) * k;
-            st.Pitch += (pitch - st.Pitch) * k;
-        }
-        st.AimAt = simTime;
-        st.HasAim = true;
-        _states[e] = st;
-        return (st.Twist, st.Pitch);
-    }
-
-    /// <summary>⭐ CE-1204 (§8l LK-5) — the head's turn off the torso this frame, eased toward <paramref name="turn"/> like the aim.</summary>
-    public float Head(Entity e, float turn, double simTime)
-    {
-        if (!_states.TryGetValue(e, out var st)) st = new State { From = WeaponPostureKind.AtEase, To = WeaponPostureKind.AtEase, ChangedAt = double.NegativeInfinity };
-        double dt = simTime - st.HeadAt;
-        if (!st.HasHead || dt < 0 || dt > 1.0) st.Head = turn;   // first seen, a clock jump, or a long gap: no easing
-        else if (dt > 0) st.Head += (turn - st.Head) * (1f - MathF.Exp(-(float)dt / HeadSeconds));
-        st.HeadAt = simTime;
-        st.HasHead = true;
-        _states[e] = st;
-        return st.Head;
-    }
-
-    /// <summary>Forgets everyone not drawn this frame.</summary>
-    public void EndFrame(HashSet<Entity> drawn)
-    {
-        _gone.Clear();
-        foreach (var e in _states.Keys) if (!drawn.Contains(e)) _gone.Add(e);
-        foreach (var e in _gone) _states.Remove(e);
-    }
-}
-
-/// <summary>
 /// ⭐ <c>CE-1348</c> — the DRAWN stance of each figure, moving smoothly to his logical stance (<see cref="LogicalStance"/>, which changes in the
 /// tick it is ordered) over <see cref="SecondsBetween"/> of sim time; the muscle's own blend (<see cref="StanceStatus"/>) is followed when it
 /// runs the same change, never stepped back from. 🔴 The figure used to draw the NEW stance in full until the muscle reported its transition
@@ -2123,13 +2127,12 @@ public sealed class PostureBlend
 public sealed class StanceBlend
 {
     /// <summary>Standing ↔ crouched (s, sim time).</summary>
-    public const float CrouchSeconds = 0.35f;
+    public const float CrouchSeconds = StanceTiming.CrouchSeconds;   // ⭐ CE-11014 — the ONE stance timing (the muscle applies it too)
 
     /// <summary>Into or out of prone (s, sim time).</summary>
-    public const float ProneSeconds = 0.8f;
+    public const float ProneSeconds = StanceTiming.ProneSeconds;
 
-    public static float SecondsBetween(StanceId a, StanceId b)
-        => a == b ? 0f : a == StanceId.Prone || b == StanceId.Prone ? ProneSeconds : CrouchSeconds;
+    public static float SecondsBetween(StanceId a, StanceId b) => StanceTiming.SecondsBetween(a, b);
 
     private struct State
     {
@@ -2163,7 +2166,7 @@ public sealed class StanceBlend
         }
         float t = Raw(st, simTime);
         if (muscle is { Phase: StanceTransitionPhase.Transitioning } m && m.CurrentStance == st.From && now == st.To)
-            t = MathF.Max(t, Math.Clamp(m.TransitionProgress, 0f, 1f));
+            t = MathF.Max(t, m.TransitionSeconds.Seconds > 0f ? StanceTiming.ProgressAt(in m, simTime) : Math.Clamp(m.TransitionProgress, 0f, 1f));   // ⭐ CE-11014 — the body's own start and duration
         t = MathF.Max(t, st.Floor);
         st.Floor = t;
         _states[e] = st;

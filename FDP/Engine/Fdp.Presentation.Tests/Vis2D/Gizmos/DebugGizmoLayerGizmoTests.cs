@@ -131,5 +131,64 @@ namespace Fdp.Toolkit.Vis2D.Tests.Gizmos
             Assert.Equal(-1L,  GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(null, -1L, _ => true));            // no exclusive tool: the canvas, unchanged
             Assert.Equal(55L,  GizmoMap.Presentation.DebugGizmoLayer.ResolveMenuAnchor(null, 55L, _ => true));
         }
+        // ── ⭐⭐ Simulated devices S1d-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-38 / R3-4 / R5-4) — a HUD run is drawn ONLY by the view bound to its source ──
+
+        private const long DeviceA = 1001, DeviceB = 1002;
+
+        /// <summary>one world line · A's HUD run (1 line) · B's HUD run (2 lines).</summary>
+        private static DebugPrimitiveBuffer WithTwoHuds()
+        {
+            var buffer = new DebugPrimitiveBuffer(64);
+            buffer.DrawLine(Vector3.Zero, Vector3.One, Rgba32.Green);
+            buffer.BeginScope(DeviceA); buffer.DrawLine(Vector3.Zero, Vector3.UnitX, Rgba32.Red); buffer.EndScope();
+            buffer.BeginScope(DeviceB); buffer.DrawLine(Vector3.Zero, Vector3.UnitY, Rgba32.Red); buffer.DrawLine(Vector3.Zero, Vector3.UnitZ, Rgba32.Red); buffer.EndScope();
+            return buffer;
+        }
+
+        [Fact]
+        public void S1d1_AViewBoundToASource_DrawsItsHudRunAndNoOther_AnUnboundViewDrawsNone()
+        {
+            var buffer = WithTwoHuds();
+            var bus = new FdpEventBus();
+            var renderer = new CapturingRenderer2D();
+            var layer = new DebugGizmoLayer(31, buffer, bus, renderer.AsLayerRenderer());
+            layer.Draw(MakeCtx(31));
+            Assert.Single(renderer.Dispatched);                         // unbound (the plain eye): the world line only
+
+            renderer.Dispatched.Clear();
+            layer.BoundSource = DeviceA;
+            layer.Draw(MakeCtx(31));
+            Assert.Equal(2, renderer.Dispatched.Count);                 // + A's one line, never B's two
+
+            renderer.Dispatched.Clear();
+            layer.BoundSource = DeviceB;
+            layer.Draw(MakeCtx(31));
+            Assert.Equal(3, renderer.Dispatched.Count);
+            bus.Dispose();
+        }
+
+        [Fact]
+        public void S1d1_TheTwoDRenderer_FedARawFrame_SkipsEveryHudRunWhole()
+        {
+            var buffer = WithTwoHuds();
+            var renderer = new CapturingRenderer2D();
+            renderer.Render(buffer.GetFrame(), default, 1f);            // the standalone viewer's path: no view filter in front
+            Assert.Single(renderer.Dispatched);
+        }
+
+        [Fact]
+        public void S1d1_TheViewFilter_AllocatesNothingSteady()
+        {
+            var buffer = WithTwoHuds();
+            var bus = new FdpEventBus();
+            var layer = new DebugGizmoLayer(31, buffer, bus) { BoundSource = DeviceA };
+            for (int i = 0; i < 100; i++) layer.ViewFrame();
+            long before = System.GC.GetAllocatedBytesForCurrentThread();
+            int n = 0;
+            for (int i = 0; i < 1000; i++) n += layer.ViewFrame().Length;
+            Assert.Equal(0, System.GC.GetAllocatedBytesForCurrentThread() - before);
+            Assert.Equal(2000, n);
+            bus.Dispose();
+        }
     }
 }

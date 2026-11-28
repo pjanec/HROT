@@ -34,6 +34,9 @@ namespace Hrot.ScenarioEditor.Map
         private Task<Fdp.Core.WorldPoint>? _location;   // ⭐ S0 item 5 (SR-135): a picked place is LOCAL METRES
         [Fdp.Core.WorldDerived("pending UI entity-pick task; dropped on restore")]
         private Task<int>? _enemy;
+        [Fdp.Core.SessionState("pending interactive two-point pick task of the menu UI, not the world")]
+        private Task<(Fdp.Core.WorldPoint A, Fdp.Core.WorldPoint B)>? _segment;   // ⭐ CE-6500 — the order's two required map points, in one gesture
+        private string? _segmentFirst, _segmentSecond;   // ⭐ CE-6500 — the two fields it fills
         [Fdp.Core.WorldDerived("editor UI pending-pick unit; lost pick cancels, sim unaffected")]
         private int _unit;
         private OrderInfo? _order;
@@ -55,7 +58,7 @@ namespace Hrot.ScenarioEditor.Map
         public Func<IReadOnlyCollection<Entity>>? Selected { get; set; }
 
         /// <summary>True while a follow-up pick is waiting for the operator.</summary>
-        public bool IsPicking => _location is { IsCompleted: false } || _enemy is { IsCompleted: false };
+        public bool IsPicking => _location is { IsCompleted: false } || _enemy is { IsCompleted: false } || _segment is { IsCompleted: false };
 
         /// <summary>Registers the menu ids on <paramref name="actions"/>: ⭐ CE-2143 one per ORDER (<see cref="OrderMenu"/> ids, looked up
         /// at click time, so a reloaded vocabulary needs no re-registration) and Possess (FPS).</summary>
@@ -148,6 +151,7 @@ namespace Hrot.ScenarioEditor.Map
             _embarking = Entity.Null;
             _location = null;
             _enemy = null;
+            _segment = null;
             _draft = OrderMenu.Draft(order, units, OrderContext.None, json => Send(units, order, json),
                 designation: DesignationLookup());
             if (_draft.IsComplete) { Report(Send(_draft)); return; }
@@ -155,8 +159,26 @@ namespace Hrot.ScenarioEditor.Map
             {
                 case OrderPick.Point:  _location = pick.PickLocalAsync(Hrot.ScenarioEditor.Tools.PickPrompts.For("a point", order.PickField ?? order.Name)); break;   // ⭐ B-17 P4 — the banner names the field
                 case OrderPick.Entity: _enemy = pick.PickEntityAsync(order.PickTarget?.Presets is { Count: > 0 } p ? System.Linq.Enumerable.ToArray(p) : null, Hrot.ScenarioEditor.Tools.PickPrompts.For("a unit", order.PickField ?? order.Name)); break;
+                case OrderPick.TwoPoints: BeginSegment(order, unit, pick); break;   // ⭐ CE-6500 — LayBridge's banks: one two-click gesture
                 default: OpenForm(_world, _draft); break;
             }
+        }
+
+        /// <summary>
+        /// ⭐ CE-6500 (DESIGN_Bridge_Laying §13 U-1, U-2) — an order whose two required fields are map points (<see cref="OrderPick.TwoPoints"/>): ONE pick, A then B, with the order's
+        /// live label (<see cref="Hrot.Presentation.Orders.OrderSegmentHints"/>) for the clicked unit; the two fields in their declared order.
+        /// </summary>
+        private void BeginSegment(OrderInfo order, Entity unit, IMapPickService pick)
+        {
+            _segmentFirst = _segmentSecond = null;
+            foreach (var f in order.Fields)
+            {
+                if (!f.Required || f.Kind != OrderFieldKind.MapPoint) continue;
+                if (_segmentFirst == null) _segmentFirst = f.Name; else { _segmentSecond = f.Name; break; }
+            }
+            if (_segmentFirst == null || _segmentSecond == null) { OpenForm(_world, _draft!); return; }
+            _segment = pick.PickSegmentAsync(Hrot.ScenarioEditor.Tools.PickPrompts.FieldWords(_segmentFirst), Hrot.ScenarioEditor.Tools.PickPrompts.FieldWords(_segmentSecond),
+                Hrot.Presentation.Orders.OrderSegmentHints.For(order.Name, _world, unit));
         }
 
         /// <summary>⭐ <c>CE-1059</c> (§13.12 O5) — "Order with options › X": the order form for X, prefilled (gesture none, the
@@ -220,6 +242,18 @@ namespace Hrot.ScenarioEditor.Map
                     if (_designating is DesignationKind kind) SetDesignation(kind, point);
                     else if (_order is { } order && _draft is { } draft)
                         Report(Send(OrderMenu.Draft(order, draft.Units, new OrderContext(null, point), draft.Send, draft.Params, DesignationLookup())));
+                }
+            }
+            if (_segment is { IsCompleted: true } segment)   // ⭐ CE-6500
+            {
+                _segment = null;
+                if (segment.Status == TaskStatus.RanToCompletion && _order is { } order && _draft is { } draft && _segmentFirst != null && _segmentSecond != null)
+                {
+                    var (a, b) = segment.Result;
+                    var given = (JsonObject)draft.Params.DeepClone();
+                    given[_segmentFirst] = Hrot.Common.Orders.OrderPoints.Of(new System.Numerics.Vector3(a.X, a.Y, a.Z));
+                    given[_segmentSecond] = Hrot.Common.Orders.OrderPoints.Of(new System.Numerics.Vector3(b.X, b.Y, b.Z));
+                    Report(Send(OrderMenu.Draft(order, draft.Units, OrderContext.None, draft.Send, given, DesignationLookup())));
                 }
             }
             if (_enemy is { IsCompleted: true } enemy)

@@ -1,5 +1,5 @@
 {
-  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u2014 CE-4670 VA-S5 'pop smoke': a TOW launched at a tank \u21d2 one salvo of its dischargers (M1 mount 2) within 3 s, then the tank backs out of sight behind the block (its own hide ~257,155, measured) and the Bradley never hits it again. From the header's Judge (1)-(4).",
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — CE-4670 VA-S5 'pop smoke': a TOW launched at a tank ⇒ one salvo of its dischargers (M1 mount 2) within 3 s, then the tank backs out of sight into its own hide (~288,227 from the (262,215) start, measured CE-4691) and the Bradley never hits it again. From the header's Judge (1)-(4).",
   "runFor": 60,
   "golden": {
     "every": 10
@@ -58,14 +58,14 @@
       "before": "tow+30"
     },
     {
-      "name": "the tank backs out of sight behind the block (its own hide, ~257,155)",
+      "name": "the tank backs out of sight behind the block (its own hide there: ~258,164 live, ~257,156 at fixed step)",
       "on": "close",
       "who": "Tank",
       "point": [
-        257,
-        156
+        258,
+        160
       ],
-      "m": 6,
+      "m": 7,
       "after": "tow"
     },
     {

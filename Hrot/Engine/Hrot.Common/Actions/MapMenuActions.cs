@@ -231,6 +231,10 @@ namespace Hrot.Common.Actions
             ["Defend"] = "D", ["BreakContact"] = "B",
             // ⭐ CE-9004 convoy (CE-1978, ui) — the convoy order had no letter (K2 red at the merge of 2026-11-18)
             ["Convoy"] = "V",
+            // ⭐ CE-4686 ④ (backend, cross-lane) — the neutral Bound order (BoundOrder) is an [Order] kind now; "B" is BreakContact's, so bou-N-d
+            ["Bound"] = "N",
+            // ⭐ CE-6500 (ui, bridge laying §13) — backend's two engineer orders arrived without letters (K2 red at the merge of 2026-11-26): L lay, U pick the span back Up
+            ["LayBridge"] = "L", ["RecoverBridge"] = "U",
         };
 
         // ── the context, and the cache (as the old per-flag unit menus) ──────────────────────────────────────────────────────────────

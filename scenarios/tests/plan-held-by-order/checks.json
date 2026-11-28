@@ -1,0 +1,101 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 \u00b7 docs/DESIGN_Unit_Intent.md R5 (CE-3494 F3, R-3115) \u2014 an order holds the plan; Resume restarts the held task.",
+  "runFor": 75,
+  "golden": {
+    "every": 5
+  },
+  "do": [
+    {
+      "name": "ordered",
+      "at": 4,
+      "order": {
+        "who": "M2 Bradley IFV",
+        "kind": "behavior",
+        "behavior": "MoveToLocation",
+        "params": {
+          "speed": 5,
+          "arrivalRadius": 5,
+          "target": [
+            380,
+            340,
+            0
+          ]
+        }
+      }
+    },
+    {
+      "name": "resumed",
+      "at": 30,
+      "resume": "M2 Bradley IFV"
+    }
+  ],
+  "expect": [
+    {
+      "name": "the order holds the plan",
+      "on": "field",
+      "who": "M2 Bradley IFV",
+      "path": "MissionPlanQueue.Halted",
+      "op": "==",
+      "value": 2,
+      "after": "ordered",
+      "before": "ordered+0.3"
+    },
+    {
+      "name": "the plan stays held until Resume",
+      "never": {
+        "on": "field",
+        "who": "M2 Bradley IFV",
+        "path": "MissionPlanQueue.Halted",
+        "op": "!=",
+        "value": 2
+      },
+      "after": "ordered+0.3",
+      "before": "resumed"
+    },
+    {
+      "name": "it drives north to the order's point",
+      "on": "near",
+      "who": "M2 Bradley IFV",
+      "point": [
+        380,
+        340
+      ],
+      "within": 6,
+      "after": "ordered",
+      "before": "resumed"
+    },
+    {
+      "name": "it goes no further east while held",
+      "never": {
+        "on": "field",
+        "who": "M2 Bradley IFV",
+        "path": "SimTransform.Position.0",
+        "op": ">",
+        "value": 400
+      },
+      "after": "ordered+1",
+      "before": "resumed"
+    },
+    {
+      "name": "Resume releases the plan",
+      "on": "field",
+      "who": "M2 Bradley IFV",
+      "path": "MissionPlanQueue.Halted",
+      "op": "==",
+      "value": 0,
+      "after": "resumed",
+      "before": "resumed+0.3"
+    },
+    {
+      "name": "the plan's task takes it to (489,296)",
+      "on": "near",
+      "who": "M2 Bradley IFV",
+      "point": [
+        489,
+        296
+      ],
+      "within": 6,
+      "atEnd": true
+    }
+  ]
+}

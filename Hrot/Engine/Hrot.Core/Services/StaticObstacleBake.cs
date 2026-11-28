@@ -84,6 +84,8 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     private readonly Func<double> _wallSeconds;
     [Fdp.Core.WorldDerived("prism scratch cleared and refilled every frame from obstacle entities")]
     private readonly List<TerrainPrism> _prisms = new();
+    [Fdp.Core.WorldDerived("deck scratch cleared and refilled when a bake starts (CE-4692)")]
+    private readonly List<TerrainWalkable> _decks = new();
     [Fdp.Core.WorldDerived("pending-entity scratch cleared and refilled every frame")]
     private readonly List<Entity> _pending = new();
     private readonly ObstacleSignatureProbe _probe = new();   // ⭐ CE-3436 — the cached query the per-frame signature walks
@@ -259,8 +261,9 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// </summary>
     private void StartBake(EntityRepository world, TerrainResidency residency, BuildingDamageTable? damage, ulong signature, bool hasOverlay, CraterTable? craters, FelledTrees? trees, MinefieldSet? minefields)
     {
-        CollectPrisms(world, _prisms);   // ⭐ CE-3436 — only now (a bake is starting), never per frame
+        CollectPrisms(world, _prisms, _decks);   // ⭐ CE-3436 — only now (a bake is starting), never per frame; ⭐ CE-4692 — and the laid bridges' decks
         var prisms = new List<TerrainPrism>(_prisms);
+        var decks = new List<TerrainWalkable>(_decks);
         _runningOn = residency;
         _runningBatch = new List<Entity>(_pending);
         _runningSignature = signature;
@@ -276,7 +279,7 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
                 var (@base, version, folder) = residency.ExpansionBase();
                 expanded = overlay.Expand(sources, @base, version, folder);
             }
-            return residency.BakeObstacles(prisms, damage, expanded, craters, trees, minefields);
+            return residency.BakeObstacles(prisms, damage, expanded, craters, trees, minefields, decks);
         });
     }
 
@@ -367,8 +370,16 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
     /// bake system and the Replay Browser (which bakes the recording's obstacles into its displayed terrain once per seek) both read the world through it.
     /// </summary>
     public static void CollectPrisms(EntityRepository world, List<TerrainPrism> prisms, List<Entity>? pending = null)
+        => CollectPrisms(world, prisms, null, pending);
+
+    /// <summary>
+    /// ⭐ <c>CE-4692</c> BL-5 — as above, and every WALKABLE-DECK obstacle (a laid bridge, <see cref="ObstacleKind.WalkableDeck"/>) into <paramref name="decks"/> as its deck walkables
+    /// (<see cref="TerrainObstacles.DeckOf"/>, laid on the world's ground) instead of a prism. <paramref name="decks"/> null ⇒ a deck is skipped (a caller that bakes no walkables).
+    /// </summary>
+    public static void CollectPrisms(EntityRepository world, List<TerrainPrism> prisms, List<TerrainWalkable>? decks, List<Entity>? pending = null)
     {
         prisms.Clear();
+        decks?.Clear();
         pending?.Clear();
         if (!world.IsComponentTypeRegistered<StaticObstacle>() || !world.IsComponentTypeRegistered<ObstacleShape>()) return;
         var library = (world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>()?.Materials : null) ?? TerrainMaterialLibrary.Shared;
@@ -383,7 +394,19 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
 
             ref readonly var t = ref world.GetComponentRO<SimTransform>(e);
             ref readonly var shape = ref world.GetComponentRO<ObstacleShape>(e);
-            string materialName = world.GetComponentRO<StaticObstacle>(e).Material.ToString() ?? "concrete";
+            ref readonly var obstacle = ref world.GetComponentRO<StaticObstacle>(e);
+            if (obstacle.Kind == ObstacleKind.WalkableDeck)   // ⭐ CE-4692 BL-1 — a deck you stand on, never a box
+            {
+                if (decks != null)
+                {
+                    var ground = world.HasSingletonManaged<TerrainWorld>() ? world.GetSingletonManaged<TerrainWorld>() : null;
+                    float flat = t.Position.Z;
+                    Func<float, float, float> groundAt = ground != null ? (x, y) => ground.GroundHeightAt(x, y) : (_, _) => flat;
+                    TerrainObstacles.DeckOf(t.Position, TerrainObstacles.Yaw(t.Rotation), shape, groundAt, e.Index, DrawsItsOwnBody(world, e, tkb, tkbKnown), decks);
+                }
+                continue;
+            }
+            string materialName = obstacle.Material.ToString() ?? "concrete";
             var material = TerrainObstacles.MaterialOf(library, materialName, out bool known);
             if (!known)
                 FdpLog<StaticObstacleBakeSystem>.Warn($"[Obstacles] {e}: unknown material '{materialName}' — baked as concrete.");
@@ -428,7 +451,9 @@ public sealed class StaticObstacleBakeSystem : IEcsModuleSystem
             MixF(t.Position.X); MixF(t.Position.Y); MixF(t.Position.Z);
             Mix((long)MathF.Round(TerrainObstacles.Yaw(t.Rotation) * 1000f));
             MixF(shape.Length); MixF(shape.Width); MixF(shape.Height);
-            Mix(world.GetComponentRO<StaticObstacle>(e).Material.GetHashCode());
+            ref readonly var o = ref world.GetComponentRO<StaticObstacle>(e);
+            Mix(o.Material.GetHashCode());
+            Mix((long)o.Kind);   // ⭐ CE-4692 — a deck and a box of the same size are different terrain
         }
         return h;
     }

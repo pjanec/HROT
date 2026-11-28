@@ -15,7 +15,9 @@ namespace Hrot.UI.Common.Map3D.Director
 
     /// <summary>Where and how a capture writes: frames under <see cref="Dir"/>, one movie at <see cref="Movie"/> (§4a: a reel is ONE movie).</summary>
     public sealed record CaptureOptions(string Dir, int Fps = 30, int Width = 1280, int Height = 720, int Supersample = 1,
-                                        bool BurnCaptions = true, string? Movie = null, bool Encode = true);
+                                        bool BurnCaptions = true, string? Movie = null, bool Encode = true,
+                                        Hrot.Common.Infrastructure.FilmFrames Frames = Hrot.Common.Infrastructure.FilmFrames.Auto,   // ⭐ CE-11018 (Q113-B) — "frames: auto | map"
+                                        Hrot.Common.Infrastructure.FilmSound Sound = Hrot.Common.Infrastructure.FilmSound.Hrot);   // ⭐ CE-11021 (Q113-E) — "sound: hrot | client"
 
     /// <summary>A reel to play, at <see cref="Speed"/> (live only), live / to files (<see cref="Capture"/>) / as a scout.</summary>
     /// <remarks><see cref="Inline"/>: takes given with the request (by <c>scenario/take</c>), not read from a file — film.py's one-off
@@ -200,12 +202,21 @@ namespace Hrot.UI.Common.Map3D.Director
         private int _frameNo;
         private double _nextFrameAt;
         private Task? _pendingCapture;
+        // ⭐ CE-11018 (§2c) — the capture as ONE job for the sink (Begin … End): its record, its Begin's task (the first frame waits for it), whether it was ended
+        private Hrot.Common.Infrastructure.FilmJob? _job;
+        private Task? _jobBegin;
         private readonly List<(int Frame, int Item, int Shot, double SimTime)> _manifest = new();
         private readonly List<(int FirstFrame, string Title)> _chapters = new();
         private Task<string?>? _encoding;
 
         /// <param name="extension">⭐ CE-4061 — a kind of run the host adds (the editor: <c>ScenarioVerifyRun</c>); a request with a
         /// <see cref="PlayRequest.Plan"/> is refused without one.</param>
+        /// <summary>⭐ CE-11018 — the frame sink this runner films through (rails: the pack's one sink).</summary>
+        public IFrameSink? Sink => _sink;
+
+        /// <summary>⭐ CE-11018 (Q113-E) — the sound track the linked client made for the last capture (null: none, or the map filmed it). The mux is CE-11021's.</summary>
+        public Hrot.Common.Infrastructure.FilmTrack? ClientTrack { get; private set; }
+
         public DirectorRunner(IDirectorHost host, ICinema cinema, ILayerOverride layers, IFrameSink? sink = null, IDirectorSound? sound = null,
                               IRunExtension? extension = null)
         {
@@ -322,6 +333,7 @@ namespace Hrot.UI.Common.Map3D.Director
         private readonly List<ItemReport> _reports = new();
         public string? Error { get; private set; }
         public string? MoviePath { get; private set; }
+        private string? _movieAsked;
         /// <summary>Frames <see cref="Tick"/> has run (rails).</summary>
         public long Frames { get; private set; }
 
@@ -373,6 +385,15 @@ namespace Hrot.UI.Common.Map3D.Director
             // ⭐ CE-1304 P6 (§11t V5) — the map's 2-D ⇄ 3-D switch animates on screen; a capture CUTS (its frames are film frames, not wall-clock ones)
             FilmStudio.AnimateViewSwitch = request.Capture == null;
             if (request.Mode == DirectorMode.Capture) _sound?.BeginLog();
+            // ⭐ CE-11018 (§2c) — the capture is ONE job: the sink chooses its frames' source now (the linked client, or the map) and the first frame waits for it
+            ClientTrack = null;
+            _job = null; _jobBegin = null;
+            if (request.Mode == DirectorMode.Capture)
+            {
+                var c = request.Capture!;
+                _job = new Hrot.Common.Infrastructure.FilmJob(Guid.NewGuid(), Hrot.Common.Infrastructure.FilmJobKind.Reel, request.Reel.Name, c.Fps, c.Width, c.Height, c.Supersample, FramesDir, Sound: c.Sound, Frames: c.Frames);
+                _jobBegin = _sink!.Begin(_job);
+            }
             // ⭐ an extension's run (verify) leaves the editor as it is: no camera, no cinema; ⭐ CE-1303 D7 — nor does an iteration pass
             if (request.Mode != DirectorMode.Plan && request.Cinema) _cinema.Enter();
             BeginItem(0);
@@ -541,7 +562,8 @@ namespace Hrot.UI.Common.Map3D.Director
             _subs = Array.Empty<Subtitle>(); _subNow = null;
             _views = Array.Empty<ViewChange>(); _viewNow = null; _graphics = Array.Empty<FilmGraphic>(); _graphicsNow = Array.Empty<GraphicFrame>();
             _ext?.Reset();
-            _recordingChecked = false; _openSettle = 0;
+            _recordingChecked = false; _openSettle = 0; _openWaiting = false;
+            _progressSeen = null; _countSeen = int.MinValue; _builtSeen = false; _progressAt = _host.WallNow;
             Phase = DirectorPhase.Loading;
             _phaseStartWall = _itemStartWall = _host.WallNow;
             Report.Status = "loading";
@@ -559,6 +581,13 @@ namespace Hrot.UI.Common.Map3D.Director
         private bool TickItemRecording()
         {
             if (_openSettle > 0) { _openSettle--; return true; }
+            if (_openWaiting && Recordings != null)
+            {
+                // ⭐ CE-11023 — an opener whose open runs through the cluster (the editor) holds the load until the replay's world is ready
+                if (Recordings.OpenFailure is { } openFailed) { _openWaiting = false; Fail($"recording '{Report.Recording}' did not open: {openFailed}"); return true; }
+                if (Recordings.Opening) return true;
+                _openWaiting = false;
+            }
             if (_recordingChecked || _request!.Mode == DirectorMode.Plan || Recordings == null) return false;
             _recordingChecked = true;
             var want = _startRecording;
@@ -575,6 +604,7 @@ namespace Hrot.UI.Common.Map3D.Director
             catch (Exception ex) { error = $"{ex.GetType().Name}: {ex.Message}"; }
             if (error != null) { Fail($"recording '{Report.Recording}' did not open: {error}"); return true; }
             _openSettle = OpenSettleFrames;
+            _openWaiting = true;
             return true;
         }
 
@@ -618,13 +648,41 @@ namespace Hrot.UI.Common.Map3D.Director
             }
             double waited = _host.WallNow - _phaseStartWall;
             if (_host.MapBuild?.Failure is { } mapFailure) { Fail($"the 3-D map did not build: {mapFailure}"); return; }
+            if (_host.LoadError is { } clusterError) { Fail($"the scenario did not load: the cluster is in error — {clusterError}"); return; }
             if (_probe.Observe(LiveRun ? _ext!.IsLoaded : _host.IsOperatingEdit, _host.EntityCount, waited, mapBuilt: _host.MapBuild?.IsBuilt ?? true))
             {
                 Phase = DirectorPhase.Entering;
                 if (!LiveRun) _host.EnterPreview(startPaused: true);
                 return;
             }
-            if (waited > LoadTimeoutSeconds) Fail($"the scenario did not load within {LoadTimeoutSeconds:0} s ({_probe.Polls} polls, count {_probe.LastCount})");
+            // ⭐⭐ CE-11023 — no fixed wall while the load ADVANCES (a large terrain loads for longer than any fixed limit): it fails only when nothing
+            //   it reports moved for LoadStallSeconds — the load's step (the cluster's progress), the entity count or the map's build
+            if (LoadStalled()) Fail($"the scenario's load made no progress for {LoadStallSeconds:0} s ({_probe.Polls} polls, count {_probe.LastCount}"
+                                    + (_progressSeen is { Length: > 0 } at ? $", at: {at}" : "") + ")");
+        }
+
+        /// <summary>⭐ CE-11023 — how long a load may report no progress at all before it fails (the old fixed wall, now measured from the last change).</summary>
+        public const double LoadStallSeconds = 30d;
+
+        // ⭐ CE-11023 — the last progress the load reported, and when it last changed (0 B: a string reference, an int and a bool)
+        private string? _progressSeen;
+        private int _countSeen = int.MinValue;
+        private bool _builtSeen;
+        private double _progressAt;
+        private bool _openWaiting;
+
+        private bool LoadStalled()
+        {
+            double now = _host.WallNow;
+            string? progress = _host.LoadProgress;
+            int count = _host.EntityCount ?? -1;
+            bool built = _host.MapBuild?.IsBuilt ?? true;
+            if (!string.Equals(progress, _progressSeen, StringComparison.Ordinal) || count != _countSeen || built != _builtSeen)
+            {
+                _progressSeen = progress; _countSeen = count; _builtSeen = built; _progressAt = now;
+                return false;
+            }
+            return now - _progressAt > LoadStallSeconds;
         }
 
         private void TickEntering()
@@ -944,6 +1002,7 @@ namespace Hrot.UI.Common.Map3D.Director
             // ⭐ CE-1303 P2b — CR-11 (§11o S9): the subtitle of this source second, to the cinema every frame (its text is also what a capture burns in)
             _subNow = TakeSubtitles.At(_subs, a => _book!.TimeOf(a), rel);
             _cinema.Subtitle(_subNow);
+            FilmStudio.Caption = _subNow;   // ⭐ CE-11035 (R-11015, §3.4) — the same subtitle, for a live client (the suggested camera's caption)
             // ⭐ CE-1305 P6 (§11t G2) — the film graphics of this source second, their units read now: to the map's screen pass every frame (a capture burns the same in)
             if (mode != DirectorMode.Plan)
             {
@@ -962,6 +1021,8 @@ namespace Hrot.UI.Common.Map3D.Director
             if (fastForward) { }   // ⭐ CE-1303 D5 — no hold, no capture: one step per frame, as fast as frames come
             else if (mode == DirectorMode.Capture)
             {
+                if (_jobBegin is { IsCompleted: false }) { Report.WaitFrames++; return; }   // ⭐ CE-11018 — the frame source is warming up for the job
+                if (_jobBegin is { IsFaulted: true } refused) throw new InvalidOperationException("the frame source refused the job: " + refused.Exception!.GetBaseException().Message);
                 if (_pendingCapture is { IsCompleted: false }) { Report.LateFrames++; return; }   // the map has not served it yet: hold
                 if (_pendingCapture is { IsFaulted: true } faulted) throw new InvalidOperationException("capture failed: " + faulted.Exception!.GetBaseException().Message);
                 if (shot != null && rel >= _nextFrameAt - 1e-6) Capture(shot, rel);
@@ -1066,7 +1127,7 @@ namespace Hrot.UI.Common.Map3D.Director
             var keys = CameraKeys.OnScreenIn(_keys, Segment?.Id, anchors);
             var frame = TakeTimeline.ProgramAt(keys, anchors, at);
             if (frame != null && !ReferenceEquals(frame.Key, _cutKey)) { _cutKey = frame.Key; FilmStudio.NextCut(); }   // ⭐ Seats H4 — a new key on screen is the director's next shot
-            if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) FilmStudio.Direct(fs);
+            if (frame != null && ShotEvaluator.Evaluate(frame, _units) is { } fs) { FilmStudio.Direct(fs); FilmStudio.ShotName = Segment?.Id; }   // ⭐ CE-11006 (RR-6) — its name
             FilmStudio.Fade = (at == rel ? frame : TakeTimeline.ProgramAt(keys, anchors, rel))?.Fade ?? 0f;   // the black is of NOW, the camera may be the next shot's
         }
 
@@ -1075,7 +1136,8 @@ namespace Hrot.UI.Common.Map3D.Director
             var c = _request!.Capture!;
             var path = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
             // ⭐ CE-1303 P2b / CE-1370 — the subtitle on screen, with its position and fade; ⭐ CE-1305 — and the film graphics (always: they are the film's content)
-            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, OverlayNow(c.BurnCaptions));
+            var ctx = FrameContext();
+            _pendingCapture = _sink!.Frame(path, c.Width, c.Height, c.Supersample, OverlayNow(c.BurnCaptions), ctx);
             _manifest.Add((_frameNo, _item, shot.Number, rel));
             _frameNo++;
             Report.Frames++;
@@ -1087,7 +1149,8 @@ namespace Hrot.UI.Common.Map3D.Director
             {
                 var dup = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
                 var src = path;
-                _pendingCapture = _pendingCapture.ContinueWith(_ => File.Copy(src, dup, overwrite: true), TaskScheduler.Default);
+                var copied = _pendingCapture.ContinueWith(t => { if (t.IsFaulted) t.GetAwaiter().GetResult(); File.Copy(src, dup, overwrite: true); }, TaskScheduler.Default);
+                _pendingCapture = Task.WhenAll(copied, _sink.Advance(Hrot.Common.Infrastructure.FilmFrameKind.Repeat, ctx.At(_frameNo)));   // ⭐ CE-11018 — the frame index reaches a linked client too
                 _manifest.Add((_frameNo, _item, shot.Number, rel));
                 _frameNo++;
                 Report.Frames++;
@@ -1101,6 +1164,9 @@ namespace Hrot.UI.Common.Map3D.Director
             int n = Math.Max(1, (int)Math.Round(_request.Reel.GapSeconds * c.Fps));
             var first = Path.Combine(FramesDir, $"{_frameNo:D6}.png");
             var task = _sink!.Card(first, c.Width, c.Height, text);
+            // ⭐ CE-11018 (D-4) — the card is the map's picture; a linked client gets a Silence frame for each card frame (its track stays frame for frame)
+            var ctx = FrameContext();
+            for (int i = 0; i < n; i++) task = Task.WhenAll(task, _sink.Advance(Hrot.Common.Infrastructure.FilmFrameKind.Silence, ctx.At(_frameNo + i)));
             for (int i = 1; i < n; i++)
             {
                 var dup = Path.Combine(FramesDir, $"{_frameNo + i:D6}.png");
@@ -1172,6 +1238,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 _encoding = StartEncoding();
                 return;
             }
+            EndJob(Hrot.Common.Infrastructure.FilmJobOutcome.Ok);   // ⭐ CE-11018 — a capture with no encode ends OK here
             EndRun();
             Phase = DirectorPhase.Done;
         }
@@ -1206,6 +1273,7 @@ namespace Hrot.UI.Common.Map3D.Director
             if (_encoding is not { IsCompleted: true } done) return;
             if (done.IsFaulted) Error = "encoding failed: " + done.Exception!.GetBaseException().Message;
             else if (done.Result is { } err) Error = err;
+            else MoviePath = _movieAsked;   // ⭐ CE-11068 — the movie is named only when it was written
             EndRun();
             Phase = DirectorPhase.Done;
         }
@@ -1215,7 +1283,7 @@ namespace Hrot.UI.Common.Map3D.Director
         {
             var c = _request!.Capture!;
             var movie = Path.GetFullPath(c.Movie ?? Path.Combine(c.Dir, (_request.Reel.Name.Replace('/', '-')) + ".mp4"));
-            MoviePath = movie;
+            _movieAsked = movie;   // ⭐ CE-11068 — MoviePath is set only once the encode WROTE it (TickEncoding)
             var frames = FramesDir;
             var dir = c.Dir;
             var manifest = new JsonArray(_manifest.Select(m => (JsonNode?)new JsonObject
@@ -1238,17 +1306,69 @@ namespace Hrot.UI.Common.Map3D.Director
             File.WriteAllText(metaPath, meta.ToString());
             string? wav = Path.Combine(dir, "sound.wav");
             var simTimes = _manifest.OrderBy(m => m.Frame).Select(m => m.Shot == 0 ? double.NaN : m.SimTime + ItemOffset(m.Item)).ToList();
-            if (_sound == null || !_sound.EndLog(wav, simTimes, c.Fps)) wav = null;
-            int fps = c.Fps;
+            // ⭐ CE-11021 — the soundtrack is the linked client's: HROT's own is not made. ⭐ CE-11068 (unreal-ig H-8) — only when the client FILMED the job: a job whose frames
+            //   went to HROT's map (frames: map, or no client could film) has no client track, so it takes HROT's own sound instead of failing
+            bool clientSound = c.Sound == Hrot.Common.Infrastructure.FilmSound.Client && _sink?.FilmsOnClient == true;
+            if (clientSound || _sound == null || !_sound.EndLog(wav, simTimes, c.Fps)) wav = null;
+            int fps = c.Fps, frameCount = _frameNo;
             var pending = _pendingCapture ?? Task.CompletedTask;
-            return pending.ContinueWith(_ => Ffmpeg.Encode(frames, fps, metaPath, wav, movie), TaskScheduler.Default);
+            // ⭐ CE-11018 — the job ends OK: the frame source hands back its track (the linked client's), and the encode waits for it
+            var ended = EndJob(Hrot.Common.Infrastructure.FilmJobOutcome.Ok);
+            pending = Task.WhenAll(pending, ended);
+            return pending.ContinueWith(_ =>
+            {
+                if (clientSound)
+                {
+                    // ⭐ CE-11021 — mux the client's track, after checking it covers the film
+                    if (ClientTrack is not { } track) return "the job asked for the client's sound (sound: client) but the linked client returned no track";
+                    if (CheckTrack(track, frameCount, fps) is { } miss) return miss;
+                    wav = track.Path;
+                }
+
+                return Encoder(frames, fps, metaPath, wav, movie);
+            }, TaskScheduler.Default);
         }
+
+        /// <summary>⭐ CE-11021 — how far the client's track total may be from <c>round(frames x SampleRate / Fps)</c>: one mixer buffer (measured by the gateway: 71 552 against 72 000).</summary>
+        public const long TrackSampleTolerance = 1024;
+
+        /// <summary>⭐ CE-11021 — null when <paramref name="track"/> covers <paramref name="frames"/> film frames at <paramref name="fps"/> within <see cref="TrackSampleTolerance"/>; else the failure reason with both numbers.</summary>
+        internal static string? CheckTrack(Hrot.Common.Infrastructure.FilmTrack track, int frames, int fps)
+        {
+            long expected = (long)Math.Round(frames * (double)track.SampleRate / fps, MidpointRounding.AwayFromZero);
+            return Math.Abs(track.Samples - expected) <= TrackSampleTolerance ? null
+                : $"the client's sound track has {track.Samples} samples, the film's {frames} frames at {fps} fps need {expected} at {track.SampleRate} Hz (the tolerance is {TrackSampleTolerance})";
+        }
+
+        /// <summary>The movie encoder (ffmpeg); a rail swaps it for one that records its inputs.</summary>
+        internal Func<string, int, string, string?, string, string?> Encoder { get; set; } = Ffmpeg.Encode;
 
         /// <summary>Items restart at sim time 0; the sound track needs one timeline, so each item is offset far apart.</summary>
         internal static double ItemOffset(int item) => item * 100_000d;
 
+        /// <summary>⭐ CE-11018 — the context of film frame <see cref="_frameNo"/>: the job, its index, the film rate, the steps so far, the take's layers.</summary>
+        private FilmFrameContext FrameContext() => ContextFor(_job?.JobId ?? Guid.Empty, _frameNo);
+
+        /// <summary>⭐ CE-11018 — a frame context of THIS moment of the run for job <paramref name="jobId"/>'s frame <paramref name="index"/> (the stills' frames too).</summary>
+        internal FilmFrameContext ContextFor(Guid jobId, int index)
+        {
+            var layers = _viewNow?.Layers ?? LayerChange.None;
+            return new FilmFrameContext(jobId, index, SourcePerFilmSecond, _issued, layers.On, layers.Off);
+        }
+
+        /// <summary>⭐ CE-11018 — ends the job ONCE (later calls do nothing); the task completes with the frame source's track, kept in <see cref="ClientTrack"/>.</summary>
+        private Task EndJob(Hrot.Common.Infrastructure.FilmJobOutcome outcome)
+        {
+            if (_job is not { } job || _sink == null) return Task.CompletedTask;
+            _job = null;
+            _jobBegin = null;
+            return _sink.End(job, outcome).ContinueWith(t => { if (t.IsCompletedSuccessfully) ClientTrack = t.Result; }, TaskScheduler.Default);
+        }
+
         private void EndRun()
         {
+            // ⭐ CE-11018 — a job still open here did not end well: stopped by the user, or failed (with the run's reason)
+            if (_job != null) _ = EndJob(Error is { } why ? new Hrot.Common.Infrastructure.FilmJobOutcome(Hrot.Common.Infrastructure.FilmJobEnd.Failed, why) : new Hrot.Common.Infrastructure.FilmJobOutcome(Hrot.Common.Infrastructure.FilmJobEnd.Stopped));
             FilmStudio.Release();
             _layers.Clear();
             _sound?.Reset();
@@ -1283,6 +1403,7 @@ namespace Hrot.UI.Common.Map3D.Director
                 ["tickHz"] = _take?.TickHz,
                 ["frames"] = _request?.Capture != null ? _frameNo : null,
                 ["movie"] = MoviePath,
+                ["framesTo"] = _request?.Capture != null ? _sink?.Route : null,   // ⭐ CE-11067 — where this capture's frames go (the linked client or HROT's map, with why)
                 ["error"] = Error,
                 ["reports"] = new JsonArray(_reports.Select(r => (JsonNode?)r.ToJson()).ToArray()),
             };

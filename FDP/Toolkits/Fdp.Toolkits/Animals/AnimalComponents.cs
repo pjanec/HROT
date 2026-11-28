@@ -44,6 +44,9 @@ namespace Fdp.Toolkit.Animals
         Dangerous = 2,
         /// <summary>Calling (a moo, a bark …) — the presentation may open the mouth.</summary>
         Calling = 4,
+        /// <summary>⭐ CE-11008 (RR-8, R-11002) — a BIRD in flight (a lone bird or a flock; set and cleared by its brain with its flight, AB-5): a renderer beats its
+        /// wings from this state instead of guessing from its height or speed. A flock also says it in <see cref="FlockState.Mode"/>.</summary>
+        InFlight = 8,   // ⚠ not "Flying": the IDL puts enum members in one scope and FlockMode.Flying exists
     }
 
     /// <summary>

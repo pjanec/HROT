@@ -154,6 +154,8 @@ public sealed class DebugApiOrdersTests
         Assert.Equal(BehaviorNames.PersonHold, order["behavior"]!.GetValue<string>());
     }
 
+    /// <summary>⭐ CE-3494 (R-3115) — an order HOLDS the unit's mission plan (it is no longer discarded — ruling 50 superseded): the plan keeps its
+    /// tasks and is marked held by the order. ⛔ SUPERSEDED assertion: <c>TaskCount == 0</c> (the plan discarded).</summary>
     [Fact]
     public void CE3167_AnOrder_ClearsTheUnitsMissionPlan()
     {
@@ -165,7 +167,10 @@ public sealed class DebugApiOrdersTests
         svc.PostOrder(UnitId, new JsonObject { ["kind"] = "move", ["x"] = 30f, ["y"] = 0f });
         h.PumpFrames(4);
 
-        Assert.Equal(0, h.Repo.GetComponentRO<MissionPlanQueue>(unit).TaskCount);
+        // kept, not discarded. ⚠ This fixture's plan has no real tasks, so it has already run to its end when the order starts (CurrentTask ==
+        // TaskCount) — and an ended plan has nothing to hold (ClearFor leaves it; the hold itself is pinned by MissionControlExecutionSystemTests
+        // .CE3494_ClearFor_HoldsThePlan… and the plan-held-by-order scenario).
+        Assert.Equal(2, h.Repo.GetComponentRO<MissionPlanQueue>(unit).TaskCount);
         // The move ran as the operator's order — still running, or already ended (this world drives no navigation), and then
         // its outcome is the recorded one (OperatorOrderOutcome).
         var order = svc.GetOrder(UnitId);
@@ -291,6 +296,28 @@ public sealed class DebugApiOrdersTests
         var all = truth!["contacts"]!.AsArray().Select(c => c!["networkId"]!.GetValue<int>()).ToArray();
         Assert.Contains(2000, all);
         Assert.Contains(2001, all);
+    }
+
+    /// <summary>⭐ CE-4677 (C-9) — the fog of war has no back door: a contact the side remembers reads as it last knew it after the enemy is
+    /// killed out of every own unit's sight — still listed, at the remembered place, and no contact carries an <c>alive</c> read from the world.
+    /// 🔴 Mutation: the map lookup's <c>continue</c> restored ⇒ the killed contact vanishes.</summary>
+    [Fact]
+    public void CE4677_AContactKilledOutOfSight_StillReadsAsTheSideLastKnewIt()
+    {
+        using var h = new EditorHarness(productionBehaviors: true);
+        var svc = h.BuildDebugApiService();
+        var friend = Unit(h, UnitId, ForceId.Friend, Vector3.Zero);
+        var enemy = Unit(h, 2000, ForceId.Hostile, new Vector3(50, 0, 0));
+        var memory = new TargetMemory();
+        TargetMemory.AddOrUpdateTarget(ref memory, (long)enemy.PackedValue, 50f, 0f, 0.5f, tick: 1);
+        h.Repo.AddComponent(friend, memory);
+
+        h.Repo.DestroyEntity(enemy);   // killed where no friend sees it: the side's memory is unchanged
+        var (fog, error) = svc.GetSitrep("Friend", truth: false);
+        Assert.Null(error);
+        var contact = Assert.Single(fog!["contacts"]!.AsArray());
+        Assert.Equal(50.0, contact!["position"]![0]!.GetValue<double>(), 1);
+        Assert.Null(contact["alive"]);
     }
 
     /// <summary>⭐ CE-3168 — /entities/command binds the payload's FIELDS (they used to be dropped, publishing an all-default
@@ -427,7 +454,7 @@ public sealed class DebugApiOrdersTests
         // and the brain enforces it too, for a request that arrives anyway (two stations racing): ignored, the holder keeps the unit
         h.Repo.Bus.Publish(new Fdp.Toolkit.Behavior.Possession.PossessRequestEvent
         {
-            Unit = unit, StationNodeId = (Fdp.Core.NodeId)(9), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps,
+            Unit = unit, StationNodeId = (Fdp.Core.StationId)(9), Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps,
         });
         h.PumpFrames(4);
         Assert.Equal(7, a.HolderOf(UnitId));

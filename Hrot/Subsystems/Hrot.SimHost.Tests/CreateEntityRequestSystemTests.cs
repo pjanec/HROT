@@ -175,7 +175,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
@@ -260,7 +260,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
@@ -317,7 +317,7 @@ namespace Hrot.SimHost.Tests
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             w.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); w.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             w.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             w.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
@@ -333,6 +333,64 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(launcher, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(soldier).Passengers[1]);
             Assert.Equal(soldier, Fdp.Toolkit.Combat.WeaponSystems.ControllerOf(w, launcher));
             Assert.True(Fdp.Toolkit.Combat.WeaponSystems.CanFire(w, launcher));
+        }
+
+        /// <summary>
+        /// ⭐⭐ Simulated devices S1e-1 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.1 R7-4, §3.2 D-1″, §3.3 R4-2) — a placed OBSERVER HMMWV (120)
+        /// comes with its laser rangefinder (640) PRE-MOUNTED: one preset spawn for its device station (seat 7); boarded, the device is an ITEM of kind
+        /// Device (its type's <c>Mountable</c>) and a DEVICE (its type's <c>DeviceInfo</c>: the rangefinder's behaviour), and its operator is whoever sits
+        /// in the COMMANDER seat (6) that operates the station — the device walk writes the <c>Operated</c> row naming HIS station.
+        /// </summary>
+        [Fact]
+        public void S1e1_APlacedObserverHmmwv_PreMountsItsRangefinder_OperatedByTheCommanderSeat()
+        {
+            var tkb = Hrot.Map.Common.HrotEnvironment.CreateTkb();
+            var repo = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = LocalNodeId, TkbType = (Fdp.Core.TkbTypeId)(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV_Observer),
+                DisType = ValidDisType, PreAllocatedNetworkId = 902, InitialComponents = new List<object> { new EntityInfo { Name = "OP", ForceId = ForceId.Friend } },
+            });
+            var (system, _, _) = BuildSystem(tkb, source);
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>().ToArray();
+            Assert.Equal(3, commands.Length);   // the HMMWV (no crew) + its roof M2 + its rangefinder
+            var deviceCmd = Assert.Single(commands, c => c.TkbType == Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder);
+            Assert.Equal(7, ((Fdp.Toolkit.Behavior.Components.PresetSeatIntent)deviceCmd.InitialComponents!
+                .Single(i => i is Fdp.Toolkit.Behavior.Components.PresetSeatIntent)).Seat);
+
+            using var w = new EntityRepository();
+            SimHostComponentRegistry.RegisterAll(w);
+            CognitiveComponentRegistry.RegisterAll(w);
+            var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+            var device = w.CreateEntity();
+            var deviceType = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder);
+            new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator().Inject(w, device, deviceType);
+            new Fdp.Toolkit.Behavior.Devices.DeviceTkbTranslator().Inject(w, device, deviceType);
+            w.AddComponent(device, new Fdp.Toolkit.Behavior.Components.PresetSeatIntent { HostNetworkId = 902, Seat = 7 });
+            var hmmwv = w.CreateEntity();
+            new Fdp.Toolkit.Behavior.Translators.CarrierTkbTranslator().Inject(w, hmmwv, tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Truck_HMMWV_Observer));
+            map.Register(902, hmmwv);
+            new Hrot.Common.EntityCreation.SeatPresetSystem(map).Execute(w, 0f);
+
+            Assert.Equal(device, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(hmmwv).Passengers[7]);
+            Assert.Equal((byte)Fdp.Toolkit.Tkb.Domain.MountKinds.Device, w.GetComponentRO<Fdp.Toolkit.Combat.Mountable>(device).MountKinds);
+            Assert.Equal(Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder, w.GetComponentRO<Fdp.Toolkit.Behavior.Devices.DeviceInfo>(device).Behavior.ToString());
+            Assert.False(Fdp.Toolkit.Combat.WeaponSystems.IsWeaponSystem(w, device));   // an item, never a weapon
+
+            // the commander takes seat 6 and is possessed by station 7: the walk makes him the device's operator, the row names HIS station
+            var commander = w.CreateEntity();
+            w.AddComponent(commander, new Fdp.Toolkit.Combat.Components.Health { Current = 100, Max = 100 });
+            Assert.Equal(Fdp.Toolkit.Behavior.EmbarkResult.Applied, Fdp.Toolkit.Behavior.Embarkation.TryEmbarkAt(w, commander, hmmwv, 6));
+            Assert.Equal(commander, Fdp.Toolkit.Behavior.Devices.DeviceOperators.OperatorOf(w, device));
+            w.AddComponent(commander, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = (StationId)7, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Riding, Epoch = 1 });
+            Fdp.Toolkit.Behavior.Devices.DeviceOperators.Sync(w, device);
+            var row = w.GetComponentRO<Fdp.Toolkit.Behavior.Possession.PossessedBy>(device);
+            Assert.Equal(Fdp.Toolkit.Behavior.Possession.PossessionMode.Operated, row.Mode);
+            Assert.Equal((StationId)7, row.StationNodeId);
+            Assert.Equal(commander, w.GetComponentRO<Fdp.Toolkit.Behavior.Components.PassengerBuffer>(hmmwv).Passengers[6]);   // the seat holds HIM, not the device
         }
 
         /// <summary>A technical's TKB: a host with a driver seat, a gunner seat starting with a rifleman and a pintle station starting
@@ -431,7 +489,7 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.OpenPassengerCabin>();
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PersonCarrier>();
             repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.PresetSeatIntent>();
-            repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>();
+            repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(); repo.RegisterComponent<Fdp.Toolkit.Combat.Mountable>();
             repo.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
             var db = PresetTkb();
             var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();

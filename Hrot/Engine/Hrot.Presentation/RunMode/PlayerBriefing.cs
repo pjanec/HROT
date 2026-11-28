@@ -110,8 +110,8 @@ public sealed class PlayerBriefing
             if (world.IsComponentTypeRegistered<PossessedBy>()) _holds = world.Query().With<PossessedBy>().Build();
             if (world.IsComponentTypeRegistered<ObjectiveStatus>()) _statuses = world.Query().With<ObjectiveStatus>().Build();
         }
-        var unit = Entity.Null;
-        if (_holds != null) foreach (var e in _holds) { unit = e; break; }
+        // ⭐ C3 CC-13 — THIS station's own body (StationBody.Own); ⛔ before: the FIRST hold in the world, whichever station held it
+        var unit = _holds != null ? Fdp.Toolkit.Behavior.Possession.StationBody.Own(world, null) : Entity.Null;
         int count = 0;
         if (_statuses != null) foreach (var _ in _statuses) count++;
         object? resident = world.HasSingletonManaged<ScenarioDescriptionResident>() ? world.GetSingletonManaged<ScenarioDescriptionResident>() : null;

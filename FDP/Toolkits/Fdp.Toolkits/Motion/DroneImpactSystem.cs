@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Motion
                 {
                     groundZ = world.GroundHeightAt(p1.X, p1.Y);
                     if (world.SightBlocked(p0, p1)) terrainT = FirstBlocked(world, p0, p1);
-                    if (p1.Z - contact <= groundZ)
+                    if (p1.Z - contact <= groundZ && !ManualTouch(repo, d, v, alive))
                     {
                         float drop = p0.Z - p1.Z;
                         float tGround = drop > 1e-6f ? Math.Clamp((p0.Z - contact - groundZ) / drop, 0f, 1f) : 1f;
@@ -146,6 +146,23 @@ namespace Fdp.Toolkit.Motion
         }
 
         /// <summary>The route phases that touch the ground on purpose (<see cref="RotorcraftModel"/>).</summary>
+        /// <summary>
+        /// ⭐ devices SD-S2c (§3.13c D-104) — a live flyer with gear flown on the MANUAL axes (possessed, or through a ground station) that is climbing off the
+        /// ground or coming down no faster than a landing (<see cref="RotorcraftModel.LandingMps"/>), nearly still: it meets the ground ON PURPOSE — the Manual
+        /// take-off and touch-down, which the motion model sets down on its feet (its own "no crash for a gentle landing"). The ground arm is not an impact
+        /// for it. 📐 Measured: the remote pilot's take-off from its feet (0.08 m, inside the 0.8 m contact radius) was a crash every time. ⛔ An autonomous
+        /// flyer is unchanged (its take-off / landing reports a ground phase, above).
+        /// </summary>
+        public static bool ManualTouch(EntityRepository repo, Entity d, Vector3 v, bool alive)
+        {
+            if (!alive || v.Z < -RotorcraftModel.LandingMps * GentleShare || new Vector2(v.X, v.Y).Length() > GentleHorizontalMps) return false;
+            if (!repo.IsComponentTypeRegistered<NavigationIntent>() || !repo.HasComponent<NavigationIntent>(d) || repo.GetComponentRO<NavigationIntent>(d).Mode != NavigationMode.Manual) return false;
+            return CombatTkb.TryGetTemplate(repo, d, out var t) && t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.BodyGeometryDto>() is { GroundContacts.Count: > 0 };
+        }
+
+        /// <summary>⭐ SD-S2c — a touch-down's margins over the landing speed, and the horizontal drift it may still have (m/s).</summary>
+        public const float GentleShare = 1.25f, GentleHorizontalMps = 3f;
+
         public static bool IsGroundPhase(NavigationPhase phase)
             => phase is NavigationPhase.TakingOff or NavigationPhase.Landing or NavigationPhase.Landed
                       or NavigationPhase.Unloading or NavigationPhase.Loading;

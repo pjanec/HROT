@@ -85,6 +85,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                    _controller.GetCurrentReplayTime().TotalWallTicks)
                 : null;
 
+        /// <summary>
+        /// ⭐⭐ <c>CE-11025</c> (Q113-J) — the node's load chain, as the replay's WORLD: the recording's terrain, the 3-D map and the linked client.
+        /// Set by the host composition (<c>EcsHostClusterHandlers.Compose</c>) to the chain it builds; null = a host with no chain (the replay plays
+        /// over whatever is resident, as before).
+        /// </summary>
+        public IReplayWorldLoad? WorldLoad { get; set; }
+
+        // ⭐ CE-11025 — the replay open whose world was prepared (its PrepareReplay transaction); Empty = none pending
+        private Guid _worldLoadId;
+        private bool _worldCommitted;
+
         /// <summary>⭐ CE-3329 P0 (row 6) — the recorded sim time of the frame on screen; <see langword="null"/> outside a replay.</summary>
         public double? ReplaySimSeconds => _controller.IsReplayActive ? _controller.CurrentReplaySimSeconds : null;
         private readonly TogglableInputGroup?         _inputGroup;
@@ -216,6 +227,17 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     "[ReferenceReplayLoadHandler] PrepareReplay complete (exerciseId={0}, MaxNetworkId={1}, Duration={2}s, span {3}).",
                     exerciseId, maxNetworkId, durationSeconds, $"{first}..{last}");
 
+                // ⭐⭐ CE-11025 (Q113-J) — the WORLD the recording plays over: its terrain (by name and overlay hash, from its metadata), then the
+                //   map and the linked client — the load chain's shared parts. ⛔ A node with no recording (a listener) or a recording that names no
+                //   terrain keeps what is resident: an empty name would UNLOAD it (TerrainResidency.Prepare(null)).
+                string recordedTerrain = _controller.ActiveReplayTerrainName;
+                if (WorldLoad != null && !string.IsNullOrWhiteSpace(recordedTerrain))
+                {
+                    await WorldLoad.PrepareAsync(intent.TransactionId, recordedTerrain, _controller.ActiveReplayOverlayHash, ct).ConfigureAwait(false);
+                    _worldLoadId = intent.TransactionId;
+                    _worldCommitted = false;
+                }
+
                 // ⭐⭐ CE-4079 ④ (DESIGN_Replay_Time_Axis_And_Review §12c W3) — prepared only once this node's retraction disposes were
                 //   ACKNOWLEDGED (bounded); a timeout is carried in the result, never fatal.
                 string? ackTimeout = await _controller.AwaitRetractionAcksAsync(RetractionAckBudget).ConfigureAwait(false);
@@ -338,6 +360,16 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                 // ⭐ CE-4097 (AQ108 D5) — the branch's parent and point ride the answer: the SAME RecordingBranch the sidecar is written from.
                 return new LiveBranchResult(historicalTime, fromRecording, history?.ParentExerciseId ?? Fdp.Core.ExerciseId.Empty, history?.BranchWallTicks ?? 0);
             }
+            else if (intent.Operation == NodeOpType.PrepareState && intent.DomainPayload is EditLoadHandlerPayload { TargetState: ClusterState.OperatingReplay }
+                     && WorldLoad != null && _worldLoadId != Guid.Empty && _worldCommitted)
+            {
+                // ⭐⭐ CE-11025 — the replay goes Operating only once its world is whole: the map built and the linked client's world ready
+                //   (the chain's per-frame drain completes this; a failed part fails the round with its reason, back to Idle).
+                var id = _worldLoadId;
+                _worldLoadId = Guid.Empty;
+                _worldCommitted = false;
+                await WorldLoad.WhenReadyAsync(id).ConfigureAwait(false);
+            }
 
             return null;
         }
@@ -348,6 +380,12 @@ namespace Fdp.Toolkit.Orchestration.Handlers
             if (intent.Operation == NodeOpType.PrepareReplay)
             {
                 EnterReplayGates();
+                // ⭐ CE-11025 — the recording's world goes in on the frame thread (terrain → map → linked client)
+                if (WorldLoad != null && _worldLoadId == intent.TransactionId && _worldLoadId != Guid.Empty)
+                {
+                    WorldLoad.Commit(_worldLoadId, repo ?? _world);
+                    _worldCommitted = true;
+                }
 
                 FdpLog<ReferenceReplayLoadHandler>.Info(
                     "[ReferenceReplayLoadHandler] Commit(PrepareReplay) — sim+lifecycle disabled.");
@@ -382,7 +420,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers
         }
 
         /// <inheritdoc />
-        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo) { }
+        public void Abort(ExecuteNodeOpIntent intent, EntityRepository? repo)
+        {
+            // ⭐ CE-11025 — a replay open that fails before its commit drops the world it staged
+            if (intent.Operation == NodeOpType.PrepareReplay && WorldLoad != null && _worldLoadId == intent.TransactionId && !_worldCommitted)
+            {
+                WorldLoad.Abort(_worldLoadId);
+                _worldLoadId = Guid.Empty;
+            }
+        }
 
         // ⭐ CE-3329 W2 — a seek's egress hold waits for the master's commit broadcast.
         private volatile bool _awaitingCommit;

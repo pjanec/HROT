@@ -20,10 +20,15 @@ namespace Fdp.Toolkit.Replication.Edits
     {
         /// <summary>A binary edit (the write router's changes) with an outcome.</summary>
         public static EditTicket Write(EntityRepository repo, Entity entity, IReadOnlyList<EntityAttributeChange> changes)
+            => Write(repo, entity, changes, Guid.NewGuid());
+
+        /// <summary>⭐ CE-11060 — <see cref="Write(EntityRepository, Entity, IReadOnlyList{EntityAttributeChange})"/> under a request id the caller minted
+        /// (<see cref="Edits.Submit"/> on a threaded node mints it on the UI thread and routes on the sim thread).</summary>
+        public static EditTicket Write(EntityRepository repo, Entity entity, IReadOnlyList<EntityAttributeChange> changes, Guid requestId)
         {
             ArgumentNullException.ThrowIfNull(repo);
             ArgumentNullException.ThrowIfNull(changes);
-            var id = Guid.NewGuid();
+            var id = requestId == Guid.Empty ? Guid.NewGuid() : requestId;
             var writer = new AttributeEntityComponentWriter(repo, AttributeInterpreterProvider.GetOrCreate(repo), EntityAttributeChangeRequests.PublishOnto(repo, id, wantOutcome: true)) { RequestId = id };
             var route = writer.Write(entity, changes);
             int netId = repo.IsAlive(entity) ? NetworkIdResolver.RuntimeNetworkIdOf(repo, entity) : 0;
@@ -35,9 +40,13 @@ namespace Fdp.Toolkit.Replication.Edits
 
         /// <summary>A JSON edit (<paramref name="patchJson"/>, the debug API's attribute patch) with an outcome. There is no local apply: the owner — this node included — gets the request.</summary>
         public static EditTicket WriteJson(EntityRepository repo, Entity entity, string patchJson)
+            => WriteJson(repo, entity, patchJson, Guid.NewGuid());
+
+        /// <summary>⭐ CE-11060 — <see cref="WriteJson(EntityRepository, Entity, string)"/> under a request id the caller minted.</summary>
+        public static EditTicket WriteJson(EntityRepository repo, Entity entity, string patchJson, Guid requestId)
         {
             ArgumentNullException.ThrowIfNull(repo);
-            var id = Guid.NewGuid();
+            var id = requestId == Guid.Empty ? Guid.NewGuid() : requestId;
             int netId = repo.IsAlive(entity) ? NetworkIdResolver.RuntimeNetworkIdOf(repo, entity) : 0;
             bool sent = EntityAttributeChangeRequests.TryPublishJsonPatch(repo, entity, patchJson, id, wantOutcome: true);
             var route = sent ? EntityWriteRoute.Requested : EntityWriteRoute.Refused;

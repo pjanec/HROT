@@ -155,7 +155,14 @@ namespace Fdp.Toolkit.Navigation.Systems
         {
             // Read all accumulated request events since the last solver tick.
             var requests = view.ReadEvents<PathfindingRequestEvent>();
-            if (requests.IsEmpty) return;
+
+            // ⭐ CE-11076 ② — requests carried from an older timeline (a load, a preview Stop) name entities of a world that is gone
+            if (_carriedEpoch != Fdp.ModuleHost.Abstractions.ModuleRunContext.TimelineEpoch)
+            {
+                _carried.Clear();
+                _carriedEpoch = Fdp.ModuleHost.Abstractions.ModuleRunContext.TimelineEpoch;
+            }
+            if (requests.IsEmpty && _carried.Count == 0) return;
 
             var cmd = view.GetCommandBuffer();
 
@@ -165,22 +172,48 @@ namespace Fdp.Toolkit.Navigation.Systems
             _terrain = view is EntityRepository terrainRepo && terrainRepo.HasSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() ? terrainRepo.GetSingletonManaged<Fdp.Toolkit.Terrain.TerrainWorld>() : null;
             _planner.World = Fdp.Toolkit.World.WorldQuery.Of(view);   // ⭐ CE-1034 H3 — road legs and access points on the real ground
 
-            // Budget cap: process at most DefaultCapacity requests per tick (oldest-evict).
-            int limit = Math.Min(requests.Length, PathfindingBatchData.DefaultCapacity);
+            // ⭐⭐ CE-11076 ② — the run's own wall budget (ModuleRunContext, half the host's timeout; 0 on a stepped frame = answer all): the
+            //   requests carried from the last run first, then this run's, in order; once the budget is spent the rest is CARRIED to the next run,
+            //   never dropped. 📐 stechovice-battle live: one unreachable request cost 80–270 ms (the A* runs to its cap), so an unbounded run timed
+            //   out 64 times in 3 min and the host discarded every answer it had made. ⛔ Before: at most DefaultCapacity (256) a tick, the rest dropped.
+            double budgetMs = Fdp.ModuleHost.Abstractions.ModuleRunContext.WallBudgetMs;
+            long started = budgetMs > 0 ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
 
-            for (int i = 0; i < limit; i++)
+            int answered = 0;
+            for (; answered < _carried.Count; answered++)
             {
-                ref readonly var req = ref requests[i];
-
-                // Allocate or echo the route handle.
-                int handle = req.RouteHandle == 0
-                    ? NavigationHandleAllocator.Allocate()
-                    : req.RouteHandle;
-
-                PathfindingResultEvent result = ResolveRequest(in req, handle);
-
-                cmd.PublishEvent(result);
+                if (OverBudget(budgetMs, started)) break;
+                Answer(cmd, _carried[answered]);
             }
+            if (answered > 0) _carried.RemoveRange(0, answered);
+
+            for (int i = 0; i < requests.Length; i++)
+            {
+                if (OverBudget(budgetMs, started)) _carried.Add(requests[i]);
+                else Answer(cmd, in requests[i]);
+            }
+        }
+
+        /// <summary>⭐ CE-11076 — requests read but not yet answered, oldest first (grown, never shrunk: no garbage once warm).</summary>
+        [Fdp.Core.WorldDerived("requests the solver read and will answer next run; dropped on a new timeline")]
+        private readonly List<PathfindingRequestEvent> _carried = new();
+        [Fdp.Core.WorldDerived("the timeline the carried requests belong to")]
+        private int _carriedEpoch;
+
+        /// <summary>⭐ CE-11076 — requests waiting for the next run (rails, diagnostics).</summary>
+        public int CarriedCount => _carried.Count;
+
+        private static bool OverBudget(double budgetMs, long started)
+            => budgetMs > 0 && System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds >= budgetMs;
+
+        private void Answer(Fdp.Interfaces.IEntityCommandBuffer cmd, in PathfindingRequestEvent req)
+        {
+            // Allocate or echo the route handle.
+            int handle = req.RouteHandle == 0
+                ? NavigationHandleAllocator.Allocate()
+                : req.RouteHandle;
+
+            cmd.PublishEvent(ResolveRequest(in req, handle));
         }
 
         // ── Backend selection ────────────────────────────────────────────────────

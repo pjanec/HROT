@@ -1,0 +1,139 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S2c (§3.13c D-106 / D-107). The dv-drone-fly start, then the right stick held forward (0.6) flies the drone north toward a drone-jammer HMMWV (TKB 113, its 400 m bubble) 700 m away: 300 m out it enters the bubble and its radio link is JAMMED. The jammer is of another force (Neutral - so the run is a link test, not a fight). Judge: (1) the drone's link reads Jammed and lost (DroneLink); (2) the FAILSAFE: the sticks are ignored, it hovers (FailsafeHover) at the bubble's edge - it never flies deeper - then returns home (FailsafeReturn) although the stick is still forward, and lands; (3) the station shows FAILSAFE; (4) at the end it is down within 30 m of its launch point; (5) the OSD shows LINK LOST and the reason JAMMED (SD-S2d). Fail: the stick still flies it once jammed, or it does not come home. Check: scripts/scenario-regression.sh dv-drone-jammed"
+  },
+  "entities": {
+    "d5e10016-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 642
+      },
+      "EntityInfo": {
+        "Name": "Drone station",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10016-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "ControlledEntities": {
+        "Entity0": "d5e10016-0000-4000-8000-000000000002"
+      }
+    },
+    "d5e10016-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Operator",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10016-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10016-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -296,
+          -400,
+          0.08
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "Health": {
+        "Current": 10,
+        "Max": 10
+      },
+      "TkbIdentity": {
+        "TkbType": 407
+      },
+      "EntityInfo": {
+        "Name": "Drone",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "RemotePilot",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    },
+    "d5e10016-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 113
+      },
+      "EntityInfo": {
+        "Name": "Jammer",
+        "ForceId": "Neutral"
+      }
+    }
+  }
+}

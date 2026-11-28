@@ -117,7 +117,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public MapLayerGroup Map { get; set; } = new();
 
         /// <summary>The first layer bit no toggle owns; every bit from here up is always on.</summary>
-        public const int FirstUntoggledLayer = 33;   // ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30 · ⭐ CE-8610 — 31 → 32: NATO unit symbols took bit 31 · ⭐ CE-8613 — 32 → 33: Detection levels took bit 32
+        public const int FirstUntoggledLayer = 34;   // ⭐ CE-6504 — 33 → 34: Road nodes took bit 33 · ⭐ CE-1288 — 27 → 28: the Grid row took bit 27 · ⭐ CE-1309 — 28 → 29: the Mind state row took bit 28 · ⭐ CE-4582 — 29 → 30: Hide labels behind terrain took bit 29 · ⭐ CE-8605 — 30 → 31: Unit cards took bit 30 · ⭐ CE-8610 — 31 → 32: NATO unit symbols took bit 31 · ⭐ CE-8613 — 32 → 33: Detection levels took bit 32
 
         /// <summary>⭐ <c>CE-3120</c> — reads the families' scopes from <paramref name="settings"/> (and, <c>CE-3133</c>, the navmesh layer choice).</summary>
         public void ReadScopes(GizmoSettingsRegistry settings)
@@ -181,6 +181,7 @@ namespace Hrot.Common.Diagnostics.Gizmos
             if (Map.Grid) mask.SetBit(DebugTraceLayers.Grid);
             if (Map.TerrainZones) mask.SetBit(DebugTraceLayers.TerrainZones);
             if (Map.Roads) mask.SetBit(DebugTraceLayers.Roads);
+            if (Map.RoadNodes) mask.SetBit(DebugTraceLayers.RoadNodes);   // ⭐ CE-6504
             if (Map.Traffic) mask.SetBit(DebugTraceLayers.Traffic);
             if (Map.TacticalGraphics) mask.SetBit(DebugTraceLayers.TacticalGraphics);
             if (Map.Doors) mask.SetBit(DebugTraceLayers.Doors);
@@ -281,6 +282,8 @@ namespace Hrot.Common.Diagnostics.Gizmos
         public bool TerrainZones { get; set; } = true;
         [EditDisplayName("Roads"), EditDoc("The loaded terrain's road network.")]
         public bool Roads { get; set; } = true;
+        [EditDisplayName("Road nodes"), EditDoc("The road network's nodes, as blue spheres where road segments join (every few metres along a bend). Shown only with Roads on (CE-6504).")]
+        public bool RoadNodes { get; set; }
         [EditDisplayName("Traffic"), EditDoc("SUMO traffic: lanes, lights, pedestrians and cars that are not entities.")]
         public bool Traffic { get; set; } = true;
         [EditDisplayName("Tactical graphics"), EditDoc("Tactical-graphic areas and drawn overlay lines.")]

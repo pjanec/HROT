@@ -1,0 +1,83 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md §3 — LLM commander DUEL (DESIGN_LLM_Commander §8, §11 L-4 pre-test; STATUS_Backend_LLM_Commander.md §Duel): llm-platoon-attack with Red under a seat too — Blue's Platoon over Alpha Squad and Bravo Squad, Red Platoon over the Defenders (at the sheds) and Reserve. The rows judge the PLUMBING of two seats on opposite sides — each side's squads report to their OWN commander, never the other's; both sides fight; the fight lasts — not who wins (two copies of one model say little about either). The model logs (commander-<id>.jsonl, one per seat) carry the rest. FEATURE scenario, no golden: a model run is not repeatable. ⚠ One name per by: a LIST in by/who/target is read as 'anyone' by the checks grammar (TakeJson.Name — CE-3502), so the cross-side 'never' rows are one per squad; the 'Blue still fires' row keeps llm-platoon-attack's list and is as weak as it (any shooter) until CE-3502.",
+  "runFor": 420,
+  "golden": false,
+  "anchors": {
+    "redFires": {
+      "on": "shot",
+      "by": "*Red "
+    }
+  },
+  "expect": [
+    {
+      "name": "Alpha Squad reports to Blue's Platoon",
+      "on": "report",
+      "by": "Alpha Squad",
+      "target": "Platoon"
+    },
+    {
+      "name": "Bravo Squad reports to Blue's Platoon",
+      "on": "report",
+      "by": "Bravo Squad",
+      "target": "Platoon"
+    },
+    {
+      "name": "the Defenders report to Red Platoon",
+      "on": "report",
+      "by": "Defenders",
+      "target": "Red Platoon"
+    },
+    {
+      "name": "the Reserve reports to Red Platoon",
+      "on": "report",
+      "by": "Reserve",
+      "target": "Red Platoon"
+    },
+    {
+      "name": "Defenders never reports to Platoon (each seat reads only its own side)",
+      "never": {
+        "on": "report",
+        "by": "Defenders",
+        "target": "Platoon"
+      }
+    },
+    {
+      "name": "Reserve never reports to Platoon (each seat reads only its own side)",
+      "never": {
+        "on": "report",
+        "by": "Reserve",
+        "target": "Platoon"
+      }
+    },
+    {
+      "name": "Alpha Squad never reports to Red Platoon (each seat reads only its own side)",
+      "never": {
+        "on": "report",
+        "by": "Alpha Squad",
+        "target": "Red Platoon"
+      }
+    },
+    {
+      "name": "Bravo Squad never reports to Red Platoon (each seat reads only its own side)",
+      "never": {
+        "on": "report",
+        "by": "Bravo Squad",
+        "target": "Red Platoon"
+      }
+    },
+    {
+      "name": "Red fires (the fight happens)",
+      "on": "shot",
+      "by": "*Red "
+    },
+    {
+      "name": "the fight lasts: Blue still fires 60 s after Red's first shot",
+      "on": "shot",
+      "by": [
+        "Alpha *",
+        "Bravo *"
+      ],
+      "after": "redFires+60"
+    }
+  ]
+}

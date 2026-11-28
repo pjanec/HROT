@@ -14,8 +14,17 @@ namespace Hrot.UI.Common.Map3D;
 /// The right mouse button drags the orbit (at his eyes: offsets the look while held, springing back). W / A / S / D, Esc or a map
 /// (middle-button) drag hand the camera back to the free camera; so does the unit's end. Not possession: the unit is not controlled.
 /// </summary>
-public sealed class FollowCameraDriver : ICameraDriver
+public sealed class FollowCameraDriver : ICameraDriver, ICameraSuggests
 {
+    /// <summary>⭐ CE-11006 (RR-6) — following a unit: at its eyes under <see cref="EyesBelow"/>, else orbiting it at <see cref="Distance"/>.</summary>
+    public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
+    {
+        s.Source = Hrot.Map.Common.Components.CameraSource.Follow;
+        s.Mode = Distance < EyesBelow ? Hrot.Map.Common.Components.CameraMode.Eyes : Hrot.Map.Common.Components.CameraMode.Orbit;
+        s.Bound = Unit;
+        s.Distance = Distance < EyesBelow ? 0f : Distance;
+    }
+
     private readonly Func<EntityRepository?> _world;
     private readonly EntityBodyLayer3D? _bodies;
     private readonly List<Fdp.Toolkit.World.TraceCrossing> _trace = new();
@@ -60,8 +69,15 @@ public sealed class FollowCameraDriver : ICameraDriver
     /// <summary>The orbit's turn per pixel of a right-button drag (rad).</summary>
     public const float OrbitPerPixel = 0.005f;
 
+    /// <summary>⭐ SD-S2c (devices §3.13c D-109) — a GIMBAL: at the eyes the camera looks along the unit's HEADING at this pitch (radians, 0 level … −π/2 down)
+    /// instead of along its gaze — a drone's camera filmed through a ground station (<c>DeviceView</c>); null ⇒ his gaze.</summary>
+    public float? EyePitch { get; set; }
+
     /// <summary>At his eyes the view is a pair of eyes; elsewhere it looks AT him like the free camera.</summary>
     public bool ViewsFromEye => Distance < EyesBelow;
+
+    /// <summary>⭐ SD-S2c — the steepest a gimbal looks down (just short of straight down, where the camera's yaw is undefined).</summary>
+    public const float GimbalPitchLimit = 1.55f;
 
     /// <summary>True while the unit is there to follow.</summary>
     public bool Alive => _world() is { } w && w.IsAlive(Unit) && w.HasComponent<SimTransform>(Unit);
@@ -82,8 +98,16 @@ public sealed class FollowCameraDriver : ICameraDriver
             var gaze = GazeOf(w, tf);
             float k = MathF.Exp(-LookSpringRate * dt);
             _lookYawOffset *= k; _lookPitchOffset *= k;
-            camera.Yaw = MathF.Atan2(gaze.Y, gaze.X) + _lookYawOffset;
-            camera.Pitch = Math.Clamp(MathF.Asin(Math.Clamp(gaze.Z, -1f, 1f)) + _lookPitchOffset, -1.4f, 1.4f);
+            if (EyePitch is { } gimbal)
+            {
+                camera.Yaw = HeadingOf(tf.Rotation) + _lookYawOffset;
+                camera.Pitch = Math.Clamp(gimbal + _lookPitchOffset, -GimbalPitchLimit, 1.4f);
+            }
+            else
+            {
+                camera.Yaw = MathF.Atan2(gaze.Y, gaze.X) + _lookYawOffset;
+                camera.Pitch = Math.Clamp(MathF.Asin(Math.Clamp(gaze.Z, -1f, 1f)) + _lookPitchOffset, -1.4f, 1.4f);
+            }
             camera.Distance = camera.MinDistance;
             camera.LookAt = eye + camera.Forward * camera.Distance;
             return;

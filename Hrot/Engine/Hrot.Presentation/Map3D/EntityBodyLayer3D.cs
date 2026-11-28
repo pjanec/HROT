@@ -13,6 +13,8 @@ using Hrot.Map.Definitions.Tkb;
 using Hrot.MuscleCharacter.Animation.Components;
 using OutfitHead = Hrot.Core.Tkb.OutfitHead;
 using Raylib_cs;
+using PostureBlend = Hrot.Look.People.PostureBlend;
+using UpperBody = Hrot.Look.People.UpperBody;
 
 namespace Hrot.UI.Common.Map3D;
 
@@ -518,7 +520,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
                 var kit = KitOf(look);
                 (parts, pivots) = PlacedKit(kit, type, tkb, size);   // ⭐ E4b — the turret and barrel from the TKB (VE-L)
                 if (_poseOf != null && kit.IsArticulated) pose = _poseOf(world, e);
-                if (look.Family == VisualFamily.AirDefenceVehicle) rounds = LauncherLoad.RoundsLeft(world, e, 0);   // ⭐ CE-4618 — the covers of the rounds still in the canisters
+                if (look.Family == VisualFamily.AirDefenceVehicle) rounds = LauncherLoad.RoundsLeft(world, e, 0);
+                if (look.Family is VisualFamily.BridgeLayer or VisualFamily.FloatingBridge && BridgeLayerLook.Of(world, e) == BridgeLayerState.NoSpan) rounds = 0;   // ⭐ CE-6502 — the span is laid: off the roof / bed   // ⭐ CE-4618 — the covers of the rounds still in the canisters
                 if (look.Family == VisualFamily.SpArtillery) pose = LaidPose(world, e, SpGunElevation);   // ⭐ CE-1089 (N-5)
                 if (look.Family == VisualFamily.AttackJet)   // ⭐ CE-1092 (N-8) — the pylons, and a bomb on each for every round left
                     parts = [.. parts, .. ShapeKits.AttackJetPylons, .. ShapeKits.AttackJetBombs.AsSpan(0, BombsLeft(world, e, tkb))];
@@ -814,7 +817,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// <summary>The most an aimed upper body turns toward its target, and pitches (radians).</summary>
     /// <remarks>⭐ <c>CE-3195</c> (W-14a) — the twist is the person body's own limit, <see cref="CarKinem.Controllers.HumanGait.MaxAimTwist"/>:
     /// the fire arc reads the same value, so the drawn rifle points where the round can go.</remarks>
-    public const float MaxAimTwist = global::CarKinem.Controllers.HumanGait.MaxAimTwist, MaxAimPitch = 35f * MathF.PI / 180f;
+    public const float MaxAimTwist = UpperBody.MaxAimTwist, MaxAimPitch = UpperBody.MaxAimPitch;   // ⭐ CE-11002 (RR-2) — the shared rule
 
     /// <summary>
     /// ⭐ WL-6 (W-13e) — the figure's upper body: it leans from the hip at a stance's height; an AIMED soldier turns and pitches it
@@ -865,13 +868,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// body (<see cref="Fdp.Toolkit.Perception.Look.LookOf.HeadYaw"/>, replicated) less the torso's drawn <paramref name="drawnTwist"/>, within
     /// his neck. So every node shows where he looks — an aim, an ordered look, a glance (LD-3), an operator's free look. 0 with no look.
     /// </summary>
-    public static float HeadTurnOf(EntityRepository world, Entity e, float drawnTwist)
-    {
-        float eyes = Fdp.Toolkit.Perception.Look.LookOf.HeadYaw(world, e);
-        if (eyes == 0f && drawnTwist == 0f) return 0f;
-        float neck = Fdp.Toolkit.Perception.Look.LookOf.HeadLimit(world, e);
-        return Math.Clamp(Fdp.Toolkit.Perception.Look.LookOf.Wrap(eyes - drawnTwist), -neck, neck);
-    }
+    public static float HeadTurnOf(EntityRepository world, Entity e, float drawnTwist) => UpperBody.HeadTurnOf(world, e, drawnTwist);   // ⭐ CE-11002 (RR-2)
 
     /// <summary>⭐ WL-6c — the gait's legs for <paramref name="stance"/>: the hips at the stance's height, each shin bent back as its leg
     /// swings through. ⭐ CE-4031 — shared by an entity's figure and a body with no entity (<see cref="DrawAmbient"/>).</summary>
@@ -890,19 +887,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     /// <summary>The aim of an AIMED unit relative to its body: turn (counter-clockwise) and pitch (up), both clamped. False when it is
     /// not aimed or aims at nothing it can place.</summary>
     public static bool TryAim(EntityRepository world, Entity e, in SimTransform tf, Vector3 size, StanceId stance, out float twist, out float pitch)
-    {
-        twist = pitch = 0f;
-        // ⭐ CE-3195 — the ONE reading of what the posture aims at (the gait and the Stride motor read it too)
-        if (!Fdp.Toolkit.Combat.WeaponPostureOf.TryAimPoint(world, e, out var at)) return false;
-        float shoulder = (stance == StanceId.Crouched ? 0.98f : 1.41f - BlockFigure.AthleticDrop) / 1.8f * size.Z;   // aimed: the athletic stance
-        var toward = at - (tf.Position + new Vector3(0f, 0f, shoulder));
-        var local = Vector3.Transform(toward, Quaternion.Inverse(tf.Rotation));
-        float horizontal = MathF.Sqrt(local.X * local.X + local.Y * local.Y);
-        if (horizontal < 0.1f) return false;
-        twist = Math.Clamp(MathF.Atan2(local.Y, local.X), -MaxAimTwist, MaxAimTwist);
-        pitch = Math.Clamp(MathF.Atan2(local.Z, horizontal), -MaxAimPitch, MaxAimPitch);
-        return true;
-    }
+        => UpperBody.TryAim(world, e, in tf, size.Z, stance, out twist, out pitch);   // ⭐ CE-11002 (RR-2) — the shared rule
 
     /// <summary>
     /// ⭐ <c>CE-1193</c> (backend's <c>Lean</c>, <c>CE-3257</c> §13 LN-2; behaviors' poses note CB-21) — a man LEANING round a corner is drawn
@@ -1566,7 +1551,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     public int PillionsAimed { get; private set; }
 
     /// <summary>The most a rider on a firing seat turns his upper body off the seat's forward (radians, ~160°) — the seat's own arc is the limit (PF-1), this one only keeps the drawing human.</summary>
-    public const float MaxSeatTwist = 160f * MathF.PI / 180f;
+    public const float MaxSeatTwist = UpperBody.MaxSeatTwist;   // ⭐ CE-11002 (RR-2)
 
     /// <summary>⭐ CE-4621 — a soldier on a FIRING seat (a traverse arc on a non-station, non-DRIVER seat, PF-1) whose weapon brain has the rifle up (Aimed): drawn with it shouldered. ⛔ The driver (backend's rider seat has an arc, PF-4: fires only stopped) always stays on the bars — LD-9.</summary>
     private static bool FiringAimed(EntityRepository world, Entity e, Fdp.Toolkit.Tkb.Domain.SeatDto seat, bool soldier, bool driverFires = false)
@@ -1600,16 +1585,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
     }
 
     /// <summary>⭐ CE-4621 — the turn (counter-clockwise) and pitch (up) from the shoulder (0.53 m over the hips) to <paramref name="local"/> (an aim point in the seat's frame), the turn limited to <see cref="MaxSeatTwist"/>. False under 10 cm.</summary>
-    public static bool AimInSeat(Vector3 local, out float twist, out float pitch)
-    {
-        twist = pitch = 0f;
-        var d = local - new Vector3(0f, 0f, 0.53f);
-        float horizontal = MathF.Sqrt(d.X * d.X + d.Y * d.Y);
-        if (horizontal < 0.1f) return false;
-        twist = Math.Clamp(MathF.Atan2(d.Y, d.X), -MaxSeatTwist, MaxSeatTwist);
-        pitch = Math.Clamp(MathF.Atan2(d.Z, horizontal), -MaxAimPitch, MaxAimPitch);
-        return true;
-    }
+    public static bool AimInSeat(Vector3 local, out float twist, out float pitch) => UpperBody.AimInSeat(local, out twist, out pitch);   // ⭐ CE-11002 (RR-2)
 
     /// <summary>⭐ CE-1202 — seated gunners turned with their station's weapon by the last frame (rails).</summary>
     public int GunnersTurned { get; private set; }
@@ -1664,18 +1640,7 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
 
     /// <summary>⭐ CE-1087 — how far <paramref name="weapon"/> is deployed now (0 stowed … 1 deployed); 1 without a deploy state.</summary>
     public static float DeploymentOf(EntityRepository world, Entity weapon, double now)
-    {
-        if (!world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemState>() || !world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemState>(weapon))
-            return 1f;
-        var state = world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemState>(weapon);
-        float seconds = 0f;
-        if (world.IsComponentTypeRegistered<Fdp.Toolkit.Combat.WeaponSystemParams>() && world.HasComponent<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon))
-        {
-            var p = world.GetComponentRO<Fdp.Toolkit.Combat.WeaponSystemParams>(weapon);
-            seconds = state.Deploy == Fdp.Toolkit.Combat.WeaponDeploy.Packing ? p.PackSeconds : p.DeploySeconds;
-        }
-        return WeaponKits.Deployment(state.Deploy, state.Until, now, seconds);
-    }
+        => Fdp.Toolkit.Combat.WeaponDeployment.FractionOf(world, weapon, now);   // ⭐ C1 CC-4 — the ONE lookup (was a copy of it)
 
     /// <summary>
     /// ⭐ CE-1089 (N-5) / ⭐ CE-1114 (§6n) — the turret and gun pose of a weapon system or a self-propelled gun: its turret part's
@@ -2375,6 +2340,13 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
 
     private static Vector3 SizeOf(EntityRepository world, Entity e, in TypeLook look)
     {
+        // ⭐ CE-6503 — a laid bridge is as big as ITS deck (the plan's length over the gap, the type's width and height): the same shape the bake lays the walkables from
+        if (look.Family is VisualFamily.LaidAssaultBridge or VisualFamily.LaidFloatingBridge && world.IsComponentTypeRegistered<Fdp.Toolkit.Terrain.ObstacleShape>()
+            && world.HasComponent<Fdp.Toolkit.Terrain.ObstacleShape>(e))
+        {
+            ref readonly var shape = ref world.GetComponentRO<Fdp.Toolkit.Terrain.ObstacleShape>(e);
+            if (shape.Length > 0f && shape.Width > 0f && shape.Height > 0f) return new Vector3(shape.Length, shape.Width, shape.Height);
+        }
         if (look.Family == VisualFamily.Person || !world.IsComponentTypeRegistered<CarKinem.Core.VehicleParams>()
             || !world.HasComponent<CarKinem.Core.VehicleParams>(e)) return look.Size;
         ref readonly var p = ref world.GetComponentRO<CarKinem.Core.VehicleParams>(e);
@@ -2431,7 +2403,8 @@ public sealed partial class EntityBodyLayer3D : ISceneLayer, IDisposable   // �
         VisualFamily.AttackJet => new Color(122, 128, 118, 255),
         VisualFamily.TwinEngineJet => new Color(120, 128, 140, 255),   // ⭐ CE-4647 — a slightly bluer grey than the F-16 (the faction / TKB colour wins)
         VisualFamily.Bulldozer => new Color(227, 176, 28, 255),   // ⭐ CE-6007 — construction yellow (the TKB's own colour wins)
-        VisualFamily.MineClearer => new Color(98, 108, 66, 255),   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
+        VisualFamily.MineClearer or VisualFamily.BridgeLayer or VisualFamily.FloatingBridge or VisualFamily.LaidFloatingBridge => new Color(98, 108, 66, 255),   // ⭐ CE-6503 — the floating bridge's pontoons too
+        VisualFamily.LaidAssaultBridge => new Color(122, 126, 112, 255),   // ⭐ CE-6503 — bare steel   // ⭐ CE-6502 — the bridge engineers too   // ⭐ CE-4624 — engineer olive (the mockup's; the faction / TKB colour wins)
         VisualFamily.Motorcycle => new Color(96, 104, 84, 255),   // ⭐ CE-4621 — a drab bike (the faction / TKB colour wins)
         VisualFamily.AirDefenceVehicle => new Color(92, 104, 76, 255),   // ⭐ CE-4618 — army olive (the faction / TKB colour wins)
         (>= VisualFamily.Cattle and <= VisualFamily.Goat) or VisualFamily.Rabbit => AnimalKits.DefaultColour(family),   // ⭐ CE-4623 — an animal's own coat (a seeded one wins, below)

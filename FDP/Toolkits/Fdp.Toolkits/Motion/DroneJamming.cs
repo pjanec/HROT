@@ -73,9 +73,15 @@ namespace Fdp.Toolkit.Motion
 
         /// <summary>True when <paramref name="drone"/>, at <paramref name="at"/>, is inside the bubble of a jammer of another force — never while
         /// <see cref="DronesUnjammable"/> (the user's ruling, A-6).</summary>
-        public static bool Jammed(EntityRepository repo, Entity drone, Vector3 at)
+        public static bool Jammed(EntityRepository repo, Entity drone, Vector3 at) => !DronesUnjammable && InBubble(repo, drone, at);
+
+        /// <summary>
+        /// ⭐ SD-S2c (devices §3.13c D-106) — the GEOMETRY of the rule alone: is <paramref name="drone"/>, at <paramref name="at"/>, inside the bubble of a jammer
+        /// of another force? ⭐ A RADIO link (a drone flown from a ground station, <c>RemoteLinkDto</c>) is cut by it whatever <see cref="DronesUnjammable"/> says —
+        /// that switch is the user's ruling on the AI's optical-fibre drones (A-6), and its own summary names a radio-controlled class as the exception.
+        /// </summary>
+        public static bool InBubble(EntityRepository repo, Entity drone, Vector3 at)
         {
-            if (DronesUnjammable) return false;
             var j = Of(repo);
             if (j.Count == 0) return false;
             var own = repo.IsComponentTypeRegistered<EntityInfo>() && repo.HasComponent<EntityInfo>(drone) ? repo.GetComponentRO<EntityInfo>(drone).ForceId : ForceId.Neutral;

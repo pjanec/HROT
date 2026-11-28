@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-22 (behaviors: §5 perception checked against the truth — the pe-* suite) · 2026-11-19 (coordinator: §1b sensor views + the AI thermal sensor on °C; §12a flame weapons; §9 rotors and smoke dischargers; §3 the civilian mood seen everywhere; §6 the corridor street fight; §9b the engineers answer; §16 the dragon) · 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
+updated: 2026-11-28 (coordinator: §12a simulated devices — SD-S1's six scenarios) · 2026-11-26 (coordinator: the bridge-laying engineer is built — the not-built row corrected) · 2026-11-24 (coordinator: §7 the LLM commander — the decision contract, the duel) · 2026-11-22 (behaviors: §5 perception checked against the truth — the pe-* suite) · 2026-11-22 (coordinator: §1b external presentation clients — the linked client, client-server multiplayer through the editor) · 2026-11-19 (coordinator: §1b sensor views + the AI thermal sensor on °C; §12a flame weapons; §9 rotors and smoke dischargers; §3 the civilian mood seen everywhere; §6 the corridor street fight; §9b the engineers answer; §16 the dragon) · 2026-11-18 (coordinator: §1b data for external renderers — thermal drivers, vehicle appearance, the shared look library; §8 glass windows and removing a baked building; §9 vehicle damage / hatches / lights; §16 fixed today and in progress) · 2026-11-17 (backend: §16 bows, birds, the rabbit hunt, the warrior built; outfit data built) · 2026-11-17 (behaviors: a civilian stops on the signal; §3a / §9 firing seats engage on their own) · 2026-11-17 (coordinator: §7 NATO symbols on every unit, §9b the back-out, §13 the status table, §14.2 symbols, §15 merged, §16 being built now) · 2026-11-17 (§9 the vehicle checkpoint and ramming) · 2026-11-16 (§3a animals, §7 the battalion assault, §9 motorcycles, §10 realistic FPV / radar SAM / anti-drone fire, §9b minefields 🚧, §15 the stochastic unit 🧪, §14.7 the terrain editor; §13 refreshed) · 2026-11-15 (§2b dynamic terrain — built, the remainders marked 📐) · 2026-11-14 (§2b dynamic terrain — designed and planned, the 📐 mark; §2a's tree felling and §13 point there) · 2026-11-10 (§2a terrains from real places and at large scale; §1a, §9, §13 and §14.7 — the week's new features, from the tracker and the status files) · 2026-11-06 (§14 authoring, live control and review — what a user can change and when, per mode; from the editing-UX inventory) · 2026-10-30 (§1a running, reviewing and filming — run modes, DAR / AAR, the branch, the timeline index, the film director, scenarios as tests; §1's recorder and filming bullets point there) · 2026-10-21 (first version — coordinator; built from OVERVIEW_Rules_And_Demos.md, the scenario descriptions and a code sweep)
 current-answer: the whole file — WHAT THE ENGINE CAN DO, by chapter, each with the ONE scenario that shows it best
 stale-below: none
 known-rot: the ✅/⚠ marks are a 2026-10-21 snapshot of the live checks; the owning design's demo table wins
@@ -68,6 +68,8 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
   and contact sheets; MP4 with sound rendered from a recording; promote a take back to its scenario.
   ([Film Production](DESIGN_Film_Production.md), [PLAN_Feature_Films §1c](PLAN_Feature_Films.md)) ⚠ first clip from a Live recording
   `2026-10-30`; gaps CE-4117, CE-4119
+  ✅ *(2026-11-22, CE-11035)* the director's dip to black and its subtitle also reach a live client on the suggested camera (`Fade`, the caption's serial / position /
+  alpha, the text on `FilmCaption`; [Look Rules §3.4](designs/vehicle-appearance/DESIGN_Look_Rules_For_Renderers.md)) — DPS `View` sending still to come (DD-022 P-8)
 - **Scenarios are tests:** each scenario carries machine-checkable conditions; a verify run checks them and records the run; a night run
   covers all of them. ([DESIGN_Scenario_Regression](DESIGN_Scenario_Regression.md)) ✅ · Their documentation as stills per check ⏳ (the take
   builder is built, the rendering is not wired)
@@ -92,6 +94,17 @@ a live check: `python3 scripts/utility-demo-check.py --launch <name>`.
 
 Everything an outside image generator (a game engine, a physics-based thermal renderer, a DIS gateway) needs is SIMULATION STATE — recorded,
 replicated to every node, renderer-agnostic — and HROT's own map reads the same state.
+
+- ✅ *(2026-11-22)* **External presentation clients — the linked client** (CE-11018, CE-11026): an outside renderer (a game engine such as
+  Unreal) joins a HROT node through a gateway node extension and presents the simulation. Every load waits for it; the director's clips,
+  prepared on HROT's own 3-D map, are rendered by the client instead — its pictures and its sound — when one is linked
+  ([DESIGN_Linked_Client_Director](designs/IG/DESIGN_Linked_Client_Director.md)).
+- ✅ *(2026-11-22)* **Client-server multiplayer through the editor** (CE-11027, [Q114](blueprints/Architect_Question_114_Seats_On_One_Node.md),
+  R-11010 / R-11011): the editor works as the all-in-one, networkless SERVER — simulation, AI and HROT's own deploy server in one process —
+  and SEVERAL external presentation clients connect to it through the gateway, each trainee a seat of his own (up to 16 per node): he joins,
+  picks a side and a unit, deploys through HROT's deploy flow, possesses it and leaves, his seat freed. ⚠ This is DIFFERENT from HROT's own
+  Player: a HROT Player is a PEER NODE of the cluster (a DDS participant with its own ECS world); a linked client is a thin presentation
+  client of one server node ([Player Join §12](DESIGN_Player_Join.md)).
 
 - ✅ **Thermal drivers, never temperatures** — every node and an outside thermal imager compute an entity's heat from states and the time they
   began: the engine or body (off · idle · running; standing · moving, and since when), each weapon's last burst, fire as spots on a vehicle, a
@@ -137,9 +150,16 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
 - **Weather and time of day:** a scenario start time; global weather plus weather regions that blend into each other; wind, four cloud
   layers, fog, rain; a real sun position from the map's geographic origin. The 3-D map draws the sky, the sun, the clouds and the fog.
   ▶ `ua-weather-regions` (no live check)
+- **Ambience layers — the war and the alarms around the scenario, by KIND** ✅ (CE-11034, R-11014, ui; slice 1; the editor picker and HROT's own mixer are slices 2–3, ⏳): an entity carrying `Ambience { Kind, Intensity, Radius, Until }` — a
+  short dotted name (`battle.distant`, `alarm.airraid`, `event.drone` …, never a sample), positionless = heard everywhere, with a position = heard within its radius, ending at
+  its sim time. A renderer maps the name to its own sound and an unknown child falls back to its parent (`alarm.airraid.preliminary` → `alarm.airraid` → `alarm`). A trigger, a
+  behaviour or a director raises, updates (the same kind at the same place is ONE layer) or removes (intensity 0) one with the `SetAmbience` action; a late joiner hears what is
+  sounding. Replicated (`dtAmbience`) for the gateway's DPS row. ▶ `ambience-air-raid` (judged by `scripts/scenario-regression.sh ambience-air-raid`).
+  📄 [DESIGN_Ambience.md](designs/audio/DESIGN_Ambience.md)
 - **Thermal sight sees engines and bodies by their heat** ✅ (CE-4658, CE-1987): a target is seen when its hottest part (an engine, a barrel, a body, a fire) differs enough in °C from the ground behind it — the same surface model the thermal view draws, so a sun-heated parked tank shows against cool grass but not against hot soil, and a man stays visible at dawn and dusk. An idling, crewed tank is seen at night, a parked cold one is not — `th-idling-tank`, `th-man-at-dawn`, `th-hull-in-the-sun`, `th-hull-on-hot-soil`; carried by the thermal observer (TKB 215: 4 K of contrast). 📄 [DESIGN_Thermal_Drivers.md §4e](designs/thermal/DESIGN_Thermal_Drivers.md)
 - **Night-vision and thermal views of the 3-D map** ✅ (CE-1984, CE-1985, ui): F4 or View ▸ Sensor View cycles normal → night vision (sun, moon and starlight in lux, tube gain, grain, blooming lamps and fires) → thermal (every surface's °C from its material and the day's sun, sky and weather; engines hot at their end, men warm, fires saturating, the warm patch a vehicle left). A debugging view for an instructor: the °C under the pointer, a hovered unit's temperature and WHY (engine, barrel, fire, its signature against the selected observer's threshold), and corner brackets on every unit the selected observer's thermal sensor is hot enough to see — the AI's own rule. Judged by frame rails (`SensorViewFrameRail`) and its scene `sv-night-and-heat` (every heat and light source made by the simulation at night). 📄 [DESIGN_Sensor_View.md](designs/sensor-view/DESIGN_Sensor_View.md)
 - **A destroyed vehicle burns, and its fire burns the men beside it** ✅ (CE-4660): fire is simulation state decided once on the Health owner (`FireState`), the same on every node and for a late joiner; a man inside the fire loses health each second and dies, one 40 m away is untouched; the 3-D flames read it — `th-burning-wreck`. ⏳ incendiary weapons, burning buildings and ground. 📄 [DESIGN_Thermal_Drivers.md §4g](designs/thermal/DESIGN_Thermal_Drivers.md)
+- **The AI fires short bursts, and says so** ✅ (CE-11033, R-11012 / R-11013; Weapon Layers §5l): a rifleman fires 2–3 rounds inside 50 m or at a mover, 1–2 otherwise, a suppressing burst of 3–5 at a remembered spot, each round stamped with its burst (`BurstId` / `BurstRounds` / `BurstIndex` on the fire intent and notification); a player's rounds carry none. ▶ ✅ `rifle-bursts` (10 / 10) · ✅ the stamp crosses the brain → muscle and muscle → viewers DDS messages
 - **A flamethrower sets men and soft vehicles alight** ✅ (CE-4635 FL-1, R-3111): the man-portable flamethrower (TKB 2022, its fuel 6069) throws no round — the jet is read off the weapon's burst record (`FlameJets`); a man in its cone burns after 0.3 s and burns on while the flame stays on him, a soft vehicle after 1.5 s; a wall or a hull stops it (an opening passes), an armoured hull never burns. ▶ ✅ `fl-flamethrower-cone` (7 / 7, under the parallel checks too) · ✅ napalm (FL-3), buildings (FL-4), the look (ui)
 - **A flame tank burns men in a building through its opening, within the rules of engagement** ✅ (CE-3486 FL-2): the M67 (TKB 117) throws its flame INTO a window and lights who is inside on its line, never one behind the wall; no flame is released with a civilian anywhere in it (Protocol III, AW-20's rule run over the flame) nor where the ROE forbids incendiaries (`Roe.Incendiary`, down the chain; a police force's non-lethal cap holds it already). ▶ ✅ `fl-clear-the-bunker` (4 / 4) · ✅ `fl-roe-holds` (9 / 9, each hold beside a control)
 - **A napalm strike burns men and leaves the ground burning** ✅ (CE-3487 FL-3): an A-10 with Mk 77 firebombs (TKB 410) lays an 80 × 25 m ellipse of fire along its run — every man inside is set alight at once, the ground burns 300 s (it burns whoever walks into it later) under a smoke cloud, and a burned patch is left; never released with a civilian inside the ellipse. ▶ ✅ `fl-napalm-strike` (7 / 7)
@@ -165,6 +185,7 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
   network become an HROT terrain — every house enterable (open floors and a stair ramp), garages and sheds solid, pitched roofs. A 5.5 km
   square imports in ≈ 6 s and loads in ≈ 2 s. ([Terrain Import UTM §10–§12](DESIGN_Terrain_Import_UTM.md); CE-4368) ✅ run on real data
   `2026-11-10` ([report](blueprints/REPORT_Terrain_Import_Real_Runs.md))
+- **A terrain whose import input is committed imports itself on first use:** a node that is asked for a terrain it does not have (e.g. `Stechovice`) imports it from `assets/terrain-input/<name>/` — heights, buildings, trees, roads AND the navmesh — once, under a lock, and caches the folder; a changed input re-imports (the old version is kept). 4-core VM: 289 s once, then 0 s. ([Terrain Import UTM §13](DESIGN_Terrain_Import_UTM.md); CE-11037; rails `SourceImportTests`) ✅
 - **A terrain from any place on OpenStreetMap:** File ▸ New ▸ Terrain from OpenStreetMap… — search a place, draw the area on the map,
   preview what will be built (buildings by height, woods, water, walls, roads, the counts and a load verdict), import with 30 m Copernicus
   heights and a SUMO road network, open it in a new scenario. Also a command-line tool. ([Terrain from OSM](DESIGN_Terrain_From_OSM.md);
@@ -183,6 +204,10 @@ replicated to every node, renderer-agnostic — and HROT's own map reads the sam
   a heavy bomb close by collapses the whole building into rubble and kills the people inside. The navmesh follows in the background and
   only the paths through the changed tiles replan; breaches are saved, replicated and drawn on every host. (R-4188; CE-4391, CE-4392)
   ▶ `bd-destruction`
+- **Breachable walls placed in a scenario:** a sandbag wall or a concrete barrier line is a terrain-feature wall of its material's thickness (sandbags 0.6 m,
+  concrete 0.4 m), breached IN PART — by a charge, a ram, the bulldozer's blade — never removed whole (R-11022). Across a road it closes the lanes it crosses, and a
+  lane re-opens where a gap wide enough to drive through is cut over it, the same on every node, for our road graph and SUMO's cars. A wall can stand in some run
+  variants only, rolling with another entity (`PresenceWith`: a roadblock's walls with the roadblock). (CE-11069, CE-11070, CE-11071, CE-11072) ✅ `va-dozer-breach-wall`
 - **Glass in windows:** a window has a pane that sight passes unchanged and that muffles sound (20 dB); rounds crack it (two cracks kept,
   the third breaks it), a man firing out breaks it at once, a grenade's fragments or a big blast's pressure shatter it, and a breach takes it
   with the wall. A broken window lets sound into the building and is an open hole again; no navmesh rebake. Saved and replicated; the
@@ -236,6 +261,22 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **The bulldozer clears on order:** point at a roadblock, a wall or a lone tree and the bulldozer pushes it away, cuts a gap or fells it.
   (B-4, CE-4601, R-4242; rails `ClearObstacleBehaviorTests.CE4601_*`) ✅ — the order and the cut; 📐 the map's "clear here" gesture
   ⚠ scenario `tt-dozer-breach` (R-4277): a house wall opens, but a FREE wall (a garden wall, a fence row) is not yet opened for infantry by the ordered cut in a live run — red, engine defect filed in its `$doc`
+- **A real-map (OSM) bridge is a bridge:** an imported road tagged `bridge` becomes a deck from bank to bank at the banks' height — men, vehicles, the navmesh
+  and SUMO's cars cross on it, the valley stays under it, and it collapses like an authored bridge (CE-5057 / CE-11063, `docs/DESIGN_Terrain_OSM_Bridges.md`;
+  rails `ImporterTests.CE5057_*`; ▶ `te-osm-bridge` — 3 of 3 pass) ✅ — and on Stechovice: the Vltava crossings are decks, `stechovice-battle`'s bridge rows pass on them (road bridges only; rail excluded)
+- **A laid bridge carries men and vehicles over a river, and can be blown:** a laid bridge (an assault or a floating span) is terrain on every
+  node — the navmesh, the floor, sight and fire hold its deck — and road for our road-following vehicles while it stands; a charge on the deck
+  drops it, whoever was on the span goes into the river, and the river is a barrier again. (BL-S1/S2, CE-4692, R-4299; rails
+  `StaticObstacleBakeTests.CE4692_*`, `BridgeClosureTests.CE4692_*`, `ObstacleDamageTests.CE4692_*`, `FeatureKindsTests.CE4692_*`; scenarios
+  `bl-placed-bridge`, `bl-placed-bridge-absent`, `bl-blow-the-bridge` — 3 of 3 pass) ✅ — the engineer who lays and recovers it is BL-S3 (backend, CE-4693)
+- **An engineer lays and recovers a bridge on order:** `LayBridge {NearBank, FarBank}` to an assault bridge layer (TKB 118, an M104 Wolverine: 26 m deck over
+  ≤ 24 m, 5 min) or a floating-bridge engineer (TKB 119: a ribbon bridge up to 100 m, 20 min); a gap wider than its span, or a bank in the water, is REFUSED
+  with its reason on the engineer (`BridgeCarried.Refusal`); the deck is centred on the water gap, built after the laying seconds, baked and Open; the
+  engineer backs off the approach; `RecoverBridge` takes it back (600 s) and the river is a barrier again; a bridge blown while being recovered is lost.
+  Nothing on the ground wades into a river (men, animals, vehicles). (BL-S3/S4, CE-4693; rails `BridgeLayingBehaviorTests`, `BridgeLayerTkbTests`,
+  `StaticObstacleBakeTests.CE4696_*`, `CarKinematicsSystemTests.CE4695_*`; scenarios `bl-too-wide`, `bl-recover`, `bl-assault-crossing`,
+  `bl-floating-bridge` and the end-to-end `bl-river-crossing` judged by objectives — 5 of 5 pass) ✅ — ⚠ a vehicle cannot yet line up onto a narrow deck from
+  an angle: a column crosses from the bridge's axis, one at a time (CE-4697)
 - **Lone trees are felled** by a player's tank, a blast or the bulldozer; AI vehicles drive round them. (B-6, CE-4603, R-4241; rails `TreeFellingTests`, `TreeFellingBakeTests`) ✅
 - **Everything is recorded:** every change is replicated to every node, saved with the scenario, restored on seek and replay, the same at
   any thread count. (rails `BuildingDamageSaveTests`, `CraterTests`, the translators `EntityGroundDamageTranslatorTests` / `EntityBuildingDamageTranslatorTests`;
@@ -298,7 +339,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **What he believes is checked against the truth** (CE-2474 / CE-2476 / CE-2477, behaviors `2026-11-22`): one shot heard by several men is ONE
   enemy; a shot from a man he sees is that man; two shooters 30 m apart are two; a burst is never an enemy; however long he listens, a lone ear
   is never surer than it can be. Judged by the `perceives` check (missed · phantom · duplicate against the real enemies) ▶ `pe-one-shot-four-ears` ✅
-  `pe-seen-shooter` ✅ `pe-two-shooters` ✅ `pe-shelled` ✅ · `pe-house-shot` ✅ (a shot seen fired is that man's, whatever way its sound came — R-2144, CE-2490/2491) · `pe-steps-round-corner` ✅ · `pe-seen-then-hidden` ✅ · ⏳ `pe-wall-and-door` · ⏳ two nodes (P8).
+  `pe-seen-shooter` ✅ `pe-two-shooters` ✅ `pe-shelled` ✅ · `pe-house-shot` ✅ (a shot seen fired is that man's, whatever way its sound came — R-2144, CE-2490/2491) · `pe-steps-round-corner` ✅ · `pe-seen-then-hidden` ✅ · `pe-wall-and-door` ✅ (the first wavefront through a thin wall; a man heard walking is one contact, CE-2492) · ⏳ two nodes (P8).
   📄 [Sensing §8.6e](DESIGN_Thermal_And_Acoustic_Sensing.md)
 - **Threat = danger × freshness.** Armed, visible and near contacts come first; a civilian counts 0. ▶ `ua-threat-ranking` ✅
 - **Posture by utility:** advance and attack, take cover, suppress, flee, hold prone or hold, chosen from health, threat and cover,
@@ -312,6 +353,10 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Weapon choice per shot** from effectiveness, ammo and range band. ▶ `ua-weapon-choice` ✅
 - **Injury:** ok, wounded (slower), incapacitated (cannot move or fire; bleeds out in 120 s; no longer a target) and dead.
   ▶ `ua-casualty-care` ✅
+- **Revive:** one action puts a dead, incapacitated or wounded man back in the fight — full health, wounds / stun / his own fire cleared, move and fire
+  back as his type allows; the Unit form's heart-pulse button beside Strength, `POST /entities/{id}/revive`, or a scenario's `revive` action; any node,
+  answered by the owner of his Health (CE-11061, [Injury States §9](DESIGN_Injury_States.md)). Typing a Strength number sets only the number (R-11021).
+  ▶ `ua-revive` ✅
 - **Under fire:** a soldier moving under fire runs crouched, drops prone at a near miss, stays down while pinned, and rushes on when the
   fire stops. ▶ `uf-alone-under-fire` ✅ · `rf-pinned-in-open` ⚠ he goes prone, but never fires and walks toward the house instead of crawling to the wreck (CE-3464)
 - ⚠ **Found by the new scenario checks (`2026-11-16`, regression suite item 7):** militia never break under fire (`ts-fire-discipline`, CE-3461) · the Waverer never breaks (`ts-house-defenders`, CE-3462) · an area's guard is outgunned before he fires first (`ia-area-defend`, CE-3463) · defenders never grenade a man hugging their wall (`rf-wall-hugger`, CE-3465). The regulars, the Coward and the Fanatic, the Shooter behave as designed ✅
@@ -377,6 +422,13 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   approach fails; a spent assault is relieved; IFVs fire on reported posts they cannot see; a drone team scouts and strikes; phase lines have
   deadlines. Three versions of the battle: the plan works, it stalls (the reserve is committed), or the defence collapses.
   ▶ `cc-battalion` ✅ · `cc-battalion-stall` ✅ · `cc-battalion-collapse` ✅ ([DESIGN_Assault_Under_Fire](designs/group-maneuvers/DESIGN_Assault_Under_Fire.md), CE-2436)
+
+- 🧪 *(2026-11-22 … 24)* **An LLM in a commander's seat — opposing-force tactics from a language model** ([DESIGN_LLM_Commander](designs/llm-commander/DESIGN_LLM_Commander.md); CE-4676, CE-4679, CE-4680, CE-4681, CE-4683, CE-4684):
+  - **The seat:** a platoon commander's orders come from a MIND — scripted, an outside agent over HTTP, or a language model HROT calls itself (an Ollama-style chat server) — while his squads fight with their own AI. ⛔ No ground truth: the mind gets only what was reported to him.
+  - **What he is told:** a mission brief (task, purpose, constraints, time), his squads' orders and progress, the objectives his side may see, the enemy as reported (size, activity, equipment, age, confidence), and per named place what sees it, its cover, vehicle reach and walking minutes — places by name, never coordinates; ≈ 1 500–3 500 tokens per call.
+  - **What he decides:** ONE schema-checked decision per cycle — assessment, intent, orders (the platoon plays or squad orders, each with start / complete / abort conditions), up to three contingencies HROT carries out on its own between decisions, and when to decide next. A bad decision is repaired once, else the squads CONTINUE; every prompt, answer and applied order is logged beside the recording.
+  - **The clock:** held while the model thinks (development), or running on with stale decisions refused (continuous, 📐 L-4).
+  - **Proven so far** with a small, fast model (Haiku at the lowest effort, standing in for a local 7–8 B model): it beat Red's defended house (`llm-platoon-attack` ✅ 6/6), two LLM commanders fought each other (`llm-platoon-duel` ✅ 10/10), and a company commander led three AGGREGATED platoons that split into squads on contact, still commanding them after the split (`llm-company-aggregated` ✅ — CE-4685, CE-4686): the company hears its platoons' sightings relayed up with their source and age, sees each platoon's role in a running play, and its base of fire stands at the support position and fires on the objective even after its platoon splits. ⏳ A real local model on a laptop GPU (L-3b) is next.
 
 ## 8. Buildings and close quarters
 
@@ -521,6 +573,26 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 - **Parachute:** a stick of eight jumps from a release point upwind, lands near their points and assembles. ▶ `ua-airborne-drop` ✅
 - **Falling hurts** above 6 m/s.
 
+## 12a. Simulated devices — a trainee's equipment with its own logic and HUD *(added `2026-11-28` — SD-S1, [DESIGN_Simulated_Devices](designs/devices/DESIGN_Simulated_Devices.md) §5a)*
+
+- **A device is an entity of its own type** (a laser rangefinder, binoculars): carried in a man's kit, or pre-mounted in a vehicle station his
+  seat operates; its logic runs on its own brain every frame, PAUSED OR NOT. ▶ ✅ `dv-vehicle-station` (the observer HMMWV's rangefinder, worked
+  from the commander's seat)
+- **Buttons by name, menus and modes:** MENU / SELECT / MODE step the device's own state; a press reaches only the device the view shows.
+  ▶ ✅ `dv-menu-and-modes`
+- **A clickable HUD — the virtual panel** *(SD-S5v, §3.13e)*: the device's buttons are chips on its HUD with their hotkeys; with the cursor free he
+  CLICKS one (or presses its key, or the pad's button) — the same press on the device, through the same input path a physical replica would use;
+  holding the right button looks around. ▶ ✅ `dv-menu-and-modes-click` (the menu worked by clicking its chips: exactly the rows of the press run)
+- **The laser ranges what he looks at:** aimed at three marked men, the rangefinder reads 200 / 450 / 900 m and names the man it met; its HUD shows
+  it. ▶ ✅ `dv-range-targets`
+- **Views bound to a device:** the view shows ONE device's HUD; switching re-binds it; a viewed hand-held device is raised (the held item).
+  ▶ ✅ `dv-switch-devices`
+- **Operating in pause:** the world stands still while he works the menu and takes a range (a PREVIEW, never acted on). ▶ ✅ `dv-paused-operation`
+- **Reviewed as it was:** the paused run's review shows the device's recorded state as live. ▶ ⚠ `dv-replay-hud` (the review SAME; the HUD text
+  read in the review is ⏳ CE-4713)
+- ⏳ next: the gamepad and the drone station (SD-S2), fire control (SD-S4), steering a round in flight (SD-S4b), the visible beam (SD-S6), the
+  cluster tier (SD-C)
+
 ## 13. Built but not shown, and not built yet
 
 | | what |
@@ -528,7 +600,7 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
 | **built, no demo** | weather and night in perception · our vehicles driven by SUMO · ownership transfer · a pilot ejecting from a plane that was shot down · decoy flares you can see · the Stride host (Windows only) |
 | **being built** | 🚧 minefields, §9b · 🚧 road convoys (§9, 5 of 6 scenarios) · 🚧 air combat — the 2v2 gun hits and the cluster run (§10) · 🧪 the stochastic unit, §15 (experimental, merged) · 🚧 the items in §16 |
 | **designed, not built** | 📐 knowledge of other places per side (a destroyed bridge, a cleared building — the minefield built the shared machinery) · 📐 the fire / flamethrower / napalm, weapon stoppages, physical devices in the loop, thermal drivers beyond the engine / body state, the last burst and the wreck fire (death time) |
-| **not built** | bridge damage (walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · smoke · counter-battery fire · rappel · wind drift on rounds |
+| **not built** | partial bridge damage (a laid or authored bridge stands or falls whole; walls and whole-building collapse are built, §2a) · knife attacks and closing fast · player fratricide · a toy-gun item (blocks `ua-armed-identify`) · team stretcher carry · a medic who stabilises · helicopter battle positions and pop-up attacks · smoke · counter-battery fire · rappel · wind drift on rounds |
 | **known wrong** | see [OVERVIEW_Rules_And_Demos.md §11](OVERVIEW_Rules_And_Demos.md#11-not-built-open-or-known-wrong) and [PLAN_Feature_Films.md §4](PLAN_Feature_Films.md) |
 
 ## 14. Authoring, live control and review — what a user can change, and when *(added `2026-11-06`)*
@@ -612,7 +684,7 @@ AI station (CGF) show the same editing, and what is offered for a unit depends o
 | Triggers: *when* (with hold, delay, cooldown, repeat) → *do* (orders, missions, messages, objectives, end exercise, insert a composition, AI skill, reporting) | ● | 🟡 | ○ | ✅ Rules window |
 | Objectives and measures (take, hold, minimum men, deadline) and the exercise result | ● | ● | ○ | ✅ (`sr-objectives-march` 10/10, CE-3460 closed) |
 | Injects: fire a trigger now, disarm, re-arm, run any action by hand (Game master) | – | ● | – | ✅ |
-| Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | ⏳ |
+| Rule actions on the world (weather, time of day, traffic, sound) | – | – | – | 🟡 sound: `SetAmbience` (CE-11034); weather, time of day, traffic ⏳ |
 | Run modes: Preview, Live, review during the run, after-action review — chosen in one indicator | ● | ● | ● | ✅ |
 | Play, pause, step, time scale, stop | ● | ● | ● | ✅ |
 | Checkpoint; go live from any moment of a recording (a branch) | – | ● | ● | ✅ |

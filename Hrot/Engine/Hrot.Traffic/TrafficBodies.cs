@@ -63,8 +63,7 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
             _toldVehicles = vehicles; _toldPersons = persons;
             var sb = new System.Text.StringBuilder();
             foreach (var b in bodies)
-                if (b.Kind == TrafficBodyKind.Vehicle)
-                    sb.Append(System.FormattableString.Invariant($" [{b.NetworkId} net ({b.X:0.0},{b.Y:0.0}) {b.Length:0.0}x{b.Width:0.0} v ({b.Vx:0.00},{b.Vy:0.00})]"));
+                sb.Append(System.FormattableString.Invariant($" [{(b.Kind == TrafficBodyKind.Vehicle ? "" : "person ")}{b.NetworkId} net ({b.X:0.0},{b.Y:0.0}) {b.Length:0.0}x{b.Width:0.0} v ({b.Vx:0.00},{b.Vy:0.00})]"));   // ⭐ CE-11072 — persons too (a disc on the road holds a shadow)
             Fdp.Core.Logging.FdpLog<TrafficBodyFeedSystem>.Info("[Traffic] SUMO is told {0} of our vehicles and {1} of our people{2}", vehicles, persons, sb.ToString());
         }
     }
@@ -80,11 +79,16 @@ public sealed class TrafficBodyFeedSystem : IEcsModuleSystem
         bool velocity = world.IsComponentTypeRegistered<SimVelocity>();
         bool identity = world.IsComponentTypeRegistered<NetworkIdentity>();
         bool sized = world.IsComponentTypeRegistered<VehicleParams>();   // ⚠ a traffic node may not register it: the default footprint
+        bool embarked = world.IsComponentTypeRegistered<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
         foreach (var e in world.Query().With<SimTransform>().With<PhysicsCollider>().Build())
         {
             if (routed && world.HasComponent<ReplicationRoute>(e)) continue;   // a SUMO car's replica: SUMO already has it
             if (KindOf(Locomotions.Of(world, e)) is not { } kind) continue;
             if (HandedToSumo(world, e)) continue;   // ⭐ §14 G6 — SUMO drives it already: its shadow would brake behind itself
+            // ⭐⭐ CE-11072 — a RIDER (aboard any vehicle, enclosed or exposed) is inside its vehicle's footprint: the vehicle is the body. 📌 Measured on
+            //   va-dozer-breach-wall: an APC's gunner (seat 8) was told to SUMO as a pedestrian at the APC's own place, so the APC's shadow braked for its
+            //   own crew and stood still 17 m after the hand-over, for good.
+            if (embarked && world.HasComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>(e)) continue;
             var p = world.GetComponentRO<SimTransform>(e).Position;
             var v = velocity && world.HasComponent<SimVelocity>(e) ? world.GetComponentRO<SimVelocity>(e).Linear : Vector3.Zero;
             float length, width;

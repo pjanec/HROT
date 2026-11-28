@@ -84,6 +84,9 @@ namespace Fdp.Toolkit.Motion
         /// <summary>⭐ Air Ops slice 4 — a plane's circle after its route's end (<see cref="FixedWingModel"/>).</summary>
         public Vector2 OrbitCenter;
         public float OrbitAngle;
+        /// <summary>⭐ CE-5046 — the intent whose END this plane is holding over (its no-order orbit, <see cref="FixedWingModel"/>); a later
+        /// end anchors a new circle where the plane is then.</summary>
+        public uint HoldIntent;
 
         /// <summary>A fresh follower at the start of a newly compiled path (a held release is armed, as the managed path's default was).</summary>
         public static AirFollower Start => new() { ReleaseArmed = true };

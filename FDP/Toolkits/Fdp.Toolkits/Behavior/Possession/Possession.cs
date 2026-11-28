@@ -19,6 +19,10 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// task stays paused under origin Possession, but no control frame reaches it (the vehicle is the one being driven). A change
         /// between Fps and Riding on the same station is a take-over: the operator behaviour keeps running.</summary>
         Riding = 2,
+        /// <summary>⭐ Simulated devices S1b-1 (DESIGN_Simulated_Devices §3.3, D-73) — a DEVICE the station operates through one of its operator's bodies:
+        /// CONTROL without a body (<c>StationBody.IsBodyMode</c> is false). ⭐ Written ONLY by the device tick (<c>DeviceOperators.Sync</c>); the possession
+        /// core never releases it (no behaviour swap, no clear) and never applies its frames (the device tick ingests them every frame).</summary>
+        Operated = 3,
     }
 
     /// <summary>Event ids of possession (range 5200–5299; free by a census of every event id on all lanes, <c>2026-10-11</c>).</summary>
@@ -27,6 +31,14 @@ namespace Fdp.Toolkit.Behavior.Possession
         public const int PossessRequest = 5200;
         public const int ReleasePossession = 5201;
         public const int ControlFrame = 5202;
+        /// <summary>⭐ CE-11027 S12-3 — 5203 (free by a census of every <c>[EventId]</c> in the tree, <c>2026-11-21</c>).</summary>
+        public const int ReleaseStation = 5203;
+        /// <summary>⭐ Simulated devices SD-S5v — one source's SPARSE input for ONE device (<c>DeviceInputEvent</c>; ⛔ reuses S1b-2's <c>DeviceFrameEvent</c>
+        /// id — R-4301, no recording compatibility).</summary>
+        public const int DeviceInput = 5204;
+        /// <summary>⭐ Simulated devices SD-S5b (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13d D-119) — a MESSAGE from one device to another
+        /// (<c>DeviceMessageEvent</c>, the binary form of D-58); 5205 free by a census of the tree (2026-11-28).</summary>
+        public const int DeviceMessage = 5205;
     }
 
     /// <summary>
@@ -40,8 +52,8 @@ namespace Fdp.Toolkit.Behavior.Possession
     {
         public Entity Unit;
         public PossessionMode Mode;
-        /// <summary>The station — its node id (C-8: one operator per node).</summary>
-        public NodeId StationNodeId;
+        /// <summary>The station — ⭐ CE-11027 (Q114 A): a <see cref="StationId"/>, the node plus the seat on it (a node that hosts one station is its own id, so old recordings read unchanged).</summary>
+        public StationId StationNodeId;
         public bool IsRemote;
         /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
         /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
@@ -54,11 +66,22 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct ReleasePossessionEvent
     {
         public Entity Unit;
-        public NodeId StationNodeId;
+        public StationId StationNodeId;
         public bool IsRemote;
         /// <summary>⭐ Edit framework F4 (📄 docs/UX/DESIGN_Edit_Framework.md §3, Q2) — the user's request id (<c>Edits.Submit</c>); the applying node answers with
         /// <c>EntityEditOutcome</c> under it (accepted or refused + why). <see cref="System.Guid.Empty"/> = nobody asked. APPENDED.</summary>
         public System.Guid RequestId;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-11027</c> S12-3 (<c>docs/DESIGN_Player_Join.md</c> §12.2, Q114 E) — a STATION LEFT (its deploy server freed its slot): <see cref="PossessionSystem"/> releases EVERY unit it holds — the man it rides AND the vehicle
+    /// it drives — by the path of Esc, so each paused task resumes. A station that holds nothing: a no-op.
+    /// </summary>
+    [EventId(PossessionEventIds.ReleaseStation)]
+    [StructLayout(LayoutKind.Sequential)]
+    public struct ReleaseStationEvent
+    {
+        public StationId StationNodeId;
     }
 
     /// <summary>
@@ -70,7 +93,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     public struct OperatorControlFrameEvent
     {
         public Entity Unit;
-        public NodeId StationNodeId;
+        public StationId StationNodeId;
         public uint Seq;
         public float Forward, Lateral, Steer, Yaw;
         /// <summary>⭐ CE-2168 (MD-D) — a flyer's climb axis ∈ [−1, 1].</summary>
@@ -106,9 +129,6 @@ namespace Fdp.Toolkit.Behavior.Possession
         /// <summary>⭐ CE-1212 (DESIGN_Entity_Control §8j L-1, appended) — the lean the operator holds (<c>LeanSide</c>: 0 none, 1 left, 2
         /// right) — a LEVEL, every frame: it lasts while Q / E is held.</summary>
         public byte Lean;
-        /// <summary>⭐ CE-1219 (DESIGN_Entity_Control §8k B-1, appended) — 1 while the operator holds his binoculars up (B held), 0 otherwise —
-        /// a LEVEL; his brain raises them through <c>HeldItems.Set</c>, which refuses a man who carries none.</summary>
-        public byte Binoculars;
         /// <summary>⭐ <c>CE-4143</c> (DESIGN_Entity_Control §8r, appended) — the look ray's origin (the camera eye, world metres).</summary>
         public Vector3 LookFrom;
         /// <summary>⭐ CE-4143 — the look ray's direction (unit): the crosshair ray, which a SIGHT shot on a turret follows at the zero range.</summary>
@@ -128,7 +148,7 @@ namespace Fdp.Toolkit.Behavior.Possession
     [DataPolicy(DataPolicy.NoScenario)]
     public struct PossessedBy
     {
-        public NodeId StationNodeId;
+        public StationId StationNodeId;
         public PossessionMode Mode;
         /// <summary>Bumped on every take-over.</summary>
         public uint Epoch;
@@ -159,8 +179,6 @@ namespace Fdp.Toolkit.Behavior.Possession
         public int UseTarget;
         /// <summary>⭐ CE-1212 (§8j L-1, appended) — the lean the operator holds (<see cref="OperatorControlFrameEvent.Lean"/>).</summary>
         public byte Lean;
-        /// <summary>⭐ CE-1219 (§8k B-1, appended) — binoculars up (<see cref="OperatorControlFrameEvent.Binoculars"/>).</summary>
-        public byte Binoculars;
         /// <summary>⭐ <c>CE-4143</c> (§8r) — the frame's look ray and fire-mode preference (<see cref="OperatorControlFrameEvent"/>).</summary>
         public Vector3 LookFrom;
         /// <summary>⭐ CE-4143 — the look ray's direction (unit): the crosshair ray, which a SIGHT shot on a turret follows at the zero range.</summary>
@@ -211,6 +229,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             //   not make the next player's request for its unit look like a take-over (the sweeps key on facts, not on event order)
             ReleaseKilled(repo);
             ReleaseDeparted(repo);
+            ReleaseLeft(repo);
 
             if (repo.Bus.IsRegistered<PossessRequestEvent>())
                 foreach (ref readonly var req in repo.ReadEvents<PossessRequestEvent>())
@@ -241,25 +260,15 @@ namespace Fdp.Toolkit.Behavior.Possession
                 foreach (ref readonly var f in repo.ReadEvents<OperatorControlFrameEvent>())
                 {
                     if (!OwnsBrain(repo, f.Unit) || !HeldBy(repo, f.Unit, f.StationNodeId)) continue;
-                    if (repo.GetComponentRO<PossessedBy>(f.Unit).Mode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
-                    if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) continue;
-                    var input = new OperatorInput
-                    {
-                        Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
-                        Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
-                        ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
-                        UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
-                        Lean = f.Lean,                                                     // ⭐ CE-1212
-                        Binoculars = f.Binoculars,                                         // ⭐ CE-1219
-                        LookFrom = f.LookFrom, LookDir = f.LookDir, FirePref = f.FirePref, // ⭐ CE-4143
-                    };
-                    if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
-                    else repo.AddComponent(f.Unit, input);
+                    var frameMode = repo.GetComponentRO<PossessedBy>(f.Unit).Mode;
+                    if (frameMode == PossessionMode.Riding) continue;   // ⭐ CE-1156 — a rider takes no frames
+                    if (frameMode == PossessionMode.Operated) continue; // ⭐ devices S1b-1 — a device's frame is the device tick's (every frame, D-72)
+                    ApplyFrame(repo, in f);   // ⭐ devices S1b-2 — the ONE frame-apply routine (the device tick calls it too)
                 }
 
             if (repo.Bus.IsRegistered<ReleasePossessionEvent>())
                 foreach (ref readonly var rel in repo.ReadEvents<ReleasePossessionEvent>())
-                    if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId))
+                    if (OwnsBrain(repo, rel.Unit) && HeldBy(repo, rel.Unit, rel.StationNodeId) && !IsOperatedRow(repo, rel.Unit))
                     {
                         Release(repo, rel.Unit);
                         Fdp.Toolkit.Replication.Edits.InteractionOutcomes.Applied(repo, rel.RequestId, rel.Unit);   // ⭐ edit framework F4
@@ -274,11 +283,33 @@ namespace Fdp.Toolkit.Behavior.Possession
         private static void ReleaseKilled(EntityRepository repo)
         {
             foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                if (OwnsBrain(repo, unit) && !Alive(repo, unit))
+                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && !Alive(repo, unit) && !IsOperatedRow(repo, unit))   // (an earlier release of this sweep may have taken it)
                 {
-                    FreeSeatOf(repo, unit);
+                    var held = repo.GetComponentRO<PossessedBy>(unit);
+                    if (StationBody.IsBodyMode(held.Mode)) FreeSeatOf(repo, unit);   // ⭐ C3 CC-11 — a killed BODY steps out of its seat
                     Release(repo, unit);
+                    // ⭐ CE-11027 S12-3 (Q114 G) — a RIDER killed: his station let go of the man only; the vehicle he drove is still held by it
+                    if (held.Mode == PossessionMode.Riding) ReleaseStation(repo, held.StationNodeId);
                 }
+        }
+
+        /// <summary>⭐ CE-11027 S12-3 — a station LEFT (<see cref="ReleaseStationEvent"/>): every unit it holds is released, as for a departed node.</summary>
+        private static void ReleaseLeft(EntityRepository repo)
+        {
+            if (!repo.Bus.IsRegistered<ReleaseStationEvent>()) return;
+            foreach (ref readonly var left in repo.ReadEvents<ReleaseStationEvent>())
+                ReleaseStation(repo, left.StationNodeId);
+        }
+
+        /// <summary>
+        /// ⭐ CE-11027 S12-3 (Q114 E) — releases EVERY unit this node runs the brain of whose <see cref="PossessedBy"/> names <paramref name="station"/> (the man it rides and the vehicle it drives), by <see cref="Release"/>: the paused task
+        /// resumes. A station that holds nothing is a no-op.
+        /// </summary>
+        public static void ReleaseStation(EntityRepository repo, StationId station)
+        {
+            if (!repo.IsComponentTypeRegistered<PossessedBy>()) return;
+            foreach (var unit in repo.Query().With<PossessedBy>().Build())
+                if (repo.HasComponent<PossessedBy>(unit) && OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station && !IsOperatedRow(repo, unit)) Release(repo, unit);
         }
 
         /// <summary>
@@ -291,7 +322,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             if (!repo.Bus.IsRegistered<Fdp.Toolkit.Replication.Messages.NodeDeparted>()) return;
             foreach (ref readonly var gone in repo.ReadEvents<Fdp.Toolkit.Replication.Messages.NodeDeparted>())
                 foreach (var unit in repo.Query().With<PossessedBy>().Build())
-                    if (OwnsBrain(repo, unit) && HeldBy(repo, unit, gone.NodeId)) Release(repo, unit);
+                    if (OwnsBrain(repo, unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId.Node == gone.NodeId && !IsOperatedRow(repo, unit)) Release(repo, unit);   // ⭐ CE-11027 A′ — every station ON the node, not only its station 0
         }
 
         /// <summary>⭐ R-4096 — a killed man that sits in a vehicle is asked to step out: <see cref="DisembarkEntityCommand"/> reaches the
@@ -318,6 +349,9 @@ namespace Fdp.Toolkit.Behavior.Possession
             foreach (var unit in repo.Query().With<ManualDrive>().With<NavigationIntent>().Build())
             {
                 if (!OwnsBrain(repo, unit) || repo.GetComponentRO<BehaviorState>(unit).Origin == BehaviorOrigin.Possession) continue;
+                // ⭐ devices SD-S2c (§3.13c D-104) — the invariant's second owner: a unit a DEVICE commands (a drone flown through its ground station) is driven
+                //   on the Manual axes by its own brain (RemotePilot) — not an operator's leftover. 📐 Measured: without this the drone's take-off was undone every frame
+                if (!Fdp.Toolkit.Behavior.Devices.ControlledBy.Of(repo, unit).IsNull) continue;
                 ref var intent = ref repo.GetComponentRW<NavigationIntent>(unit);
                 if (intent.Mode != NavigationMode.Manual) continue;
                 intent.Mode = NavigationMode.None;
@@ -326,7 +360,7 @@ namespace Fdp.Toolkit.Behavior.Possession
                 // ⭐ CE-1212 (§8j L-1) — and stands straight: an operator's lean does not outlive him (his task leans again if it wants)
                 if (Fdp.Toolkit.Combat.Leans.Of(repo, unit) != Fdp.Toolkit.Combat.LeanSide.LeanNone)
                     Fdp.Toolkit.Combat.Leans.Set(repo, unit, Fdp.Toolkit.Combat.LeanSide.LeanNone);
-                if (Fdp.Toolkit.Combat.HeldItems.BinocularsUp(repo, unit))                         // ⭐ CE-1219 — and puts his binoculars away
+                if (Fdp.Toolkit.Combat.HeldItems.BinocularsUp(repo, unit))                         // ⭐ CE-1219 / S1d-3 — and puts his binoculars away (raised by a viewed device, D-63)
                     Fdp.Toolkit.Combat.HeldItems.Set(repo, unit, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             }
         }
@@ -334,18 +368,40 @@ namespace Fdp.Toolkit.Behavior.Possession
         private void Possess(EntityRepository repo, Entity unit, int station, PossessionMode mode)
         {
             uint epoch = repo.HasComponent<PossessedBy>(unit) ? repo.GetComponentRO<PossessedBy>(unit).Epoch + 1 : 1;
-            var held = new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(station), Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
+            var held = new PossessedBy { StationNodeId = (Fdp.Core.StationId)station, Mode = mode == PossessionMode.None ? PossessionMode.Fps : mode, Epoch = epoch };
             bool already = repo.GetComponentRO<BehaviorState>(unit).Origin == BehaviorOrigin.Possession;
             if (repo.HasComponent<PossessedBy>(unit)) repo.SetComponent(unit, held);
             else repo.AddComponent(unit, held);
             if (repo.HasComponent<OperatorInput>(unit)) repo.RemoveComponent<OperatorInput>(unit);   // the new station starts clean
             Possessed++;
-            if (!already)   // a take-over keeps the running operator behaviour (and the task it paused)
+            if (!already && StationBody.IsBodyMode(held.Mode))   // a take-over keeps the running operator behaviour; ⭐ C3 CC-12 — only a BODY hold gets the operator's behaviour
                 repo.Bus.PublishManaged(new AssignBehaviorEvent
                 {
                     Entity = unit, BehaviorName = _operatorBehavior, JsonParams = "{}", Origin = BehaviorOrigin.Possession,
                 });
         }
+
+        /// <summary>⭐⭐ Devices S1b-2 — THE frame-apply routine, for a unit AND a device: the newest frame by <c>Seq</c> becomes the target's own
+        /// <see cref="OperatorInput"/>. The caller authorises (the brain's owner, <c>HeldBy</c> the sending station) — and nothing else applies a frame.</summary>
+        public static void ApplyFrame(EntityRepository repo, in OperatorControlFrameEvent f)
+        {
+            if (repo.HasComponent<OperatorInput>(f.Unit) && f.Seq <= repo.GetComponentRO<OperatorInput>(f.Unit).Seq) return;
+            var input = new OperatorInput
+            {
+                Seq = f.Seq, Forward = f.Forward, Lateral = f.Lateral, Steer = f.Steer, Yaw = f.Yaw, Vertical = f.Vertical, Gait = f.Gait,
+                Trigger = f.Trigger, Mount = f.Mount, AimPoint = f.AimPoint, Stance = f.Stance,
+                ShotSeq = f.ShotSeq, CancelSeq = f.CancelSeq, AmmoSeq = f.AmmoSeq, ShotTarget = f.ShotTarget,
+                UseSeq = f.UseSeq, UseVerb = f.UseVerb, UseTarget = f.UseTarget,   // ⭐ CE-1151
+                Lean = f.Lean,                                                     // ⭐ CE-1212
+                LookFrom = f.LookFrom, LookDir = f.LookDir, FirePref = f.FirePref, // ⭐ CE-4143
+            };
+            if (repo.HasComponent<OperatorInput>(f.Unit)) repo.SetComponent(f.Unit, input);
+            else repo.AddComponent(f.Unit, input);
+        }
+
+        /// <summary>⭐ Devices S1b-1 — an <see cref="PossessionMode.Operated"/> row is the device tick's (<c>DeviceOperators.Sync</c>): the possession core never releases it.</summary>
+        private static bool IsOperatedRow(EntityRepository repo, Entity unit)
+            => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).Mode == PossessionMode.Operated;
 
         private static void Release(EntityRepository repo, Entity unit)
         {
@@ -359,7 +415,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             => repo.IsComponentTypeRegistered<PossessedBy>() && repo.HasComponent<PossessedBy>(unit)
                 ? repo.GetComponentRO<PossessedBy>(unit).StationNodeId : null;
 
-        private static bool HeldBy(EntityRepository repo, Entity unit, int station)
+        internal static bool HeldBy(EntityRepository repo, Entity unit, int station)
             => repo.HasComponent<PossessedBy>(unit) && repo.GetComponentRO<PossessedBy>(unit).StationNodeId == station;
 
         /// <summary>This node runs <paramref name="unit"/>'s brain — it applies possession events about it (the interaction codecs
@@ -378,6 +434,7 @@ namespace Fdp.Toolkit.Behavior.Possession
             if (!repo.Bus.IsRegistered<PossessRequestEvent>()) repo.Bus.Register<PossessRequestEvent>();
             if (!repo.Bus.IsRegistered<ReleasePossessionEvent>()) repo.Bus.Register<ReleasePossessionEvent>();
             if (!repo.Bus.IsRegistered<OperatorControlFrameEvent>()) repo.Bus.Register<OperatorControlFrameEvent>();
+            if (!repo.Bus.IsRegistered<ReleaseStationEvent>()) repo.Bus.Register<ReleaseStationEvent>();
         }
     }
 }

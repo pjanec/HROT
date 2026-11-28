@@ -1,0 +1,75 @@
+{
+  "$doc": "docs/DESIGN_Scenario_Regression.md \u00a73 - CE-4693 bl-assault-crossing (see scenario.json's header). State and objectives, never a time: the bake is wall-clock paced (R-244).",
+  "runFor": 520,
+  "golden": false,
+  "anchors": {},
+  "expect": [
+    {
+      "name": "the objective 'Bridge laid' is Achieved (an assault bridge Open)",
+      "on": "field",
+      "who": "Bridge laid",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "the engineer laid its span (none left on board)",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Count",
+      "op": "==",
+      "value": 0,
+      "atEnd": true
+    },
+    {
+      "name": "the engineer's order is done",
+      "on": "field",
+      "who": "Engineer",
+      "path": "BridgeCarried.Order",
+      "op": "==",
+      "value": "None",
+      "atEnd": true
+    },
+    {
+      "name": "Alpha is on the far bank",
+      "on": "field",
+      "who": "Alpha on the far bank",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "Bravo is on the far bank",
+      "on": "field",
+      "who": "Bravo on the far bank",
+      "path": "ObjectiveStatus.State",
+      "op": "==",
+      "value": "Achieved",
+      "atEnd": true
+    },
+    {
+      "name": "no man stands in the river off the deck",
+      "never": {
+        "on": "field",
+        "who": "*Man",
+        "path": "SimTransform.Position.1",
+        "op": ">",
+        "value": 61.0,
+        "also": [
+          {
+            "path": "SimTransform.Position.1",
+            "op": "<",
+            "value": 71.0
+          },
+          {
+            "path": "SimTransform.Position.2",
+            "op": "<",
+            "value": 0.5
+          }
+        ]
+      }
+    }
+  ]
+}

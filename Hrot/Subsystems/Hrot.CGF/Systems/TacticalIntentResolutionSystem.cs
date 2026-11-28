@@ -52,7 +52,9 @@ namespace Hrot.CGF.Systems
     /// immediately after <c>MissionAdapterSystem</c>.</para>
     /// </summary>
     [UpdateInPhase(SystemPhase.Simulation)]
-    [TickMode(TickPolicy.EveryFrame)]
+    // ⭐⭐ CE-3494 (R-3114, DESIGN_Unit_Intent.md §1 R1) — nothing the AI does takes effect on a paused frame: this runs only when time
+    //   advances and reads every request since its last run, IN ORDER (the step window) — so stepped and continuous runs agree.
+    [TickMode(TickPolicy.WhenTimeAdvances)]
     [Fdp.Core.NotState("a system/module, classified on its own")]
     public sealed class TacticalIntentResolutionSystem : IEcsModuleSystem
     {
@@ -101,7 +103,16 @@ namespace Hrot.CGF.Systems
                     $"EntityRepository access and cannot run on a read-only snapshot " +
                     $"({view.GetType().Name}).");
 
-            var events = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
+            // ⭐⭐ CE-3494 §10 P5 (R-3119) — a PERSON's task waits in the unit's intent (a paused frame keeps it, a checkpoint keeps it): take it
+            //   here, FIRST (intent before the step's requests, R-3117), as the order event it replaces — same step, same rules (per-class
+            //   resolution, plan hold, the station's answer) — and strip the slot. The step's own requests follow in order.
+            var window = repo.ReadManagedEvents<AssignTacticalIntentEvent>();
+            System.Collections.Generic.IReadOnlyList<AssignTacticalIntentEvent> events = window;
+            if (TakePersonsTasks(repo) > 0)
+            {
+                for (int k = 0; k < window.Count; k++) _taken.Add(window[k]);
+                events = _taken;
+            }
 
             for (int i = 0; i < events.Count; i++)
             {
@@ -117,7 +128,10 @@ namespace Hrot.CGF.Systems
                 // ⭐ CE-3167 (Entity Commanding §2.5b-d) — the order cancels the unit's prior plans FIRST, synchronously, in
                 //   this one call: an abort and an assign arriving as two events would run the clear LAST in the ingress and
                 //   leave the unit brain-dead with the order discarded. Providers run on the owner only (after the gate).
-                if (evt.ClearsPriorIntent) _clearRegistry?.ClearFor(evt.Entity, repo);
+                // ⭐⭐ CE-3494 (R-3115, DESIGN_Unit_Intent.md §4) — the order HOLDS the plan, and only once it has STARTED: an assign carries the
+                //   flag to the ingress, which runs the providers after a successful start in the same call. ⛔ SUPERSEDED: clearing here, before
+                //   the order was even tried (a refused order left the unit with no plan). A CLEAR order has nothing to start — it holds here.
+                if (evt.ClearsPriorIntent && evt.Kind == TacticalIntentKind.Clear) _clearRegistry?.ClearFor(evt.Entity, repo);
 
                 // ⭐ CE-3167 — a Clear ends the running behaviour at the intent's origin (the gate still applies: a lower origin
                 //   cannot end a higher one); the SOP picks next. The one wire path for assign AND clear (Sensors §7.7).
@@ -188,6 +202,7 @@ namespace Hrot.CGF.Systems
                 // ⭐ CE-3034 — the behaviour carries the intent's origin, whichever path built the assignment.
                 behaviorEvent.Origin = evt.Origin;
                 behaviorEvent.RequestId = evt.RequestId;   // ⭐ CE-4306 (F5): the gate answers under the order's id
+                behaviorEvent.HoldsPlan = evt.ClearsPriorIntent;   // ⭐ CE-3494 — the ingress holds the plan once this starts
                 repo.Bus.PublishManaged(behaviorEvent);
             }
         }
@@ -234,6 +249,42 @@ namespace Hrot.CGF.Systems
                 Kind = Fdp.Toolkit.Squad.Command.ReportKind.Progress, Subtype = (byte)Fdp.Toolkit.Squad.Command.ProgressKind.TaskFailed,
                 At = at, ObservedAt = now,
             }, now + Fdp.Toolkit.Squad.Command.StaffComposerSystem.ReportDelaySeconds);
+        }
+
+        [Fdp.Core.FrameScratch("a person's tasks taken from the intent this step, then the step's events — cleared at the top of each take")]
+        private readonly System.Collections.Generic.List<AssignTacticalIntentEvent> _taken = new();
+        [Fdp.Core.FrameScratch("the units whose intent holds a person's task this step")]
+        private readonly System.Collections.Generic.List<Entity> _takeUnits = new();
+        private EntityQuery? _intentQuery;
+        private EntityRepository? _intentQueryOf;
+
+        /// <summary>
+        /// ⭐ CE-3494 §10 — moves every pending PERSON's task (origin Operator) out of the units' <see cref="UnitIntent"/> into <see cref="_taken"/> as
+        /// the order event it stands for; the slot is removed (the record too when nothing else is pending). Returns how many. No allocation when none
+        /// (the query is built once per world). ⛔ Not during a replay (R11).
+        /// </summary>
+        private int TakePersonsTasks(EntityRepository repo)
+        {
+            _taken.Clear();
+            if (!repo.TryGetTable(typeof(UnitIntent), out _) || Fdp.Toolkit.Replay.ReplayState.IsActive(repo)) return 0;
+            if (!ReferenceEquals(_intentQueryOf, repo)) { _intentQuery = repo.Query().WithManaged<UnitIntent>().Build(); _intentQueryOf = repo; }
+            _takeUnits.Clear();
+            foreach (var e in _intentQuery!) _takeUnits.Add(e);
+            for (int i = 0; i < _takeUnits.Count; i++)
+            {
+                var entity = _takeUnits[i];
+                var intent = ((ISimulationView)repo).GetManagedComponentRO<UnitIntent>(entity);
+                if (intent?.Behavior is not { Origin: BehaviorOrigin.Operator } task || !repo.HasAuthority<BehaviorState>(entity)) continue;
+                _taken.Add(new AssignTacticalIntentEvent
+                {
+                    Entity = entity, IntentId = task.Clear ? string.Empty : task.Name, JsonParams = task.Params, Origin = task.Origin,
+                    Kind = task.Clear ? TacticalIntentKind.Clear : TacticalIntentKind.Assign, ClearsPriorIntent = true, RequestId = task.RequestId,
+                });
+                var rest = intent with { Behavior = null };
+                if (rest.Sop is null && rest.Roe is null) repo.RemoveComponent<UnitIntent>(entity);
+                else repo.SetManagedComponent(entity, rest);
+            }
+            return _taken.Count;
         }
 
         /// <summary>⭐ <c>CE-2141</c> — an ASSIGN to <paramref name="entity"/> follows event <paramref name="index"/> in this frame.</summary>

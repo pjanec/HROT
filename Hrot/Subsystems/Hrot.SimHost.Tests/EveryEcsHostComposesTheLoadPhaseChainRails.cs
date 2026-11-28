@@ -114,6 +114,49 @@ namespace Hrot.SimHost.Tests
             }
         }
 
+        // ── ⭐ CE-11026 (R-11009) — every ECS host's load waits for its LINKED CLIENT ───────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-11026</c> (the silent-default rule) — the node's registry reaches the ONE composition: every ECS root reaches <c>EcsHostClusterHandlers.Compose</c> (the editor, the Player, CGF and SimHost), the shared bootstrapper hands
+        /// <c>LinkedClients = linkedClients</c> to it, and <c>HostOrchestration</c> (the one caller that HAS a node context) passes <c>context.LinkedClients</c>. The constructed side is
+        /// <c>EveryEcsHostComposesOneClusterHandlerSetRails.CE11026_Compose_AddsTheLinkedClientStep_OnTheNodesOwnRegistry</c>.
+        /// 🔴 Mutation: the <c>linkedClients:</c> argument removed from <c>HostOrchestration</c> (or the <c>LinkedClients =</c> line from the bootstrapper) ⇒ this fails.
+        /// </summary>
+        [Fact]
+        public void CE11026_EveryEcsHost_ComposesTheLinkedClientStep_FromTheNodesOwnRegistry()
+        {
+            foreach (var path in new[]
+            {
+                "Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.Player/PlayerNodeBootstrapper.cs",
+                "Hrot/Subsystems/Hrot.CGF/CgfSubsystem.cs",
+                "Hrot/Subsystems/Hrot.Editor/EditorSubsystem.cs",
+            })
+            {
+                var code = ReadEffectiveRoot(path);
+                Assert.True(code.Contains("EcsHostClusterHandlers.Compose(", StringComparison.Ordinal) || code.Contains("HostOrchestration", StringComparison.Ordinal) || code.Contains("BuildOrchestration(", StringComparison.Ordinal),
+                    $"{path} must reach the one cluster-handler composition, where the linked-client step is added.");
+            }
+
+            var nodeBootstrapper = CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.EcsNode/NodeBootstrapper.cs");
+            Assert.True(System.Text.RegularExpressions.Regex.IsMatch(nodeBootstrapper, @"LinkedClients\s*=\s*linkedClients"), "NodeBootstrapper does not hand its linkedClients to the cluster-handler composition");
+            var orchestration = CompositionRootSource.ReadRepoSource("Hrot/Engine/Hrot.EcsNode/Hosting/HostOrchestration.cs");
+            Assert.True(System.Text.RegularExpressions.Regex.IsMatch(orchestration, @"linkedClients:\s*context\.LinkedClients"), "HostOrchestration does not pass the node context's LinkedClients on");
+            var composition = CompositionRootSource.ReadRepoSource("Hrot/Network/Hrot.Network.Orchestration/EcsHostClusterHandlers.cs");
+            Assert.True(composition.Contains("new LinkedClientLoadStep(h.LinkedClients)", StringComparison.Ordinal) && composition.Contains("LoadPart.LinkedClient", StringComparison.Ordinal),
+                "EcsHostClusterHandlers does not compose the linked-client step on the registry it was given");
+        }
+
+        /// <summary>⭐ CE-11025 (the silent-default rule) — the ONE composition hands the replay handler it builds the load chain it builds, so every
+        /// ECS host's replay open makes the recording's world resident through the chain's shared parts.</summary>
+        [Fact]
+        public void CE11025_TheComposition_HandsTheReplayHandlerItsLoadChain()
+        {
+            var composition = CompositionRootSource.ReadRepoSource("Hrot/Network/Hrot.Network.Orchestration/EcsHostClusterHandlers.cs");
+            Assert.Matches(@"replayLoad\.WorldLoad\s*=\s*chain\s*;", composition);
+            Assert.Matches(@"slave\.RegisterHandler\(chain\)", composition);
+        }
+
         // ── ② ⭐⭐⭐ it is not SHADOWED ─────────────────────────────────────────────────────────
 
         // ── ② ⭐⭐⭐ nothing can be SHADOWED, because nothing else claims the step ───────────────

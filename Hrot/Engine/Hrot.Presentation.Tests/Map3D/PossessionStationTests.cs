@@ -36,7 +36,8 @@ public sealed partial class PossessionStationTests
         public bool RightDown { get; set; }       // ⭐ CE-1211 — the zoom is held
         public bool MiddleDown { get; set; }      // ⭐ CE-1293 — a map drag
         public bool? Locked { get; private set; }
-        public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right && RightPressed;
+        public bool MiddlePressed { get; set; }   // ⭐ S1d-3 — designate through a device
+        public bool IsMouseButtonPressed(MapMouseButton b) => b == MapMouseButton.Left ? LeftPressed : b == MapMouseButton.Right ? RightPressed : b == MapMouseButton.Middle && MiddlePressed;
         public bool IsMouseButtonDown(MapMouseButton b) => b == MapMouseButton.Left ? LeftDown : b == MapMouseButton.Right ? RightDown : b == MapMouseButton.Middle && MiddleDown;
         public bool IsMouseButtonReleased(MapMouseButton b) => false;
         public bool IsKeyPressed(MapKeyboardKey k) => Pressed.Contains((int)k);
@@ -46,6 +47,17 @@ public sealed partial class PossessionStationTests
         public bool IsMouseCaptured => false;
         public bool IsKeyboardCaptured => false;
         public void SetCursorLocked(bool locked) => Locked = locked;
+        public Vector2? MovedTo { get; private set; }   // ⭐ SD-S5v — the RMB-look gives the cursor back
+        public void SetMousePosition(Vector2 p) { MovedTo = p; MousePosition = p; }
+        // ⭐ SD-S2a — a pad (pad 0)
+        public bool PadConnected { get; set; }
+        public float[] PadAxes { get; } = new float[6];
+        public HashSet<MapGamepadButton> PadDown { get; } = new();
+        public HashSet<MapGamepadButton> PadPressed { get; } = new();
+        public bool GamepadAvailable => PadConnected;
+        public float GamepadAxis(MapGamepadAxis axis) => PadAxes[(int)axis];
+        public bool GamepadButtonDown(MapGamepadButton button) => PadDown.Contains(button) || PadPressed.Contains(button);
+        public bool GamepadButtonPressed(MapGamepadButton button) => PadPressed.Contains(button);
     }
 
     private sealed class CountingDriver : ICameraDriver
@@ -112,7 +124,7 @@ public sealed partial class PossessionStationTests
             station.Update(0.016f);
             Assert.False(station.InFps);                                    // nobody holds the unit
 
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });   // this node (no authority data ⇒ 0)
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });   // this node (no authority data ⇒ 0)
             station.Update(0.016f);
             Assert.True(station.InFps);
             Assert.True(sw.Is3D);
@@ -123,7 +135,7 @@ public sealed partial class PossessionStationTests
             cameraLayer.Update(5f);                                          // a driven view is never saved
             Assert.Null(cameraLayer.Camera);
 
-            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 2 });   // another station took it
+            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(77), Mode = PossessionMode.Fps, Epoch = 2 });   // another station took it
             station.Update(0.016f);
             Assert.False(station.InFps);
             Assert.Null(sw.Camera3D.Driver);
@@ -155,14 +167,14 @@ public sealed partial class PossessionStationTests
             Assert.NotNull(sw.Camera3D.Atmosphere);                           // the free camera: the weather where it looks
             Assert.Equal(sw.Camera3D.Distance * MapCamera3D.FreeFogStartShare, sw.Camera3D.FogStart, 3);   // the fog starts there
 
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
             sky.Update(0.016f);
             Assert.NotNull(sw.Camera3D.Atmosphere);                           // in the unit: the weather's
             Assert.Equal(0f, sw.Camera3D.FogStart);                           // first person: the fog from the eye
 
-            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 2 });
+            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(77), Mode = PossessionMode.Fps, Epoch = 2 });
             station.Update(0.016f);
             sky.Update(0.016f);
             Assert.NotNull(sw.Camera3D.Atmosphere);                           // released: back to the free camera's weather
@@ -176,7 +188,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -219,7 +231,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -254,7 +266,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var bodies = new EntityBodyLayer3D(() => w, () => null);
             var station = new PossessionStation(sw, () => w, bodies) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view
@@ -277,7 +289,7 @@ public sealed partial class PossessionStationTests
             Assert.NotEqual(yawBefore, sw.Camera3D.Yaw, 3);                      // this frame's look, this frame
             Assert.InRange(Vector3.Distance(sw.Camera3D.Eye, expected), 0f, 0.01f); // turning the head keeps the eye in it
 
-            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(77), Mode = PossessionMode.Fps, Epoch = 2 });
+            w.SetComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(77), Mode = PossessionMode.Fps, Epoch = 2 });
             station.Update(0.016f);
             Assert.Equal(Entity.Null, bodies.FirstPerson);                    // released: his head is drawn again
         }
@@ -295,7 +307,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -427,7 +439,7 @@ public sealed partial class PossessionStationTests
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
             w.RegisterEvent<PossessRequestEvent>();
             w.RegisterEvent<ReleasePossessionEvent>();
-            w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var leader = w.CreateEntity();
             w.AddComponent(leader, new SimTransform { Position = new Vector3(90f, 50f, 0f), Rotation = Quaternion.Identity });
             map.Register(700, leader);
@@ -486,7 +498,7 @@ public sealed partial class PossessionStationTests
         var (w, me, _) = World();
         using (w)
         {
-            w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -499,66 +511,107 @@ public sealed partial class PossessionStationTests
     }
 
     /// <summary>
-    /// ⭐ CE-1219 (docs/DESIGN_Entity_Control.md §8k B-1) — B held asks for the binoculars in the frame; the view narrows to their 10° only
-    /// once the sim has them UP; then LMB designates (his men's MapPoint, or Target under the crosshair) instead of firing; a man who carries
-    /// none is told so.
+    /// ⭐⭐ Simulated devices S1d-3 (docs/designs/devices/DESIGN_Simulated_Devices.md §3.6 D-38 / D-66, §3.10 D-75 — rehomes CE-1219's rail, whose B
+    /// level, 10° branch and overlay are gone): the view is bound to ONE source, station-local. B cycles the plain eye → each device he operates (the
+    /// replicated Operated rows naming his station) → the eye; the gizmo layer's <c>BoundSource</c> follows; the camera takes THE BOUND SOURCE's field of
+    /// view (its <c>DevicePose.FovDegrees</c> — one rule, no binoculars branch) and back; the device frames carry his look (relative to the mount) and
+    /// <c>Viewed</c> while bound; through a device LMB fires no shot (⭐ SD-S5v: it clicks a HUD chip — none here, so it presses nothing) and the middle button designates for his men (CE-1219's designate, kept);
+    /// a device that leaves him (its row gone) drops the view back to the eye. 🔴 Red-proof (compiles): <c>ZoomFovDegrees</c> ignores the bound source ⇒ red.
     /// </summary>
     [Fact]
-    public void CE1219_BHeldAsksForTheBinoculars_TheViewNarrowsWhenUp_AndLmbDesignatesForHisMen()
+    public void S1d3_BCyclesTheViewsSource_TheFovIsTheBoundSources_TheDeviceFramesCarryViewedAndTheLook_AndLmbIsTheDevicesButton()
     {
         var (w, unit, map) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
-            w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
-            w.RegisterComponent<WeaponPosture>();
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+            w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePose>();
+            w.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
-            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
-            var observer = new Fdp.Interfaces.TkbTemplate("Observer", 4714);
-            observer.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.PocketItemsDto { Binoculars = true });
-            db.Register(observer);
-            db.Register(new Fdp.Interfaces.TkbTemplate("Rifleman", 4715));
-            w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
-            w.AddComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4714) });
-            w.AddComponent(unit, new WeaponPosture());
+            w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>();
+            var probe = new DeviceInputProbe();   // ⭐ SD-S5v — what each device would merge from the station's sparse events
+            Entity Device(int netId, string behaviour, float fov)
+            {
+                var d = w.CreateEntity();
+                w.AddComponent(d, new SimTransform { Position = new Vector3(100f, 50f, 1.5f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.3f) });
+                w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 78, Behavior = new FixedString64(behaviour) });
+                w.AddComponent(d, new Fdp.Toolkit.Replication.Components.NetworkIdentity { Value = netId });
+                w.AddComponent(d, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Operated, Epoch = 1 });
+                w.AddComponent(d, new Fdp.Toolkit.Behavior.Devices.DevicePose { Orientation = Quaternion.Identity, FovDegrees = fov });
+                map.Register(netId, d);
+                return d;
+            }
+            var rangefinder = Device(7002, Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceRangefinder, 50f / 7f);
+            var binoculars = Device(7001, Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceBinoculars, 5f);
             var man = w.CreateEntity();
             w.AddComponent(man, new SimTransform { Position = new Vector3(105f, 50f, 0f), Rotation = Quaternion.Identity });
             w.AddComponent(man, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = unit });
             map.Register(601, man);
 
             var (_, sw, _) = Map();
-            var station = new PossessionStation(sw, () => w);
+            var layer = new Fdp.Toolkit.Vis2D.Layers.DebugGizmoLayer(31, new Fdp.Toolkit.Diagnostics.Gizmos.DebugPrimitiveBuffer(64), new FdpEventBus());
+            var station = new PossessionStation(sw, () => w) { ViewLayer = layer };
             station.Update(0.016f);
             sw.Camera3D.Update(0.016f);
-            var driver = Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
-            OperatorControlFrameEvent Frame(Input input)
+            Assert.IsType<FpsCameraDriver>(sw.Camera3D.Driver);
+            (OperatorControlFrameEvent Body, Fdp.Toolkit.Behavior.Devices.DeviceInputEvent[] Devices) Frame(Input input)
             {
+                station.Update(0.016f);
                 sw.Camera3D.HandleInput(input);
                 w.Bus.SwapBuffers();
-                return Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray());
+                return (Assert.Single(w.Bus.Read<OperatorControlFrameEvent>().ToArray()), probe.Read(w));
             }
-            var b = new Input();
-            b.Keys.Add((int)Raylib_cs.KeyboardKey.B);
-            Assert.Equal(1, Frame(b).Binoculars);
-            Assert.Equal(45f, sw.Camera3D.FovyDegrees);                                       // asked, not yet up: no zoom
-            Assert.False(driver.NoBinoculars);
-            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.Binoculars;          // what his brain does (EmbarkNodesTests.CE1219)
-            Frame(b);
-            Assert.Equal(Fdp.Toolkit.Combat.HeldItems.BinocularsFovDegrees, sw.Camera3D.FovyDegrees);
+            Fdp.Toolkit.Behavior.Devices.DeviceControl Of(Entity d) => probe.Of(d);
+            Input B() { var i = new Input(); i.Pressed.Add((int)Raylib_cs.KeyboardKey.B); return i; }
 
-            var click = new Input { LeftPressed = true, LeftDown = true };
-            click.Keys.Add((int)Raylib_cs.KeyboardKey.B);
-            var f = Frame(click);
-            Assert.Equal((0, (byte)0), (f.ShotSeq, f.Trigger));                                // no shot
-            Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
-            Assert.Equal("Point designated for 1 man", driver.WheelVerdict(station.Clock));
-
-            w.GetComponentRW<WeaponPosture>(unit).HeldItem = HeldItemKind.None;
-            w.SetComponent(unit, new Fdp.Toolkit.Replication.Components.TkbIdentity { TkbType = (Fdp.Core.TkbTypeId)(4715) });   // a man who carries none
-            Frame(b);
-            Assert.True(driver.NoBinoculars);
+            var eye = Frame(new Input());
+            Assert.Equal(2, eye.Devices.Length);                                              // its first: one event per device he operates
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(0, Of(binoculars).Viewed);
             Assert.Equal(45f, sw.Camera3D.FovyDegrees);
-            Assert.Equal(0, Frame(new Input()).Binoculars);                                    // let go
+            Assert.Equal(new[] { binoculars, rangefinder }, station.ViewSources.ToArray());       // the cycle: by network id
+
+            var bound = Frame(B());                                                           // B: the first device
+            Assert.Equal(binoculars, station.BoundDevice);
+            Assert.Equal(7001, layer.BoundSource);
+            Assert.True(station.Switching);
+            Assert.Equal(1, Of(binoculars).Viewed);
+            Assert.Equal(0, Of(rangefinder).Viewed);
+            Frame(new Input());
+            Assert.Equal(5f, sw.Camera3D.FovyDegrees, 3);                                    // the bound source's field
+            Assert.Equal(5f, station.ZoomFovDegrees!.Value, 3);
+            Frame(new Input());
+            var df = Of(binoculars);
+            Assert.NotEqual(0, df.Trackers & Fdp.Toolkit.Behavior.Devices.DeviceControl.OrientationPresent);
+            var mount = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 0.3f);
+            var lookWorld = Vector3.Transform(Vector3.UnitX, mount * df.Orientation);           // his look, through the mount
+            Assert.Equal(sw.Camera3D.Forward.X, lookWorld.X, 3);
+            Assert.Equal(sw.Camera3D.Forward.Y, lookWorld.Y, 3);
+
+            var click = Frame(new Input { LeftPressed = true, LeftDown = true });               // LMB through a device: no shot …
+            Assert.Equal((0, (byte)0), (click.Body.ShotSeq, click.Body.Trigger));
+            Assert.Equal(0, Of(binoculars).Presses[0]);                                         // ⛔ SD-S5v (D-125) — … and no by-index press: LMB clicks a HUD chip (none here)
+            Frame(new Input { MiddlePressed = true });                                         // the middle button designates for his men
+            Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
+
+            Frame(B());                                                                       // the rangefinder
+            Assert.Equal(rangefinder, station.BoundDevice);
+            Frame(new Input());
+            Assert.Equal(50f / 7f, sw.Camera3D.FovyDegrees, 3);
+            var back = Frame(B());                                                            // back to the plain eye
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(0, layer.BoundSource);
+            Assert.Equal(0, Of(binoculars).Viewed);
+            Frame(new Input());
+            Assert.Equal(45f, sw.Camera3D.FovyDegrees);
+
+            Frame(B());                                                                       // bound again … then the device leaves him
+            Assert.Equal(binoculars, station.BoundDevice);
+            w.RemoveComponent<PossessedBy>(binoculars);
+            Frame(new Input());
+            Assert.True(station.BoundDevice.IsNull);
+            Assert.Equal(0, layer.BoundSource);
         }
     }
 
@@ -572,7 +625,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -618,7 +671,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -733,7 +786,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             w.RegisterComponent<Fdp.Toolkit.Replication.Components.TkbIdentity>();
             var db = new Fdp.Toolkit.Tkb.TkbDatabase();
             var type = new Fdp.Interfaces.TkbTemplate("Rifleman", 4713);
@@ -798,7 +851,7 @@ public sealed partial class PossessionStationTests
         using (w)
         {
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
-            w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(me, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             Entity Man(int id, Entity commander, float health = 100f)
             {
                 var m = w.CreateEntity();
@@ -815,7 +868,7 @@ public sealed partial class PossessionStationTests
             Man(6000, Man(7000, Entity.Null));                                         // another squad
             Man(5500, leader, health: 0f);                                             // dead
             var held = Man(5600, leader);
-            w.AddComponent(held, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(99), Mode = PossessionMode.Fps, Epoch = 1 });   // another station's
+            w.AddComponent(held, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(99), Mode = PossessionMode.Fps, Epoch = 1 });   // another station's
 
             Assert.Equal(new[] { 100L, 4242L, 5000L, 9000L }, SquadRoster.Of(w, me).Select(r => r.Id));
             Assert.Equal(buddy, SquadRoster.Next(w, me, 1));
@@ -865,7 +918,7 @@ public sealed partial class PossessionStationTests
         using (w)
         {
             w.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
-            w.AddComponent(leader, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(leader, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var geo = Fdp.Modules.Geographic.Transforms.UtmTransform.AtOrigin(0, 0, 0);   // every live host has one: a point order goes geodetic
             geo.SetOrigin(52.520, 13.405, 0.0);
             w.SetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>(geo);
@@ -948,7 +1001,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             station.Update(0.016f);
@@ -983,7 +1036,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var ammo = new WeaponAmmo { Count = 2 };
             ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
             ammo.Set(1, new WeaponState { Ammo = 10, MaxAmmo = 10 });
@@ -1051,7 +1104,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var ammo = new WeaponAmmo { Count = 3 };
             ammo.Set(0, new WeaponState { Ammo = 200, MaxAmmo = 200 });
             ammo.Set(1, new WeaponState { Ammo = 6, MaxAmmo = 6 });
@@ -1133,7 +1186,7 @@ public sealed partial class PossessionStationTests
         var (w, unit, _) = World();
         using (w)
         {
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var ammo = new WeaponAmmo { Count = 2 };
             ammo.Set(0, new WeaponState { Ammo = 40, MaxAmmo = 42 });
             ammo.Set(1, new WeaponState { Ammo = 200, MaxAmmo = 200 });
@@ -1393,7 +1446,7 @@ public sealed partial class PossessionStationTests
             var heading = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, MathF.PI / 4f);
             w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 300f), Rotation = heading * bank });
             w.AddComponent(unit, new SimVelocity { Linear = new Vector3(106f, 106f, 0f) });
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = false };   // ⭐ CE-1293 — the eyes view (the shoulder view is the default)
             station.Update(0.016f);
@@ -1461,7 +1514,7 @@ public sealed partial class PossessionStationTests
         {
             w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled });
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = false };
             station.Update(0.016f);
@@ -1485,7 +1538,7 @@ public sealed partial class PossessionStationTests
         {
             w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Quadruped });
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = false };
             station.Update(0.016f);
@@ -1504,7 +1557,7 @@ public sealed partial class PossessionStationTests
             w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
             w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 50f), Rotation = Quaternion.Identity });
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w) { OverShoulder = false };
             station.Update(0.016f);
@@ -1536,7 +1589,7 @@ public sealed partial class PossessionStationTests
             {
                 w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
                 w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Wheeled });
-                w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+                w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
                 var (_, sw, _) = Map();
                 var station = new PossessionStation(sw, () => w) { OverShoulder = shoulder };
                 station.Update(0.016f);
@@ -1565,7 +1618,7 @@ public sealed partial class PossessionStationTests
             w.RegisterComponent<Fdp.Toolkit.Motion.Locomotion>();
             w.AddComponent(unit, new Fdp.Toolkit.Motion.Locomotion { Class = Fdp.Toolkit.Tkb.Domain.LocomotionClass.Rotorcraft });
             w.SetComponent(unit, new SimTransform { Position = new Vector3(100f, 50f, 40f), Rotation = Quaternion.Identity });
-            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.NodeId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
+            w.AddComponent(unit, new PossessedBy { StationNodeId = (Fdp.Core.StationId)(0), Mode = PossessionMode.Fps, Epoch = 1 });
             var (_, sw, _) = Map();
             var station = new PossessionStation(sw, () => w);
             const float dt = 1f / 30f, rate = 40f;

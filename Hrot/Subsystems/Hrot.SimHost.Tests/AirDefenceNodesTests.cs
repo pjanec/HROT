@@ -36,7 +36,7 @@ namespace Hrot.SimHost.Tests
             CognitiveComponentRegistry.RegisterAll(_w);
             void Reg<T>() where T : unmanaged { if (!_w.IsComponentTypeRegistered<T>()) _w.RegisterComponent<T>(); }
             Reg<PassengerBuffer>(); Reg<IsEmbarkedTag>(); Reg<CarrierSeats>(); Reg<CarrierStations>(); Reg<OpenPassengerCabin>();
-            Reg<PersonCarrier>(); Reg<PresetSeatIntent>(); Reg<WeaponSystemParams>(); Reg<WeaponSystemState>(); Reg<Health>();
+            Reg<PersonCarrier>(); Reg<PresetSeatIntent>(); Reg<WeaponSystemParams>(); Reg<Fdp.Toolkit.Combat.Mountable>(); Reg<WeaponSystemState>(); Reg<Health>();
             Reg<TkbIdentity>(); Reg<TargetMemory>(); Reg<WeaponChannel>();
             if (!_w.Bus.IsRegistered<WeaponFireIntent>()) _w.Bus.Register<WeaponFireIntent>();
             _w.SetSingletonManaged<ITkbDatabase>(_tkb);
@@ -179,6 +179,41 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, status);
             Assert.InRange(frame * Dt, 5f + (float)AirDefenceNodes.Defaults.ClearSeconds - 0.5f, 5f + (float)AirDefenceNodes.Defaults.ClearSeconds + 1f);
             Assert.Equal<System.Numerics.Vector3>(new Vector3(300, 300, 0), _w.GetComponentRO<SimTransform>(tech).Position);   // it never moved
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-4699</c> — the aircraft ALREADY ENGAGED is kept while it is still seen: with two in sight and the newest sighting flipping
+        /// between them every frame, the fire stays on the first. 📐 ua-air-defence: the Stinger's 6.33 s aim reset every tick as its target flipped
+        /// Apache ↔ UH-60 and the one missile went to the UH-60. 🔴 Red-proof: the keep removed ⇒ the target changes ⇒ red.
+        /// </summary>
+        [Fact]
+        public unsafe void CE4699_TwoAircraftInSight_TheEngagedOneIsKept_NotTheNewestEachFrame()
+        {
+            var tech = Place(TkbEntityTypes.Technical_Zu23, new Vector3(300, 300, 0));
+            _w.AddComponent(tech, new WeaponChannel());
+            _w.AddComponent(tech, new EntityInfo { Name = "AA", ForceId = ForceId.Hostile });
+            var a = Helicopter(new Vector3(100, 300, 60));
+            var b = Helicopter(new Vector3(500, 300, 60));
+            var p = default(EngageAircraftParams);
+            var ws = default(EngageAircraftState);
+            Entity first = Entity.Null;
+            int switches = 0;
+            for (int frame = 0; frame < 60 * 4; frame++)
+            {
+                _w.SetSingleton(new GlobalTime { TotalTime = frame * Dt });
+                uint tick = (uint)(10 + frame);
+                // both seen, the newer of the two flipping every frame
+                Remember(tech, a, new Vector3(100, 300, 60), frame % 2 == 0 ? tick + 1 : tick);
+                Remember(tech, b, new Vector3(500, 300, 60), frame % 2 == 0 ? tick : tick + 1);
+                AirDefenceNodes.EngageAircraft(ref p, ref ws, tech, _w);
+                ref var ch = ref _w.GetComponentRW<WeaponChannel>(tech);
+                if (ch.ActiveAction != CombatConstants.ActionIdAimAndFire) continue;
+                var target = System.Runtime.CompilerServices.Unsafe.As<byte, Fdp.Toolkit.Combat.Executors.AimAndFireParams>(ref ch.Params[0]).Target;
+                if (first.IsNull) first = target;
+                else if (!target.Equals(first)) switches++;
+            }
+            Assert.False(first.IsNull, "it fired");
+            Assert.Equal(0, switches);
         }
 
         // ── ⭐⭐ CE-4617 (B-3; docs/designs/air-attack/DESIGN_Radar_SAM.md RS-4 / RS-5 / RV-1 / RV-10 / RV-11) — the radar SAM ─────────────

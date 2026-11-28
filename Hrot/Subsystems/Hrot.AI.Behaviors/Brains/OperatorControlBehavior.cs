@@ -87,11 +87,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (world.IsComponentTypeRegistered<OperatorInput>() && world.HasComponent<OperatorInput>(self))
             {
                 var input = world.GetComponentRO<OperatorInput>(self);
-                drive = new ManualDrive
-                {
-                    Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Vertical = input.Vertical, Gait = input.Gait,
-                    Seq = input.Seq,
-                };
+                // ⭐ SD-S2c (devices §3.13c, ruling 9) — the ONE axes → drive mapping, shared with the remote pilot (a drone flown through a ground station)
+                drive = ManualFlight.FromAxes(input.Forward, input.Lateral, input.Yaw, input.Vertical, input.Steer, input.Gait, input.Seq);
                 // ⭐ CE-1074 (DESIGN_Entity_Control.md §13.5) — the operator's stance, through the brain's one way to ask for it
                 //   (StanceRequest: a version bump only on a change, so a frame per tick is harmless). 🔒 User, 2026-10-14: "I will
                 //   need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key press)".
@@ -101,14 +98,16 @@ namespace Hrot.AI.Behaviors.Brains
                 //   change, so a frame per tick does not re-send dtLean. A prone man does not lean (the sim's rule, Leans.SignOf).
                 if (input.Lean <= (byte)LeanSide.LeanRight && Leans.Of(world, self) != (LeanSide)input.Lean)
                     Leans.Set(world, self, (LeanSide)input.Lean);
-                // ⭐ CE-1219 (§8k B-1) — binoculars up while B is held, through the one writer (it refuses a man who carries none); down again
-                //   when let go — only his OWN binoculars, never another held item
-                bool up = HeldItems.BinocularsUp(world, self);
-                if (input.Binoculars != 0 && !up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
-                else if (input.Binoculars == 0 && up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             }
             else if (world.HasComponent<ManualDrive>(self))
                 drive.Yaw = world.GetComponentRO<ManualDrive>(self).Yaw;   // no frame: stop, keep facing
+            // ⭐⭐ Devices S1d-3 (DESIGN_Simulated_Devices §3.10 D-63 / D-75 — replaces CE-1219's B level) — he RAISES the optic while a view of his
+            //   station shows a hand-held device he carries (its frame's Viewed, CarriedDevices — a declared tick-start read), and lowers it after;
+            //   through the one writer (HeldItems.Set refuses a man who carries none) — only the binoculars pose, never another held item
+            bool viewed = Fdp.Toolkit.Behavior.Devices.CarriedDevices.AnyViewed(world, self);
+            bool up = HeldItems.BinocularsUp(world, self);
+            if (viewed && !up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.Binoculars);
+            else if (!viewed && up) HeldItems.Set(world, self, Fdp.Toolkit.Combat.Components.HeldItemKind.None);
             // ⭐ CE-1157 — no frame (a RIDER: the possession takes his frames while the station drives his vehicle) keeps the last frame
             //   number, so a station that restarts its frames after the ride (Seq 1 again, counters from 0) still reads as a NEW station and
             //   resets the press counters; zeroing it swallowed the first press after the ride (its counter equal to the last one acted on)

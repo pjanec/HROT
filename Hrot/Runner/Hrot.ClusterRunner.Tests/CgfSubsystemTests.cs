@@ -87,7 +87,6 @@ public class CgfSubsystemTests : IDisposable
         "Hrot.Common.EntityCreation.SeatPresetSystem",
         "Hrot.Common.Macros.MacroExpansionSystem",          // ⭐ CE-3451 — macros S3a ④: the shared EntityCreation registers it after the seat presets
         "Hrot.SimHost.Systems.GenesisMaterializationSystem",
-        "Hrot.SimHost.Systems.InitialBrainMaterializationSystem",
         "Hrot.SimHost.Systems.BlueprintMaterializationSystem",
         "Fdp.Toolkit.Blueprints.Systems.BlueprintEventIngressSystem",
         "Fdp.Network.Cyclone.Modules.CycloneNetworkIngressSystem",          // ⭐ CE-3451 — added since the pin: CE-1139 — CGF's stance pair (AnimationReplicationModule.RegisterStanceOn)

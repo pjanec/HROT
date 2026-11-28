@@ -254,6 +254,8 @@ namespace Hrot.SimHost
             Fdp.Toolkit.Lifecycle.EntityLifecycleModule? elm = null,
             // ⭐ CE-4013 (§4.1ae T1) — the node's terrain content (HrotNodeContext.TerrainContent). ⛔ A caller that HAS a context passes it.
             Hrot.Map.Common.Services.TerrainContentRegistry? terrainContent = null,
+            // ⭐ CE-11026 — the node's linked-client registry (HrotNodeContext.LinkedClients): the load waits for the client it holds. ⛔ A caller that HAS a context passes it.
+            Hrot.Common.Infrastructure.LinkedClients? linkedClients = null,
             // ⭐⭐ CE-4013 D15 — the node's ONE cluster slave and ONE slave translator (HrotNodeBuilder step 8). ⛔ This used to build a
             //   second pair, so every host on this path ran two NedSlaveOrchestrationTranslators — the builder's never ticked, its DDS
             //   readers never drained. A caller that HAS them passes them; only a caller with no context builds new ones here.
@@ -377,6 +379,7 @@ namespace Hrot.SimHost
                 DryRunIncludesTransient = dryRunIncludesTransient,
                 ProfileLoadParts   = profileLoadParts ?? Array.Empty<LoadPart>(),
                 MapBuildStatus     = mapBuildStatus,
+                LinkedClients      = linkedClients,   // ⭐ CE-11026 — the load waits for the node's linked client (silent-default rule: HostOrchestration passes the context's)
                 LoadProviders      = loadProviders,
                 ScenarioHandlers   = handlersToRegister,
                 ScenarioSaveHandler = scenarioSaveHandler,
