@@ -21,7 +21,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(231)]
+    [ComponentId(511)]
     public struct Velocity2D
     {
         public Vector2 Linear;

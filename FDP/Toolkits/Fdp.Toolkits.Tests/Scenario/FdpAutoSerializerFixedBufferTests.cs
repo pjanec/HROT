@@ -401,7 +401,7 @@ namespace Fdp.Toolkit.Scenario.Tests
     /// tests; the rail registers it with <see cref="DataPolicy.Default"/> explicitly.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(228)]
+    [ComponentId(500)]   // ⭐ the test-only range (500-511): 228 is DeviceInput, registered in this suite (it collided by suite order)
     [DataPolicy(DataPolicy.NoPreview | DataPolicy.NoScenario | DataPolicy.NoReplay)]
     public struct EntityInlineComp
     {

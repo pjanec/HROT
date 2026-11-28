@@ -17,7 +17,7 @@ namespace Fdp.Toolkit.Scenario.Tests;
 /// </summary>
 public sealed class DataPolicySaveContextMeasurement
 {
-    [ComponentId(231)]
+    [ComponentId(504)]
     private struct PlainPos { public float X; }
 
     [Fact]
