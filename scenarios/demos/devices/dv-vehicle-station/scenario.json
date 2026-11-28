@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S1 (§5a, D-1''). The OP vehicle is the observer HMMWV (TKB 120): its type PRE-MOUNTS a laser rangefinder in the device station (seat 7) that its COMMANDER seat (6) operates. A scripted trainee possesses the Commander sitting in seat 6, binds his view to the vehicle's rangefinder, aims at a marker 450 m away and presses RANGE. Judge: (1) the rangefinder is in the vehicle's station (seat 7) and the Commander in his own seat (6) - the seat holds HIM, not the device; (2) the device is operated by his station (its PossessedBy row: Operated); (3) the range to the marker is 450 m (within 3 m) and the laser met the marker. Fail: the device is missing, unoperated, or measures nothing. Check: scripts/scenario-regression.sh dv-vehicle-station"
+  },
+  "entities": {
+    "d5e10003-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 120
+      },
+      "EntityInfo": {
+        "Name": "OP vehicle",
+        "ForceId": "Friend"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10003-0000-4000-8000-000000000002"
+        ],
+        "Seats": [
+          6
+        ]
+      }
+    },
+    "d5e10003-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Commander",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10003-0000-4000-8000-000000000001",
+        "Seat": 6
+      }
+    },
+    "d5e10003-0000-4000-8000-000000000003": {
+      "SimTransform": {
+        "Position": [
+          318.2,
+          318.2,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

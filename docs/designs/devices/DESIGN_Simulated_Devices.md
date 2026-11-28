@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
+updated: 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
 current-answer: ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
@@ -149,7 +149,10 @@ classDiagram
   class FrameIngest { <<existing code, extracted>> unit or device target · OwnsBrain and HeldBy · newest Seq }
   class PossessedBy { <<existing, grows>> StationNodeId · Mode plus Operated · Epoch — two writers split by Mode }
   class OperatorInput { <<existing>> the newest frame — on the unit AND on a device · cleared on an operator change }
-  class DeviceDefDto { <<NEW, TKB>> channel names · message kinds · stacking offset · the behaviour · profile with BrainTier, no DefaultBehavior }
+  class DeviceDefDto { <<BUILT S1e-1, TKB Gen.Device>> channel names · message kinds · optic steps · stacking offset · the behaviour · profile with BrainTier, no DefaultBehavior }
+  class DeviceTkbTranslator { <<BUILT S1e-1, every host>> writes Mountable kind Device + DeviceInfo at creation }
+  class DeviceFrameSender { <<BUILT S1e-2, extracted from the station>> one DeviceFrameEvent per operated device · the look rel. to the mount · Viewed · the bound device's presses and axes }
+  class ScriptedStation { <<BUILT S1e-2, the verifier>> do possess / view / control — presses by the TKB channel NAME · sends on change }
   class DeviceInfo { <<NEW, unmanaged, recorded>> DeviceTypeId — the device marker: device tick, HUD key, not a unit }
   class BrainTickSystem { <<existing, WhenTimeAdvances>> every brain except devices · Prepare · cadence · SOP }
   class DeviceTickSystem { <<NEW, EveryFrame, Simulation after BrainTickSystem>> DeviceInfo only · operator walk · start and restart · off under ReplayState }
@@ -242,6 +245,11 @@ classDiagram
   LaserLayer3D ..> LaserSpot : reads
   DeviceDefDto ..> Mountable : writes at creation
   DeviceDefDto ..> DeviceInfo : adds at creation
+  DeviceTkbTranslator ..> DeviceDefDto : reads
+  PossessionStation --> DeviceFrameSender : the keyboard and mouse
+  ScriptedStation --> DeviceFrameSender : a scenario's trainee
+  ScriptedStation ..> DeviceDefDto : channel names
+  DeviceFrameSender --> DeviceFrameEvent : publishes
 ```
 
 *What the picture shows that prose hid: a device TYPE is the four `Rangefinder*` boxes — params, state, behaviour, HUD — in one folder (D-57);
@@ -297,7 +305,7 @@ is a `Preview` no other system acts on; and resuming re-reads nothing — the de
 | SD-3 | world effects go through EXISTING seams (an order, a report, a weapon's control); the state is the device's own memory | other systems read typed seams, never a device's private layout |
 | R5-8 | **`DeviceInfo { DeviceTypeId }`** — unmanaged, recorded, written once from the TKB at creation: the ONE device marker (the device tick's filter, the HUD key, the "not a unit" test) | recorded, so `dv-replay-hud` finds it; `ReplayState` (not a `NoReplay` tag) stops the tick in replay |
 | R5-5 | unit queries that mean *a unit* add `Without<DeviceInfo>` — ~60 production sites read *has `BehaviorState`* that way (`GrenadeReflex.cs:372`, `MineBreadcrumbs.cs:101`, `StressSystem.cs:490`, `ProficiencyFillSystem.cs:65`, …); classified in SD-S1, with a rail that puts a device into a showcase and asserts no unit system touches it | ⚠ which sites misbehave is inferred (many also require `Health`) |
-| R7-4 | the device's TKB shape: `DeviceDefDto` (channel names, message kinds, stacking offset, the behaviour) + a `BehaviorProfileDto` **with a `BrainTier`, no `DefaultBehavior`**; `BehaviorTkbTranslator` **skips the tactical block** (`EntityInfo`, ROE, channels, mission queue …) for `DeviceDefDto` types; creation writes `Mountable` and adds `DeviceInfo` | the translator adds `BehaviorState` only for a profile and stamps soldier parts with a tier; a `DefaultBehavior` would queue a second start |
+| R7-4 | the device's TKB shape: `DeviceDefDto` (channel names, message kinds, stacking offset, the behaviour) + a `BehaviorProfileDto` **with a `BrainTier`, no `DefaultBehavior`**; `BehaviorTkbTranslator` **skips the tactical block** (`EntityInfo`, ROE, channels, mission queue …) for `DeviceDefDto` types; creation writes `Mountable` and adds `DeviceInfo` — ✅ **built S1e-1** (`DeviceTkbTranslator`; §5a S1e AS BUILT) | the translator adds `BehaviorState` only for a profile and stamps soldier parts with a tier; a `DefaultBehavior` would queue a second start |
 | D-26 / D-29 | channel MEANING is TKB data (`DeviceDefDto`: lamp 3 = "LASER", button 0 = "RANGE"); the wire is the same for every device | a new device = a TKB type + its folder |
 | D-48 | **`DevicePose { Orientation (to its mount), Offset }`** — unmanaged, replicated, recorded, written ONLY by the device's brain; ONE resolver `DevicePoses.World(view, device)` = the mount chain ∘ the pose, used by the camera, the HUD, the laser and the renderer | one answer to "where does it look" |
 | R5-13 | in mouse mode the device writes `DevicePose` from the frame's `Orientation`, which the station fills from the look when no tracker is bound | — |
@@ -355,7 +363,7 @@ run; his views choose what each shows (§3.6).
 | R3-2 | the **frame-apply ROUTINE** is extracted from `PossessionSystem` and serves both: `OwnsBrain && HeldBy`, newest `Seq` → the TARGET's own `OperatorInput` (one input component for units and devices) | `Possession.cs:257, :259` |
 | D-72 / R6-3 / R7-2 | **`BrainPhaseRunner`** — the extracted shared phase: the due list, the phase job, deferred follow-ups, `Finish`, the fault end; serial AND parallel (`Parallel` off, `HROT_SERIAL_BRAINS`); inputs: the behaviour registry, **ONE restart callback** (finish, fault, relayout — devices restart inline, `BrainTickSystem` keeps its event), the terminal-dedup record per owning system. ⛔ **No `BrainPhase.Prepare`** — `BrainTickSystem` keeps calling it. Cadence, SOP slots and the dead query stay `BrainTickSystem`'s | `BrainTickSystem.cs:321-425` (~100 lines), `:323`; `Prepare` runs world-wide AI hooks — `AirArenaSystem.PrepareFrame` is a world WRITER; `RestartIfRelaidOut` restarts by an event only the time-advancing ingress reads |
 | R6-2 / R7-12 | the pre-pass **OWNS the device's run**: a device with no run (new, finished, faulted, relaid out) is started from its type (`DeviceInfo.DeviceTypeId` → the behaviour its `DeviceDefDto` names) **inline, by `AssignNow` on the configured `BehaviorIngressSystem` instance passed in** (as `RuleEditSystem(_missionControlModule.Ingress)`, `CgfLogicPack.cs:339`) — in pause too. A device's run never ends: finish, fault and relayout restart it | a behaviour starts only through the ingress (`WhenTimeAdvances`, `BehaviorIngressSystem.cs:38-44`; `AssignNow` `:1135`) and sessions boot paused ⇒ no brain, frames refused (`OwnsBrain`, `Possession.cs:405`); a new service would drop the ingress's configuration (`Holds`, `TasksTakenByOrders`) |
-| R7-4 | the device's run has origin **`Self`**; the ingress **refuses an assign / clear aimed at a `DeviceInfo` entity** from anyone but the device tick | an order, a mission or a reaction could otherwise replace it |
+| R7-4 | the device's run has origin **`Self`**; the ingress **refuses an assign / clear aimed at a `DeviceInfo` entity** from anyone but the device tick — ✅ **built S1e-1** (in `Admit`, the one gate) | an order, a mission or a reaction could otherwise replace it |
 | R6-6 / R7-12 | phase **`Simulation`, after `BrainTickSystem`**, registered by `CognitiveRuntimeModule`; it takes `gateOnAuthority` like the other cognitive systems (rails that index `SimulationSystems` by position are updated) | a device reads its carrier's state of THIS tick; the HUD projector (`PostSimulation`) draws what it just wrote |
 | R6-4 / R-4300 | **pause = sim time** for a device (dt = 0, `GlobalTime` frozen): anything that simulates (a battery, a timer, a drone's state) freezes. In pause a device changes only ITSELF (state, panel, pose, pointing) — ⛔ no world effect. Only observation runs on the WALL clock — input and camera / joystick smoothing — and that lives on the station; a HUD's visual blink is the projector's, by frame count | 🔒 user: *"drone battery must freeze … only observation related stuff should keep working, using wall clock time"*; R-4300 is the device-local exception to R-3114 |
 | D-72 / R3-10 | read once; newest `Seq`, the press counters and the message `Seq` stay as cheap guards | — |
@@ -788,9 +796,9 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 | `dv-menu-and-modes` (S1, laser-free) | a scripted trainee powers the device on, steps its modes and its menu | `Mode` / `Menu` follow each press · the `hud` shows each mode's layout · a second, untargeted device's state does not change |
 | `dv-range-targets` (S1) | a scripted trainee possesses an observer holding the rangefinder, aims at three named markers — **hittable bodies**, named in the scenario — at 200 / 450 / 900 m and presses RANGE at each | `device range` within the device's accuracy of each marker's distance · `hud` shows each range · the device's `LaserSpot.Entity` is the marker |
 | `dv-vehicle-station` (S1) | the trainee sits in a vehicle's commander seat; the vehicle type pre-mounts the rangefinder in a `Station` operated by that seat | the device is in the Station (its `OperatedBy` = the trainee's seat) · ranging works as above · the trainee's seat holds HIM, not the device |
-| `dv-switch-devices` (S1) | two devices at one seat (the binoculars and the rangefinder); `do: view` re-binds the view | the `hud` for the view's source shows the second device's run after the re-bind, the first's before · a press reaches only the device its frame targets · ⚠ the held-item row (*the bound binoculars ⇒ the held item is raised*) needs `ViewedDevice` — see §9 |
+| `dv-switch-devices` (S1) | two devices at one seat (the binoculars and the rangefinder); `do: view` re-binds the view | the `hud` for the view's source shows the second device's run after the re-bind, the first's before · a press reaches only the device its frame targets · the bound binoculars ⇒ the held item is raised (✅ S1d-3's `Viewed`; ⭐ as built it stays raised while the view shows ANY hand-held device — D-63 — and goes down at the eye) |
 | `dv-paused-operation` (S1) | `do: pause` 120 frames; `do` rows `atPausedFrame` 10 / 40 step the menu and range a marker | `atPausedFrame` rows: the device's `mode` / `menu` change while sim time is unchanged · the range is measured (a `Preview` spot) · ⛔ `never` (sampled every paused frame): any unit moves, any shot, any order taken during the pause |
-| `dv-replay-hud` (S1) | the paused run above, recorded FULL, then replayed (the H5 review check), judged on the WALL-CLOCK axis | the `hud` row at a paused frame gives the same text in replay as live |
+| `dv-replay-hud` (S1) | the paused run above, recorded FULL, then replayed (the H5 review check), judged on the WALL-CLOCK axis | the `hud` row at a paused frame gives the same text in replay as live — ⚠ as built (S1e): the H5 review shows the live world (the recorded state the HUD is drawn from — `DevicePanel` with its range text, `LaserSpot` with `Preview`, `DevicePose`, the device's memory) ✅; the HUD TEXT read in the review at a paused wall-clock frame ⏳ **CE-4713** |
 | `dv-drone-operator` (S2) | the trainee flies the drone out and back with the gamepad | `device battery` / `signal` equal the drone's simulation · the link lost ⇒ the lamp |
 | `dv-target-message` (S3) | trainee A sends a target message; the pilot station shows it | the pilot device's `hud` contains the message · its map point is A's spot |
 | `dv-operator-panel` (S4) | the trainee runs the panel's procedure | the weapon system reaches its ready state (its own component) |
@@ -811,6 +819,42 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 ⭐ Rails (not scenarios) for what a scenario cannot see: the adapters (a loopback replica adapter), 0 B per steady frame for the projector and the
 device tick (R-2084), the parallel checks on the device tick (`HROT_PARALLEL_SIM=1` + `HROT_READ_CHECK=1`), the full-buffer `HudScope` rail, one rail
 per buffer-reader family (R5-4), the no-unit-system-touches-a-device rail (R5-5), and a frame rail of each HUD against its mockup (R-4138).
+
+⭐ **S1e AS BUILT (`2026-11-28`)** — the device TYPE, the scripted trainee, the six SD-S1 scenarios (`scenarios/demos/devices/`, generated by
+`scripts/gen-devices-scenarios.py`): **6 / 6 pass** under `scripts/scenario-regression.sh`, goldens captured; `dv-replay-hud`'s H5 review
+(`--verify-review-at 4`) **SAME** (review, return, after).
+**S1e-1 — R7-4:** `Gen.Device` = **`DeviceDefDto`** (`Fdp.Toolkit.Tkb.Domain`: the behaviour, the channels by NAME in wire order, message kinds, the
+optic's magnifications + default step, the stacking offset, `MountKinds` = Device, one-man) + a `BehaviorProfileDto` with a `BrainTier` and no default
+(`NedTkbBuilder.WithDevice`). **`DeviceTkbTranslator`** (in `TkbTranslatorSet.Base()`, every host) writes `Mountable` (kind Device) and `DeviceInfo`
+(the type + its behaviour) at creation — ⭐ the one creation path (the S1c–S1d-3 rails stamped `DeviceInfo` by hand); `BehaviorTkbTranslator` stamps
+only `BehaviorState` for a device type (no `EntityInfo`, capabilities, ROE, channels, mission queue, SOP, journal, default start). **The ingress
+refuses** an assign / clear aimed at a `DeviceInfo` entity from any origin but `Self` (the device tick's `AssignNow`) — in the ONE gate
+(`BehaviorIngressSystem.Admit`; `BrainRefusal.ADevice`, appended). Types: **640** laser rangefinder (RANGE · MODE · MENU · SELECT, 7×), **641**
+binoculars (ZOOM IN · ZOOM OUT, 5× / 7× / 10×), **120** the OBSERVER HMMWV (the no-crew HMMWV + a Commander seat 6 and a device Station 7 it operates,
+`StartWith` the rangefinder — a scenario places it by type, the preset names it "Laser rangefinder"). A man's kit is placed in a scenario as any item
+(`PassengerBuffer` + `IsEmbarkedTag`, seats 4–7). ⚠ **Deviation:** the behaviours keep their channel / zoom constants (`RangefinderChannels`,
+`BinocularsZoom`); the TKB names them and `RangefinderBehaviorTests.S1e1_…` pins the two to ONE fact (a per-tick TKB lookup bought nothing).
+Rails: `DeviceTickSystemTests.S1e1_*` (2, the refusal red-proved), `CreateEntityRequestSystemTests.S1e1_…`, `RangefinderBehaviorTests.S1e1_…`.
+**S1e-2 — the grammar** (DESIGN_Scenario_Regression §3, rows added there): `do: possess / view / control / pause`, `atPausedFrame` (do and expect),
+the `field` cue's `memory` (`UnitMemoryJson` — the struct by name on the BRAIN world; an entity reads as its unit's name), the `hud` cue
+(`HudRuns.Read` — `HudScopes.Keep` over the PUBLISHED frame; ⭐ `"source": "station:1"` = what the station's view is bound to NOW, added because both
+devices' runs are always published — the view filter is what a re-bind changes). **`ScriptedStation`** possesses through the HTTP possess
+(`PostPossess`: the map's own station then sends nothing that would race it, CE-1464 — extended to its device frames) and sends one
+`DeviceFrameEvent` per operated device through **`DeviceFrameSender`** — extracted from the S1d-3 station, which uses it too (ruling 9); presses by
+the TKB channel NAME to the VIEWED device only, the look aimed at a unit's centre (+1 m) or a point. `do: pause` holds the run's step (`HoldStep`) for
+n frames; every paused frame is sampled. Rails: `ScenarioChecksTests.S1e2_*` (6; the paused-frame sampling red-proved), `PossessionStationTests` 82 / 82.
+**S1e-3 — defects the scenarios found, each fixed with a rail:** ① a device counted its own ticks (`RangefinderWork.Ticks`, `BinocularsWork.Ticks`)
+EVERY FRAME, and the scripted frames' `Seq` moved every frame ⇒ the device's recorded memory and input depended on how many frames a sim instant had
+— the H5 review differed from the live run at t = 0, and the run after the review from the straight one (`dv-replay-hud`) → the counters are gone
+(`RangefinderBehaviorTests.S1e3_…`) and the scripted station sends a frame only when its control changes (`DeviceFrameSender.OnlyOnChange`, the
+`ScriptedStation` rail); ② a `hud` row judged only on a later frame read an EMPTY frame — the headless editor's gizmo gate (CE-11045) had shut →
+the verifier holds it open on every frame of a run that reads a HUD (`IVerifyWorld.KeepHudFeed`, rail in `S1e2_TheHudCue_…`); ③ the `hud` cue on the
+plain eye never held (`count == 0` had no source to read) → it reads source 0. 📌 Measured, not a device defect: on a terrain with no world
+(`berlin`) the collider grid stays [−750, 750)² — a marker at (0, 900) is met by no laser, as by no round (CE-2193 warns) ⇒ `dv-range-targets`
+stands its observer west. ⚠ **Not judged (outside this slice):** `dv-paused-operation`'s *"any order taken during the pause"* — the grammar has no
+"changed since" op; its other two `never` rows (no unit moves, no shot) are judged on every paused frame. `dv-replay-hud`'s HUD TEXT in the review
+at a paused wall-clock frame needs the look-back to read the gizmo feed (it compares recorded components at sim-time snapshots) — **CE-4713**.
+⛔ Not run here (forbidden broad runs; T3): the nightly cluster tier of these scenarios (SD-C).
 
 ## 6. Rules this respects
 

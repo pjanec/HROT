@@ -153,6 +153,22 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(RangefinderPanel.LampRange, n.Panel.LampBits & (RangefinderPanel.LampRange | RangefinderPanel.LampLaser));
         }
 
+        /// <summary>⭐ S1e-3 (dv-replay-hud) — a steady tick COUNTS NOTHING: a device ticks every frame, paused or not, so any per-frame counter in its run
+        /// made its recorded memory depend on how many frames a sim instant had — the H5 review and the run after it differed (the S1c <c>Work.Ticks</c>).</summary>
+        [Fact]
+        public void S1e3_ASteadyTick_CountsNothing_ItsMemoryDependsOnInputOnly()
+        {
+            using var n = new Node();
+            n.Operated(1);
+            n.Input(range: 0);
+            n.Tick();
+            var state = n.State; var work = n.Ws; uint revision = n.Panel.Revision;
+            for (int i = 0; i < 10; i++) n.Tick();
+            Assert.Equal(work, n.Ws);
+            Assert.Equal(state, n.State);
+            Assert.Equal(revision, n.Panel.Revision);
+        }
+
         [Fact]
         public void S1c_AReReadFrame_NeverPressesTwice_AndThePanelIsWrittenOnlyOnChange()
         {

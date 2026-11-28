@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
+updated: 2026-11-28 (S1e built — SD-S1 done: 6 / 6 scenarios) · 2026-11-27 (overnight autonomous build started — user: "Go autonomously overnight")
 current-answer: §1 (state) · §2 (the queue) — read §1 first after a compaction
 stale-below: nothing
 related-designs:
@@ -28,7 +28,9 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 | **S1d-1** `HudScope` meta-primitive, `BeginScope`/`EndScope`, the one run-skip helper, `FrameFor` keeps the bound source's run, reader rails, R7-13 contiguity | ✅ | the S1d-1 commit — `HudScopes` (the one reader), `BeginScope`/`EndScope`/`AppendHeld`, `DebugGizmoLayer.BoundSource` + `ViewFrame`; rails in `HudScopesTests`, `DebugPrimitiveBufferLayerTests`, `DebugGizmoLayerGizmoTests`, `GizmoFramePanelTests`; ⚠ R7-13's threaded-node rail not built — the detector `ForeignAppendsInScope` is, S1d-2 asserts it in a threaded run (design S1d-1 AS BUILT) |
 | **S1d-2** the rangefinder HUD projector (DeviceHud layer, visibility policy, screen pass) to the mockups + fidelity renders | ✅ | the S1d-2 commit — `RangefinderHudGizmo` (own policy), `GizmoProjectorAttribute.Hud` (family policy fixed in the registry), `StatelessGizmoSystem` scopes HUD rules by network id, `DebugTraceLayers.DeviceHud = 253`, `CoordinateSpace.ViewCanvas` + `ViewCanvasDrawer` (the one screen pass); rails `RangefinderHudGizmoTests`, `StatelessGizmoSystemHudTests`, `RangefinderBehaviorTests.S1d2_…`, `RangefinderHudFrameRail`; ⚠ deviations in the design's S1d-2 AS BUILT (ViewCanvas not Screen; R7-13 threaded-node run still unbuilt) |
 | **S1d-3** the binoculars device replaces CE-1219 (`Viewed` raises the held item), `DevicePose` from the station look, view switching (mockup panels 1 + 6) | ✅ | the S1d-3 commit (not pushed) — `Devices/Binoculars/` (state, behaviour, HUD), CE-1219 dropped (body frame hash updated, R-4301; the WIRE byte kept for the Unreal client), `DeviceOptics` / `DeviceLooks` / `DevicePressReader` / `CarriedDevices` / `OperatedDevices`, the station's view source (B cycles, `ViewLayer.BoundSource`, the one FOV rule, device frames with the look + `Viewed`, label + strip); the lamp "square" was a scene window through the glow — a halo disc now; design §3.6 / §3.10 S1d-3 AS BUILT, Q-5 lean |
-| S1e the scenario grammar + SD-S1 scenarios | ⏳ | — |
+| **S1e-1** the device TKB type (R7-4): `DeviceDefDto` (`Gen.Device`), `DeviceTkbTranslator` (Mountable kind Device + DeviceInfo), no tactical block, the ingress refuses a device's assign / clear but `Self`; types 640 / 641 / 120 (observer HMMWV) | ✅ | the S1e-1 commit — rails `DeviceTickSystemTests.S1e1_*` (red-proved), `CreateEntityRequestSystemTests.S1e1_…`, `RangefinderBehaviorTests.S1e1_…` |
+| **S1e-2** the grammar: `do: possess / view / control / pause`, `atPausedFrame`, `field` + `memory`, `hud` (+ `"station:1"`); `ScriptedStation` over `DeviceFrameSender` (extracted from the station) | ✅ | the S1e-2 commit — `ScenarioChecksTests.S1e2_*` (6, red-proved), `PossessionStationTests` 82 / 82; grammar rows in DESIGN_Scenario_Regression §3 |
+| **S1e-3** the six SD-S1 scenarios (`scenarios/demos/devices/`, `scripts/gen-devices-scenarios.py`) | ✅ | the S1e-3 commit — **6 / 6 pass**, goldens captured, `dv-replay-hud` H5 review SAME; 3 defects fixed (frame-counting device state, the headless gizmo gate, the eye's hud) — design §5a S1e AS BUILT; ⏳ CE-4713 (the HUD text in the review) |
 | **queued (user `2026-11-27`)** SD-S4b steer the round in flight (both modes, crosshair first) + the missile's-view toggle — design §3.13a (D-80–D-91), §5 row, §5a `dv-steer-*` (5), Q-15 answered (R-4301: the device goes straight into `GuidedRound`) | ⏳ | after SD-S4 `FireControl`; real joystick = SD-S2 |
 
 ## 2. Rules learned this run (do not re-learn)
@@ -53,3 +55,8 @@ except as a slice's own proof in S1e); red-prove the key rail; fold the as-built
 - ⭐ S1d-3: two Press rows on one chord in one hat are a keymap CONFLICT (`Keymap.Validate`) — a device scope REUSES the existing row (LMB = the `Fire` press, read as the device's while a view shows one).
 - ⭐ S1d-3: a frame rail of a station HUD over the real scene can read a scene feature through a translucent element as a HUD shape (the S1d-2 "square glow") — zoom the crop before "fixing" the HUD.
 - ⭐ A mockup SVG rasterises here with the preinstalled Chromium (Playwright: `page.setContent(svg)` → `el.screenshot`) — no `rsvg-convert` needed; the S1d-2 side-by-side was made that way.
+- ⭐ S1e: a device ticks EVERY frame — ⛔ never count frames in its state, and a scripted adapter sends on change (`DeviceFrameSender.OnlyOnChange`): a frame-paced value makes the recorded state depend on how many frames a sim instant had (the H5 review differs).
+- ⭐ S1e: the headless editor's gizmo gate (CE-11045) shuts after an idle spell — a reader of the gizmo feed touches it every frame (`IVerifyWorld.KeepHudFeed`), else the first read finds an empty frame.
+- ⭐ S1e: a check's action name must not contain `-` or `+` (`AtExpr` reads `menu-1` as "menu" − 1 s) — use spaces.
+- ⭐ S1e: on a world-less terrain (`berlin`) the collider grid stays [−750, 750)² — a body beyond it is met by no round and no laser (CE-2193 warns); place markers inside it.
+- ⭐ S1e: both operated devices' HUD runs are ALWAYS published (each scoped); a re-bind changes what the VIEW keeps — judge it with `"source": "station:1"`.

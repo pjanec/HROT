@@ -21,11 +21,22 @@ namespace Fdp.Toolkit.Behavior.Devices
             public Entity Device;
             public uint Seq;
             public DeviceControl Control;
+            public DeviceControl LastSent;
+            public bool Sent;
         }
 
         private readonly Slot[] _slots;
 
-        public DeviceFrameSender(int maxDevices = 8) => _slots = new Slot[Math.Max(1, maxDevices)];
+        public DeviceFrameSender(int maxDevices = 8, bool onlyOnChange = false)
+        {
+            _slots = new Slot[Math.Max(1, maxDevices)];
+            OnlyOnChange = onlyOnChange;
+        }
+
+        /// <summary>⭐ S1e-3 — send a device's frame only when its control CHANGED (and its first one always). The keyboard station sends every input frame;
+        /// a scripted station sends on change, so the device's input (its <c>Seq</c>, recorded) does not depend on how many frames a sim instant had — 📌
+        /// dv-replay-hud's H5 review: a frame-paced <c>DeviceInput.Seq</c> made the run after a review differ from the straight run.</summary>
+        public bool OnlyOnChange { get; }
 
         /// <summary>Frames sent (rails).</summary>
         public long Sent { get; private set; }
@@ -59,10 +70,17 @@ namespace Fdp.Toolkit.Behavior.Devices
                     int a = Math.Min(axes.Length, DeviceAxes.Count);
                     for (int k = 0; k < a; k++) slot.Control.Axes[k] = Math.Clamp(axes[k], -1f, 1f);
                 }
+                if (OnlyOnChange && slot.Sent && Same(in slot.Control, in slot.LastSent)) continue;
                 w.Bus.Publish(new DeviceFrameEvent { Device = d, StationNodeId = station, Seq = ++slot.Seq, Control = slot.Control });
+                slot.LastSent = slot.Control;
+                slot.Sent = true;
                 Sent++;
             }
         }
+
+        private static bool Same(in DeviceControl a, in DeviceControl b)
+            => System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<DeviceControl>(in a))
+                .SequenceEqual(System.Runtime.InteropServices.MemoryMarshal.AsBytes(new ReadOnlySpan<DeviceControl>(in b)));
 
         private ref Slot SlotOf(Entity device, ReadOnlySpan<Entity> devices)
         {

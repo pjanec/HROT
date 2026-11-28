@@ -145,6 +145,9 @@ namespace Hrot.Editor.DebugApi
             return Hrot.Editor.Director.HudRuns.Read(buffer.ReaderFrame(), source, texts, ref _hudBound, ref _hudUnbound);
         }
 
+        /// <summary>⭐ S1e-2 — touches the headless editor's gizmo gate (CE-11045) so the projectors keep drawing while a verifier reads a HUD.</summary>
+        public void KeepGizmoFeedDrawing() => GizmoLease?.Touch();
+
         /// <summary>⭐ S1e-2 — the checks' <c>field</c> cue's <c>memory</c>: the unit's <c>[UnitMemory]</c> struct by name, read on THIS host's brain world.</summary>
         public JsonObject? UnitMemoryOf(int networkId, string type)
             => _entityMap.TryGetEntity(networkId, out var e) ? Hrot.Editor.Director.UnitMemoryJson.Read(_world, e, type) : null;

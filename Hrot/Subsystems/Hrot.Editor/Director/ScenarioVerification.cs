@@ -73,6 +73,11 @@ namespace Hrot.Editor.Director
         /// <summary>⭐ S1e-2 — the HUD run a view bound to <paramref name="source"/> (a network id) draws in the frame's PUBLISHED primitives: its texts into
         /// <paramref name="texts"/>, the run's primitive count returned (0 = no run); −1 where the host reads no gizmo feed.</summary>
         int HudRun(long source, List<string> texts) => -1;
+
+        /// <summary>⭐ S1e-2 — keeps the host's gizmo feed DRAWING (the headless editor's gate, CE-11045, shuts after an idle spell): called on every
+        /// frame of a run whose checks read a HUD, so a <c>hud</c> row judged only later (an <c>atPausedFrame</c> row) reads a drawn frame, not one
+        /// published while the gate was shut.</summary>
+        void KeepHudFeed() { }
     }
 
     /// <summary>
@@ -623,7 +628,8 @@ namespace Hrot.Editor.Director
         {
             if (c.Source is not { } name) return false;
             // ⭐ "station:1" — what the station's VIEW shows: the run of the source it is bound to now (the eye ⇒ no run)
-            IEnumerable<int> sources = name == CheckCue.StationView ? (_w.Station is { BoundSource: > 0 } st ? new[] { (int)st.BoundSource } : Array.Empty<int>()) : UnitsNamed(name);
+            //   — read as a view bound to source 0, whose run is empty and whose texts are the unscoped ones (so "count == 0" holds on the eye)
+            IEnumerable<int> sources = name == CheckCue.StationView ? (_w.Station is { } st ? new[] { (int)st.BoundSource } : Array.Empty<int>()) : UnitsNamed(name);
             foreach (var id in sources)
             {
                 _hudTexts.Clear();
@@ -1419,6 +1425,7 @@ namespace Hrot.Editor.Director
                     if (a.AtPausedFrame == _pausedFrame && !_done.Contains(a)) { _done.Add(a); Apply(a, rel); }
             }
             _w.Station?.Frame(rel);
+            if (_readsHud) _w.KeepHudFeed();   // ⭐ S1e-2 — every frame: the HUD must be drawing when a hud row is judged
             if (paused) _book.Observe(rel, _pausedFrame);
             else if (rel + 1e-9 >= _nextSample) { _book.Observe(rel); _nextSample += _checks.SampleEvery; }
             if (_run != null && rel + 1e-9 >= _nextSnapshot) { _run.Snapshot(rel); _nextSnapshot += _every!.Value; }
@@ -1426,6 +1433,8 @@ namespace Hrot.Editor.Director
 
         // ⭐ S1e-2 — the pause in progress: frames still to hold, the paused frame we are on, the pause's name (recorded on its first paused frame)
         private int _pauseLeft, _pausedFrame;
+        private bool _readsHud => _hudChecks ??= _checks.Expect.Any(e => e.Cue.On == "hud") || _checks.Anchors.Values.Any(c => c.On == "hud");
+        private bool? _hudChecks;
         private string? _pauseName;
 
         /// <summary>⭐ S1e-2 — the run's step is HELD this frame (a <c>do: pause</c> holds the sim time for its frames; the frames go on). Called once a frame.</summary>

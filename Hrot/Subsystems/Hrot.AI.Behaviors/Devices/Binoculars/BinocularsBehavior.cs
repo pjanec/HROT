@@ -34,7 +34,8 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
         [StructLayout(LayoutKind.Sequential)]
         public struct BinocularsWork
         {
-            /// <summary>Ticks of this run (diagnostic).</summary>
+            /// <summary>⛔ Reserved, always 0 — S1e-3 (dv-replay-hud): a device counts NOTHING per frame. It ticks every frame, paused or not, so a frame
+            /// counter made its recorded memory depend on how many frames a sim instant had (the H5 review and the run after it differed).</summary>
             public uint Ticks;
         }
 
@@ -61,7 +62,6 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
         [SharedAiAction]
         public static NodeStatus Tick(ref BinocularsParams p, ref BinocularsWork ws, Entity self, EntityRepository world)
         {
-            ws.Ticks++;
             ref var st = ref UnitMemory.Ref<BinocularsState>(world, self);
             if (st.Ready == 0) { st.Zoom = BinocularsZoom.DefaultStep; st.Ready = 1; }
             Span<int> moved = stackalloc int[BinocularsChannels.Count];

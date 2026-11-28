@@ -49,7 +49,8 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         [StructLayout(LayoutKind.Sequential)]
         public struct RangefinderWork
         {
-            /// <summary>Ticks of this run (diagnostic).</summary>
+            /// <summary>⛔ Reserved, always 0 — S1e-3 (dv-replay-hud): a device counts NOTHING per frame. It ticks every frame, paused or not, so a frame
+            /// counter made its recorded memory depend on how many frames a sim instant had (the H5 review and the run after it differed).</summary>
             public uint Ticks;
         }
 
@@ -76,7 +77,6 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
         [SharedAiAction]
         public static NodeStatus Tick(ref RangefinderParams p, ref RangefinderWork ws, Entity self, EntityRepository world)
         {
-            ws.Ticks++;
             ref var st = ref UnitMemory.Ref<RangefinderState>(world, self);
             Span<int> moved = stackalloc int[RangefinderChannels.Count];
             DevicePressReader.Read(world, self, ref st.Presses, moved);   // ① the presses (re-based on a new operator epoch, R7-11)

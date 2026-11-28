@@ -32,7 +32,7 @@ namespace Hrot.Editor.Director
 
         private readonly Func<EntityRepository?> _world;
         private readonly Func<int, string?> _possess;
-        private readonly DeviceFrameSender _sender = new(MaxDevices);
+        private readonly DeviceFrameSender _sender = new(MaxDevices, onlyOnChange: true);   // ⭐ S1e-3 — frame-count independent (dv-replay-hud)
         private readonly Entity[] _sources = new Entity[MaxDevices];
         private readonly byte[] _presses = new byte[DevicePresses.Count];
         private readonly float[] _axes = new float[DeviceAxes.Count];

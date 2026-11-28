@@ -391,6 +391,7 @@ public sealed class ScenarioChecksTests
         Assert.Equal(6, held);
         Assert.Equal(new[] { "possess 1", "control MENU aim=" }, w.St.Calls);
         Assert.Equal(40, w.St.Frames);                    // every frame, paused ones too
+        Assert.Equal(0, w.HudFeedKept);                   // no hud row: the gizmo gate is left alone
         var verdicts = v.Finish(rel, 0).Verdicts.ToDictionary(x => x.Name, x => x.Ok);
         Assert.True(verdicts["open at paused frame 3"]);
         Assert.False(verdicts["closed at paused frame 1"], "judged on paused frame 1 only — before the press");
@@ -415,6 +416,9 @@ public sealed class ScenarioChecksTests
         w.Huds[2] = new() { "LAST RANGE", "452 m" };
         w.Huds[3] = new() { "BINOCULARS", "7×" };
         w.Memories[(2, "RangefinderState")] = new JsonObject { ["LastRange"] = 460.0 };
+        var v = new ScenarioVerification(c, null, false, w, 0);
+        for (int i = 0; i < 3; i++) v.Observe(0.01 * i);
+        Assert.Equal(3, w.HudFeedKept);                   // ⭐ a run that reads a HUD holds the headless gizmo gate open on EVERY frame (CE-11045)
         var book = new ConditionBook(c, w, 0);
         book.Observe(1);
         Assert.True(book.Times.ContainsKey("the rangefinder's run shows 452 m"));
@@ -492,6 +496,12 @@ public sealed class ScenarioChecksTests
         var dir = Vector3.Transform(Vector3.UnitX, mine.Control.Orientation);
         Assert.True(Vector3.Dot(Vector3.Normalize(dir), Vector3.Normalize(new Vector3(100f, 100f, ScriptedStation.AimHeight))) > 0.9999f, $"the look points at the target ({dir})");
         for (int i = 0; i < 20; i++) { s.Frame(0); w.Bus.SwapBuffers(); }
+        // ⭐ S1e-3 — nothing changed: nothing sent (a device's recorded input must not depend on how many frames a sim instant had — dv-replay-hud)
+        long sent = s.FramesSent;
+        Assert.Equal(2, sent);
+        Assert.Null(s.Control(new StationAction { Kind = "control", Press = new[] { "RANGE" } }, 0));
+        s.Frame(0);
+        Assert.Equal(sent + 1, s.FramesSent);                        // the press: the bound device's frame only
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 50; i++) { s.Frame(0); w.Bus.SwapBuffers(); }
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
@@ -597,6 +607,8 @@ public sealed class ScenarioChecksTests
         public readonly Dictionary<(int, string), JsonObject> Memories = new();
         public JsonObject? Memory(int networkId, string type) => Memories.TryGetValue((networkId, type), out var m) ? m : null;
         public readonly Dictionary<long, List<string>> Huds = new();
+        public int HudFeedKept;
+        public void KeepHudFeed() => HudFeedKept++;
         public int HudRun(long source, List<string> texts)
         {
             if (!Huds.TryGetValue(source, out var t)) return 0;

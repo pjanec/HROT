@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S1 (§5a, R6-4 / R-4300). A scripted trainee possesses the Observer (a laser rangefinder in his kit), binds his view to it and aims at a marker 450 m away; then the run PAUSES for 120 frames (do: pause - sim time held, the frames go on) and inside the pause he opens the menu (paused frame 10) and ranges the marker (paused frame 40). Judge: (1) the device answers in pause: the menu is open at paused frame 20 and the range is measured (450 m within 3 m) at paused frame 80 - as a PREVIEW (a spot traced in pause, which no consumer acts on); (2) the HUD shows the range with its PREVIEW tag; (3) the world does not move: every paused frame is sampled, and no unit moves and no shot is fired. Fail: the device waits for time to advance, or anything in the world changes in the pause. Check: scripts/scenario-regression.sh dv-paused-operation"
+  },
+  "entities": {
+    "d5e10005-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10005-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10005-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          0,
+          0,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10005-0000-4000-8000-000000000001",
+        "Seat": 4
+      }
+    },
+    "d5e10005-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          318.2,
+          318.2,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

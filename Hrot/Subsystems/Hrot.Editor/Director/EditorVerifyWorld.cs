@@ -76,5 +76,8 @@ namespace Hrot.Editor.Director
 
         /// <summary>⭐ S1e-2 — the HUD run a view bound to the source draws in the published gizmo frame.</summary>
         public int HudRun(long source, System.Collections.Generic.List<string> texts) => Service.HudRun(source, texts);
+
+        /// <summary>⭐ S1e-2 — the headless editor's gizmo gate held open (a timed reference, CE-11045) while the checks read a HUD.</summary>
+        public void KeepHudFeed() => _service()?.KeepGizmoFeedDrawing();
     }
 }
