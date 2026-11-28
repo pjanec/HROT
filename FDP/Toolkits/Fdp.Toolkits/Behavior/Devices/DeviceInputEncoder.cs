@@ -92,23 +92,6 @@ namespace Fdp.Toolkit.Behavior.Devices
             s.Downs[button] = (ushort)Math.Min(ushort.MaxValue, s.Downs[button] + count);
         }
 
-        /// <summary>A press of the element named <paramref name="name"/> — a button pressed, a switch stepped to its next position (D-142). Null when accepted,
-        /// else why not.</summary>
-        public string? Press(Entity device, DeviceDefDto? type, string name, int switchPosition = -1)
-        {
-            if (!Encode(type, name, out var kind, out int index)) return type is null ? "the device has no TKB type (Gen.Device) naming its elements"
-                : $"the device has no element '{name}' (its elements: {type.Names()})";
-            switch (kind)
-            {
-                case DeviceElementKind.Button: Press(device, index); return null;
-                case DeviceElementKind.Switch:
-                    int positions = Math.Max(1, type!.ElementAt(kind, index)!.Positions);
-                    SetSwitch(device, index, switchPosition >= 0 ? switchPosition : (CurrentSwitch(device, index) + 1) % positions);
-                    return null;
-                default: return $"'{name}' is an axis — it takes a value, not a press";
-            }
-        }
-
         /// <summary>The held LEVEL of button <paramref name="button"/> (a replica's or a pad's button held down): down ⇒ one press as it goes down, up ⇒ its release.</summary>
         public void Hold(Entity device, int button, bool down)
         {
@@ -124,14 +107,6 @@ namespace Fdp.Toolkit.Behavior.Devices
             ref var s = ref SlotOf(device);
             s.Switches[index] = (byte)Math.Clamp(position, 0, 255);
             s.SwitchesOwned |= (byte)(1 << index);
-        }
-
-        /// <summary>The switch position this source last set (0 when it never did).</summary>
-        public int CurrentSwitch(Entity device, int index)
-        {
-            for (int i = 0; i < _slots.Length; i++)
-                if (_slots[i].Device == device && (uint)index < DeviceSwitches.Count) return _slots[i].Switches[index];
-            return 0;
         }
 
         /// <summary>Axis <paramref name="index"/> at <paramref name="value"/> (−1…1).</summary>

@@ -29,6 +29,7 @@ namespace GizmoMap.Contracts.Tests
             [DebugPrimitiveShape.LayerControlMask]    = PrimitiveClass.Meta,
             [DebugPrimitiveShape.FilledTriangle]      = PrimitiveClass.Geometry,
             [DebugPrimitiveShape.HudScope]            = PrimitiveClass.Meta,       // ⭐ simulated devices S1d-1 — a HUD run's marker, protected
+            [DebugPrimitiveShape.PanelButton]         = PrimitiveClass.Meta,       // ⭐ SD-S5v — a HUD button's hit zone, protected
         };
 
         [Fact]

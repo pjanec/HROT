@@ -1,3 +1,4 @@
+using System;
 using Fdp.Toolkit.Input;
 using NodeEditor.Core.Action;
 using NodeEditor.Primitives;
@@ -68,10 +69,9 @@ namespace Hrot.UI.Common.Map3D
         public static readonly ActionRef ViewPrevious = Id("fps.view.previous");
         /// <summary>While a view shows a device: designate for his men at the crosshair (CE-1219's LMB designate, rehomed — LMB is the device's).</summary>
         public static readonly ActionRef Designate = Id("fps.designate");
-        /// <summary>While a view shows a device: its button <c>n</c> — the device's channel n: 0 = LMB (the <see cref="Fire"/> press, read as the device's
-        /// while a view shows one — one chord, one row), 1 = RMB; the wheel is 2 up / 3 down.</summary>
-        public static ActionRef DeviceButton(int index) => index == 0 ? Fire : DeviceButton2;
-        private static readonly ActionRef DeviceButton2 = Id("fps.device.button.2");
+        // ⛔ SD-S5v (§3.13e D-125) — S1d-3's BY-INDEX mouse mapping (LMB = channel 0, RMB = 1, the wheel 2 / 3) is RETIRED: through a device LMB CLICKS the HUD
+        //   button under the free cursor (the Fire press, read by the virtual panel — one chord, one row), RMB held LOOKS (the Zoom hold), the wheel presses the
+        //   element its type names for it (DeviceDefDto Wheel), the keys are the type's hotkeys (DeclareDeviceType). VirtualPanelAdapter reads them all.
 
         // ⭐⭐ SD-S2a (devices §3.13c D-102 / D-103) — the DEVICE place of the Embodied hat (D-38's device scope): rows read only while a view shows a device,
         //   and while one does they SHADOW the body's rows on the same pad input (KeymapReader.Inner) — the stick flies the device, it does not also walk him.
@@ -89,6 +89,40 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The focused view's device's axis <c>n</c> (<c>DeviceControl.Axes</c>): 0 / 1 the left stick X / up, 2 / 3 the right stick X / up.</summary>
         public static ActionRef DeviceAxis(int index) => DeviceAxisIds[index];
         private static readonly ActionRef[] DeviceAxisIds = { Id("fps.device.axis.0"), Id("fps.device.axis.1"), Id("fps.device.axis.2"), Id("fps.device.axis.3") };
+
+        /// <summary>⭐ SD-S5v (D-124) — the arrow keys turn the bound device's look in FINE steps (keyboard-only operation): X left / right, Y up / down, in pixels of
+        /// mouse movement per frame (<see cref="FineLookPixelsPerFrame"/>).</summary>
+        public static readonly ActionRef DeviceLookX = Id("fps.device.look.x");
+        /// <inheritdoc cref="DeviceLookX"/>
+        public static readonly ActionRef DeviceLookY = Id("fps.device.look.y");
+        /// <summary>⭐ SD-S5v — an arrow key held turns the look as far as this many pixels of mouse movement per frame.</summary>
+        public const float FineLookPixelsPerFrame = 2f;
+
+        /// <summary>⭐⭐ SD-S5v (D-124) — the hotkey place of a device TYPE: its elements' keys, declared when a view first shows a device of that type (shown and
+        /// rebindable in the Keyboard shortcuts window), read only while one does — the innermost place of the chain (they shadow the body's rows on the same
+        /// key: R is RANGE, not the next round, through a rangefinder).</summary>
+        public static string DeviceTypeHat(string typeName) => DeviceHat + " · " + typeName;
+
+        /// <summary>The hotkey action of element (<paramref name="kind"/>, <paramref name="index"/>) of device type <paramref name="typeId"/>.</summary>
+        public static ActionRef DeviceElement(int typeId, Fdp.Toolkit.Tkb.Domain.DeviceElementKind kind, int index)
+            => Id("fps.device." + typeId.ToString(System.Globalization.CultureInfo.InvariantCulture) + "." + kind.ToString().ToLowerInvariant() + "." + index.ToString(System.Globalization.CultureInfo.InvariantCulture));
+
+        /// <summary>⭐ SD-S5v (D-124) — declares a device type's hotkey rows into its own place (idempotent; a rebind is kept): one Press row per element that names
+        /// a key (<see cref="Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Hotkey"/>, an <see cref="EditorKey"/> name). Returns the place's qualifier.</summary>
+        public static string DeclareDeviceType(Keymap keymap, int typeId, string typeName, Fdp.Toolkit.Tkb.Domain.DeviceDefDto type)
+        {
+            string hat = DeviceTypeHat(typeName);
+            var rows = new RowDeclarer(keymap, InputScope.Hat, hat);
+            Span<int> counts = stackalloc int[3];
+            foreach (var e in type.Elements)
+            {
+                int index = counts[(int)e.Kind]++;
+                if (e.Kind == Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Axis || string.IsNullOrEmpty(e.Hotkey)) continue;
+                if (!System.Enum.TryParse<EditorKey>(e.Hotkey, true, out var key)) continue;
+                rows.Press(key, DeviceElement(typeId, e.Kind, index), typeName + ": " + e.Name);
+            }
+            return hat;
+        }
 
         /// <summary>⭐ SD-S2a (D-103) — a full right-stick deflection turns the look as far as this many pixels of mouse movement per frame.</summary>
         public const float PadLookPixelsPerFrame = 12f;
@@ -150,7 +184,7 @@ namespace Hrot.UI.Common.Map3D
             Press(EditorKey.N, MessageLog, "Message log");
             Press(EditorKey.O, Shoulder, "Over-the-shoulder view");
             Press(EditorKey.I, Select, "Select the unit under the crosshair");
-            Press(EditorKey.MouseLeft, Fire, "Fire: lock the shot (through a device: its button 1)");
+            Press(EditorKey.MouseLeft, Fire, "Fire: lock the shot (through a device: click its HUD button)");
             Press(EditorKey.X, CancelShot, "Drop the locked shot");
             Press(EditorKey.K, KillCam, "Kill cam");
             Press(EditorKey.F, Use, "Use");
@@ -158,7 +192,6 @@ namespace Hrot.UI.Common.Map3D
             Press(EditorKey.B, ViewNext, "View: next source (eye, each device)");                       // ⭐ S1d-3
             Press(EditorKey.B, ViewPrevious, "View: previous source", KeyModifiers.Shift);
             Press(EditorKey.MouseMiddle, Designate, "Designate for his men (through a device)");
-            Press(EditorKey.MouseRight, DeviceButton(1), "Device button 2 (through a device)");
 
             Hold(EditorKey.Unknown, Sprint, "Run", KeyModifiers.Shift);
             Hold(EditorKey.Unknown, CrouchHeld, "Crouch", KeyModifiers.Ctrl);
@@ -166,7 +199,7 @@ namespace Hrot.UI.Common.Map3D
             Hold(EditorKey.Q, LeanLeft, "Lean left");
             Hold(EditorKey.E, LeanRight, "Lean right");
             Hold(EditorKey.Tab, Scoreboard, "Scoreboard");
-            Hold(EditorKey.MouseRight, Zoom, "Zoom");
+            Hold(EditorKey.MouseRight, Zoom, "Zoom (through a device: hold to look)");
             Hold(EditorKey.MouseLeft, Trigger, "Fire");
             Hold(EditorKey.F, UseHeld, "Use (verb list)");
 
@@ -192,7 +225,7 @@ namespace Hrot.UI.Common.Map3D
             Axis(EditorKey.PadB, Climb, "Climb / descend", -1f);
             Hold(EditorKey.PadTriggerL, Zoom, "Zoom");             // LT: aim
             Hold(EditorKey.PadTriggerR, Trigger, "Fire");          // RT: the trigger …
-            Press(EditorKey.PadTriggerR, Fire, "Fire: lock the shot (through a device: its button 1)");   // … and its press (through a device: channel 0, as LMB)
+            Press(EditorKey.PadTriggerR, Fire, "Fire: lock the shot (through a device: click its HUD button)");   // … and its press
             Press(EditorKey.PadA, Use, "Use");                     // A: use (tap) / the verb list (held)
             Hold(EditorKey.PadA, UseHeld, "Use (verb list)");
             Hold(EditorKey.PadLeftStick, Sprint, "Run");
@@ -212,6 +245,11 @@ namespace Hrot.UI.Common.Map3D
             device.Axis(EditorKey.PadRightY, DeviceAxis(3), "Device axis 4 (right stick up)", -1f);
             EditorKey[] buttons = { EditorKey.PadA, EditorKey.PadB, EditorKey.PadX, EditorKey.PadY, EditorKey.PadLB, EditorKey.PadRB };
             for (int i = 0; i < buttons.Length; i++) device.Press(buttons[i], DeviceChannel(i), "Device button " + (i + 1));
+            // ⭐ SD-S5v (D-124) — the arrows turn the device's look in fine steps (no mouse needed)
+            device.Axis(EditorKey.Right, DeviceLookX, "Device look left / right (fine)", FineLookPixelsPerFrame);
+            device.Axis(EditorKey.Left, DeviceLookX, "Device look left / right (fine)", -FineLookPixelsPerFrame);
+            device.Axis(EditorKey.Down, DeviceLookY, "Device look up / down (fine)", FineLookPixelsPerFrame);
+            device.Axis(EditorKey.Up, DeviceLookY, "Device look up / down (fine)", -FineLookPixelsPerFrame);
         }
     }
 }

@@ -98,6 +98,9 @@ namespace Hrot.Editor.Director
         void Frame(double rel);
         /// <summary>The network id the station's view is bound to (0 = the plain eye) — the <c>hud</c> cue's <c>"source": "station:1"</c>.</summary>
         long BoundSource { get; }
+
+        /// <summary>⭐ SD-S5v (<c>do: click</c>) — clicks the bound device's HUD button by its element NAME, through the panel's click path; null when clicked, else why not.</summary>
+        string? Click(StationAction action, double rel) => "this station cannot click a HUD button";
     }
 
     /// <summary>One expectation's verdict: <see cref="Time"/> is when it held (or, for <c>never</c>, when it was broken).</summary>
@@ -1433,7 +1436,9 @@ namespace Hrot.Editor.Director
 
         // ⭐ S1e-2 — the pause in progress: frames still to hold, the paused frame we are on, the pause's name (recorded on its first paused frame)
         private int _pauseLeft, _pausedFrame;
-        private bool _readsHud => _hudChecks ??= _checks.Expect.Any(e => e.Cue.On == "hud") || _checks.Anchors.Values.Any(c => c.On == "hud");
+        // ⭐ SD-S5v — a do: click reads the HUD too (its PanelButtons): the gizmo feed must be drawing when the click lands
+        private bool _readsHud => _hudChecks ??= _checks.Expect.Any(e => e.Cue.On == "hud") || _checks.Anchors.Values.Any(c => c.On == "hud")
+                                              || _checks.Do.Any(a => a.Station?.Kind == "click");
         private bool? _hudChecks;
         private string? _pauseName;
 
@@ -1501,6 +1506,7 @@ namespace Hrot.Editor.Director
                 {
                     "possess" => IdOf(st.Who) is { } who ? station.Possess(who) : $"no unit '{st.Who}'",
                     "view" => st.Who == null ? station.View(0) : IdOf(st.Who) is { } dev ? station.View(dev) : $"no device '{st.Who}'",
+                    "click" => station.Click(st, rel),
                     _ => station.Control(st, rel),
                 };
             }

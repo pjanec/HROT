@@ -114,6 +114,63 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
             }
 
             if (open) DrawPopup(draw, in st);
+
+            DrawButtons(draw, view, entity, in st);
+        }
+
+        // ── ⭐⭐ SD-S5v (§3.13e D-122 / D-124 / D-128, mockup panels 2–6) — the rangefinder's BUTTONS through HudPanel: one chip per element of its TKB type
+        //    (label + hotkey key box) and, in the same call, its clickable PanelButton; a right-hand column under the VIEW label. RANGE lit while ranging,
+        //    MENU lit while the menu is open, SELECT greyed while it is closed (it would do nothing). ⭐ The menu line (MODE / POWER / EXIT) stays the menu's
+        //    DISPLAY — POWER and EXIT are menu items, not elements of the type (D-142).
+
+        /// <summary>The chip column (mockup px): width, height, left edge, first top, pitch.</summary>
+        public const float ChipW = 78f, ChipH = 20f, ChipX = MockupWidth - 14f - ChipW, ChipY = 124f, ChipStep = 24f;
+
+        private sealed class Chips
+        {
+            public long Type = long.MinValue;
+            public readonly HudText[] Labels = new HudText[RangefinderChannels.Count];
+            public readonly HudText[] Badges = new HudText[RangefinderChannels.Count];
+            public readonly ushort[] Keys = new ushort[RangefinderChannels.Count];
+        }
+
+        private static readonly string[] DefaultNames = { "RANGE", "MODE", "MENU", "SELECT" };   // with no TKB type (a bare rail): the channel's own name
+        private Chips _chips = new();
+
+        /// <summary>The chips' labels and hotkeys from the device's TKB type (D-142 / D-124) — built once per type (allocates then, never per frame).</summary>
+        private Chips ChipsOf(ISimulationView view, Entity entity)
+        {
+            long type = view is EntityRepository w && w.IsComponentTypeRegistered<DeviceInfo>() && w.HasComponent<DeviceInfo>(entity) ? w.GetComponentRO<DeviceInfo>(entity).DeviceType : 0;
+            var c = _chips;
+            if (c.Type == type) return c;
+            c = new Chips { Type = type };
+            Fdp.Toolkit.Tkb.Domain.DeviceDefDto? dto = null;
+            if (view is EntityRepository rw && rw.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>()
+                && rw.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() is { } db && db.TryGetByType(type, out var t) && t != null)
+                dto = t.GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>();
+            for (int i = 0; i < RangefinderChannels.Count; i++)
+            {
+                var el = dto?.ElementAt(Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, i);
+                c.Labels[i] = new HudText(el?.Name ?? DefaultNames[i]);
+                c.Badges[i] = HudPanel.Badge(el?.Hotkey);
+                c.Keys[i] = HudPanel.HotkeyCode(el?.Hotkey);
+            }
+            _chips = c;
+            return c;
+        }
+
+        private void DrawButtons(IDebugDrawBuilder draw, ISimulationView view, Entity entity, in RangefinderState st)
+        {
+            var c = ChipsOf(view, entity);
+            for (int i = 0; i < RangefinderChannels.Count; i++)
+            {
+                var state = i == RangefinderChannels.Range && st.Ranging != 0 ? PanelButtonState.Lit
+                          : i == RangefinderChannels.Menu && st.MenuOpen != 0 ? PanelButtonState.Lit
+                          : i == RangefinderChannels.Select && st.MenuOpen == 0 ? PanelButtonState.Disabled
+                          : PanelButtonState.Normal;
+                HudPanel.Button(draw, Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, i, P(ChipX, ChipY + i * ChipStep), new Vector2(ChipW, ChipH) * K,
+                                c.Labels[i], c.Badges[i], state, c.Keys[i], L);
+            }
         }
 
         /// <summary>The window: the view darkened outside a rectangle inset 10 (past the canvas, so a letterboxed view is dark to its edges), and the

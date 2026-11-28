@@ -328,6 +328,24 @@
 <text x='892.7' y='417.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='819.4' y='405' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='840.9538461538461' y='417.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='888' y='306' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='320' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
+<rect x='948' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='954.5' y='319.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>R</text>
+<rect x='885' y='303' width='84' height='26' fill='none' rx='4' stroke='#FFD700' stroke-width='2' opacity='1'/>
+<path d='M288 416Q288 430 279 439Q270 448 256 448Q242 448 233 439Q224 430 224 416V208Q223 193 208 192Q193 193 192 208V384Q192 398 183 407Q174 416 160 416Q146 416 137 407Q128 398 128 384V112Q128 110 128 107L68 165Q55 176 39 176Q23 176 11 164Q0 151 0 135Q0 119 12 107L125 0Q192 -63 285 -64H304Q379 -62 428 -12Q478 37 480 112V320Q480 334 471 343Q462 352 448 352Q434 352 425 343Q416 334 416 320V208Q415 193 400 192Q385 193 384 208V384Q384 398 375 407Q366 416 352 416Q338 416 329 407Q320 398 320 384V208Q319 193 304 192Q289 193 288 208V416Z' fill='#FFFFFF' fill-opacity='1' transform='translate(926,328.447265625) scale(0.029296875,-0.029296875)'/>
+<rect x='888' y='330' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='344' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<rect x='948' y='333.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='954.5' y='343.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>O</text>
+<rect x='888' y='354' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='368' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU</text>
+<rect x='948' y='357.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='954.5' y='367.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>P</text>
+<rect x='888' y='378' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='392' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SELECT</text>
+<rect x='939.1307692307693' y='381.5' width='21.869230769230768' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='950.0653846153846' y='391.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>ENT</text>
 <rect x='604.0' y='190' width='292' height='38' fill='#000' rx='0' opacity='0.43'/>
 <line x1='622.6153846153846' y1='194' x2='622.6153846153846' y2='204' stroke='#CCCCCC' stroke-width='1'/>
 <text x='622.6153846153846' y='215' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NW</text>
@@ -357,13 +375,15 @@
 <text x='637' y='392' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — unit lines</text>
 <text x='520' y='457' fill='#5BD06A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>SPECIFIES</text>
 <text x='586' y='457' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>window + corner brackets · reticle · name · MODE · POWER · LASER lamp</text>
-<text x='586' y='470.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(off) · LAST RANGE '— m' · menu line, cursor on MODE</text>
-<text x='520' y='486.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
-<text x='586' y='486.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>compass · unit lines · scene</text>
-<text x='520' y='503.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: mode names SINGLE / CONTINUOUS and power LOW / HIGH are placeholders</text>
-<text x='520' y='516.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(the type's data); status top-left, lamp</text>
-<text x='520' y='531.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>top-right, readout bottom-centre, menu line bottom-right (clear of the unit lines, which</text>
-<text x='520' y='544.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stay bottom-left).</text>
+<text x='586' y='470.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(off) · LAST RANGE '— m' · menu line, cursor on MODE · the button chips</text>
+<text x='586' y='484.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>RANGE R · MODE O · MENU P · SELECT ENT (SELECT greyed: the menu is</text>
+<text x='586' y='497.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>closed) · the gold hover frame + hand cursor on RANGE (POINT, SD-S5v)</text>
+<text x='520' y='513.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='586' y='513.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>compass · unit lines · scene</text>
+<text x='520' y='530.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: mode names SINGLE / CONTINUOUS and power LOW / HIGH are placeholders</text>
+<text x='520' y='543.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(the type's data); status top-left, lamp</text>
+<text x='520' y='558.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>top-right, readout bottom-centre, menu line bottom-right (clear of the unit lines, which</text>
+<text x='520' y='571.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>stay bottom-left).</text>
 <text x='1010' y='124' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>3 · RANGEFINDER, after RANGE on a target — laser ON, 452 m</text>
 <text x='1010' y='140' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the lamp on, the range written, the same layout as panel 2. The spot on the</text>
 <text x='1010' y='153' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>target is a world effect (context).</text>
@@ -502,6 +522,22 @@
 <text x='1382.6999999999998' y='417.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='1309.3999999999999' y='405' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='1330.953846153846' y='417.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='1378' y='306' width='78' height='20' fill='#3369AD' rx='3' opacity='0.85'/>
+<text x='1385' y='320' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
+<rect x='1438' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1444.5' y='319.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>R</text>
+<rect x='1378' y='330' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='344' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<rect x='1438' y='333.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1444.5' y='343.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>O</text>
+<rect x='1378' y='354' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='368' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU</text>
+<rect x='1438' y='357.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1444.5' y='367.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>P</text>
+<rect x='1378' y='378' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='392' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SELECT</text>
+<rect x='1429.1307692307691' y='381.5' width='21.869230769230768' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='1440.0653846153846' y='391.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>ENT</text>
 <rect x='1094.0' y='190' width='292' height='38' fill='#000' rx='0' opacity='0.43'/>
 <line x1='1112.6153846153845' y1='194' x2='1112.6153846153845' y2='204' stroke='#CCCCCC' stroke-width='1'/>
 <text x='1112.6153846153845' y='215' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NW</text>
@@ -531,13 +567,14 @@
 <text x='1127' y='392' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — unit lines</text>
 <text x='1010' y='457' fill='#5BD06A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>SPECIFIES</text>
 <text x='1076' y='457' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>LASER lamp ON (blinks by frame count) · LAST RANGE '452 m' (gold, the</text>
-<text x='1076' y='470.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>station's readout colour)</text>
-<text x='1010' y='486.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
-<text x='1076' y='486.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the red spot (LaserLayer3D, SD-S6) · compass · unit lines</text>
-<text x='1010' y='503.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The HUD does NOT draw the spot: it is the 3-D map's laser layer (D-32..D-35, slice SD-S6)</text>
-<text x='1010' y='516.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>— SD-S1 shows the lamp and the range only.</text>
-<text x='1010' y='531.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Judged by scenario dv-range-targets: `hud` text contains the range, `device range` within</text>
-<text x='1010' y='544.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>accuracy.</text>
+<text x='1076' y='470.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>station's readout colour) · RANGE chip lit while ranging · no cursor (RMB</text>
+<text x='1076' y='484.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>held: LOOK)</text>
+<text x='1010' y='499.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='1076' y='499.5' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the red spot (LaserLayer3D, SD-S6) · compass · unit lines</text>
+<text x='1010' y='517.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The HUD does NOT draw the spot: it is the 3-D map's laser layer (D-32..D-35, slice SD-S6)</text>
+<text x='1010' y='530.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>— SD-S1 shows the lamp and the range only.</text>
+<text x='1010' y='545.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Judged by scenario dv-range-targets: `hud` text contains the range, `device range` within</text>
+<text x='1010' y='558.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>accuracy.</text>
 <text x='30' y='622' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>4 · RANGEFINDER, menu open — the mode list (dv-menu-and-modes)</text>
 <text x='30' y='638' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the menu popup (title, the modes, the check on the active one, the cursor row),</text>
 <text x='30' y='651' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the menu line with MODE open. Everything else as panel 2.</text>
@@ -671,6 +708,24 @@
 <text x='402.7' y='915.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='329.4' y='903' width='43.107692307692304' height='18' fill='#3369AD' rx='3' stroke='#FFD700' stroke-width='1.2' opacity='0.95'/>
 <text x='350.95384615384614' y='915.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='398' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
+<rect x='458' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='464.5' y='817.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>R</text>
+<rect x='398' y='828' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='842' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<rect x='458' y='831.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='464.5' y='841.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>O</text>
+<rect x='398' y='852' width='78' height='20' fill='#3369AD' rx='3' opacity='0.85'/>
+<text x='405' y='866' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU</text>
+<rect x='458' y='855.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='464.5' y='865.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>P</text>
+<rect x='398' y='876' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='890' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SELECT</text>
+<rect x='449.13076923076926' y='879.5' width='21.869230769230768' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='460.06538461538463' y='889.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>ENT</text>
+<rect x='395' y='873' width='84' height='26' fill='none' rx='4' stroke='#FFD700' stroke-width='2' opacity='1'/>
+<path d='M288 416Q288 430 279 439Q270 448 256 448Q242 448 233 439Q224 430 224 416V208Q223 193 208 192Q193 193 192 208V384Q192 398 183 407Q174 416 160 416Q146 416 137 407Q128 398 128 384V112Q128 110 128 107L68 165Q55 176 39 176Q23 176 11 164Q0 151 0 135Q0 119 12 107L125 0Q192 -63 285 -64H304Q379 -62 428 -12Q478 37 480 112V320Q480 334 471 343Q462 352 448 352Q434 352 425 343Q416 334 416 320V208Q415 193 400 192Q385 193 384 208V384Q384 398 375 407Q366 416 352 416Q338 416 329 407Q320 398 320 384V208Q319 193 304 192Q289 193 288 208V416Z' fill='#FFFFFF' fill-opacity='1' transform='translate(436,898.447265625) scale(0.029296875,-0.029296875)'/>
 <rect x='54' y='804' width='150' height='74' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.82'/>
 <text x='62' y='819' fill='#C8C8D0' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU ▸ MODE</text>
 <line x1='60' y1='825' x2='198' y2='825' stroke='#8A8A96' stroke-width='0.8'/>
@@ -708,13 +763,14 @@
 <text x='147' y='890' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — unit lines</text>
 <text x='30' y='955' fill='#5BD06A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>SPECIFIES</text>
 <text x='96' y='955' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>popup list · ✓ on the active mode · highlighted cursor row · MODE chip</text>
-<text x='96' y='968.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>framed (menu is open) · reticle stays</text>
-<text x='30' y='984.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
-<text x='96' y='984.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>compass · unit lines · scene</text>
-<text x='30' y='1001.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The cursor row (CONTINUOUS) is not yet the mode: the state `Mode` changes on select;</text>
-<text x='30' y='1014.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>`Menu` follows each press (the scenario's rows).</text>
-<text x='30' y='1029.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: popup under the status block, left; the reticle and the range stay visible while</text>
-<text x='30' y='1042.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the menu is open.</text>
+<text x='96' y='968.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>framed (menu is open) · reticle stays · MENU chip lit, SELECT live, the</text>
+<text x='96' y='982.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>hover frame + cursor on SELECT</text>
+<text x='30' y='997.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='96' y='997.5' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>compass · unit lines · scene</text>
+<text x='30' y='1015.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The cursor row (CONTINUOUS) is not yet the mode: the state `Mode` changes on select;</text>
+<text x='30' y='1028.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>`Menu` follows each press (the scenario's rows).</text>
+<text x='30' y='1043.0' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: popup under the status block, left; the reticle and the range stay visible while</text>
+<text x='30' y='1056.0' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the menu is open.</text>
 <text x='520' y='622' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>5 · RANGEFINDER while the simulation is PAUSED (dv-paused-operation)</text>
 <text x='520' y='638' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the same HUD still answering in pause: a range measured in pause is shown</text>
 <text x='520' y='651' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>marked PREVIEW (R5-10, LS-13). The toolbar's paused state is context.</text>
@@ -856,6 +912,22 @@
 <text x='892.7' y='915.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='819.4' y='903' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='840.9538461538461' y='915.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='888' y='804' width='78' height='20' fill='#3369AD' rx='3' opacity='0.85'/>
+<text x='895' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
+<rect x='948' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='954.5' y='817.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>R</text>
+<rect x='888' y='828' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='842' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<rect x='948' y='831.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='954.5' y='841.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>O</text>
+<rect x='888' y='852' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='866' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU</text>
+<rect x='948' y='855.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='954.5' y='865.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>P</text>
+<rect x='888' y='876' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='895' y='890' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SELECT</text>
+<rect x='939.1307692307693' y='879.5' width='21.869230769230768' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='950.0653846153846' y='889.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>ENT</text>
 <rect x='604.0' y='688' width='292' height='38' fill='#000' rx='0' opacity='0.43'/>
 <line x1='622.6153846153846' y1='692' x2='622.6153846153846' y2='702' stroke='#CCCCCC' stroke-width='1'/>
 <text x='622.6153846153846' y='713' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NW</text>
@@ -1034,6 +1106,22 @@
 <text x='1382.6999999999998' y='915.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
 <rect x='1309.3999999999999' y='903' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
 <text x='1330.953846153846' y='915.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='1378' y='804' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='818' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
+<rect x='1438' y='807.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1444.5' y='817.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>R</text>
+<rect x='1378' y='828' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='842' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<rect x='1438' y='831.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1444.5' y='841.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>O</text>
+<rect x='1378' y='852' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='866' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU</text>
+<rect x='1438' y='855.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='1444.5' y='865.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>P</text>
+<rect x='1378' y='876' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='1385' y='890' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SELECT</text>
+<rect x='1429.1307692307691' y='879.5' width='21.869230769230768' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='1440.0653846153846' y='889.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>ENT</text>
 <rect x='1267.323076923077' y='774' width='188.67692307692306' height='20' fill='#000' rx='3' opacity='0.7'/>
 <path d='M256 448Q270 448 279 439Q288 430 288 416V406Q360 394 409 345Q458 295 470 224H480Q494 224 503 215Q512 206 512 192Q512 178 503 169Q494 160 480 160H470Q458 88 409 39Q359 -10 288 -22V-32Q288 -46 279 -55Q270 -64 256 -64Q242 -64 233 -55Q224 -46 224 -32V-22Q152 -10 103 39Q54 88 42 160H32Q18 160 9 169Q0 178 0 192Q0 206 9 215Q18 224 32 224H42Q54 296 103 345Q152 394 224 406V416Q224 430 233 439Q242 448 256 448ZM107 160Q117 116 149 85Q180 53 224 43V64Q224 78 233 87Q242 96 256 96Q270 96 279 87Q288 78 288 64V43Q332 53 363 85Q395 116 405 160H384Q370 160 361 169Q352 178 352 192Q352 206 361 215Q370 224 384 224H405Q395 268 363 299Q332 331 288 341V320Q288 306 279 297Q270 288 256 288Q242 288 233 297Q224 306 224 320V341Q180 331 149 299Q117 268 107 224H128Q142 224 151 215Q160 206 160 192Q160 178 151 169Q142 160 128 160H107ZM256 224Q270 224 279 215Q288 206 288 192Q288 178 279 169Q270 160 256 160Q242 160 233 169Q224 178 224 192Q224 206 233 215Q242 224 256 224Z' fill='#E65555' fill-opacity='1' transform='translate(1273.323076923077,788.654296875) scale(0.025390625,-0.025390625)'/>
 <text x='1291.323076923077' y='788.5' fill='#A0A0AA' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>VIEW</text>

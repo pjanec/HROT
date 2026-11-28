@@ -70,8 +70,8 @@ public sealed partial class PossessionStationTests
         //   button designates; ⛔ CE-1219's B hold is gone (D-75)
         Assert.NotNull(Find(EmbodiedKeys.ViewNext, KeyTrigger.Press, EditorKey.B));
         Assert.Equal(KeyModifiers.Shift, Find(EmbodiedKeys.ViewPrevious, KeyTrigger.Press, EditorKey.B)!.Value.Chord.Modifiers);
-        Assert.Equal(EmbodiedKeys.Fire, EmbodiedKeys.DeviceButton(0));
-        Assert.NotNull(Find(EmbodiedKeys.DeviceButton(1), KeyTrigger.Press, EditorKey.MouseRight));
+        // ⛔ SD-S5v (D-125) — the by-index mouse rows are retired: RMB is only the Zoom hold (through a device: LOOK), no press row on it
+        Assert.DoesNotContain(Enumerable.Range(0, map.Count), i => map[i].Chord.Key == EditorKey.MouseRight && map[i].Trigger == KeyTrigger.Press && map[i].WindowKind == EmbodiedKeys.Hat);
         Assert.NotNull(Find(EmbodiedKeys.Designate, KeyTrigger.Press, EditorKey.MouseMiddle));
         Assert.DoesNotContain(Enumerable.Range(0, map.Count), i => map[i].Chord.Key == EditorKey.B && map[i].Trigger == KeyTrigger.Hold);
         // ⭐ SD-S2a (devices §3.13c D-103) — the pad: the left stick moves, the right stick looks, LT aims, RT fires, A uses / climbs; and the DEVICE place

@@ -47,6 +47,8 @@ public sealed partial class PossessionStationTests
         public bool IsMouseCaptured => false;
         public bool IsKeyboardCaptured => false;
         public void SetCursorLocked(bool locked) => Locked = locked;
+        public Vector2? MovedTo { get; private set; }   // ⭐ SD-S5v — the RMB-look gives the cursor back
+        public void SetMousePosition(Vector2 p) { MovedTo = p; MousePosition = p; }
         // ⭐ SD-S2a — a pad (pad 0)
         public bool PadConnected { get; set; }
         public float[] PadAxes { get; } = new float[6];
@@ -513,7 +515,7 @@ public sealed partial class PossessionStationTests
     /// level, 10° branch and overlay are gone): the view is bound to ONE source, station-local. B cycles the plain eye → each device he operates (the
     /// replicated Operated rows naming his station) → the eye; the gizmo layer's <c>BoundSource</c> follows; the camera takes THE BOUND SOURCE's field of
     /// view (its <c>DevicePose.FovDegrees</c> — one rule, no binoculars branch) and back; the device frames carry his look (relative to the mount) and
-    /// <c>Viewed</c> while bound; through a device LMB is its button 0 (no shot) and the middle button designates for his men (CE-1219's designate, kept);
+    /// <c>Viewed</c> while bound; through a device LMB fires no shot (⭐ SD-S5v: it clicks a HUD chip — none here, so it presses nothing) and the middle button designates for his men (CE-1219's designate, kept);
     /// a device that leaves him (its row gone) drops the view back to the eye. 🔴 Red-proof (compiles): <c>ZoomFovDegrees</c> ignores the bound source ⇒ red.
     /// </summary>
     [Fact]
@@ -587,9 +589,9 @@ public sealed partial class PossessionStationTests
             Assert.Equal(sw.Camera3D.Forward.X, lookWorld.X, 3);
             Assert.Equal(sw.Camera3D.Forward.Y, lookWorld.Y, 3);
 
-            var click = Frame(new Input { LeftPressed = true, LeftDown = true });               // LMB through a device: its button 0, no shot
+            var click = Frame(new Input { LeftPressed = true, LeftDown = true });               // LMB through a device: no shot …
             Assert.Equal((0, (byte)0), (click.Body.ShotSeq, click.Body.Trigger));
-            Assert.Equal(1, Of(binoculars).Presses[0]);
+            Assert.Equal(0, Of(binoculars).Presses[0]);                                         // ⛔ SD-S5v (D-125) — … and no by-index press: LMB clicks a HUD chip (none here)
             Frame(new Input { MiddlePressed = true });                                         // the middle button designates for his men
             Assert.True(Hrot.Common.Orders.OrderDesignations.Of(w)!.TryGet(601, Hrot.Common.Orders.DesignationKind.MapPoint, out _));
 

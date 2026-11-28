@@ -46,8 +46,8 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
     }
 
     /// <summary>
-    /// The rangefinder's press channels (the <c>DeviceInput</c> press counter each one reads). ⚠ Placeholders until the device's TKB type names its
-    /// channels (D-26 — <c>DeviceDefDto</c>); the numbers are the wire, the names are the type's data.
+    /// The rangefinder's press channels (the <c>DeviceInput</c> press counter each one reads) — the BUTTON indexes of TKB type 640's elements (D-142:
+    /// RANGE, MODE, MENU, SELECT; pinned by <c>RangefinderBehaviorTests.S1e1_…</c>); the numbers are the wire, the names are the type's data.
     /// </summary>
     public static class RangefinderChannels
     {

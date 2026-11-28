@@ -4,6 +4,7 @@ using System.Linq;
 using System.Numerics;
 using System.Text.Json.Nodes;
 using Fdp.Core;
+using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Replication.Components;
 using Hrot.Editor.Director;
 using Hrot.UI.Common.Map3D.Director;
@@ -514,6 +515,78 @@ public sealed class ScenarioChecksTests
         long before = GC.GetAllocatedBytesForCurrentThread();
         for (int i = 0; i < 50; i++) { s.Frame(0); w.Bus.SwapBuffers(); }
         Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+    }
+
+    /// <summary>
+    /// ⭐⭐ SD-S5v (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13e D-122 / D-125 / D-130, the grammar's <c>do: click</c>) — the scripted trainee CLICKS a HUD
+    /// button by its element NAME through the panel's one click path: the button's rectangle is found in the HUD run a view bound to the device keeps (the chip's
+    /// PanelButton, drawn by <c>HudPanel.Button</c>) and its centre is hit-tested — the event is EXACTLY the one <c>press</c> makes (one press, every source); a chip
+    /// the HUD does not draw cannot be clicked, an unknown name is refused with the type's elements; the grammar parses <c>click</c> and names its mistakes.
+    /// 🔴 Red-proof (compiles): <c>Click</c> pressing the element without the hit test (the HUD bypassed) ⇒ the undrawn-chip row passes a click ⇒ red.
+    /// </summary>
+    [Fact]
+    public void SDS5v_AScriptedClick_HitsTheChipsPanelButton_AndIsExactlyAPress()
+    {
+        var c = Parse("""
+            { "runFor": 10,
+              "do": [{"name": "k", "at": 1, "click": {"station": 1, "button": "MENU"}}],
+              "expect": [{"name": "open", "on": "field", "who": "Rf", "memory": "RangefinderState", "field": "MenuOpen", "op": "==", "value": 1, "after": "k"}] }
+            """, out var ok);
+        Assert.Empty(ok);
+        Assert.Equal(("click", "MENU"), (c.Do[0].Station!.Kind, c.Do[0].Station!.Button));
+        Parse("""{ "runFor": 10, "do": [{"at": 1, "click": {"station": 1}}, {"at": 1, "click": {"button": "X", "extra": 1}}] }""", out var bad);
+        Assert.Contains(bad, p => p.Contains("click is {station, button}", StringComparison.Ordinal));
+        Assert.Contains(bad, p => p.Contains("click: unknown key 'extra'", StringComparison.Ordinal));
+
+        using var w = new EntityRepository();
+        w.RegisterComponent<NetworkIdentity>(); w.RegisterComponent<EntityInfo>(); w.RegisterComponent<SimTransform>();
+        w.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>(); w.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
+        w.Bus.Register<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>();
+        var map = new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
+        w.SetSingletonManaged(map);
+        var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+        var type = new Fdp.Interfaces.TkbTemplate("Rangefinder", 640);
+        static Fdp.Toolkit.Tkb.Domain.DeviceElementDto B(string n) => Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button(n);
+        type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = "DeviceRangefinder", Elements = { B("RANGE"), B("MODE"), B("MENU"), B("SELECT") } });
+        db.Register(type);
+        w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+        var station = (StationId)9;
+        var obs = w.CreateEntity(); w.AddComponent(obs, new NetworkIdentity { Value = 1 }); map.Register(1, obs);
+        var rf = w.CreateEntity(); w.AddComponent(rf, new NetworkIdentity { Value = 2 }); map.Register(2, rf);
+        w.AddComponent(rf, new Fdp.Toolkit.Behavior.Devices.DeviceInfo { DeviceType = 640 });
+        w.AddComponent(rf, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = station, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Operated, Epoch = 1 });
+        // the device's HUD run, as its projector draws it: MENU's chip only (RANGE is not drawn)
+        var hud = new DebugPrimitiveBuffer(64);
+        hud.BeginScope(2);
+        HudPanel.Button(hud, Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, 2, new Vector2(1000f, 300f), new Vector2(200f, 50f), new Fdp.Toolkit.Diagnostics.Gizmos.FixedString32("MENU"),
+                        HudPanel.Badge("P"), PanelButtonState.Normal, HudPanel.HotkeyCode("P"), DebugTraceLayers.DeviceHud);
+        hud.EndScope();
+        var s = new ScriptedStation(() => w, id =>
+        {
+            w.AddComponent(obs, new Fdp.Toolkit.Behavior.Possession.PossessedBy { StationNodeId = station, Mode = Fdp.Toolkit.Behavior.Possession.PossessionMode.Fps, Epoch = 1 });
+            return null;
+        }, () => hud.GetFrame());
+        s.Encoder.Clock = () => 0d;
+        Assert.Null(s.Possess(1));
+        Assert.Null(s.View(2));
+
+        Fdp.Toolkit.Behavior.Devices.InputChange[] Changes()
+        {
+            s.Frame(0);
+            w.Bus.SwapBuffers();
+            var events = ((Fdp.ModuleHost.Abstractions.ISimulationView)w).ReadEvents<Fdp.Toolkit.Behavior.Devices.DeviceInputEvent>().ToArray().Where(e => e.Device == rf).ToArray();
+            return events.SelectMany(e => Enumerable.Range(0, e.Count).Select(i => e.Changes[i])).ToArray();
+        }
+        Changes();                                                   // the first: the look and Viewed
+        Assert.Null(s.Click(new StationAction { Kind = "click", Button = "MENU" }, 0));
+        var clicked = Changes();
+        Assert.Null(s.Control(new StationAction { Kind = "control", Press = new[] { "MENU" } }, 0));
+        var pressed = Changes();
+        Assert.Equal(pressed, clicked);                              // the same bytes
+        Assert.Equal((Fdp.Toolkit.Behavior.Devices.InputChangeKind.ButtonDown, (byte)2), (clicked[0].Kind, clicked[0].Element));
+        Assert.Contains("no 'RANGE' button", s.Click(new StationAction { Kind = "click", Button = "RANGE" }, 0)!);   // not drawn ⇒ not clickable
+        Assert.Contains("RANGE, MODE, MENU, SELECT", s.Click(new StationAction { Kind = "click", Button = "FIRE" }, 0)!);
+        Assert.Empty(Changes());
     }
 
     public enum S1e2Mode : byte { One = 0, Two = 1 }

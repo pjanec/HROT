@@ -29,13 +29,33 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// production projectors run by the production gizmo system into the map's buffer; the station's view cycle binds the map's gizmo layer
 /// (<c>PossessionStation.ViewLayer</c>, as the map pack wires it). Panel 1 — bound to the binoculars: the two-eyepiece frame, the mil reticle at the
 /// 7× field (and the camera at that field), the zoom list with 7× lit, the name. Panel 6 — switched to the rangefinder: its HUD, the <c>VIEW ▸</c> label
-/// with the crosshairs icon in red and the cycle strip (eye · binoculars · rangefinder) with the rangefinder framed. Each element is measured at the
+/// with the crosshairs icon in red and the cycle strip (eye · binoculars · rangefinder) with the rangefinder framed; ⭐ SD-S5v — the free cursor over the RANGE
+/// chip ⇒ the virtual panel's gold hover frame around it. Each element is measured at the
 /// mockup's anchor (the canvas fit: 1280 × 800 ⇒ the canvas at y + 40). PNGs to <c>HROT_RAIL_SHOTS</c> as <c>devices-view-&lt;n&gt;-*.png</c>; SKIPS
 /// without a display: <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~DevicesViewFrameRail</c>.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class DevicesViewFrameRail
 {
+    /// <summary>⭐ SD-S5v — a mouse at a point and nothing pressed (the virtual panel's POINT frame).</summary>
+    private sealed class PointInput : Fdp.Toolkit.Vis2D.Abstractions.IInputProvider
+    {
+        public Vector2 MousePosition { get; set; }
+        public Vector2 MouseDelta => Vector2.Zero;
+        public float MouseWheelMove => 0f;
+        public bool? Locked { get; private set; }
+        public bool IsMouseButtonPressed(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonDown(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsMouseButtonReleased(Fdp.Toolkit.Vis2D.Abstractions.MapMouseButton b) => false;
+        public bool IsKeyPressed(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyDown(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public bool IsKeyReleased(Fdp.Toolkit.Vis2D.Abstractions.MapKeyboardKey k) => false;
+        public int GetKeyPressed() => 0;
+        public bool IsMouseCaptured => false;
+        public bool IsKeyboardCaptured => false;
+        public void SetCursorLocked(bool locked) => Locked = locked;
+    }
+
     private const int W = 1280, H = 800;
     private const float K = BinocularsHudGizmo.K, Top = (H - ViewCanvas.Height) / 2f;
 
@@ -79,13 +99,15 @@ public sealed class DevicesViewFrameRail
         world.AddComponent(me, new Fdp.Toolkit.Combat.Components.Health { Current = 90f, Max = 100f });
         world.AddComponent(me, new PossessedBy { StationNodeId = (StationId)0, Mode = PossessionMode.Fps, Epoch = 1 });
         map.Register(1001, me);
+        world.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());   // ⭐ SD-S5v — the real types: the chips' hotkeys
         Entity Device(int netId, string behaviour, float fov)
         {
             var e = world.CreateEntity();
             world.AddComponent(e, new SimTransform { Position = at + new Vector3(0f, 0f, 1.5f), Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, 1.05f) });
             world.AddComponent(e, new BehaviorState());
             world.SetAuthority<BehaviorState>(e, true);
-            world.AddComponent(e, new DeviceInfo { DeviceType = 78, Behavior = new FixedString64(behaviour) });
+            world.AddComponent(e, new DeviceInfo { DeviceType = behaviour == BehaviorNames.DeviceRangefinder ? Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder
+                                                                                                        : Hrot.Map.Common.TkbEntityTypes.Device_Binoculars, Behavior = new FixedString64(behaviour) });
             world.AddComponent(e, new NetworkIdentity { Value = netId });
             world.AddComponent(e, new PossessedBy { StationNodeId = (StationId)0, Mode = PossessionMode.Operated, Epoch = 1 });
             world.AddComponent(e, new DevicePose { Orientation = Quaternion.Identity, FovDegrees = fov });
@@ -186,6 +208,25 @@ public sealed class DevicesViewFrameRail
                 Assert.True(framed.n > 40, $"the rangefinder framed in the strip ({framed.n})");
                 Assert.True(Count(img, At(sx + 90 + 12, 153).X, At(sx + 90 + 12, 153).Y, 22, 22, c => c.G > 100 && c.B > 90 && c.R < 100).n > 20, "the binoculars' icon, teal (dimmed)");
                 Assert.True(Count(img, At(sx + 180 + 12, 153).X, At(sx + 180 + 12, 153).Y, 22, 22, Red).n > 20, "the rangefinder's icon, red");
+            }
+            finally { Raylib.UnloadImage(img); }
+
+            // ── ⭐ SD-S5v (mockup panel 2 / 4) · the VIRTUAL PANEL's hover: the free cursor over the RANGE chip ⇒ the station frames it in gold ──
+            var chip = At(RangefinderHudGizmo.ChipX + RangefinderHudGizmo.ChipW / 2f, RangefinderHudGizmo.ChipY + RangefinderHudGizmo.ChipH / 2f);
+            var point = new PointInput { MousePosition = chip };
+            sw.Camera3D.HandleInput(point);
+            Assert.False(point.Locked ?? true);                                                  // POINT: the cursor is free
+            img = Render("6-hover");
+            try
+            {
+                var hover = station.LastHover;
+                var top = At(RangefinderHudGizmo.ChipX, RangefinderHudGizmo.ChipY);
+                Assert.InRange(hover.X, top.X - 0.2f * RangefinderHudGizmo.ChipH * K, top.X - 1f);   // the frame sits just outside the chip
+                Assert.InRange(hover.Y, top.Y - 0.2f * RangefinderHudGizmo.ChipH * K, top.Y - 1f);
+                var edge = Count(img, chip.X, hover.Y + 1f, RangefinderHudGizmo.ChipW * K / 2f - 6f, 3f, Gold);
+                Assert.True(edge.n > 60, $"the gold hover frame along the chip's top ({edge.n})");
+                var below = At(RangefinderHudGizmo.ChipX + RangefinderHudGizmo.ChipW / 2f, RangefinderHudGizmo.ChipY + RangefinderHudGizmo.ChipStep);
+                Assert.Equal(0, Count(img, below.X, below.Y - 8f, 60f, 3f, Gold).n);             // MODE's chip is not framed
             }
             finally { Raylib.UnloadImage(img); }
 

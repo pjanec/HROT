@@ -58,5 +58,8 @@ namespace Fdp.Toolkit.Vis2D.Defaults
             if (locked) io.ConfigFlags |= ImGuiConfigFlags.NoMouse;
             else io.ConfigFlags &= ~ImGuiConfigFlags.NoMouse;
         }
+
+        /// <summary>⭐ SD-S5v (devices §3.13e D-123) — the RMB-look gives the cursor back where it was (raylib's EnableCursor centres it).</summary>
+        public void SetMousePosition(Vector2 position) => Raylib.SetMousePosition((int)position.X, (int)position.Y);
     }
 }

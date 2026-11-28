@@ -157,7 +157,15 @@ namespace Hrot.Editor.DebugApi
         /// <summary>⭐ S1e-2 — this node's station as the checks drive it (<c>do: possess / view / control</c>), on the brain world; possessing through
         /// <see cref="PostPossess"/> (the HTTP possess: the map's own station then sends no frames that would race it, CE-1464).</summary>
         public Hrot.Editor.Director.ScriptedStation ScriptedStation
-            => _scriptedStation ??= new Hrot.Editor.Director.ScriptedStation(() => _world, id => PostPossess(id).error);
+            => _scriptedStation ??= new Hrot.Editor.Director.ScriptedStation(() => _world, id => PostPossess(id).error, ScriptedHudFrame);
+
+        /// <summary>⭐ SD-S5v — the published gizmo frame for the scripted station's <c>do: click</c> (touches the headless gizmo gate, CE-11045).</summary>
+        private ReadOnlySpan<DebugPrimitive> ScriptedHudFrame()
+        {
+            if (_gizmoFeed is not { } buffer) return default;
+            GizmoLease?.Touch();
+            return buffer.ReaderFrame();
+        }
 
         public (JsonNode? result, string? error, string? hintCategory) GetGizmoFrame(int max = 500)
         {

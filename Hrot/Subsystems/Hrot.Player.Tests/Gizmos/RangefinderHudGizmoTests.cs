@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using System.Reflection;
 using Fdp.Core;
@@ -131,7 +132,9 @@ namespace Hrot.Player.Tests.Gizmos
             var texts = Texts(run);
             foreach (var t in new[] { "LASER RANGEFINDER", "MODE", "SINGLE", "POWER", "LOW", "LASER", "LAST RANGE", "— m", "EXIT" }) Assert.Contains(t, texts);
             Assert.DoesNotContain("PREVIEW", texts);
-            Assert.DoesNotContain("MENU", texts);
+            // no popup while closed: the only "MENU" is the MENU button's chip (SD-S5v), in the chip column
+            var menus = run.Where(p => p.Shape == DebugPrimitiveShape.Text && p.TextContent.ToString() == "MENU").ToArray();
+            Assert.Equal((RangefinderHudGizmo.ChipX + 7f) * RangefinderHudGizmo.K, Assert.Single(menus).TextX, 1);
             Assert.Equal(RangefinderHudGizmo.Label, TextOf(run, "LASER").Color);         // the lamp's label greyed while off
             // the menu chips: right-aligned at the mockup's x = 446, MODE highlighted (the cursor rests on it)
             float right = 0f; int highlighted = 0;
@@ -187,7 +190,7 @@ namespace Hrot.Player.Tests.Gizmos
             var run = Frame();
             var texts = Texts(run);
             Assert.Contains("MENU", texts);                                                // "MENU ▸ MODE": the ▸ is a triangle (the font has none)
-            Assert.Equal(3, texts.FindAll(t => t == "MODE").Count);                        // the status label, the popup title and the chip
+            Assert.Equal(4, texts.FindAll(t => t == "MODE").Count);                        // the status label, the popup title, the menu line's chip and ⭐ SD-S5v the MODE button
             Assert.Contains("CONTINUOUS", texts);
             Assert.Equal(2, texts.FindAll(t => t == "SINGLE").Count);                     // the status line and the popup row
             int checks = 0, golds = 0;
@@ -218,6 +221,64 @@ namespace Hrot.Player.Tests.Gizmos
             Assert.Contains("452 m", texts);
             Assert.Equal(RangefinderHudGizmo.Pending, TextOf(run, "PREVIEW").Color);
             Assert.True(TextOf(run, "PREVIEW").TextX > TextOf(run, "452 m").TextX, "the tag sits right of the range");
+        }
+
+        /// <summary>
+        /// ⭐⭐ SD-S5v (§3.13e D-122 / D-124 / D-128, mockup panels 2–6) — the rangefinder's BUTTONS are drawn through <c>HudPanel.Button</c>: one chip per element of
+        /// its type, and — by the SAME call, inside the device's HudScope run — exactly one <see cref="DebugPrimitiveShape.PanelButton"/> per chip carrying the
+        /// element (Button, 0–3), the drawn chip's rectangle and its state (RANGE lit while ranging, MENU lit while the menu is open, SELECT greyed while it is
+        /// closed); the labels and the hotkey badges are the TKB type's (R · O · P · ENT), the default names without a type. 🔴 Red-proof (compiles):
+        /// <c>HudPanel.Button</c> without its <c>EmitRaw(PanelButtons.Make…)</c> ⇒ no hit zone ⇒ red.
+        /// </summary>
+        [Fact]
+        public void SDS5v_TheChips_AreHudPanelButtons_OneHitZonePerElement_WithTheDrawnRect_AndTheirState()
+        {
+            State(new RangefinderState());
+            var run = Frame();
+            var buttons = run.Where(p => PanelButtons.Is(p)).ToArray();
+            Assert.Equal(4, buttons.Length);
+            float k = RangefinderHudGizmo.K;
+            for (int i = 0; i < 4; i++)
+            {
+                var b = buttons[i];
+                Assert.Equal(((byte)Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button, (byte)i), (b.PanelKind, b.PanelElement));
+                Assert.Equal(RangefinderHudGizmo.ChipX * k, b.PanelX, 2);
+                Assert.Equal((RangefinderHudGizmo.ChipY + i * RangefinderHudGizmo.ChipStep) * k, b.PanelY, 2);
+                Assert.Equal((RangefinderHudGizmo.ChipW * k, RangefinderHudGizmo.ChipH * k), (b.PanelW, b.PanelH));
+                // the drawn chip is exactly that rectangle (its fill box)
+                Assert.Contains(run, p => p.Shape == DebugPrimitiveShape.Box2D && Math.Abs(p.BoxCenterX - (b.PanelX + b.PanelW / 2)) < 0.01f
+                                          && Math.Abs(p.BoxCenterY - (b.PanelY + b.PanelH / 2)) < 0.01f && Math.Abs(p.BoxExtentX - b.PanelW / 2) < 0.01f);
+            }
+            Assert.Equal(new[] { PanelButtonState.Normal, PanelButtonState.Normal, PanelButtonState.Normal, PanelButtonState.Disabled }, buttons.Select(b => b.PanelState).ToArray());
+            foreach (var t in new[] { "RANGE", "MODE", "MENU", "SELECT" }) Assert.Contains(t, Texts(run));
+
+            State(new RangefinderState { Ranging = 1, MenuOpen = 1 });
+            Assert.Equal(new[] { PanelButtonState.Lit, PanelButtonState.Normal, PanelButtonState.Lit, PanelButtonState.Normal },
+                         Frame().Where(p => PanelButtons.Is(p)).Select(b => b.PanelState).ToArray());
+        }
+
+        /// <summary>⭐ SD-S5v (D-124) — with the device's TKB type in the world, each chip shows its element's hotkey in a key box and its PanelButton carries the key.</summary>
+        [Fact]
+        public void SDS5v_WithItsType_TheChipsShowTheHotkeys()
+        {
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            var type = new Fdp.Interfaces.TkbTemplate("Laser rangefinder", 77);
+            type.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+            {
+                Behavior = BehaviorNames.DeviceRangefinder,
+                Elements =
+                {
+                    Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE", "O"),
+                    Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MENU", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SELECT", "Enter"),
+                },
+            });
+            db.Register(type);
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            State(new RangefinderState());
+            var run = Frame();
+            foreach (var t in new[] { "R", "O", "P", "ENT" }) Assert.Contains(t, Texts(run));
+            Assert.Equal((ushort)NodeEditor.Primitives.EditorKey.R, run.First(p => PanelButtons.Is(p)).PanelHotkey);
+            Assert.Equal((ushort)NodeEditor.Primitives.EditorKey.Enter, run.Last(p => PanelButtons.Is(p)).PanelHotkey);
         }
 
         [Fact]

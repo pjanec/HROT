@@ -580,6 +580,9 @@ Pictures: [ground shaping and ditches](UX/ground-shaping-and-ditches.svg) · [ve
   from the commander's seat)
 - **Buttons by name, menus and modes:** MENU / SELECT / MODE step the device's own state; a press reaches only the device the view shows.
   ▶ ✅ `dv-menu-and-modes`
+- **A clickable HUD — the virtual panel** *(SD-S5v, §3.13e)*: the device's buttons are chips on its HUD with their hotkeys; with the cursor free he
+  CLICKS one (or presses its key, or the pad's button) — the same press on the device, through the same input path a physical replica would use;
+  holding the right button looks around. ▶ ✅ `dv-menu-and-modes-click` (the menu worked by clicking its chips: exactly the rows of the press run)
 - **The laser ranges what he looks at:** aimed at three marked men, the rangefinder reads 200 / 450 / 900 m and names the man it met; its HUD shows
   it. ▶ ✅ `dv-range-targets`
 - **Views bound to a device:** the view shows ONE device's HUD; switching re-binds it; a viewed hand-held device is raised (the held item).

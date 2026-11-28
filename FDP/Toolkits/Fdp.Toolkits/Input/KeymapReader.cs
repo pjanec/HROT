@@ -156,7 +156,16 @@ public sealed class KeymapReader
     /// </summary>
     public KeymapReader? Inner { get; set; }
 
-    private bool InnerOwns(EditorKey key) => key != EditorKey.Unknown && Inner is { } inner && !ReferenceEquals(inner, this) && inner.Binds(key);
+    /// <remarks>⭐ SD-S5v (devices §3.13e D-124) — the inner places form a CHAIN (the body → the device place → the bound device TYPE's hotkey place): a key any
+    /// inner place binds is shadowed here, however deep (four levels at most — a cycle cannot loop).</remarks>
+    private bool InnerOwns(EditorKey key)
+    {
+        if (key == EditorKey.Unknown) return false;
+        var inner = Inner;
+        for (int depth = 0; depth < 4 && inner != null && !ReferenceEquals(inner, this); depth++, inner = inner.Inner)
+            if (inner.Binds(key)) return true;
+        return false;
+    }
 
     /// <summary>Whether a row of this reader's place names <paramref name="key"/> (any action, any trigger). An index loop — 0 B.</summary>
     public bool Binds(EditorKey key)

@@ -32,6 +32,10 @@ namespace Fdp.Toolkit.Vis2D.Abstractions
         /// </summary>
         void SetCursorLocked(bool locked) { }
 
+        /// <summary>⭐ SD-S5v (devices §3.13e D-123) — puts the cursor at <paramref name="position"/> (the view's pixels): a RMB-look that captured the cursor
+        /// gives it back where it was. Default: nothing.</summary>
+        void SetMousePosition(Vector2 position) { }
+
         // ── ⭐ SD-S2a (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-102) — the gamepad (pad 0). Default bodies: no pad, so a headless or test
         //    provider keeps compiling and reads nothing. ⛔ No deadzone here — the keymap reader applies ONE (KeymapReader.PadDeadzone) to every pad axis.
 

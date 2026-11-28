@@ -23,8 +23,9 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
     }
 
     /// <summary>
-    /// The binoculars' press channels (<c>DeviceInput</c>). ⚠ Placeholders until the TKB type names them (D-26). The station's device scope puts LMB on
-    /// channel 0 and RMB on channel 1 (PossessionStation.DeviceKeys).
+    /// The binoculars' press channels (<c>DeviceInput</c>) — the BUTTON indexes of TKB type 641's elements (ZOOM IN, ZOOM OUT; pinned by
+    /// <c>RangefinderBehaviorTests.S1e1_…</c>). ⭐ SD-S5v (D-124): the station's virtual panel presses them by the type's WHEEL roles (a notch up / down) and
+    /// hotkeys (+ / −); ⛔ S1d-3's LMB / RMB by index is retired.
     /// </summary>
     public static class BinocularsChannels
     {

@@ -137,7 +137,7 @@ namespace Hrot.Editor.Director
     /// </summary>
     public sealed record StationAction
     {
-        /// <summary>possess · control · view · pause</summary>
+        /// <summary>possess · control · view · pause · ⭐ SD-S5v click</summary>
         public string Kind { get; init; } = "";
         /// <summary>The station (1 = this node's own — the only one in the editor tier).</summary>
         public int Station { get; init; } = 1;
@@ -154,6 +154,8 @@ namespace Hrot.Editor.Director
         public double For { get; init; }
         /// <summary><c>pause</c>: how many frames the sim time is held.</summary>
         public int Frames { get; init; }
+        /// <summary>⭐ SD-S5v <c>click</c>: the HUD button to click, by the element's NAME (its chip's PanelButton on the bound view's HUD).</summary>
+        public string? Button { get; init; }
     }
 
     /// <summary>⭐ A change the check makes to the world at <see cref="At"/> (the old live checks' hand edits — wound a man, set an attribute).</summary>
@@ -247,10 +249,11 @@ namespace Hrot.Editor.Director
                     var where = $"do[{i}]";
                     if (da[i] is not JsonObject a) { problems.Add($"{where} is not an object"); continue; }
                     foreach (var (k, _) in a)
-                        if (k is not ("name" or "at" or "atPausedFrame" or "set" or "order" or "resume" or "revive" or "possess" or "control" or "view" or "pause")) problems.Add($"{where}: unknown key '{k}'");
+                        if (k is not ("name" or "at" or "atPausedFrame" or "set" or "order" or "resume" or "revive" or "possess" or "control" or "view" or "pause" or "click")) problems.Add($"{where}: unknown key '{k}'");
                     int kinds = (a["set"] is null ? 0 : 1) + (a["order"] is null ? 0 : 1) + (a["resume"] is null ? 0 : 1) + (a["revive"] is null ? 0 : 1)
-                              + (a["possess"] is null ? 0 : 1) + (a["control"] is null ? 0 : 1) + (a["view"] is null ? 0 : 1) + (a["pause"] is null ? 0 : 1);
-                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume, revive, possess, control, view, pause"); continue; }
+                              + (a["possess"] is null ? 0 : 1) + (a["control"] is null ? 0 : 1) + (a["view"] is null ? 0 : 1) + (a["pause"] is null ? 0 : 1)
+                              + (a["click"] is null ? 0 : 1);
+                    if (kinds != 1) { problems.Add($"{where}: exactly one of set, order, resume, revive, possess, control, view, pause, click"); continue; }
                     // ⭐ S1e-2 — on the n-th paused frame of a pause, instead of at a time (a pause itself starts at a time)
                     int? atPaused = null;
                     if (a["atPausedFrame"] is { } apf)
@@ -262,7 +265,7 @@ namespace Hrot.Editor.Director
                     }
                     var at = atPaused is null ? Time(a["at"], where + " at", problems) : new AtExpr(0d);
                     if (at is null) { problems.Add($"{where}: at is required"); continue; }
-                    if (a["possess"] is not null || a["control"] is not null || a["view"] is not null || a["pause"] is not null)
+                    if (a["possess"] is not null || a["control"] is not null || a["view"] is not null || a["pause"] is not null || a["click"] is not null)
                     {
                         if (StationActionOf(a, where, problems) is { } station)
                             actions.Add(new CheckAction { Name = a["name"]?.ToString(), At = at.Value, AtPausedFrame = atPaused, Who = station.Who ?? "", Station = station });
@@ -397,6 +400,13 @@ namespace Hrot.Editor.Director
                 if (psn is not JsonObject po || po["who"]?.ToString() is not { Length: > 0 } who) { problems.Add($"{where}: possess is {{who, station}}"); return null; }
                 foreach (var (k, _) in po) if (k is not ("who" or "station")) problems.Add($"{where}: possess: unknown key '{k}'");
                 return new StationAction { Kind = "possess", Station = StationOf(po, where, problems), Who = who };
+            }
+            if (a["click"] is { } cn)
+            {
+                // ⭐ SD-S5v (DESIGN_Simulated_Devices §3.13e) — click the bound device's HUD button by its element NAME, through the station's panel (the HUD is the path)
+                if (cn is not JsonObject clo || clo["button"]?.ToString() is not { Length: > 0 } button) { problems.Add($"{where}: click is {{station, button}} (a HUD button's element name)"); return null; }
+                foreach (var (k, _) in clo) if (k is not ("button" or "station")) problems.Add($"{where}: click: unknown key '{k}'");
+                return new StationAction { Kind = "click", Station = StationOf(clo, where, problems), Button = button };
             }
             if (a["view"] is { } vn)
             {

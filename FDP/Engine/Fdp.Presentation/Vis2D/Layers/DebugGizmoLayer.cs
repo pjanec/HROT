@@ -48,7 +48,7 @@ namespace Fdp.Toolkit.Vis2D.Layers
 
         /// <summary>⭐ S1d-1 — the buffer's frame as THIS view sees it: its bound source's HUD run kept, every other run removed whole
         /// (<see cref="HudScopes.Keep"/>). Every reader in this layer reads it — the 2-D and 3-D draws, the cards, the terminal's meta and picks.</summary>
-        public ReadOnlySpan<DebugPrimitive> ViewFrame() => HudScopes.Keep(_buffer!.ReaderFrame(), BoundSource, ref _viewFrame);
+        public ReadOnlySpan<DebugPrimitive> ViewFrame() => _buffer == null ? default : HudScopes.Keep(_buffer.ReaderFrame(), BoundSource, ref _viewFrame);   // ⭐ SD-S5v — the panel adapter reads it on any host
 
         /// <summary>The buffer's frame as this pass draws it: all of it on screen, its film primitives in a film's pass.</summary>
         private ReadOnlySpan<DebugPrimitive> FrameFor(in RenderContext ctx)

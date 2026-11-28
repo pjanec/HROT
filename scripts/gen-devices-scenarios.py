@@ -86,45 +86,55 @@ def press(name, at, button, **kw):
 RF = "RangefinderState"
 BN = "BinocularsState"
 
-# ── dv-menu-and-modes ────────────────────────────────────────────────────────────────────────────────────────────────────────────
-write("dv-menu-and-modes", scenario(
-    "dv-menu-and-modes",
-    "Simulated devices SD-S1 (DESIGN_Simulated_Devices §5a) - laser-free operation. A scripted trainee possesses the Observer, who carries a laser "
-    "rangefinder (kit 1) and binoculars (kit 2); he binds his view to the rangefinder and works its menu by its buttons, by NAME: MENU opens it (cursor "
-    "MODE), MENU steps the cursor to POWER, SELECT turns the power HIGH, MODE steps the mode to CONTINUOUS, MENU once more brings the cursor to EXIT and "
-    "SELECT closes the menu.",
-    "(1) after each press the rangefinder's own state (its RangefinderState memory) shows it: menu open on MODE, cursor on POWER, power HIGH, mode "
-    "CONTINUOUS, menu closed; (2) the view bound to the rangefinder shows its HUD with each mode's word (SINGLE, then CONTINUOUS) and the open menu; "
-    "(3) the binoculars - carried, operated, never the view's device - keep their zoom step: a press reaches only the device the view shows. Fail: a "
-    "press does nothing, or changes the binoculars.",
-    observer_with(1, [("Rangefinder", RANGEFINDER, 4), ("Binoculars", BINOCULARS, 5)])), {
-    "runFor": 10, "golden": {"every": 5},
-    "do": [
-        {"name": "possessed", "at": 0.5, "possess": {"who": "Observer", "station": 1}},
-        {"name": "viewed", "at": 1.5, "view": {"station": 1, "source": "Rangefinder"}},
-        press("menu 1", 2.5, "MENU"),
-        press("menu 2", 3.0, "MENU"),
-        press("select 1", 3.5, "SELECT"),
-        press("mode 1", 4.0, "MODE"),
-        press("menu 3", 4.5, "MENU"),
-        press("select 2", 5.5, "SELECT"),
-    ],
-    "expect": [
-        mem("before any press the menu is closed and the mode SINGLE", "Rangefinder", RF, "Mode", "==", "Single", after="viewed", before="menu 1",
-            also=[{"path": "MenuOpen", "op": "==", "value": 0}]),
-        {"name": "the view shows the rangefinder's HUD in SINGLE", "on": "hud", "source": "station:1", "text": ["==", "SINGLE"], "after": "viewed", "before": "mode 1"},
-        mem("MENU opens the menu on MODE", "Rangefinder", RF, "MenuOpen", "==", 1, after="menu 1", before="menu 2", also=[{"path": "Menu", "op": "==", "value": "Mode"}]),
-        {"name": "the HUD shows the open menu", "on": "hud", "source": "station:1", "text": ["==", "EXIT"], "after": "menu 1", "before": "select 2"},
-        mem("MENU again moves the cursor to POWER", "Rangefinder", RF, "Menu", "==", "Power", after="menu 2", before="select 1"),
-        mem("SELECT on POWER turns the power HIGH", "Rangefinder", RF, "Power", "==", "High", after="select 1", before="mode 1"),
-        mem("MODE steps the mode to CONTINUOUS", "Rangefinder", RF, "Mode", "==", "Continuous", after="mode 1"),
-        {"name": "the view shows CONTINUOUS", "on": "hud", "source": "station:1", "text": ["==", "CONTINUOUS"], "after": "mode 1"},
-        mem("MENU once more brings the cursor to EXIT", "Rangefinder", RF, "Menu", "==", "Exit", after="menu 3", before="select 2"),
-        mem("SELECT on EXIT closes the menu", "Rangefinder", RF, "MenuOpen", "==", 0, after="select 2", also=[{"path": "Power", "op": "==", "value": "High"}]),
-        mem("the binoculars are at their default step", "Binoculars", BN, "Zoom", "==", 1, after="viewed", before="menu 1"),
-        {"name": "the binoculars never change: a press reaches only the viewed device", "never": {"on": "field", "who": "Binoculars", "memory": BN, "field": "Zoom", "op": "!=", "value": 1}, "after": "menu 1"},
-    ],
-})
+# ── dv-menu-and-modes (+ ⭐ SD-S5v: dv-menu-and-modes-click, the SAME rows by clicking the HUD's buttons) ────────────────────────────────────────
+def click(name, at, button, **kw):
+    return {"name": name, "at": at, "click": {"station": 1, "button": button}, **kw}
+
+
+def menu_and_modes(name, act, how, extra_what=""):
+    write(name, scenario(
+        name,
+        "Simulated devices SD-S1 (DESIGN_Simulated_Devices §5a) - laser-free operation. A scripted trainee possesses the Observer, who carries a laser "
+        "rangefinder (kit 1) and binoculars (kit 2); he binds his view to the rangefinder and works its menu by its buttons, " + how + ": MENU opens it (cursor "
+        "MODE), MENU steps the cursor to POWER, SELECT turns the power HIGH, MODE steps the mode to CONTINUOUS, MENU once more brings the cursor to EXIT and "
+        "SELECT closes the menu." + extra_what,
+        "(1) after each press the rangefinder's own state (its RangefinderState memory) shows it: menu open on MODE, cursor on POWER, power HIGH, mode "
+        "CONTINUOUS, menu closed; (2) the view bound to the rangefinder shows its HUD with each mode's word (SINGLE, then CONTINUOUS) and the open menu; "
+        "(3) the binoculars - carried, operated, never the view's device - keep their zoom step: a press reaches only the device the view shows. Fail: a "
+        "press does nothing, or changes the binoculars.",
+        observer_with(1, [("Rangefinder", RANGEFINDER, 4), ("Binoculars", BINOCULARS, 5)])), {
+        "runFor": 10, "golden": {"every": 5},
+        "do": [
+            {"name": "possessed", "at": 0.5, "possess": {"who": "Observer", "station": 1}},
+            {"name": "viewed", "at": 1.5, "view": {"station": 1, "source": "Rangefinder"}},
+            act("menu 1", 2.5, "MENU"),
+            act("menu 2", 3.0, "MENU"),
+            act("select 1", 3.5, "SELECT"),
+            act("mode 1", 4.0, "MODE"),
+            act("menu 3", 4.5, "MENU"),
+            act("select 2", 5.5, "SELECT"),
+        ],
+        "expect": [
+            mem("before any press the menu is closed and the mode SINGLE", "Rangefinder", RF, "Mode", "==", "Single", after="viewed", before="menu 1",
+                also=[{"path": "MenuOpen", "op": "==", "value": 0}]),
+            {"name": "the view shows the rangefinder's HUD in SINGLE", "on": "hud", "source": "station:1", "text": ["==", "SINGLE"], "after": "viewed", "before": "mode 1"},
+            mem("MENU opens the menu on MODE", "Rangefinder", RF, "MenuOpen", "==", 1, after="menu 1", before="menu 2", also=[{"path": "Menu", "op": "==", "value": "Mode"}]),
+            {"name": "the HUD shows the open menu", "on": "hud", "source": "station:1", "text": ["==", "EXIT"], "after": "menu 1", "before": "select 2"},
+            mem("MENU again moves the cursor to POWER", "Rangefinder", RF, "Menu", "==", "Power", after="menu 2", before="select 1"),
+            mem("SELECT on POWER turns the power HIGH", "Rangefinder", RF, "Power", "==", "High", after="select 1", before="mode 1"),
+            mem("MODE steps the mode to CONTINUOUS", "Rangefinder", RF, "Mode", "==", "Continuous", after="mode 1"),
+            {"name": "the view shows CONTINUOUS", "on": "hud", "source": "station:1", "text": ["==", "CONTINUOUS"], "after": "mode 1"},
+            mem("MENU once more brings the cursor to EXIT", "Rangefinder", RF, "Menu", "==", "Exit", after="menu 3", before="select 2"),
+            mem("SELECT on EXIT closes the menu", "Rangefinder", RF, "MenuOpen", "==", 0, after="select 2", also=[{"path": "Power", "op": "==", "value": "High"}]),
+            mem("the binoculars are at their default step", "Binoculars", BN, "Zoom", "==", 1, after="viewed", before="menu 1"),
+            {"name": "the binoculars never change: a press reaches only the viewed device", "never": {"on": "field", "who": "Binoculars", "memory": BN, "field": "Zoom", "op": "!=", "value": 1}, "after": "menu 1"},
+        ],
+    })
+
+
+menu_and_modes("dv-menu-and-modes", press, "by NAME")
+menu_and_modes("dv-menu-and-modes-click", click, "by CLICKING their chips on the HUD (do: click - SD-S5v, DESIGN_Simulated_Devices §3.13e)",
+               " The rows are dv-menu-and-modes' own: a click must give exactly what a press gives (D-125 - one press, every source).")
 
 # ── dv-range-targets ─────────────────────────────────────────────────────────────────────────────────────────────────────────────
 # ⚠ inside the collider grid: on a terrain with no world (berlin) it stays [-750, 750)² (SpatialHashConstants) — a body beyond it is met by no round

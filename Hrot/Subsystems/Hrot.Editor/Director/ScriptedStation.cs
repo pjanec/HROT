@@ -26,7 +26,7 @@ namespace Hrot.Editor.Director
     /// pressed by their TKB NAME (<see cref="DeviceDefDto.Elements"/>, D-142 — a click on the HUD makes the same bytes) and its axes.
     /// Main thread, on the host's brain world (the debug service's).
     /// </summary>
-    public sealed class ScriptedStation : IVerifyStation
+    public sealed class ScriptedStation : IVerifyStation, IDevicePanelIo
     {
         /// <summary>The height a unit is aimed at above its reference point (m) — a man's centre.</summary>
         public const float AimHeight = 1.0f;
@@ -46,12 +46,49 @@ namespace Hrot.Editor.Director
 
         public const int MaxDevices = 8;
 
+        /// <summary>⭐ SD-S5v — the published gizmo frame (the HUD runs), for <c>do: click</c>; the host touches its gizmo gate when it reads it.</summary>
+        public delegate ReadOnlySpan<DebugPrimitive> HudFrameReader();
+
+        private readonly HudFrameReader? _hudFrame;
+        private DebugPrimitive[] _kept = Array.Empty<DebugPrimitive>();
+
         /// <param name="world">the brain world (where the device tick runs).</param>
         /// <param name="possess">the host's possess service (null when accepted, else why not).</param>
-        public ScriptedStation(Func<EntityRepository?> world, Func<int, string?> possess)
+        /// <param name="hudFrame">⭐ SD-S5v — the published gizmo frame (null: this host cannot click a HUD button).</param>
+        public ScriptedStation(Func<EntityRepository?> world, Func<int, string?> possess, HudFrameReader? hudFrame = null)
         {
             _world = world ?? throw new ArgumentNullException(nameof(world));
             _possess = possess ?? throw new ArgumentNullException(nameof(possess));
+            _hudFrame = hudFrame;
+        }
+
+        // ⭐ SD-S5v (D-131) — the scripted trainee is one more PANEL IO source (the script kind)
+        public DeviceInputSource Source => DeviceInputSource.Script;
+        DeviceInputEncoder IDevicePanelIo.Encoder => _encoder;
+
+        /// <summary>
+        /// ⭐⭐ SD-S5v (§3.13e D-122 / D-130, the grammar's <c>do: click</c>) — CLICKS the bound device's HUD button named <paramref name="button"/>: the name is
+        /// encoded to its element (D-146), the button's rectangle is found in the HUD run a view bound to the device keeps (its <c>PanelButton</c>, emitted by the
+        /// call that drew the chip), and its CENTRE is clicked through the panel's one click path (<see cref="DevicePanelClick.Click"/> — the hit test the station's
+        /// virtual panel runs on LMB). ⭐ The HUD is the path under test: a chip that is not drawn, or drawn elsewhere, cannot be clicked. Null when clicked, else why not.
+        /// </summary>
+        public string? Click(StationAction action, double rel)
+        {
+            if (_body == 0) return "no unit is possessed at this station (do: possess first)";
+            if (_world() is not { } w) return "no world";
+            var bound = BoundEntity(w);
+            if (bound.IsNull) return "the view shows no device (do: view first): a click reaches only the HUD the view shows";
+            var type = TypeOf(w, bound);
+            if (!DeviceInputEncoder.Encode(type, action.Button ?? "", out var kind, out int index))
+                return type is null ? "the device has no TKB type (Gen.Device) naming its elements" : $"the device has no element '{action.Button}' (its elements: {type.Names()})";
+            if (_hudFrame is null) return "this host has no HUD feed to click on";
+            var kept = HudScopes.Keep(_hudFrame(), _bound, ref _kept);
+            int at = PanelButtons.Find(kept, (byte)kind, (byte)index);
+            if (at < 0) return $"the HUD shows no '{action.Button}' button (no PanelButton for it in the device's run — is the HUD drawing?)";
+            var p = kept[at];
+            var centre = new Vector2(p.PanelX + p.PanelW * 0.5f, p.PanelY + p.PanelH * 0.5f);
+            int hit = DevicePanelClick.Click(w, _encoder, bound, type, kept, centre, latchingOwnedElsewhere: false, out _);
+            return hit < 0 ? $"the click at the '{action.Button}' button's centre hit nothing" : null;
         }
 
         /// <summary>Input events sent (rails).</summary>
@@ -104,7 +141,13 @@ namespace Hrot.Editor.Director
             {
                 var type = TypeOf(w, bound);
                 foreach (var name in action.Press)
-                    if (_encoder.Press(bound, type, name, CurrentSwitch(w, bound, type, name)) is { } why) return why;   // ⭐ D-146 — the one name → element lookup
+                {
+                    // ⭐ D-146 — the one name → element lookup; ⭐ the press itself is the panel's (a button pressed, a switch stepped — DevicePanelClick.Press)
+                    if (!DeviceInputEncoder.Encode(type, name, out var kind, out int index))
+                        return type is null ? "the device has no TKB type (Gen.Device) naming its elements" : $"the device has no element '{name}' (its elements: {type.Names()})";
+                    if (kind == DeviceElementKind.Axis) return $"'{name}' is an axis — it takes a value, not a press";
+                    DevicePanelClick.Press(w, _encoder, bound, type, kind, index);
+                }
             }
             foreach (var (axis, value) in action.Axes) { _axes[axis] = value; _axesSet |= 1 << axis; }
             if (action.Axes.Count > 0) _axesUntil = action.For > 0d ? rel + action.For : double.PositiveInfinity;
@@ -128,14 +171,6 @@ namespace Hrot.Editor.Director
             if (!bound.IsNull)
                 for (int k = 0; k < DeviceAxes.Count; k++) if ((_axesSet & (1 << k)) != 0) _encoder.SetAxis(bound, k, _axes[k]);
             _encoder.Flush(w, station, _sources.AsSpan(0, n));
-        }
-
-        /// <summary>A switch element's NEXT position as the device holds it now (its merged input) — a press steps it; −1 for any other element.</summary>
-        private static int CurrentSwitch(EntityRepository w, Entity device, DeviceDefDto? type, string name)
-        {
-            if (!DeviceInputEncoder.Encode(type, name, out var kind, out int index) || kind != DeviceElementKind.Switch) return -1;
-            int now = w.IsComponentTypeRegistered<DeviceInput>() && w.HasComponent<DeviceInput>(device) ? w.GetComponentRO<DeviceInput>(device).Control.Switches[index] : 0;
-            return (now + 1) % Math.Max(1, type!.ElementAt(kind, index)!.Positions);
         }
 
         // ── helpers ──────────────────────────────────────────────────────────────────────────────
@@ -187,12 +222,7 @@ namespace Hrot.Editor.Director
         }
 
         /// <summary>The device's TKB type (its <c>DeviceInfo.DeviceType</c>) — what names its elements (D-142).</summary>
-        public static DeviceDefDto? TypeOf(EntityRepository w, Entity device)
-        {
-            if (!w.IsComponentTypeRegistered<DeviceInfo>() || !w.HasComponent<DeviceInfo>(device) || !w.HasSingletonManaged<ITkbDatabase>()) return null;
-            var db = w.GetSingletonManaged<ITkbDatabase>();
-            return db != null && db.TryGetByType(w.GetComponentRO<DeviceInfo>(device).DeviceType, out var t) && t != null ? t.GetDescriptor<DeviceDefDto>() : null;
-        }
+        public static DeviceDefDto? TypeOf(EntityRepository w, Entity device) => DeviceTypes.Of(w, device);   // ⭐ SD-S5v — the one lookup
     }
 
     /// <summary>

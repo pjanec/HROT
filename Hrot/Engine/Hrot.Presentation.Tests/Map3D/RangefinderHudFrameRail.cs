@@ -27,7 +27,7 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// rangefinder's HUD, one per mockup panel (<c>mockups/devices-hud.svg</c> 2 idle · 3 ranged · 4 menu open · 5 paused preview): the production projector
 /// run by the production gizmo system into a map buffer, drawn by the 3-D map's gizmo layer BOUND to the device (its screen pass), over the test town.
 /// Each frame is measured where the mockup puts each element (the canvas fit: 1280 × 800 ⇒ the 1280 × 720 canvas at y + 40), and an UNBOUND layer
-/// over the same buffer draws none of it. PNGs to <c>HROT_RAIL_SHOTS</c> as <c>rangefinder-hud-&lt;n&gt;-*.png</c>; SKIPS without a display:
+/// over the same buffer draws none of it. ⭐ SD-S5v — and the button chips (HudPanel) in the right column: labelled, lit, greyed as the mockup's panels. PNGs to <c>HROT_RAIL_SHOTS</c> as <c>rangefinder-hud-&lt;n&gt;-*.png</c>; SKIPS without a display:
 /// <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~RangefinderHudFrameRail</c>.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
@@ -55,7 +55,9 @@ public sealed class RangefinderHudFrameRail
             D = W.CreateEntity();
             W.AddComponent(D, new BehaviorState());
             W.SetAuthority<BehaviorState>(D, true);
-            W.AddComponent(D, new DeviceInfo { DeviceType = 77, Behavior = new FixedString64(BehaviorNames.DeviceRangefinder) });
+            // ⭐ SD-S5v — the real TKB type 640: the chips' labels and hotkey badges are its elements'
+            W.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(Hrot.Map.Common.HrotEnvironment.CreateTkb());
+            W.AddComponent(D, new DeviceInfo { DeviceType = Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder, Behavior = new FixedString64(BehaviorNames.DeviceRangefinder) });
             W.AddComponent(D, new NetworkIdentity { Value = NetId });
             W.AddComponent(D, new PossessedBy { StationNodeId = (StationId)5, Mode = PossessionMode.Operated, Epoch = 1 });
             var registry = new StatelessGizmoRegistry();
@@ -73,6 +75,14 @@ public sealed class RangefinderHudFrameRail
             for (int x = Math.Max(0, x0); x < Math.Min(W, x1); x++)
                 if (match(Raylib.GetImageColor(image, x, y))) { n++; var v = new Vector2(x, y); lo = Vector2.Min(lo, v); hi = Vector2.Max(hi, v); }
         return (n, n > 0 ? (lo + hi) * 0.5f : Vector2.Zero);
+    }
+
+    /// <summary>⭐ SD-S5v — chip <paramref name="i"/>'s box on the frame, inset 2 px (the chip column: <see cref="RangefinderHudGizmo.ChipX"/> …).</summary>
+    private static (int, int, int, int) ChipBox(int i)
+    {
+        var a = At(RangefinderHudGizmo.ChipX, RangefinderHudGizmo.ChipY + i * RangefinderHudGizmo.ChipStep);
+        var b = At(RangefinderHudGizmo.ChipX + RangefinderHudGizmo.ChipW, RangefinderHudGizmo.ChipY + i * RangefinderHudGizmo.ChipStep + RangefinderHudGizmo.ChipH);
+        return ((int)a.X + 2, (int)a.Y + 2, (int)b.X - 2, (int)b.Y - 2);
     }
 
     private static bool Gold(Color c) => c.R > 200 && c.G > 160 && c.B < 90;
@@ -147,6 +157,17 @@ public sealed class RangefinderHudFrameRail
             Assert.InRange(g.centroid.X, range.X - 12, range.X + 12);
             Assert.Equal(0, Count(img, (int)lamp.X - r, (int)lamp.Y - r, (int)lamp.X + r, (int)lamp.Y + r, Red).n);   // the lamp is dark
             Assert.True(Count(img, (int)chips.X - 50, (int)chips.Y - 30, (int)chips.X + 50, (int)chips.Y + 30, Blue).n > 200, "the MODE chip highlighted");
+            // ⭐ SD-S5v (mockup panel 2) — the button chips in the right column: RANGE / MODE / MENU labelled white, SELECT greyed (the menu is closed), none lit
+            for (int i = 0; i < 4; i++)
+            {
+                var (x0, y0, x1, y1) = ChipBox(i);
+                int white = Count(img, x0, y0, x1, y1, White).n;
+                if (i < 3) Assert.True(white > 40, $"chip {i}: its label in white ({white})");
+                int key = Count(img, x1 - (int)(30 * K), y0, x1, y1, c => c.R > 185 && c.R < 215 && c.B > 195 && c.B < 225 && Math.Abs(c.R - c.G) < 10).n;
+                if (i < 3) Assert.True(key > 15, $"chip {i}: its hotkey's key box ({key})");
+                else Assert.True(white < 5 && Count(img, x0, y0, x1, y1, c => c.R > 90 && c.R < 125 && Math.Abs(c.R - c.B) < 16).n > 30, $"SELECT greyed ({white})");
+                Assert.True(Count(img, x0, y0, x1, y1, Blue).n < 50, $"chip {i} not lit");
+            }
         }
         finally { Raylib.UnloadImage(img); }
 
@@ -172,6 +193,8 @@ public sealed class RangefinderHudFrameRail
             var g = Count(img, (int)(range.X - 150), (int)(range.Y - 45), (int)(range.X + 150), (int)(range.Y + 45), Gold);
             Assert.True(g.n > 400, $"'452 m' in gold ({g.n})");
             Assert.InRange(g.centroid.X, range.X - 12, range.X + 12);
+            var (x0, y0, x1, y1) = ChipBox(RangefinderChannels.Range);
+            Assert.True(Count(img, x0, y0, x1, y1, Blue).n > 1500, "⭐ SD-S5v — the RANGE chip lit while ranging (mockup panel 3)");
         }
         finally { Raylib.UnloadImage(img); }
 
@@ -184,6 +207,10 @@ public sealed class RangefinderHudFrameRail
             var check = At(24 + 150 - 18, 150 + 10);
             Assert.True(Count(img, (int)check.X - 25, (int)check.Y - 25, (int)check.X + 25, (int)check.Y + 25, c => c.G > 170 && c.R < 140 && c.B < 140).n > 30, "✓ on SINGLE");
             Assert.True(Count(img, (int)chips.X - 50, (int)chips.Y - 30, (int)chips.X + 50, (int)chips.Y + 30, Gold).n > 40, "the MODE chip framed gold");
+            var (x0, y0, x1, y1) = ChipBox(RangefinderChannels.Menu);
+            Assert.True(Count(img, x0, y0, x1, y1, Blue).n > 1500, "⭐ SD-S5v — the MENU chip lit while the menu is open (mockup panel 4)");
+            (x0, y0, x1, y1) = ChipBox(RangefinderChannels.Select);
+            Assert.True(Count(img, x0, y0, x1, y1, White).n > 40, "SELECT live (white) while the menu is open");
         }
         finally { Raylib.UnloadImage(img); }
 

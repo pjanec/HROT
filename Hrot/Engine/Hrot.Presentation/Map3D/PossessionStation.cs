@@ -326,6 +326,10 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>The device the view is bound to, or <see cref="Entity.Null"/> — the plain eye.</summary>
         public Entity BoundDevice { get; private set; }
 
+        /// <summary>⭐⭐ SD-S5v (§3.13e D-131 / D-141) — which panel IO sources are live per device at this station: an attached primary (a replica, a tracker, a
+        /// test adapter) for a device, else the driver's virtual panel; the virtual panel's clicks and hotkeys always. Station-local (survives a re-possess).</summary>
+        public Fdp.Toolkit.Behavior.Devices.DevicePanelIoBinding PanelIo { get; } = new(MaxViewSources);
+
         /// <summary>The bound device's network id (what its HUD run is scoped by, D-41), 0 for the plain eye.</summary>
         public long BoundSource => _world() is { } w && !BoundDevice.IsNull ? Fdp.Toolkit.Behavior.Devices.OperatedDevices.NetIdOf(w, BoundDevice) : 0;
 
@@ -506,6 +510,7 @@ namespace Hrot.UI.Common.Map3D
                 y += HudLineHeight;
             }
             DrawViewSource(w, ctx.TargetSize, font);   // ⭐ S1d-3 (mockup devices-hud.svg panel 6) — VIEW ▸ <device> and, while switching, the cycle strip
+            DrawPanelHover(ctx.TargetSize);   // ⭐ SD-S5v (D-123) — the virtual panel's hover frame over the HUD chip under the free cursor
             // ⭐ CE-4647 (AC-15 step 7; mockup air-combat-hud.svg) — a possessed FIGHTER's cues: the gun pipper, the missile cue, the radar warning, the g (the manual mouse-aim pilot; mode 8 is AI only)
             if (_driver.Scheme == ControlScheme.FixedWing)
                 FighterHud.Draw(FighterHudNow = _fighterHud.Build(w, _driver.Unit, camera.Forward, _driver.Mount, w.HasSingletonManaged<Fdp.Interfaces.ITkbDatabase>() ? w.GetSingletonManaged<Fdp.Interfaces.ITkbDatabase>() : null, Fdp.Toolkit.Time.SimClock.Of(w).TotalTime), camera, font);
@@ -618,6 +623,25 @@ namespace Hrot.UI.Common.Map3D
                 LabelText(font, look.Short, P(cx + 24f, 158f), 10.5f * k, sel ? Color.White : new Color(154, 154, 164, 255), bold: sel);
             }
         }
+
+        /// <summary>⭐ SD-S5v (D-123) — the hover frame's colour (the mockups' gold) and a refused chip's (grey — a latching control another source owns, D-135).</summary>
+        public static readonly Color HoverColour = new(255, 215, 0, 255), HoverRefusedColour = new(138, 138, 150, 255);
+
+        /// <summary>⭐⭐ SD-S5v (§3.13e D-123, mockup <c>devices-hud.svg</c> panels 2 / 4) — the VIRTUAL PANEL's hover: a frame around the HUD chip under the free
+        /// cursor (POINT), station-local (the device and its HUD never know). Laid out through the HUD canvas's fit, 3 / 20 of the chip's height outside it.</summary>
+        private void DrawPanelHover(Vector2 viewSize)
+        {
+            if (BoundDevice.IsNull || _driver?.Panel is not { Looking: false, Hovered: { } p } panel) return;
+            Fdp.Toolkit.Diagnostics.Gizmos.ViewCanvas.Fit(viewSize, out var origin, out float scale);
+            float m = p.PanelH * 0.15f;
+            var at = origin + new Vector2(p.PanelX - m, p.PanelY - m) * scale;
+            var rect = new Rectangle(at.X, at.Y, (p.PanelW + 2f * m) * scale, (p.PanelH + 2f * m) * scale);
+            Raylib.DrawRectangleRoundedLinesEx(rect, 0.25f, 4, MathF.Max(1f, p.PanelH * 0.1f * scale), panel.HoverRefused ? HoverRefusedColour : HoverColour);
+            LastHover = rect;
+        }
+
+        /// <summary>⭐ SD-S5v — the hover frame drawn last (rails; zero size when none).</summary>
+        public Rectangle LastHover { get; private set; }
 
         /// <summary>A label with its BASELINE at <paramref name="baseline"/> (the mockup's SVG text y) and the HUD's dark halo; bold = drawn twice.</summary>
         private static void LabelText(Font? font, string text, Vector2 baseline, float size, Color colour, bool bold = false)
@@ -1314,7 +1338,14 @@ namespace Hrot.UI.Common.Map3D
             _deviceKeys.Input = _chords;
             // ⭐ SD-S2a (devices §3.13c D-102) — while a view shows a device, its place (the pad's sticks and buttons) shadows the body's rows on the same input
             _keys.Inner = _station.BoundDevice.IsNull ? null : _deviceKeys;
+            _panel.Bind(_chords);   // ⭐ SD-S5v — the bound types' hotkey places read the same input
         }
+
+        // ⭐⭐⭐ SD-S5v (§3.13e D-122 – D-131) — the station's VIRTUAL PANEL: while a view shows a device it owns the mouse (POINT / RMB LOOK), the type's hotkeys,
+        //   the wheel's roles and the pad's device rows, and writes the device only through its own encoder (the panel IO). ⛔ S1d-3's by-index mapping retired.
+        private readonly VirtualPanelAdapter _panel;
+        /// <summary>⭐ SD-S5v — the driver's virtual panel (rails; the station draws its hover frame).</summary>
+        internal VirtualPanelAdapter Panel => _panel;
 
         // ⭐⭐ SD-S2a (§3.13c D-103) — the device place of the Embodied hat (EmbodiedKeys.DeviceHat): the pad's sticks → the bound device's axes 0–3, its face
         //   buttons and bumpers → channels 0–5. Read only while a view shows a device.
@@ -1363,6 +1394,7 @@ namespace Hrot.UI.Common.Map3D
             EmbodiedKeys.Declare(station.Keymap);
             _keys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.Hat);
             _deviceKeys = new Fdp.Toolkit.Input.KeymapReader(station.Keymap, Fdp.Toolkit.Input.InputScope.Hat, EmbodiedKeys.DeviceHat);
+            _panel = new VirtualPanelAdapter(station.Keymap, _keys, _deviceKeys, PossessionStation.MaxViewSources);
         }
 
         public Entity Unit { get; }
@@ -1887,6 +1919,14 @@ namespace Hrot.UI.Common.Map3D
             }
             bool vehicle = IsVehicle;
             var delta = new Vector2(_keys.Axis(EmbodiedKeys.LookX), _keys.Axis(EmbodiedKeys.LookY));   // ⭐ B-10 K4 — the mouse look is two Axis rows
+            // ⭐⭐ SD-S5v (D-123) — through a device the VIRTUAL PANEL owns the mouse: POINT (the cursor free, a click presses the HUD button under it) or, while
+            //   RMB is held, LOOK (its delta turns the look); the arrows turn it finely. Its presses go to the device through its own encoder.
+            if (_world() is { } panelWorld)
+            {
+                var panelLook = _panel.Frame(panelWorld, input, _station.BoundDevice, _station.PanelIo,
+                    _station.ViewLayer is { } viewLayer ? viewLayer.ViewFrame() : default, camera.Viewport);
+                if (!_station.BoundDevice.IsNull) delta = panelLook;
+            }
             // ⭐ CE-1213 (§8j W-1) — hold T: the command wheel; while it is open the mouse moves its cursor, not the look
             if (CommandWheelInput(delta)) delta = Vector2.Zero;
             // ⭐ CE-1211 (§8j Z-1) — hold RMB to zoom; the look turns slower in proportion to the narrower view
@@ -2070,44 +2110,31 @@ namespace Hrot.UI.Common.Map3D
         }
 
         // ── ⭐⭐ S1d-3 — the device input (docs/designs/devices/DESIGN_Simulated_Devices.md §3.4 D-43 / R5-13, §3.6 D-38) ─────────────────────────────
-        //   ⭐ SD-S5v (§3.13e D-146) — written by THE ONE encoder every adapter uses (DeviceInputEncoder: this station's virtual source, a scenario's scripted
-        //   station, later a replica): each device gets only what changed (sparse DeviceInputEvents)
+        //   ⭐ SD-S5v (§3.13e D-146) — written through THE ONE encoder every adapter uses: here the virtual panel's (its presses staged by VirtualPanelAdapter.Frame);
+        //   an attached primary (a replica, a tracker) flushes its own
 
-        private readonly Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder _deviceInput = new(Fdp.Toolkit.Behavior.Devices.DeviceInputSource.Virtual, PossessionStation.MaxViewSources);
-
-        /// <summary>The device input events this driver sent (rails).</summary>
-        public long DeviceFramesSent => _deviceInput.Sent;
-
-        /// <summary>⭐ SD-S5v — the driver's device-input encoder (the virtual source — rails).</summary>
-        internal Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder DeviceInput => _deviceInput;
+        /// <summary>The device input events this driver's virtual panel sent (rails).</summary>
+        public long DeviceFramesSent => _panel.Encoder.Sent;
 
         /// <summary>
-        /// The device input of every device the station operates (D-43) through <see cref="Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder"/>: the operator's
-        /// LOOK relative to each device's mount (R5-13), <c>Viewed</c> while the view is bound to it (D-63), and to the BOUND device only its buttons: LMB = 0,
-        /// RMB = 1, the wheel up = 2 / down = 3 (the device scope, D-38), the pad's channels 0–5 and axes. ⛔ None while HTTP or a scenario's scripted station
-        /// drives the unit (CE-1464 — its input would race ours). 0 B.
+        /// The device input of every device the station operates (D-43): the operator's LOOK relative to each device's mount (R5-13 — unless another source owns
+        /// that device's look or it has another primary, D-126 / D-141) and <c>Viewed</c> while the view is bound to it (D-63), with the virtual panel's staged
+        /// presses; then every attached adapter's own. ⛔ None while HTTP or a scenario's scripted station drives the unit (CE-1464 — its input would race ours). 0 B.
         /// </summary>
         private void SendDeviceFrames(bool viewing, float wheel = 0f)
         {
             if (_world() is not { } w || HttpControlledUnits.IsMarked(_netId) || _station.BodyStation(w) is not { } station) return;
             var devices = _station.ViewSources;
             var bound = _station.BoundDevice;
+            var io = _station.PanelIo;
             var look = Fdp.Toolkit.Behavior.Devices.DeviceInputEncoder.Look(_yaw, _pitch);
             for (int i = 0; i < devices.Length; i++)
             {
-                _deviceInput.SetWorldLook(w, devices[i], look);
-                _deviceInput.SetViewed(devices[i], viewing && devices[i] == bound);
+                if (io.VirtualIsPrimary(devices[i])) _panel.Encoder.SetWorldLook(w, devices[i], look);
+                _panel.Encoder.SetViewed(devices[i], viewing && devices[i] == bound);
             }
-            if (viewing && _locked != null && !bound.IsNull)
-            {
-                for (int b = 0; b < 2; b++) if (_keys.Pressed(EmbodiedKeys.DeviceButton(b))) _deviceInput.Press(bound, b);
-                if (wheel > 0f) _deviceInput.Press(bound, 2);
-                else if (wheel < 0f) _deviceInput.Press(bound, 3);
-                // ⭐ SD-S2a (§3.13c D-103) — the pad, through the device place's rows: A B X Y LB RB = channels 0–5, the sticks = axes 0–3
-                for (int b = 0; b < EmbodiedKeys.PadDeviceChannels; b++) if (_deviceKeys.Pressed(EmbodiedKeys.DeviceChannel(b))) _deviceInput.Press(bound, b);
-                for (int a = 0; a < Fdp.Toolkit.Behavior.Devices.DeviceAxes.Count; a++) _deviceInput.SetAxis(bound, a, _deviceKeys.Axis(EmbodiedKeys.DeviceAxis(a)));
-            }
-            _deviceInput.Flush(w, station, devices);
+            _panel.Encoder.Flush(w, station, devices);
+            io.Flush(w, station, devices);
         }
 
         /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold

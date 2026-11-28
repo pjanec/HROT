@@ -168,6 +168,16 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
         //   ACTUAL slot. Read through HudScopes, never by hand.
         [FieldOffset(24)] public long HudScopeSource;
         [FieldOffset(32)] public int HudScopeCount;
+        // ⭐ Simulated devices SD-S5v (§3.13e D-122) — a PanelButton's payload: the device element (its kind and its index within that kind, D-142), the chip's
+        //   state, its hotkey (an EditorKey value, 0 = none) and its rectangle on the view canvas (top-left + size, canvas px). Read through PanelButtons.
+        [FieldOffset(24)] public byte PanelKind;
+        [FieldOffset(25)] public byte PanelElement;
+        [FieldOffset(26)] public PanelButtonState PanelState;
+        [FieldOffset(28)] public ushort PanelHotkey;
+        [FieldOffset(32)] public float PanelX;
+        [FieldOffset(36)] public float PanelY;
+        [FieldOffset(40)] public float PanelW;
+        [FieldOffset(44)] public float PanelH;
         // InspNetworkId aliases StructNetworkId at the same offset; used by InputCaptureBinding
         // and ContextMenuBinding meta-primitives to carry the owning tool's anchor ID.
         [FieldOffset(24)] public long InspNetworkId;
@@ -586,6 +596,7 @@ namespace Fdp.Toolkit.Diagnostics.Gizmos
                 case DebugPrimitiveShape.LayerControlMask:
                 case DebugPrimitiveShape.SpatialAnchor:   // it IS an identity source, not a consumer
                 case DebugPrimitiveShape.HudScope:        // ⭐ S1d-1 — a run marker: its source is a FILTER key, never picked or routed
+                case DebugPrimitiveShape.PanelButton:     // ⭐ SD-S5v — a HUD hit zone read by the station's panel adapter, never the map's pick
                     return;
             }
 
