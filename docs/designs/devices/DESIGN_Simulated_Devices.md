@@ -1194,7 +1194,11 @@ classDiagram
   class VirtualPanelAdapter { <<NEW, station, Hrot.Presentation — implements IDevicePanelIo>> the HUD's PanelButtons + mouse (POINT / RMB LOOK) + keys (hotkeys, arrows) + gamepad }
   class ReplicaPanelAdapter { <<SD-S5, a node extension — implements IDevicePanelIo>> the physical replica's buttons, axes, tracker · its lamps from DevicePanel }
   class ScriptedPanelAdapter { <<S1e-2 ScriptedStation, re-homed — implements IDevicePanelIo>> do: press / click / axis / aim }
-  class DevicePanelIoBinding { <<NEW, station>> ONE composed frame per device: the PRIMARY adapter (replica, else virtual) + ADDITIONAL press sources (HUD clicks, hotkeys, pad) · presses additive, axes / look / latching single-owner }
+  class DevicePanelIoBinding { <<NEW, station>> which sources are live for a device (D-141) — no composing }
+  class DeviceInputEvent { <<NEW, replaces DeviceFrameEvent>> Device · Source + priority · SourceSeq · Fields mask · absolute values · Presses list }
+  class DeviceInputMerge { <<NEW, in DeviceTickSystem's ingest>> every event in order · presses bump the device's own counters · fields: last writer unless a higher priority held it (D-139) }
+  DeviceInputMerge ..> DeviceInputEvent
+  DeviceInputMerge --> DeviceInput : the merged state
   class IDevicePressSource { <<NEW interface>> momentary presses only }
   VirtualPanelAdapter ..|> IDevicePressSource : its HUD clicks and hotkeys beside a replica
   DevicePanelIoBinding --> IDevicePressSource : 0..n
@@ -1202,9 +1206,10 @@ classDiagram
   ReplicaPanelAdapter ..|> IDevicePanelIo
   ScriptedPanelAdapter ..|> IDevicePanelIo
   DevicePanelIoBinding --> IDevicePanelIo : the primary, one
-  DevicePanelIoBinding --> DeviceFrameSender : the ONLY way in — one frame, one Seq
+  IDevicePanelIo --> DeviceInputEvent : sparse, its own changes
+  IDevicePressSource --> DeviceInputEvent : presses only
   class DeviceDefDto { <<existing, grows>> Channels gain a Hotkey and an optional Wheel role }
-  class DeviceFrameSender { <<existing>> the ONE sender: presses · look · axes }
+  class DeviceFrameSender { <<existing, becomes the sparse sender>> per source: what changed since its last event }
   class HudScopes { <<existing>> Keep — the bound run }
   class PossessionStation { <<existing, changes>> a bound device ⇒ the adapter owns the mouse; no cursor lock; LMB / RMB / wheel by INDEX retired }
   class Keymap { <<existing>> the device scope rows: hotkeys per bound type, RMB look, arrows }
@@ -1282,10 +1287,34 @@ same channel — the device's logic cannot tell them apart, which is what makes 
 
 | # | decision | why |
 |---|---|---|
-| D-133 | ⭐⭐ **the panel IO is ONE composed frame per device** (`DevicePanelIoBinding` owns the device's `DeviceFrameSender` slot); **several input sources contribute to it at once**: the PRIMARY adapter (the replica, or the virtual adapter when there is none) and any number of ADDITIONAL press sources (the HUD's clickable buttons, the keyboard hotkeys, the gamepad) | option C above; the device never sees a source |
-| D-134 | ⭐⭐ **merge rules, by field**: **momentary presses are ADDITIVE** — a source reports *"channel k pressed"* and the binding bumps the frame's ONE counter for k (two sources pressing in one frame = two presses); **axes, the look / orientation, the position are SINGLE-OWNER** — a tracker, else the replica, else the virtual adapter's mouse / arrows / stick; a non-owner's value for that field is ignored; **Viewed** is the station's (the view) | presses compose without loss; a continuous value has exactly one writer, so nothing is overwritten |
+| D-133 *(⛔ superseded by D-137 / D-138 — the device merges sparse events; kept for the record)* | ⭐⭐ **the panel IO is ONE composed frame per device** (`DevicePanelIoBinding` owns the device's `DeviceFrameSender` slot); **several input sources contribute to it at once**: the PRIMARY adapter (the replica, or the virtual adapter when there is none) and any number of ADDITIONAL press sources (the HUD's clickable buttons, the keyboard hotkeys, the gamepad) | option C above; the device never sees a source |
+| D-134 *(⛔ superseded by D-138 / D-139)* | ⭐⭐ **merge rules, by field**: **momentary presses are ADDITIVE** — a source reports *"channel k pressed"* and the binding bumps the frame's ONE counter for k (two sources pressing in one frame = two presses); **axes, the look / orientation, the position are SINGLE-OWNER** — a tracker, else the replica, else the virtual adapter's mouse / arrows / stick; a non-owner's value for that field is ignored; **Viewed** is the station's (the view) | presses compose without loss; a continuous value has exactly one writer, so nothing is overwritten |
 | D-135 | ⭐⭐ **a LATCHING control has ONE owner**: a channel the type declares `Latching` (a switch or a rotary position — `DeviceDefDto.Channels` gains `Kind = Momentary \| Latching`) takes its position from the replica when one is bound; its HUD chip is then drawn but not clickable (a click would put the device in a state the physical switch does not show). With no replica, the virtual adapter owns it and a click toggles it. Momentary chips stay clickable beside a replica | the one real conflict a second source can create: the device and the hardware disagreeing about a switch's position |
 | D-136 | ⭐ **the replica's hardware lamps follow the device whoever pressed** — a HUD click that powers the device on lights the replica's POWER lamp through `DevicePanel` like any other change (D-28) | one state, two pictures (D-30) |
+
+🔒 User, `2026-11-28`: *"have you analyzed the path when input frame does carry just changes, not a full state? that would allow sending inputs of whatever type
+independently from whoever, last one winning."*
+
+| claim | code — how it IS | design |
+|---|---|---|
+| an interaction EVENT crosses nodes Reliable + KeepAll (a burst is never collapsed to one sample) | ✅ `FireInteractionMessages.cs:27-31, :91, :279` (CE-3095: *"with no `[DdsQos]` the reader kept ONE sample"*) | the interaction transport (§3q) |
+| the device ingest keeps ONE frame per device per frame (newest `Seq`) | ✅ `DeviceTickSystem.cs` ingest | §3.4 |
+| the press counter is the SENDER's today | ✅ `DeviceFrameSender` bumps it | D-72 |
+
+| option | verdict — the fact that decides it |
+|---|---|
+| **C** (D-133) one full frame composed at the station | ⚠ correct, but every source must live on the ONE node that composes — a replica served by another machine, an instructor's console or a script elsewhere cannot press |
+| **D** ⭐ **sparse input events, merged by the DEVICE** — each source sends only what it changed, the device applies every event in order | ✅ sources become fully independent and any node may send (the transport is reliable and keeps every event, CE-3095); the merge is ONE place, the device ingest every device already runs. ⚠ "last one wins" alone is NOT enough for a CONTINUOUS value two sources send at once (a tracker every frame, the mouse when moved ⇒ the look flickers) — it needs a priority (D-139) |
+| **pure deltas for continuous values** ("+3° yaw") | ⛔ a lost or duplicated delta drifts for good, and a late operator has no base — continuous values are sent as ABSOLUTE values of the changed FIELDS, not as differences |
+
+| # | decision | why |
+|---|---|---|
+| D-137 | ⭐⭐ **SUPERSEDES D-133 / D-134's station composition — the input is SPARSE EVENTS**: `DeviceInputEvent { Device · Source (id + priority) · SourceSeq · Fields mask · the present fields' ABSOLUTE values (axes, orientation, position, latching positions, Viewed) · Presses (a short list of channels pressed) }`, sent by ANY source from ANY node through the same transport; ⭐ each source sends only what changed since its own last event | the user's path; independence of sources |
+| D-138 | ⭐⭐ **the DEVICE merges, in its ingest** (`DeviceTickSystem`, once per frame, every event in arrival order — ⛔ no longer newest-only): a PRESS bumps the device's OWN counter for that channel in `DeviceInput` (the device owns the counters now, so presses from any number of sources add up and `DevicePressReader` is unchanged); a FIELD is written per field | one merge, on the device's node; the recorded `DeviceInput` stays the merged state, so replay is exact |
+| D-139 | ⭐⭐ **per field, last writer wins — UNLESS a higher-priority source wrote it within `HoldSeconds` (0.5 s wall)**: tracker 3 > replica 2 > virtual (mouse, keys, pad) 1 > script 1. A live tracker keeps the look; the mouse takes it the moment the tracker goes quiet | "last one wins" without the flicker of two live writers |
+| D-140 | ⭐ **self-healing**: a source re-sends its owned continuous fields at 1 Hz and at once on (re)bind, a new operator epoch, or a seek; a newly operated device starts from rest values (R7-11's clean input) | a late or restarted source never leaves a stale field |
+| D-141 | ⭐ **what stays**: one `DevicePanelIoBinding` per device at a station still picks WHICH sources are live there (the replica, else the virtual adapter; the HUD clicks and hotkeys always) — it no longer composes; D-135 (a latching control owned by the replica, its chip not clickable beside it) and D-136 (the lamps follow whoever pressed) stand. ⭐ A bonus: an instructor's console may press a trainee's device button as one more source | the binding is a policy, the device is the merge |
+
 
 ##### Rails and scenario rows
 
@@ -1297,7 +1326,7 @@ clicks the named button's rect through the adapter (the HUD is the path under te
 
 ##### Slice
 
-**SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rails: a test adapter swapped in for the virtual one drives the device identically (D-131); a replica's frame + a HUD click in the same frame ⇒ both presses counted, the replica's axes and look untouched (D-133, D-134); a latching chip is not clickable beside a replica (D-135). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
+**SD-S5v** — `PanelButton`, `HudPanel`, the `IDevicePanelIo` seam with `DevicePanelIoBinding`, the `VirtualPanelAdapter` (the station's inline device mapping and the pad rows moved INTO it), the scripted station re-homed onto the seam, the hotkeys and wheel roles, the retirement of the by-index mapping, the rangefinder's chips redrawn (D-122–D-132). ⭐ Rails: a test adapter swapped in for the virtual one drives the device identically (D-131); a replica's events + a HUD click in the same frame ⇒ both presses counted on the device, the replica's axes and look untouched; a tracker holds the look against the mouse for 0.5 s; a lost source heals at 1 Hz (D-137–D-140); a latching chip is not clickable beside a replica (D-135). Before SD-S5c (the designator draws its chips through it) and alongside SD-S2d (the drone OSD's chips).
 
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
