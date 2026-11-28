@@ -1036,7 +1036,7 @@ order designations only). Coverage could not be checked (no `check_index_coverag
 | no munition homes on a laser spot | ✅ `GuidanceKind` has no laser arm | ✅ `DESIGN_Air_Operations.md` A5 (*"guided bombs are guidance kinds in `GuidedRoundSystem` … laser later still"*), :818 (a guided bomb keeps gravity and pushes sideways ≤ 1.5 g against the miss), A7 (*"later: a designator type, Strike with clearance, the laser as the round's 'gunner'"*) |
 | data between devices are messages, applied by the receiver's own brain; pairing is an address | ⛔ not built | ✅ D-52, D-53, D-58 (binary + JSON forms), D-59 (measure replay of a managed event first) |
 | stacking is mounting one device in another device's `Station`, and `DevicePoses` walks the chain | ⛔ **`DevicePoses.TryWorld` does NOT walk the chain** — it composes the device's own placed `SimTransform` with its own pose (`DevicePose.cs:81-95`); the placement (`EmbarkedStateSystem`) uses the host's `SimTransform`, not the host DEVICE's pose ⇒ a stacked device would not follow its master's look | ✅ D-61, D-49's intent (*"resolved through A at the moment it is read"*) |
-| a device type has a stacking offset | ⛔ `DeviceDefDto` has no such field (the S1e report said it did — measured `2026-11-28`, grep `Stacking` = 0) | D-61 (the offset is the host's station place) |
+| a device type has a stacking offset | ✅ `DeviceDefDto.StackOffsetX/Y/Z` (`DeviceDefDto.cs:36-40`, S1e-1) — ⚠ corrected `2026-11-28`: an earlier version of this row said none, from a grep for `Stacking` that cannot match `StackOffset` | D-61 (the offset is the host's station place) — D-120 uses these fields |
 | the proven solution for a laser target designator (LTD) and semi-active-laser (SAL) homing | — | the LTD emits a PULSE-CODED beam (a 4-digit PRF code, set on the designator and on the weapon); the weapon's seeker sees spots inside its cone, accepts only its code, steers on the strongest; the designator holds the spot through the weapon's terminal seconds ("lase on"); lase time is duty-limited; a JTAC hands the target to the shooter and clears it. ⭐ adopted: the code match, the seeker cone, lase-on timing, the duty limit; ⛔ rejected: pulse timing physics, spot jitter and backscatter (no training need named) |
 
 ##### The classes
@@ -1118,7 +1118,7 @@ kit; and the hand-over between the two devices is one message, one tick late, ap
 | D-117 | ⭐⭐ **`GuidanceKind.Laser` (semi-active laser)** in `GuidedRoundSystem`: the seeker sees spots of ITS code inside its cone (`SeekerCos`), within its range and in line of sight from the round; it steers on the STRONGEST; ⭐ a falling round (a bomb) keeps gravity and pushes sideways at most `MaxG` (Air Operations :818's shape, shared with the later GPS kind); a missile steers at its turn rate as today; no spot ⇒ it flies on ballistically from where it is (it never returns to an earlier spot) | A5, A7; one guidance system |
 | D-118 | ⭐ **the weapons**: munition **GBU-12** (the Mk-82 + a laser kit: `Laser`, code 1688, cone 30°, MaxG 2) and an **A-10C (GBU-12)** variant type released by the existing Release profile on a Strike order (the scenario orders it; the strike's clearance flow stays A7's) | a designator needs a consumer to be judged; the A-10 + Release profile exist |
 | D-119 | ⭐⭐ **the link — `DeviceLinks { Peer0, Peer1 }`** on a device (scenario-authored; pairing in-sim is SD-S5's), and **`DeviceMessageEvent` (event 5205, the BINARY form of D-58: `Target · From · Seq · Kind · 64 B`)** sent through the batch's command buffer (played after the phase) and read by the receiver's OWN device tick next frame into its memory. The first DTO: **`TargetLocation { Point, Range, TakenAt, FromType }`** in `Devices/Contracts/`. The rangefinder gains a SEND channel; the designator shows a slew cue (an arrow and the angle to the received point). ⚠ The JSON form waits for D-59's measurement; the wire arm is SD-C's (in the editor configuration the bus carries it) | D-52, D-53, D-58 as designed; thread-safe by construction (§3r) |
-| D-120 | ⭐⭐ **stacking — FIX the pose chain first**: `DevicePoses.TryWorld` walks a device mounted in a device (host's world pose ∘ the host's station place ∘ own pose); `DeviceStacks.Root(device)` names the chain's root; the station's look writes the ROOT's pose, whichever device the view is bound to; a stacked device ignores its own look and tracker (D-56). A device type that carries others gets a station in its `DeviceDefDto` (`Stations`, accepting `Device`, at the stacking place) | D-61 as designed; the as-built gap measured above |
+| D-120 | ⭐⭐ **stacking — FIX the pose chain first**: `DevicePoses.TryWorld` walks a device mounted in a device (host's world pose ∘ the host's station place ∘ own pose); `DeviceStacks.Root(device)` names the chain's root; the station's look writes the ROOT's pose, whichever device the view is bound to; a stacked device ignores its own look and tracker (D-56). A device type that carries others gets a station in its `DeviceDefDto` (`Stations`, accepting `Device`) placed at its existing `StackOffsetX/Y/Z` | D-61 as designed; the as-built gap measured above |
 | D-121 | ⭐ **mockups before the build** (R-4143) — ✅ drawn `2026-11-28`: 16 STANDBY + received target · 17 LASING + RMB LOOK · 18 COOLING · 19 a lase queued in pause, every chip through the virtual panel (§3.13e) | R-4138 |
 
 ##### Scenarios (R-4277)
@@ -1185,7 +1185,7 @@ orbit) · `ViewCanvas` (`GizmoMap.Contracts/Primitives/ViewCanvas.cs:18-24`, the
 ```mermaid
 classDiagram
   class DebugPrimitiveShape { <<existing enum, grows>> + PanelButton (meta, protected, only inside a HudScope run) }
-  class PanelButton { <<NEW meta primitive>> Channel · canvas Rect · State (normal, lit, disabled) · Hotkey char }
+  class PanelButton { <<NEW meta primitive>> Element (kind + index, D-142) · canvas Rect · State (normal, lit, disabled) · Hotkey char }
   class HudPanel { <<NEW static, Fdp.Toolkits Gizmos>> Button(draw, channel, rect, label, state, hotkey) — draws the chip AND emits its PanelButton }
   class RangefinderHudGizmo { <<existing, changes>> MODE · POWER · MENU · SELECT · EXIT chips through HudPanel }
   class DesignatorHudGizmo { <<NEW S5c>> POWER · LASE · CODE · RANGE through HudPanel }
@@ -1315,6 +1315,76 @@ independently from whoever, last one winning."*
 | D-140 | ⭐ **self-healing**: a source re-sends its owned continuous fields at 1 Hz and at once on (re)bind, a new operator epoch, or a seek; a newly operated device starts from rest values (R7-11's clean input) | a late or restarted source never leaves a stale field |
 | D-141 | ⭐ **what stays**: one `DevicePanelIoBinding` per device at a station still picks WHICH sources are live there (the replica, else the virtual adapter; the HUD clicks and hotkeys always) — it no longer composes; D-135 (a latching control owned by the replica, its chip not clickable beside it) and D-136 (the lamps follow whoever pressed) stand. ⭐ A bonus: an instructor's console may press a trainee's device button as one more source | the binding is a policy, the device is the merge |
 
+
+##### The input event's encoding — how an input ELEMENT is identified *(user, `2026-11-28`: "how will we encode the input events, what that event could look like? we need to identify the input element somehow")*
+
+| claim | code — how it IS | design / proven solution |
+|---|---|---|
+| a device type already NAMES its press channels, the index is the wire | ✅ `DeviceDefDto.Channels` (`List<string>`) + `ChannelOf(name)` (`DeviceDefDto.cs:23, :52`) | ✅ D-26 / D-29 (*"channel MEANING is TKB data … the wire is the same for every device"*) |
+| the input today is a fixed frame: 4 axes, 16 press counters, a pose, Viewed | ✅ `DeviceControl.cs:17-29, :68-82` | §3.4 |
+| buttons are presses only — no held level, no switch position | ✅ (counters only) | ⛔ D-135 needs a latching position; a hold-to-range button needs a level |
+| the proven solution | — | **USB HID**: a device publishes a DESCRIPTOR listing its elements (usage, kind, range) and its REPORTS carry values keyed by the element's place in that descriptor; **MIDI**: sparse CHANGE messages keyed by a control number (note on / off, control change = value). ⭐ adopted: the descriptor = the TKB type's element list, the change = (kind, element index, value); ⛔ rejected: HID usage pages (our meanings are per device type, not universal) |
+
+**The descriptor — the device type declares its elements** (`DeviceDefDto.Elements`, replacing the bare `Channels` name list; every index is the element's place within its KIND, so the wire stays small):
+
+```
+Elements:                                   kind      index  extra
+  { Name: "POWER", Kind: Switch,  Positions: 2, Hotkey: "P" }   Switch   0      OFF/ON — latching (D-135)
+  { Name: "LASE",  Kind: Button,  Hotkey: "L" }                 Button   0
+  { Name: "CODE",  Kind: Button,  Hotkey: "C" }                 Button   1
+  { Name: "RANGE", Kind: Button,  Hotkey: "R", Wheel: false }   Button   2
+  { Name: "SLEW X",Kind: Axis,    Range: [-1, 1] }              Axis     0
+```
+
+**The event — `DeviceInputEvent`** (unmanaged, fixed size, event id 5204 reused — R-4301; one interaction-union arm on the wire):
+
+```mermaid
+classDiagram
+  class DeviceInputEvent {
+    <<NEW, unmanaged, ~112 B, replaces DeviceFrameEvent>>
+    long Device «network id»
+    uint Station «StationId — node + seat»
+    byte Source «Virtual 1 · Script 1 · Replica 2 · Tracker 3 · Instructor 1 — the PRIORITY is the kind (D-139)»
+    byte Count «changes used, ≤ 8»
+    byte PoseMask «bit0 Orientation · bit1 Position · bit2 Viewed present · bit3 Viewed value»
+    uint SourceSeq «per (Station, Source), monotonic»
+    Quaternion Orientation
+    Vector3 Position
+    InputChange Changes[8]
+  }
+  class InputChange {
+    <<NEW, 8 B>>
+    byte Kind «ButtonDown · ButtonUp · Switch · Axis · HeldSnapshot»
+    byte Element «the index within its kind, from the descriptor»
+    ushort Count «ButtonDown: presses coalesced in this frame · else 0»
+    float Value «Switch: the position · Axis: −1…1 · HeldSnapshot: the 16-bit held mask»
+  }
+  class DeviceDefDto { <<existing, grows>> Elements: Name · Kind · Positions · Range · Hotkey · Wheel }
+  class DeviceInput { <<existing, grows R-4301>> Axes 4 · Presses 16 (the device's own counters) · Held 16-bit · Switches 8 · Orientation · Position · Viewed · per-field writer + time (D-139) }
+  DeviceInputEvent *-- InputChange
+  InputChange ..> DeviceDefDto : Element = an index in it
+  DeviceInputEvent ..> DeviceInput : merged into (D-138)
+```
+
+*What the picture shows that prose hid: an element is never a string on the wire — it is (KIND, INDEX) into the type's descriptor, exactly as a HID report or a MIDI
+control number; the NAME lives once, in the TKB type, where the HUD's chip, the hotkey, the replica's pin map and the scenario's `press "LASE"` all look it up.*
+
+| example | the event |
+|---|---|
+| a HUD click on LASE (the virtual adapter) | `Source Virtual · Count 2 · [ButtonDown Button0 ×1, ButtonUp Button0]` — a click is a press and a release |
+| the replica's RANGE held down, then released 2 s later | `Source Replica · [ButtonDown Button2 ×1]` … `[ButtonUp Button2]` — the device sees a press and `Held` bit 2 for the 2 s |
+| the replica's POWER switch turned ON | `Source Replica · [Switch Switch0 = 1]` |
+| a tracker every frame | `Source Tracker · PoseMask Orientation · Orientation = q · Count 0` |
+| the scenario's `do: control {"press": "LASE"}` | the script source looks up `LASE` in the descriptor ⇒ `[ButtonDown Button0, ButtonUp Button0]` — the SAME bytes a HUD click makes |
+| the 1 Hz heal of a replica (D-140) | `Source Replica · [HeldSnapshot = mask, Switch Switch0 = 1, Axis Axis0 = 0.12]` |
+
+| # | decision | why |
+|---|---|---|
+| D-142 | ⭐⭐ **an input element is (KIND, INDEX) into the device type's descriptor** — `DeviceDefDto.Elements` (name, kind `Button` / `Switch` / `Axis`, positions, range, hotkey, wheel role); the index counts within its kind; ⛔ names never cross the wire; a type that changes its elements re-indexes (R-4301) | HID / MIDI; D-26's "meaning is data" extended from presses to every element |
+| D-143 | ⭐⭐ **`InputChange` (8 B) — five kinds**: `ButtonDown` (a press — the device bumps its own counter by `Count` and sets the held bit), `ButtonUp` (clears the held bit), `Switch` (a latching position), `Axis` (an absolute value), `HeldSnapshot` (all held bits, for the heal); ⭐ the POSE (orientation, position, Viewed) rides a fixed block with a mask, not changes (16 + 12 B do not fit 8) | presses AND levels (hold-to-range, a trigger held) — the current counters-only frame cannot say "held"; a lost `ButtonUp` heals at the next snapshot (D-140) |
+| D-144 | ⭐ **one event carries ≤ 8 changes**; more in one frame ⇒ a second event, the same frame, the next `SourceSeq` — the device applies them in order | fixed size, 0 B, one union arm |
+| D-145 | ⭐ **the source is (Station, Source kind)**; the priority of D-139 IS the kind (Tracker 3 > Replica 2 > Virtual = Script = Instructor 1), so no separate field can disagree with it; `SourceSeq` per source lets the device drop a duplicate and log a gap | one fact, one place |
+| D-146 | ⭐ **every adapter shares ONE encoder** (`DeviceInputEncoder`: name → (kind, index) from the descriptor, coalescing a frame's changes) — the HUD's `PanelButton` carries the (kind, index) it was drawn with, the replica's pin map names elements, a scenario names elements; ⛔ no adapter hand-builds an index | the HUD, the replica and the script cannot address the same element differently |
 
 ##### Rails and scenario rows
 
