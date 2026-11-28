@@ -69,7 +69,10 @@ public sealed class DeviceLooksFrameRail
         var man = s.Jet(TkbEntityTypes.Infantry_Rifleman, 0f, 0f);
         s.World.AddComponent(man, new WeaponPosture { HeldItem = HeldItemKind.Binoculars });
         var rangefinder = Device(s, TkbEntityTypes.Device_LaserRangefinder, man, 0, s.Where(man), viewed: true);
+        ManFrame(s, man, null);
+        for (int i = 0; i < 4; i++) s.Render();   // settle: the trees stream in over the first frames (measured: 23 433 px "differed" with the device ignored)
         var withRangefinder = ManFrame(s, man, "device-held-rangefinder.png");
+        Assert.Equal(0, AirCombatLooksRail.Diff(withRangefinder, ManFrame(s, man, null)));   // the noise floor: the same frame twice is the same
         // the same man viewing binoculars instead
         s.World.SetComponent(rangefinder, new DeviceInput { Control = new DeviceControl { Viewed = 0 } });
         var binoculars = Device(s, TkbEntityTypes.Device_Binoculars, man, 1, s.Where(man), viewed: true);
@@ -78,6 +81,7 @@ public sealed class DeviceLooksFrameRail
         int differ = AirCombatLooksRail.Diff(withRangefinder, withBinoculars);
         _out.WriteLine($"rangefinder vs binoculars in his hands: {differ} px differ");
         Assert.True(differ > 40, $"a rangefinder is drawn as a rangefinder, not as binoculars: {differ} px");
+        // 🔴 Red-proof (run): HeldItemShown passing no device ⇒ both hands hold the same box ⇒ this and DeviceLooksTests.D164_ARaisedDevice_IsHeldAsItself are red
 
         // not raised: he carries the binoculars but holds nothing — removing the device changes nothing (it used to draw as an unknown box)
         s.World.SetComponent(man, new WeaponPosture { HeldItem = HeldItemKind.None });
