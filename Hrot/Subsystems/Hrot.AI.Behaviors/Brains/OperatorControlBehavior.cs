@@ -87,11 +87,8 @@ namespace Hrot.AI.Behaviors.Brains
             if (world.IsComponentTypeRegistered<OperatorInput>() && world.HasComponent<OperatorInput>(self))
             {
                 var input = world.GetComponentRO<OperatorInput>(self);
-                drive = new ManualDrive
-                {
-                    Forward = input.Forward, Lateral = input.Lateral, Steer = input.Steer, Yaw = input.Yaw, Vertical = input.Vertical, Gait = input.Gait,
-                    Seq = input.Seq,
-                };
+                // ⭐ SD-S2c (devices §3.13c, ruling 9) — the ONE axes → drive mapping, shared with the remote pilot (a drone flown through a ground station)
+                drive = ManualFlight.FromAxes(input.Forward, input.Lateral, input.Yaw, input.Vertical, input.Steer, input.Gait, input.Seq);
                 // ⭐ CE-1074 (DESIGN_Entity_Control.md §13.5) — the operator's stance, through the brain's one way to ask for it
                 //   (StanceRequest: a version bump only on a change, so a frame per tick is harmless). 🔒 User, 2026-10-14: "I will
                 //   need to be able to switch the possessed character to crouched as well as lying pose (cycling using a key press)".

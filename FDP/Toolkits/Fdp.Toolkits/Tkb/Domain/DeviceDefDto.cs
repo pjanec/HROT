@@ -44,6 +44,10 @@ namespace Fdp.Toolkit.Tkb.Domain
         /// <inheritdoc cref="StackOffsetX"/>
         public float StackOffsetZ { get; init; }
 
+        /// <summary>⭐ SD-S2c (§3.13c D-104) — a GROUND STATION: its command (<c>RemoteControl</c>) is created WITH the device, so the paired drone's brain finds
+        /// it in the tick-start view from its first tick (a cross-entity read cannot see a component added in the same frame).</summary>
+        public bool RemoteStation { get; init; }
+
         /// <summary>Where it can be mounted — a kit station by default (<see cref="MountKinds.Device"/>).</summary>
         public MountKinds MountKinds { get; init; } = MountKinds.Device;
 

@@ -1,0 +1,117 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S2c (§3.13c D-109). The trainee binds his view to the drone ground station and presses POWER: the station films through its drone (its DeviceView names the drone - the station camera rides it, FollowCameraDriver at its eye); CAM DOWN twice tilts the gimbal 30 degrees down, CAM UP once brings it back to 15. Judge: (1) after POWER the station's DeviceView names the drone (Eyes); (2) CAM DOWN x2: DeviceView.Pitch is -30 degrees (-0.52 rad); CAM UP: -15 degrees (-0.26 rad); (3) before POWER it names nothing. Not judged here: the 3-D camera itself (the headless run has no map camera) - PossessionStationTests.SDS2c_* puts the camera on the drone. Fail: no view, or the gimbal does not move. Check: scripts/scenario-regression.sh dv-drone-camera"
+  },
+  "entities": {
+    "d5e10018-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 642
+      },
+      "EntityInfo": {
+        "Name": "Drone station",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10018-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "ControlledEntities": {
+        "Entity0": "d5e10018-0000-4000-8000-000000000002"
+      }
+    },
+    "d5e10018-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Operator",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10018-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10018-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -296,
+          -400,
+          0.08
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "Health": {
+        "Current": 10,
+        "Max": 10
+      },
+      "TkbIdentity": {
+        "TkbType": 407
+      },
+      "EntityInfo": {
+        "Name": "Drone",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "RemotePilot",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}

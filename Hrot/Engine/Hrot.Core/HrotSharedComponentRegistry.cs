@@ -93,6 +93,7 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightParams>();
         world.RegisterComponent<Fdp.Toolkit.Motion.FlightState>();
         world.RegisterComponent<Fdp.Toolkit.Motion.DroneBattery>();   // ⭐ devices SD-S2b (D-108) — a drone's one battery (DroneBatterySystem, brain group)
+        world.RegisterComponent<Fdp.Toolkit.Motion.DroneLink>();      // ⭐ devices SD-S2c (D-106) — a remotely piloted drone's link + telemetry (its brain, brain group)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.PossessedBy>();
         world.RegisterComponent<Fdp.Toolkit.Combat.Components.WeaponAmmo>();   // ⭐ CE-3174 — the HUD's ammunition (dtWeaponAmmo)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Possession.OperatorUseStatus>();   // ⭐ CE-1153 — the use verdict (dtOperatorUseStatus)
@@ -268,6 +269,9 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.LaserPointing>();   // ⭐ S1c — a device's laser as its logic points it
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.LaserSpot>();       // ⭐ S1c — where it lands (the muscle's LaserSpotSystem writes it)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DevicePanel>();     // ⭐ S1c — a device's generic panel outputs, on change
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.ControlledEntities>();   // ⭐ SD-S2c (D-147) — what a device commands (authored; ControlledBy indexes it)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.RemoteControl>();        // ⭐ SD-S2c (D-104) — the ground station's command on itself
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceView>();           // ⭐ SD-S2c (D-109) — the entity a view bound to the device films through
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
         //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in

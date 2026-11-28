@@ -346,6 +346,9 @@ namespace Fdp.Toolkit.Behavior.Possession
             foreach (var unit in repo.Query().With<ManualDrive>().With<NavigationIntent>().Build())
             {
                 if (!OwnsBrain(repo, unit) || repo.GetComponentRO<BehaviorState>(unit).Origin == BehaviorOrigin.Possession) continue;
+                // ⭐ devices SD-S2c (§3.13c D-104) — the invariant's second owner: a unit a DEVICE commands (a drone flown through its ground station) is driven
+                //   on the Manual axes by its own brain (RemotePilot) — not an operator's leftover. 📐 Measured: without this the drone's take-off was undone every frame
+                if (!Fdp.Toolkit.Behavior.Devices.ControlledBy.Of(repo, unit).IsNull) continue;
                 ref var intent = ref repo.GetComponentRW<NavigationIntent>(unit);
                 if (intent.Mode != NavigationMode.Manual) continue;
                 intent.Mode = NavigationMode.None;

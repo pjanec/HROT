@@ -965,6 +965,22 @@ namespace Fdp.Core
         /// fraction left), drained airborne by <c>DroneBatterySystem</c> (brain group), frozen in pause. ⚠ 234, a toolkit hole listed FREE by <c>ComponentIdCatalogueTests</c> (2026-11-28).</summary>
         public const int DroneBattery = 234;
 
+        /// <summary><c>ControlledEntities</c> — ⭐ Simulated devices SD-S2c (DESIGN_Simulated_Devices §3.13f D-147, §3.13c D-105): what a DEVICE commands (a drone, up to four
+        /// weapons) — authored on the device; the one pairing. ⚠ 327 — listed FREE by <c>ComponentIdCatalogueTests</c> AND used by no test fixture (2026-11-28; 235 was a fixture's — <c>NetworkSpawningLifecycleTests</c> collided on 241).</summary>
+        public const int ControlledEntities = 327;
+
+        /// <summary><c>RemoteControl</c> — ⭐ SD-S2c (§3.13c D-104): the drone ground station's command on ITSELF (mode, the four sticks, the gimbal, seq), read by the
+        /// paired drone's own brain. ⚠ 328 — listed FREE AND used by no test fixture (2026-11-28; 236 collided with a fixture).</summary>
+        public const int RemoteControl = 328;
+
+        /// <summary><c>DroneLink</c> — ⭐ SD-S2c (§3.13c D-106): a remotely piloted drone's link (quality, jammed, lost) and its pilot phase, written by the drone on
+        /// itself. ⚠ 329 — listed FREE AND used by no test fixture (2026-11-28; 241 collided with a fixture).</summary>
+        public const int DroneLink = 329;
+
+        /// <summary><c>DeviceView</c> — ⭐ SD-S2c (§3.13c D-109): the entity a view bound to the device films through (the drone's camera), its mode and pitch;
+        /// written by the device on itself. ⚠ 398 — listed FREE AND used by no test fixture (2026-11-28; 242 collided with a fixture).</summary>
+        public const int DeviceView = 398;
+
         /// <summary><c>CarrierStations</c> — ⭐ WS-1: a host type's STATION seats (what each accepts, who operates it, its arc and place), from
         /// <c>Gen.Carrier</c>; every node, never saved or replicated. ⚠ 381 measured free on backend, ui and behaviors 2026-10-14.</summary>
         public const int CarrierStations = 381;

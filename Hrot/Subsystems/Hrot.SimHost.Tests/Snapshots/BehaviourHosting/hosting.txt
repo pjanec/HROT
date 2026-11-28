@@ -61,6 +61,7 @@ Demo_TaskChain | hostedInput=Hrot.AI.Behaviors.Brains.DemoTaskChainParams | inpu
 DestroyTargets | hostedInput=- | inputBytes=192
 DetonateCharge | hostedInput=Hrot.Map.Definitions.Behavior.DetonateChargeParamsJsonDto | inputBytes=16
 DeviceBinoculars | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
+DeviceDroneStation | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 DeviceRangefinder | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 Disembark | hostedInput=Hrot.Map.Definitions.Behavior.DisembarkParamsJsonDto | inputBytes=20
 DoorLocksmith | hostedInput=Hrot.Map.Definitions.Behavior.DoorLocksmithParamsJsonDto | inputBytes=236
@@ -144,6 +145,7 @@ ReachArea | hostedInput=- | inputBytes=216
 ReactToContact | hostedInput=Hrot.Map.Definitions.Behavior.ReactToContactParamsJsonDto | inputBytes=1872
 ReactToFireFromBuilding | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ReconMinefield | hostedInput=Hrot.Map.Definitions.Behavior.ReconMinefieldParamsJsonDto | inputBytes=520
+RemotePilot | hostedInput=Hrot.Map.Definitions.Behavior.NoParams | inputBytes=0
 ReportLatency | hostedInput=- | inputBytes=168
 Sample | hostedInput=- | inputBytes=264
 SampleGuard | hostedInput=- | inputBytes=0

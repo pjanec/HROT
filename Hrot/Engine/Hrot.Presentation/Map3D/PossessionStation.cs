@@ -1289,6 +1289,7 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-11006 (RR-6) — the operator in a unit: over its shoulder (the side and distance he set) or at its eyes.</summary>
         public void Describe(EntityRepository world, ref Hrot.Map.Common.Components.CameraSuggestion s)
         {
+            if (DeviceFilm(out var film)) { film.Describe(world, ref s); return; }   // ⭐ SD-S2c (D-109) — through the device's entity: a follow at its eye
             s.Source = Hrot.Map.Common.Components.CameraSource.Operator;
             bool shoulder = ShoulderViewOn;
             s.Mode = shoulder ? Hrot.Map.Common.Components.CameraMode.Shoulder : Hrot.Map.Common.Components.CameraMode.Eyes;
@@ -1301,7 +1302,7 @@ namespace Hrot.UI.Common.Map3D
         public const float LookSensitivity = 0.0025f;
         /// <summary>⭐ <c>CE-1351</c> — how far ahead of a flyer's nose A/D put the heading it turns to (rad): held, it turns at its own rate
         /// (a helicopter) or banks into the turn (a plane); released, it holds its heading.</summary>
-        public const float FlyerTurnLead = 0.8f;
+        public const float FlyerTurnLead = Fdp.Toolkit.Navigation.ManualFlight.TurnLead;   // ⭐ SD-S2c — the one rule (ManualFlight), shared with the remote pilot
         /// <summary>A vehicle's eye above its origin (m) — v1: the hull, not yet the turret (§8d, deferred).</summary>
         public const float VehicleEyeHeight = 2.5f;
         /// <summary>⭐ CE-2168 — a flyer's camera sits on it (an FPV view).</summary>
@@ -1547,8 +1548,39 @@ namespace Hrot.UI.Common.Map3D
         /// <summary>⭐ CE-1073 — where the eye is this frame (world metres).</summary>
         public Vector3 Eye => _eye;
 
+        /// <summary>
+        /// ⭐⭐ SD-S2c (docs/designs/devices/DESIGN_Simulated_Devices.md §3.13c D-109) — ONE "a view follows an entity" rule: while the view is bound to a device
+        /// whose <c>DeviceView</c> names a live entity on this node (a ground station's drone), the camera rides THAT entity through the existing
+        /// <see cref="FollowCameraDriver"/> — at its eye, along its heading at the gimbal's pitch (<see cref="FollowCameraDriver.EyePitch"/>), or behind it
+        /// (Chase). The operator's own driver keeps his input (the device's panel, its sticks). The follow is made again only when the entity changes.
+        /// </summary>
+        private bool DeviceFilm(out FollowCameraDriver film)
+        {
+            film = null!;
+            if (_station.BoundDevice.IsNull || _world() is not { } w
+                || !Fdp.Toolkit.Behavior.Devices.DeviceViews.TryTarget(w, _station.BoundDevice, out var target, out var mode, out float pitch))
+            {
+                _film = null;
+                return false;
+            }
+            bool chase = mode == Fdp.Toolkit.Behavior.Devices.DeviceViewMode.Chase;
+            if (_film == null || _film.Unit != target) _film = new FollowCameraDriver(_world, target, _station.Bodies, chase ? ChaseDistance : 0f);
+            _film.EyePitch = chase ? null : pitch;
+            film = _film;
+            return true;
+        }
+
+        private FollowCameraDriver? _film;
+
+        /// <summary>⭐ SD-S2c — the chase view's distance behind the entity a device films through (m).</summary>
+        public const float ChaseDistance = 8f;
+
+        /// <summary>⭐ SD-S2c — the entity the camera rides for the bound device (null: his own view).</summary>
+        public Entity FilmedEntity => _film?.Unit ?? Entity.Null;
+
         public void Update(MapCamera3D camera, float dt)
         {
+            if (DeviceFilm(out var film)) { film.Update(camera, dt); camera.FovyDegrees = ZoomFovDegrees; return; }   // ⭐ SD-S2c (D-109)
             if (_world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
             var tf = w.GetComponentRO<SimTransform>(Unit);
             float hullYaw = HullYaw(tf.Rotation);
@@ -1646,6 +1678,7 @@ namespace Hrot.UI.Common.Map3D
         /// </summary>
         public void BeforeDraw(MapCamera3D camera)
         {
+            if (DeviceFilm(out var film)) { film.BeforeDraw(camera); camera.FovyDegrees = ZoomFovDegrees; return; }   // ⭐ SD-S2c (D-109)
             if (!_eyeKnown || _world() is not { } w || !w.IsAlive(Unit) || !w.HasComponent<SimTransform>(Unit)) return;
             var tf = w.GetComponentRO<SimTransform>(Unit);
             bool vehicle = IsVehicle;
@@ -2139,7 +2172,7 @@ namespace Hrot.UI.Common.Map3D
 
         /// <summary>⭐ <c>CE-1351</c> — the heading a flyer is told to turn to: its own, led <see cref="FlyerTurnLead"/> to the side A/D hold
         /// (<paramref name="side"/> +1 = A, left / counter-clockwise).</summary>
-        public static float FlyerHeading(float hullYaw, float side) => hullYaw + Math.Clamp(side, -1f, 1f) * FlyerTurnLead;
+        public static float FlyerHeading(float hullYaw, float side) => Fdp.Toolkit.Navigation.ManualFlight.Heading(hullYaw, side);   // ⭐ SD-S2c — ruling 9
 
         /// <summary>⭐ <c>CE-1204</c> (§8l LK-2) — the body's heading after a free look to <paramref name="look"/>: unchanged while the look
         /// is within <paramref name="neck"/> of it, else dragged so the look sits on the neck's limit.</summary>

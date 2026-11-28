@@ -71,6 +71,10 @@ namespace Fdp.Toolkits.Tests.Replication
             ["ResolutionPolicy.Area5"] = "SV-15 detail area, as Area0",
             ["ResolutionPolicy.Area6"] = "SV-15 detail area, as Area0",
             ["ResolutionPolicy.Area7"] = "SV-15 detail area, as Area0",
+            ["ControlledEntities.Entity0"] = "SD-S2c D-147 the device pairing, named by a person (the scenario's author: the drone a ground station flies, the weapons a console commands)",
+            ["ControlledEntities.Entity1"] = "SD-S2c D-147, as Entity0",
+            ["ControlledEntities.Entity2"] = "SD-S2c D-147, as Entity0",
+            ["ControlledEntities.Entity3"] = "SD-S2c D-147, as Entity0",
         };
 
         /// <summary>S9' (c) — components saved through a GUID-keyed translator (DESIGN_Scenario_Entity_Keys §0a): their entity references are written as GUIDs, so an

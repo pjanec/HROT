@@ -312,6 +312,26 @@ namespace Hrot.Map.Definitions.Tkb
                     DefaultStep = 1,
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_Binoculars);
+            // ⭐⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION: seven buttons (the pad's A … RB are buttons 0–5) and the four stick axes in Mode 2 —
+            //   axis 0 / 1 the left stick X / up (YAW / THROTTLE), 2 / 3 the right stick X / up (ROLL / PITCH), the pad's own order (EmbodiedKeys.DeviceAxis).
+            //   ⛔ M / B / J / Esc are never shadowed; the wheel tilts the gimbal. It flies the drone its ControlledEntities slot 0 names (DroneStationChannels)
+            builder.DefineVehicle(TkbEntityTypes.Device_DroneStation, "Drone station")
+                .WithDevice(TkbEntityTypes.Device_DroneStation, new Fdp.Toolkit.Tkb.Domain.DeviceDefDto
+                {
+                    Behavior = Hrot.Map.Definitions.Behavior.BehaviorNames.DeviceDroneStation,
+                    RemoteStation = true,   // its RemoteControl from creation (the drone's brain reads it)
+                    Elements =
+                    {
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("POWER", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("ARM", "Enter"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("TAKEOFF", "T"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("LAND", "L"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RTH", "H"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("CAM UP", "Equals", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Up),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("CAM DOWN", "Minus", Fdp.Toolkit.Tkb.Domain.DeviceWheelRole.Down),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("YAW"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("THROTTLE"),
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("ROLL"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Axis("PITCH"),
+                    },
+                })
+                .HiddenFromPalette(TkbEntityTypes.Device_DroneStation);
         }
 
         /// <summary>⭐ ui handoff P1 — the HMMWV roof ring's weapon pivot height (m): the roof at 1.83 m + the ring.</summary>
@@ -1872,6 +1892,7 @@ namespace Hrot.Map.Definitions.Tkb
                     { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
                 .WithFaction(type, 2)
                 .WithBehavior(type)
+                .WithRemoteLink(type, new Fdp.Toolkit.Tkb.Domain.RemoteLinkDto { RangeM = 3000f, FailsafeSeconds = 5f })   // ⭐ SD-S2c (D-106) — flyable from a ground station
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50 });   // air, 50 = unmanned (generic country)
         }
 
@@ -1899,6 +1920,7 @@ namespace Hrot.Map.Definitions.Tkb
                 .WithSignatures(type, new SignaturesDto { Acoustic = new AcousticSignatureDto { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor } })
                 .WithFaction(type, 1)
                 .WithBehavior(type)
+                .WithRemoteLink(type, new Fdp.Toolkit.Tkb.Domain.RemoteLinkDto { RangeM = 5000f, FailsafeSeconds = 5f })   // ⭐ SD-S2c (D-106) — flyable from a ground station
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 2 });   // unmanned, 2 = recon (HROT-local)
         }
 
@@ -1944,6 +1966,7 @@ namespace Hrot.Map.Definitions.Tkb
                     { MovingAudibleRange = 300f, MovingClass = SoundSourceClass.Rotor, DetonationAudibleRange = 800f, DetonationClass = SoundSourceClass.Explosion } })
                 .WithFaction(type, 2)
                 .WithBehavior(type)
+                .WithRemoteLink(type, new Fdp.Toolkit.Tkb.Domain.RemoteLinkDto { RangeM = 3000f, FailsafeSeconds = 5f })   // ⭐ SD-S2c (D-106) — flyable from a ground station
                 .WithDisType(type, new DISEntityType { Kind = 1, Domain = 2, Category = 50, Subcategory = 3 });   // unmanned, 3 = bomber (HROT-local)
         }
 

@@ -112,6 +112,9 @@ namespace Hrot.Map.Common
         public const long Device_LaserRangefinder = 640;
         /// <summary>⭐ S1e-1 — BINOCULARS as a device (5× / 7× / 10×, ZOOM IN / ZOOM OUT) — the trainee's optic (D-75 replaced CE-1219's station binoculars).</summary>
         public const long Device_Binoculars = 641;
+        /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION (hand-held kit device): POWER · ARM · TAKEOFF · LAND · RTH · CAM UP · CAM DOWN and four
+        /// stick axes (Mode 2); it flies the drone its <c>ControlledEntities</c> slot 0 names.</summary>
+        public const long Device_DroneStation = 642;
 
         // Lifeforms
         public const long Infantry_Rifleman = 200;

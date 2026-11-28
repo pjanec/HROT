@@ -51,6 +51,12 @@ namespace Fdp.Toolkit.Behavior
             //   is written once at creation, DeviceInput by the device tick's serial pre-pass (its own system, after the brains) — never in this phase
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.DeviceInfo>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.DeviceInput>();
+            // ⭐ devices SD-S2c (§3.13c D-104 / D-106) — the drone flown through a ground station reads its station's command (RemoteControl: written by the
+            //   device tick, its own system; the station's place is its SimTransform); the station reads its drone's link + telemetry (DroneLink: written by
+            //   the drone's brain on itself) — tick-start reads across the brain and device phases. ⚠ Both exist from CREATION (DeviceTkbTranslator /
+            //   FlightTkbTranslator): a component another phase ADDED this frame is not in the tick-start view, and the read throws (measured, SD-S2c)
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Behavior.Devices.RemoteControl>();
+            ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Motion.DroneLink>();
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Mountable>();                       // ⭐ C1 — is a carried thing an item (Items.IsMountable: checkpoint / stop-at-signal, carry stations, operator use)
             ParallelReadCheck.DeclareUnmanaged<Fdp.Toolkit.Combat.Components.WeaponPosture>();            // CE-7035 — a civilian reads how a forces man holds his weapon (covered / aimed at: CE-2239, CE-2241)
             ParallelReadCheck.DeclareUnmanaged<global::CarKinem.Core.VehicleParams>();               // CE-7035 — a civilian / rioter tells a vehicle from a man (its params)

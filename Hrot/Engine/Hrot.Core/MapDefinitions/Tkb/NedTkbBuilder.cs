@@ -483,6 +483,16 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
+        /// <summary>⭐ SD-S2c (devices §3.13c D-106) — a type flown by RADIO from a ground station: its link's range and failsafe (<c>Gen.RemoteLink</c>).</summary>
+        public NedTkbBuilder WithRemoteLink(long tkbId, Fdp.Toolkit.Tkb.Domain.RemoteLinkDto link)
+        {
+            var template = _db.GetByType(tkbId);
+            if (template == null)
+                throw new InvalidOperationException($"Template {tkbId} not found");
+            template.AddDescriptor(link ?? throw new ArgumentNullException(nameof(link)));
+            return this;
+        }
+
         /// <summary>⭐ M9 — what the type gives off to sensors (<c>CE-2106</c>: the sound it makes moving and firing).</summary>
         public NedTkbBuilder WithSignatures(long tkbId, SignaturesDto signatures)
         {

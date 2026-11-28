@@ -296,4 +296,194 @@ write("dv-replay-hud", scenario(
     "Fail: a difference between the review and the live run.",
     paused_scenario("dv-replay-hud", 6)), {"runFor": 6, "golden": {"every": 1}, "do": PAUSED_DO, "expect": PAUSED_EXPECT})
 
+# ── ⭐ SD-S2c — the drone GROUND STATION (DESIGN_Simulated_Devices §3.13c D-104 – D-110): dv-drone-fly / -paused / -jammed / -battery-out / -camera ────
+# A scripted trainee possesses the Operator, who carries a drone ground station (TKB 642) in kit seat 4; the station's ControlledEntities slot 0 names the
+# drone (D-147), a recon / bomber quadcopter standing on its feet beside him, whose brain is RemotePilot (flown THROUGH the station, never possessed).
+# ⚠ The rows that read the OSD (hud: LINK LOST, the battery warning) wait for SD-S2d (the OSD) — the STATE is judged instead (DroneLink, the station's mode).
+STATION, RECON, BOMBER, JAMMER = 642, 407, 408, 113
+GX, GY = -300, -400                      # inside berlin's collider grid [-750, 750)² (S1e)
+NORTH = [0, 0, 0.707107, 0.707107]       # facing +y
+LAUNCH = [GX + 4, GY]
+GS = "DroneStationState"
+
+
+def drone_station_world(block, drone_type=RECON, battery=None, extra=None):
+    ents = observer_with(block, [("Drone station", STATION, 4)], at=(GX, GY))
+    op = ents.pop(guid(block, 1))
+    op["EntityInfo"]["Name"] = "Operator"
+    ents[guid(block, 1)] = op
+    drone = guid(block, 2)
+    ents[guid(block, 10)]["ControlledEntities"] = {"Entity0": drone}   # an EntityLink: the GUID, the loader fills its network id
+    d = {
+        "SimTransform": {"Position": [LAUNCH[0], LAUNCH[1], 0.08], "Rotation": NORTH},
+        "Health": {"Current": 10, "Max": 10},
+        "TkbIdentity": {"TkbType": drone_type},
+        "EntityInfo": {"Name": "Drone", "ForceId": "Friend"},
+        "Behavior": {"Name": "RemotePilot", "Params": {}, "Origin": "Superior"},
+    }
+    if battery is not None:
+        d["DroneBattery"] = {"Remaining01": battery}
+    ents[drone] = d
+    if extra:
+        ents.update(extra)
+    return ents
+
+
+def gs(name, field, op, value, **kw):
+    return mem(name, "Drone station", GS, field, op, value, **kw)
+
+
+def drone_field(name, path, op, value, **kw):
+    return {"name": name, "on": "field", "who": "Drone", "path": path, "op": op, "value": value, **kw}
+
+
+START = [
+    {"name": "possessed", "at": 0.5, "possess": {"who": "Operator"}},
+    {"name": "viewed", "at": 1.0, "view": {"source": "Drone station"}},
+    press("powered", 1.5, "POWER"),
+    press("armed", 2.5, "ARM"),
+    press("takeoff", 3.5, "TAKEOFF"),
+]
+
+# ── dv-drone-fly ──
+write("dv-drone-fly", scenario(
+    "dv-drone-fly",
+    "Simulated devices SD-S2c (DESIGN_Simulated_Devices §3.13c D-104 / D-110). A scripted trainee possesses the Operator, binds his view to the drone ground "
+    "station he carries and works it: POWER (the drone answers), ARM, TAKEOFF (the recon drone beside him climbs to its 15 m hover); then the RIGHT STICK "
+    "forward at half (axis 3 = 0.5, Mode 2 pitch) for 13.3 s flies it 200 m north, and LAND brings it down. The drone is flown THROUGH the station - the "
+    "station writes its command on itself (RemoteControl), the drone's own brain (RemotePilot) reads it - never possessed.",
+    "(1) the station's mode (its DroneStationState memory) follows OFF -> LINKED -> ARMED -> FLYING -> LANDED; (2) the drone is above 8 m while it flies; "
+    "(3) it lands within 30 m of the point 200 m north of its launch, and is down (FlightState.Airborne 0) at the end; (4) its battery drained (DroneBattery "
+    "below full) and its link held (DroneLink never lost while flown). Fail: a press does nothing, the drone flies on its own, or lands elsewhere.",
+    drone_station_world(20)), {
+    "runFor": 40, "golden": {"every": 10},
+    "do": START + [
+        {"name": "fly", "at": 7.0, "control": {"axis": {"3": 0.5}, "for": 13.3}},
+        press("land", 23.0, "LAND"),
+    ],
+    "expect": [
+        mem("the drone's brain finds its station (the pairing, ControlledBy)", "Drone", "RemotePilotState", "Station", "==", "Drone station"),
+        gs("the station flies that drone (its ControlledEntities slot 0)", "Drone", "==", "Drone"),
+        gs("before POWER the station is OFF", "Mode", "==", "Off", after="viewed", before="powered"),
+        gs("POWER: the drone answers - LINKED", "Mode", "==", "Linked", after="powered+0.3", before="armed"),
+        gs("ARM: ARMED", "Mode", "==", "Armed", after="armed+0.3", before="takeoff"),
+        gs("the sticks fly it: FLYING", "Mode", "==", "Flying", after="fly+1", before="land"),
+        gs("LAND: it is down - LANDED", "Mode", "==", "Landed", after="land+2"),
+        drone_field("it is above 8 m while it flies", "SimTransform.Position.2", ">", 8, after="fly", before="land"),
+        {"name": "it lands within 30 m of the point 200 m north", "on": "close", "who": "Drone", "point": [LAUNCH[0], LAUNCH[1] + 200], "m": 30, "atEnd": True},
+        drone_field("it is down at the end", "FlightState.Airborne", "==", 0, atEnd=True),
+        drone_field("its battery drained in flight", "DroneBattery.Remaining01", "<", 1, atEnd=True),
+        {"name": "the link holds while it is flown", "never": {"on": "field", "who": "Drone", "path": "DroneLink.Lost", "op": "==", "value": 1}, "after": "armed", "before": "land"},
+        {"name": "the station never becomes the drone's possessor", "never": {"on": "field", "who": "Drone", "path": "PossessedBy.Mode", "op": "!=", "value": "None"}},
+    ],
+})
+
+# ── dv-drone-paused ──
+write("dv-drone-paused", scenario(
+    "dv-drone-paused",
+    "Simulated devices SD-S2c (§3.13c D-110, R-4300). The dv-drone-fly start (POWER, ARM, TAKEOFF): the drone hovers 15 m over its launch point; then the run "
+    "PAUSES for 120 frames and inside the pause the trainee presses CAM DOWN (paused frame 10 - the gimbal, the station's own state) and LAND (paused frame "
+    "30 - a MODE press, queued for the first live frame).",
+    "(1) the station answers in pause: its gimbal (DroneStationState.CameraPitch and its DeviceView.Pitch) is tilted down at paused frame 20; (2) LAND is "
+    "QUEUED (DroneStationState.Queued = the LAND bit, the command still Fly) at paused frame 60 and becomes the command after the pause, and the drone lands "
+    "where it hovered; (3) the world does not move in the pause: the drone never leaves its hover point. Fail: the pause moves the drone, the gimbal waits "
+    "for time, or LAND acts before time advances.",
+    drone_station_world(21)), {
+    "runFor": 20, "golden": {"every": 5},
+    "do": START + [
+        {"name": "paused", "at": 9.0, "pause": {"frames": 120}},
+        {"name": "cam down in pause", "atPausedFrame": 10, "control": {"press": "CAM DOWN"}},
+        {"name": "land in pause", "atPausedFrame": 30, "control": {"press": "LAND"}},
+    ],
+    "expect": [
+        {"name": "the gimbal tilts inside the pause (paused frame 20)", "atPausedFrame": 20, "on": "field", "who": "Drone station", "memory": GS, "field": "CameraPitch", "op": "<", "value": -0.2},
+        {"name": "the station's view tilts with it (paused frame 20)", "atPausedFrame": 20, "on": "field", "who": "Drone station", "path": "DeviceView.Pitch", "op": "<", "value": -0.2},
+        {"name": "LAND is queued, not acted, in the pause (paused frame 60)", "atPausedFrame": 60, "on": "field", "who": "Drone station", "memory": GS, "field": "Queued", "op": "==", "value": 4,
+         "also": [{"path": "Command", "op": "==", "value": "Fly"}]},
+        {"name": "the drone hovers in the pause (paused frame 100)", "atPausedFrame": 100, "on": "field", "who": "Drone", "path": "DroneLink.Phase", "op": "==", "value": "Manual"},
+        {"name": "the drone never moves in the pause", "never": {"on": "far", "who": "Drone", "point": LAUNCH, "m": 0.25}, "after": "paused", "before": "paused"},
+        gs("the queued LAND is the command after the pause", "Command", "==", "Land", after=9.5),
+        drone_field("it lands where it hovered", "FlightState.Airborne", "==", 0, atEnd=True),
+        {"name": "… on its launch point", "on": "close", "who": "Drone", "point": LAUNCH, "m": 2, "atEnd": True},
+    ],
+})
+
+# ── dv-drone-jammed ──
+jam = guid(22, 3)
+write("dv-drone-jammed", scenario(
+    "dv-drone-jammed",
+    "Simulated devices SD-S2c (§3.13c D-106 / D-107). The dv-drone-fly start, then the right stick held forward (0.6) flies the drone north toward a "
+    "drone-jammer HMMWV (TKB 113, its 400 m bubble) 700 m away: 300 m out it enters the bubble and its radio link is JAMMED. The jammer is of another "
+    "force (Neutral - so the run is a link test, not a fight).",
+    "(1) the drone's link reads Jammed and lost (DroneLink); (2) the FAILSAFE: the sticks are ignored, it hovers (FailsafeHover) at the bubble's edge - it "
+    "never flies deeper - then returns home (FailsafeReturn) although the stick is still forward, and lands; (3) the station shows FAILSAFE; (4) at the "
+    "end it is down within 30 m of its launch point. Not judged yet: the OSD's LINK LOST (SD-S2d). Fail: the stick still flies it once jammed, or it does "
+    "not come home.",
+    drone_station_world(22, extra={jam: {
+        "SimTransform": {"Position": [GX, GY + 700, 0], "Rotation": [0, 0, 0, 1]},
+        "TkbIdentity": {"TkbType": JAMMER},
+        "EntityInfo": {"Name": "Jammer", "ForceId": "Neutral"},
+    }})), {
+    "runFor": 75, "golden": {"every": 15},
+    "do": START + [{"name": "fly", "at": 7.0, "control": {"axis": {"3": 0.6}, "for": 45}}],
+    "expect": [
+        drone_field("the link is JAMMED in the bubble", "DroneLink.Jammed", "==", 1, after="fly", also=[{"path": "DroneLink.Lost", "op": "==", "value": 1}]),
+        drone_field("the failsafe hovers", "DroneLink.Phase", "==", "FailsafeHover", after="fly"),
+        drone_field("then returns home", "DroneLink.Phase", "==", "FailsafeReturn", after="fly"),
+        gs("the station shows FAILSAFE", "Mode", "==", "Failsafe", after="fly"),
+        {"name": "it never flies deeper into the bubble (the stick ignored)", "never": {"on": "field", "who": "Drone", "path": "SimTransform.Position.1", "op": ">", "value": GY + 345}},
+        drone_field("it is down at the end", "FlightState.Airborne", "==", 0, atEnd=True),
+        {"name": "within 30 m of its launch point", "on": "close", "who": "Drone", "point": LAUNCH, "m": 30, "atEnd": True},
+    ],
+})
+
+# ── dv-drone-battery-out ──
+write("dv-drone-battery-out", scenario(
+    "dv-drone-battery-out",
+    "Simulated devices SD-S2c (§3.13c D-107 / D-108). The dv-drone-fly start with a BOMBER quadcopter (TKB 408, a 1200 s battery) authored at 3 % (36 s of "
+    "flight); the right stick at 0.4 for 20 s flies it ~240 m north, then it hovers until its battery runs out.",
+    "(1) the battery empties (DroneBattery 0) and the pilot goes BatteryDown (DroneLink.Phase); (2) it comes down WHERE IT IS - never home: at the end it is "
+    "down (FlightState.Airborne 0) more than 150 m from its launch point; (3) the station shows it LANDING. Not judged yet: the OSD's battery warning "
+    "(SD-S2d). Fail: it flies on empty, or returns home.",
+    drone_station_world(23, drone_type=BOMBER, battery=0.03)), {
+    "runFor": 60, "golden": {"every": 15},
+    "do": START + [{"name": "fly", "at": 7.0, "control": {"axis": {"3": 0.4}, "for": 20}}],
+    "expect": [
+        drone_field("the battery runs out", "DroneBattery.Remaining01", "==", 0, after="fly"),
+        drone_field("down where it is", "DroneLink.Phase", "==", "BatteryDown", after="fly"),
+        gs("the station shows it coming down", "Mode", "==", "Landing", after="fly"),
+        drone_field("it is down at the end", "FlightState.Airborne", "==", 0, atEnd=True),
+        {"name": "far from home: it came down where it was", "on": "far", "who": "Drone", "point": LAUNCH, "m": 150, "atEnd": True},
+    ],
+})
+
+# ── dv-drone-camera ──
+write("dv-drone-camera", scenario(
+    "dv-drone-camera",
+    "Simulated devices SD-S2c (§3.13c D-109). The trainee binds his view to the drone ground station and presses POWER: the station films through its drone "
+    "(its DeviceView names the drone - the station camera rides it, FollowCameraDriver at its eye); CAM DOWN twice tilts the gimbal 30 degrees down, CAM UP "
+    "once brings it back to 15.",
+    "(1) after POWER the station's DeviceView names the drone (Eyes); (2) CAM DOWN x2: DeviceView.Pitch is -30 degrees (-0.52 rad); CAM UP: -15 degrees "
+    "(-0.26 rad); (3) before POWER it names nothing. Not judged here: the 3-D camera itself (the headless run has no map camera) - "
+    "PossessionStationTests.SDS2c_* puts the camera on the drone. Fail: no view, or the gimbal does not move.",
+    drone_station_world(24)), {
+    "runFor": 8, "golden": {"every": 4},
+    "do": [
+        {"name": "possessed", "at": 0.5, "possess": {"who": "Operator"}},
+        {"name": "viewed", "at": 1.0, "view": {"source": "Drone station"}},
+        press("powered", 1.5, "POWER"),
+        press("down 1", 2.5, "CAM DOWN"),
+        press("down 2", 3.0, "CAM DOWN"),
+        press("up 1", 4.5, "CAM UP"),
+    ],
+    "expect": [
+        {"name": "the station films through its drone", "on": "field", "who": "Drone station", "path": "DeviceView.Mode", "op": "==", "value": "Eyes", "after": "powered+0.3"},
+        gs("powered", "Power", "==", 1, after="powered+0.3"),
+        {"name": "CAM DOWN twice: -30 degrees", "on": "field", "who": "Drone station", "path": "DeviceView.Pitch", "op": "<=", "value": -0.52, "after": "down 2+0.3", "before": "up 1",
+         "also": [{"path": "DeviceView.Pitch", "op": ">=", "value": -0.53}]},
+        {"name": "CAM UP: -15 degrees", "on": "field", "who": "Drone station", "path": "DeviceView.Pitch", "op": "<=", "value": -0.26, "after": "up 1+0.3",
+         "also": [{"path": "DeviceView.Pitch", "op": ">=", "value": -0.27}]},
+    ],
+})
+
 print("wrote", sorted(os.listdir(ROOT)))

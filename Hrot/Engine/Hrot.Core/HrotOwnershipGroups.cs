@@ -132,6 +132,8 @@ public static class HrotOwnershipGroups
         // ⭐ devices SD-S2b (§3.13c D-108) — a drone's battery: its brain node's DroneBatterySystem is the one writer; the brain behaviours read it.
         //   No descriptor carries it yet (the binding links it to the group's anchor, R-165) — the wire topic comes with the ground station's OSD (SD-S2c / S2d).
         brain.SetBit(GlobalComponentIds.DroneBattery);
+        // ⭐ devices SD-S2c (§3.13c D-106) — a remotely piloted drone's link: its brain (RemotePilot) writes it on itself. No descriptor yet (as DroneBattery).
+        brain.SetBit(GlobalComponentIds.DroneLink);
 
         // ── MuscleGround (§1.2) — dtWorldPos WHOLE (R-170), navigation status, its never-sent state ───
         var muscle = default(BitMask512);

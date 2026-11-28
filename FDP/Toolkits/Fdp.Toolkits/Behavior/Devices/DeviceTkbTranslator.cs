@@ -25,6 +25,7 @@ namespace Fdp.Toolkit.Behavior.Devices
         {
             yield return typeof(Mountable);
             yield return typeof(DeviceInfo);
+            yield return typeof(RemoteControl);   // ⭐ SD-S2c — a ground station only
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -41,6 +42,9 @@ namespace Fdp.Toolkit.Behavior.Devices
                 var info = new DeviceInfo { DeviceType = template.TkbType, Behavior = new FixedString64(dto.Behavior ?? "") };
                 if (repo.HasComponent<DeviceInfo>(entity)) repo.SetComponent(entity, info); else repo.AddComponent(entity, info);
             }
+            // ⭐ SD-S2c (§3.13c D-104) — a ground station's command exists from creation (Off): its drone's brain reads it across entities
+            if (dto.RemoteStation && repo.IsComponentTypeRegistered<RemoteControl>() && !repo.HasComponent<RemoteControl>(entity))
+                repo.AddComponent(entity, new RemoteControl { Mode = RemoteMode.Off });
         }
 
         /// <summary>True when <paramref name="template"/> is a device type (<c>BehaviorTkbTranslator</c>'s "not a unit" test, R7-4).</summary>

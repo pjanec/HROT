@@ -69,8 +69,15 @@ public sealed class FollowCameraDriver : ICameraDriver, ICameraSuggests
     /// <summary>The orbit's turn per pixel of a right-button drag (rad).</summary>
     public const float OrbitPerPixel = 0.005f;
 
+    /// <summary>⭐ SD-S2c (devices §3.13c D-109) — a GIMBAL: at the eyes the camera looks along the unit's HEADING at this pitch (radians, 0 level … −π/2 down)
+    /// instead of along its gaze — a drone's camera filmed through a ground station (<c>DeviceView</c>); null ⇒ his gaze.</summary>
+    public float? EyePitch { get; set; }
+
     /// <summary>At his eyes the view is a pair of eyes; elsewhere it looks AT him like the free camera.</summary>
     public bool ViewsFromEye => Distance < EyesBelow;
+
+    /// <summary>⭐ SD-S2c — the steepest a gimbal looks down (just short of straight down, where the camera's yaw is undefined).</summary>
+    public const float GimbalPitchLimit = 1.55f;
 
     /// <summary>True while the unit is there to follow.</summary>
     public bool Alive => _world() is { } w && w.IsAlive(Unit) && w.HasComponent<SimTransform>(Unit);
@@ -91,8 +98,16 @@ public sealed class FollowCameraDriver : ICameraDriver, ICameraSuggests
             var gaze = GazeOf(w, tf);
             float k = MathF.Exp(-LookSpringRate * dt);
             _lookYawOffset *= k; _lookPitchOffset *= k;
-            camera.Yaw = MathF.Atan2(gaze.Y, gaze.X) + _lookYawOffset;
-            camera.Pitch = Math.Clamp(MathF.Asin(Math.Clamp(gaze.Z, -1f, 1f)) + _lookPitchOffset, -1.4f, 1.4f);
+            if (EyePitch is { } gimbal)
+            {
+                camera.Yaw = HeadingOf(tf.Rotation) + _lookYawOffset;
+                camera.Pitch = Math.Clamp(gimbal + _lookPitchOffset, -GimbalPitchLimit, 1.4f);
+            }
+            else
+            {
+                camera.Yaw = MathF.Atan2(gaze.Y, gaze.X) + _lookYawOffset;
+                camera.Pitch = Math.Clamp(MathF.Asin(Math.Clamp(gaze.Z, -1f, 1f)) + _lookPitchOffset, -1.4f, 1.4f);
+            }
             camera.Distance = camera.MinDistance;
             camera.LookAt = eye + camera.Forward * camera.Distance;
             return;

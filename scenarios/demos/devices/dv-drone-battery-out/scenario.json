@@ -1,0 +1,120 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S2c (§3.13c D-107 / D-108). The dv-drone-fly start with a BOMBER quadcopter (TKB 408, a 1200 s battery) authored at 3 % (36 s of flight); the right stick at 0.4 for 20 s flies it ~240 m north, then it hovers until its battery runs out. Judge: (1) the battery empties (DroneBattery 0) and the pilot goes BatteryDown (DroneLink.Phase); (2) it comes down WHERE IT IS - never home: at the end it is down (FlightState.Airborne 0) more than 150 m from its launch point; (3) the station shows it LANDING. Not judged yet: the OSD's battery warning (SD-S2d). Fail: it flies on empty, or returns home. Check: scripts/scenario-regression.sh dv-drone-battery-out"
+  },
+  "entities": {
+    "d5e10017-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 642
+      },
+      "EntityInfo": {
+        "Name": "Drone station",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10017-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "ControlledEntities": {
+        "Entity0": "d5e10017-0000-4000-8000-000000000002"
+      }
+    },
+    "d5e10017-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -300,
+          -400,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Operator",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 1,
+        "Passengers": [
+          "d5e10017-0000-4000-8000-000000000010"
+        ],
+        "Seats": [
+          4
+        ]
+      }
+    },
+    "d5e10017-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -296,
+          -400,
+          0.08
+        ],
+        "Rotation": [
+          0,
+          0,
+          0.707107,
+          0.707107
+        ]
+      },
+      "Health": {
+        "Current": 10,
+        "Max": 10
+      },
+      "TkbIdentity": {
+        "TkbType": 408
+      },
+      "EntityInfo": {
+        "Name": "Drone",
+        "ForceId": "Friend"
+      },
+      "Behavior": {
+        "Name": "RemotePilot",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "DroneBattery": {
+        "Remaining01": 0.03
+      }
+    }
+  }
+}

@@ -407,5 +407,9 @@ namespace Hrot.Map.Definitions.Behavior
         public const string DeviceRangefinder = "DeviceRangefinder";
         /// <summary>⭐ S1d-3 — the binoculars: ZOOM IN / OUT step its magnification (5× / 7× / 10×); its view's field follows the step (§3.10).</summary>
         public const string DeviceBinoculars = "DeviceBinoculars";
+        /// <summary>⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION's logic (TKB 642).</summary>
+        public const string DeviceDroneStation = "DeviceDroneStation";
+        /// <summary>⭐ SD-S2c (§3.13c D-104 / D-107) — a drone flown THROUGH a ground station: its own brain reads the station's command (never possessed).</summary>
+        public const string RemotePilot = "RemotePilot";
     }
 }
