@@ -122,6 +122,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(DataPolicy.Transient, attr.Policy);
         }
 
+
         // ── InitialTargetsIntent ───────────────────────────────────────────────
 
         [Fact]

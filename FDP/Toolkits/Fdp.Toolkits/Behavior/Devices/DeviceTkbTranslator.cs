@@ -39,7 +39,8 @@ namespace Fdp.Toolkit.Behavior.Devices
             }
             if (repo.IsComponentTypeRegistered<DeviceInfo>())
             {
-                var info = new DeviceInfo { DeviceType = template.TkbType, Behavior = new FixedString64(dto.Behavior ?? "") };
+                var info = new DeviceInfo { DeviceType = template.TkbType, Behavior = new FixedString64(dto.Behavior ?? ""),
+                    OpticOffset = new System.Numerics.Vector3(dto.OpticOffsetX, dto.OpticOffsetY, dto.OpticOffsetZ) };   // ⭐ D-171
                 if (repo.HasComponent<DeviceInfo>(entity)) repo.SetComponent(entity, info); else repo.AddComponent(entity, info);
             }
             // ⭐ SD-S2c (§3.13c D-104) — a ground station's command exists from creation (Off): its drone's brain reads it across entities

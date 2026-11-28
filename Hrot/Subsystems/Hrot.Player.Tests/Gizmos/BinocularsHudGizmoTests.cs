@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Reflection;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
@@ -126,6 +127,84 @@ namespace Hrot.Player.Tests.Gizmos
             int triangles = 0;
             foreach (var p in run) if (p.Shape == DebugPrimitiveShape.FilledTriangle) triangles++;
             Assert.Equal(4 * BinocularsHudGizmo.MaskStrips, triangles);                 // the dark area above and below the eyepieces, per strip
+        }
+
+        /// <summary>The binoculars at the origin facing east (+X) with a received target at <paramref name="point"/> from the device <paramref name="from"/>.</summary>
+        private void Received(Vector3 point, Entity from)
+        {
+            if (!_w.IsComponentTypeRegistered<SimTransform>()) _w.RegisterComponent<SimTransform>();
+            if (!_w.HasComponent<SimTransform>(_d)) _w.AddComponent(_d, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
+            UnitMemory.Ref<BinocularsState>(_w, _d) = new BinocularsState
+            {
+                Zoom = 1, Ready = 1, HasTarget = 1, TargetFrom = Fdp.Toolkit.Replication.EntityRef.Of(_w, from),
+                Target = new Hrot.AI.Behaviors.Devices.Contracts.TargetLocation { Point = point, Range = point.Length(), TakenAt = 3.0, FromType = 640 },
+            };
+        }
+
+        private static List<string> Texts(DebugPrimitive[] run)
+        {
+            var t = new List<string>();
+            foreach (var p in run) if (p.Shape == DebugPrimitiveShape.Text) t.Add(p.TextContent.ToString());
+            return t;
+        }
+
+        private static int AmberTriangles(DebugPrimitive[] run)
+        {
+            int n = 0;
+            foreach (var p in run) if (p.Shape == DebugPrimitiveShape.FilledTriangle && p.Color.Equals(HudCue.Amber)) n++;
+            return n;
+        }
+
+        /// <summary>
+        /// ⭐⭐ SD-S5b (§3.13d D-119, mockup devices-hud-link.svg panels 25 / 26) — a target RECEIVED from the linked rangefinder: off the view an amber arrow on the
+        /// eyepieces' edge toward it (on the LEFT for a target 20° left) with TARGET, the offset, the range and the sender — named by its TKB type and tagged linked
+        /// (the binoculars' own link names it); in the view an amber diamond on it instead. Nothing before a target arrives. 🔴 Red-proof (compiles): the cue's call
+        /// removed from <c>Draw</c> ⇒ red.
+        /// </summary>
+        [Fact]
+        public void SDS5b_AReceivedTarget_DrawsTheCue_AnArrowOffTheView_ADiamondInIt_AndNamesTheLinkedSender()
+        {
+            Step(1);
+            Assert.DoesNotContain("TARGET", Texts(Frame()));                              // nothing received: no cue
+            var db = new Fdp.Toolkit.Tkb.TkbDatabase();
+            db.Register(new Fdp.Interfaces.TkbTemplate("Laser rangefinder", 640));
+            _w.SetSingletonManaged<Fdp.Interfaces.ITkbDatabase>(db);
+            _w.RegisterComponent<DeviceLinks>();
+            var sender = _w.CreateEntity();
+            _w.AddComponent(sender, new NetworkIdentity { Value = NetId + 1 });
+            _w.AddComponent(_d, DeviceLinks.To(Fdp.Toolkit.Replication.EntityRef.Of(_w, sender)));
+
+            float yaw = 20f * MathF.PI / 180f;                                              // 20° LEFT, 1 240 m away: off the 7.1° view
+            Received(new Vector3(MathF.Cos(yaw), MathF.Sin(yaw), 0f) * 1240f, sender);
+            var off = Frame();
+            var texts = Texts(off);
+            Assert.Contains("TARGET", texts);
+            Assert.Contains("20°", texts);
+            Assert.Contains("1 240 m", texts);
+            Assert.Contains("from LASER RANGEFINDER (linked)", texts);
+            Assert.Equal(2, AmberTriangles(off));                                           // the arrow + the side's mark
+            float cx = BinocularsHudGizmo.MockupWidth / 2f * BinocularsHudGizmo.K;
+            foreach (var p in off)
+                if (p.Shape == DebugPrimitiveShape.FilledTriangle && p.Color.Equals(HudCue.Amber))
+                    Assert.True(Math.Max(p.TriA.X, Math.Max(p.TriB.X, p.TriC.X)) < cx - 100f, "the arrow is on the LEFT edge, toward the target");
+
+            Received(new Vector3(MathF.Cos(0.01f), MathF.Sin(0.01f), 0f) * 600f, sender);  // 0.6° left: in the view
+            var inView = Frame();
+            Assert.Equal(3, AmberTriangles(inView));                                        // the diamond (two halves) + the side's mark
+            Assert.Contains("1°", Texts(inView));
+
+            _w.SetComponent(_d, new DeviceLinks());                                         // no longer linked: the sender is named, not tagged
+            Assert.Contains("from LASER RANGEFINDER", Texts(Frame()));
+        }
+
+        [Fact]
+        public void SDS5b_ASteadyFrame_WithTheCue_AllocatesNothing()
+        {
+            Received(new Vector3(1000f, 300f, 0f), Entity.Null);
+            for (int i = 0; i < 20; i++) Frame();
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) { _buf.EndFrame(0f); _sys.Execute(_w, 0f); }
+            Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
         [Fact]

@@ -81,6 +81,7 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
             Span<int> moved = stackalloc int[RangefinderChannels.Count];
             DevicePressReader.Read(world, self, ref st.Presses, moved);   // ① the presses (re-based on a new operator epoch, R7-11)
             int range = moved[RangefinderChannels.Range], mode = moved[RangefinderChannels.Mode], menu = moved[RangefinderChannels.Menu], select = moved[RangefinderChannels.Select];
+            int send = moved[RangefinderChannels.Send];
 
             // ② the mode and the menu
             if ((mode & 1) != 0) st.Mode = st.Mode == RangefinderMode.Single ? RangefinderMode.Continuous : RangefinderMode.Single;
@@ -108,6 +109,8 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
                     st.HasRange = spot.Count > 0 ? (byte)1 : (byte)0;
                     st.LastRange = spot.Count > 0 ? spot.Points[0].Range : 0f;
                     st.LastHit = spot.Count > 0 ? spot.Points[0].Hit : Entity.Null;
+                    st.LastPoint = spot.Count > 0 ? spot.Points[0].Point : default;   // ⭐ SD-S5b — what SEND sends
+                    st.RangeAt = Fdp.Toolkit.Combat.HitModel.Now(world);
                     st.RangePreview = spot.Preview;
                     if (st.Mode == RangefinderMode.Single) st.Ranging = 0;   // one measurement: the laser goes off
                 }
@@ -116,6 +119,16 @@ namespace Hrot.AI.Behaviors.Devices.Rangefinder
             {
                 if (st.Mode == RangefinderMode.Continuous && st.Ranging != 0) st.Ranging = 0;   // CONTINUOUS: RANGE again stops
                 else { st.Seq++; st.Ranging = 1; }
+            }
+
+            // ⭐⭐ SD-S5b (D-119) — SEND: the last range's point to its link (Peer0) as a TargetLocation — an event through the batch's command buffer, applied by
+            //   the receiver a tick later; a device-local act, so in pause too (it changes only the receiver's display). Nothing measured or no link: nothing sent.
+            if (send > 0 && st.HasRange != 0)
+            {
+                long type = world.IsComponentTypeRegistered<DeviceInfo>() && world.HasComponent<DeviceInfo>(self) ? world.GetComponentRO<DeviceInfo>(self).DeviceType : 0;
+                var target = new Hrot.AI.Behaviors.Devices.Contracts.TargetLocation { Point = st.LastPoint, Range = st.LastRange, TakenAt = st.RangeAt, FromType = type };
+                if (DeviceMessages.SendToPeer(world, self, 0, Hrot.AI.Behaviors.Devices.Contracts.TargetLocation.Kind, in target, ref st.SendSeq))
+                { st.Sent++; st.SentAt = Fdp.Toolkit.Combat.HitModel.Now(world); }
             }
 
             // ④ its own outputs, on change — ⭐ S1d-3 (R5-13): it points where its operator looks (DevicePose from the frame), its view at its fixed magnification

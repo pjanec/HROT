@@ -263,15 +263,20 @@ namespace Hrot.Editor.Director
             return (JsonObject)ToJson(w, value)!;
         }
 
+        private static JsonNode? NameOf(EntityRepository w, Entity ent)
+            => !ent.IsNull && w.IsAlive(ent) && w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(ent)
+                ? JsonValue.Create(w.GetComponentRO<EntityInfo>(ent).Name.ToString()) : null;
+
         private static JsonNode? ToJson(EntityRepository w, object? v)
         {
             switch (v)
             {
                 case null: return null;
                 case Enum e: return JsonValue.Create(e.ToString());
-                case Entity ent:
-                    return !ent.IsNull && w.IsAlive(ent) && w.IsComponentTypeRegistered<EntityInfo>() && w.HasComponent<EntityInfo>(ent)
-                        ? JsonValue.Create(w.GetComponentRO<EntityInfo>(ent).Name.ToString()) : null;
+                case Entity ent: return NameOf(w, ent);
+                // ⭐ SD-S5b (R-184) — an authored reference reads as the entity it names, as a handle does: the TYPE drives every consumer
+                case Fdp.Toolkit.Replication.EntityRef r: return NameOf(w, r.Resolve(w));
+                case Fdp.Toolkit.Replication.EntityLink l: return NameOf(w, l.Ref.Resolve(w));
                 case bool b: return JsonValue.Create(b);
                 case byte or sbyte or short or ushort or int or uint or long or ulong or float or double:
                     return JsonValue.Create(Convert.ToDouble(v, System.Globalization.CultureInfo.InvariantCulture));

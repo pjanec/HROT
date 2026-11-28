@@ -75,6 +75,8 @@ namespace Fdp.Toolkits.Tests.Replication
             ["ControlledEntities.Entity1"] = "SD-S2c D-147, as Entity0",
             ["ControlledEntities.Entity2"] = "SD-S2c D-147, as Entity0",
             ["ControlledEntities.Entity3"] = "SD-S2c D-147, as Entity0",
+            ["DeviceLinks.Peer0"] = "SD-S5b D-119 / D-168 the device LINK, named by a person (the scenario's author: the peer a rangefinder sends to) — an EntityLink, resolved by the one load walker (R-184)",
+            ["DeviceLinks.Peer1"] = "SD-S5b D-119, as Peer0",
         };
 
         /// <summary>S9' (c) — components saved through a GUID-keyed translator (DESIGN_Scenario_Entity_Keys §0a): their entity references are written as GUIDs, so an

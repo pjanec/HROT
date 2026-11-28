@@ -96,12 +96,19 @@ namespace Hrot.SimHost.Tests
             var rf = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder).GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>()!;
             Assert.Equal(BehaviorNames.DeviceRangefinder, rf.Behavior);
             Assert.Equal(RangefinderChannels.Count, rf.CountOf(Fdp.Toolkit.Tkb.Domain.DeviceElementKind.Button));
-            Assert.Equal(RangefinderChannels.Count, rf.Elements.Count);   // ⭐ SD-S5v — four buttons, nothing else
+            Assert.Equal(RangefinderChannels.Count, rf.Elements.Count);   // ⭐ SD-S5v — the buttons, nothing else (⭐ SD-S5b: five, SEND joined)
             Assert.All(rf.Elements, e => Assert.False(string.IsNullOrEmpty(e.Hotkey)));   // ⭐ D-124 — each with its virtual-panel key
             Assert.Equal(RangefinderChannels.Range, rf.ButtonOf("RANGE"));
             Assert.Equal(RangefinderChannels.Mode, rf.ButtonOf("MODE"));
             Assert.Equal(RangefinderChannels.Menu, rf.ButtonOf("MENU"));
             Assert.Equal(RangefinderChannels.Select, rf.ButtonOf("select"));   // by name, any case
+            Assert.Equal(RangefinderChannels.Send, rf.ButtonOf("SEND"));       // ⭐ SD-S5b (D-119)
+            // ⭐ SD-S5b (D-120) — the rangefinder's STACKING station: one Gen.Carrier seat accepting only a device, above it
+            var stack = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_LaserRangefinder).GetDescriptor<Fdp.Toolkit.Tkb.Domain.CarrierDefDto>()!;
+            Assert.Single(stack.Seats);
+            Assert.Equal(Fdp.Toolkit.Behavior.Components.SeatRole.Station, stack.Seats[0].Role);
+            Assert.Equal(Fdp.Toolkit.Tkb.Domain.MountKinds.Device, stack.Seats[0].Accepts);
+            Assert.True(stack.Seats[0].Z > 0f);
             Assert.Equal(new[] { RangefinderBehavior.Magnification }, rf.Magnifications);
 
             var bn = tkb.GetByType(Hrot.Map.Common.TkbEntityTypes.Device_Binoculars).GetDescriptor<Fdp.Toolkit.Tkb.Domain.DeviceDefDto>()!;

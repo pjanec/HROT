@@ -294,8 +294,20 @@ namespace Hrot.Map.Definitions.Tkb
                     {
                         Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE", "R"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE", "O"),
                         Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MENU", "P"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SELECT", "Enter"),
+                        // ⭐ SD-S5b (D-119) — SEND the last range to the link; Y: no body key (the embodied keymap leaves Y and P unbound), so it shadows nothing
+                        Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("SEND", "Y"),
                     },
                     Magnifications = { 7f },
+                    Messages = { "TargetLocation" },
+                })
+                // ⭐⭐ SD-S5b (D-120 / D-61) — the STACKING STATION: one Gen.Carrier seat accepting only a DEVICE, on top of the rangefinder (x forward, z up — a
+                //   device stacked here sits 8 cm above it and points as the rangefinder does, DevicePoses). The kit stations' one mechanism: boarding, the carry,
+                //   the operator walk (a stacked device is operated by the rangefinder's operator). Open (it is seen), and it never dies with its host.
+                .WithCarrier(TkbEntityTypes.Device_LaserRangefinder, new Fdp.Toolkit.Tkb.Domain.CarrierDefDto
+                {
+                    Seats = { new SeatDto { Role = Fdp.Toolkit.Behavior.Components.SeatRole.Station, Accepts = MountKinds.Device, Z = StackStationZ } },
+                    Exposure = Fdp.Toolkit.Behavior.Components.PassengerExposure.Open,
+                    DiesWithCarrier = false,
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_LaserRangefinder);
             builder.DefineVehicle(TkbEntityTypes.Device_Binoculars, "Binoculars")
@@ -310,6 +322,7 @@ namespace Hrot.Map.Definitions.Tkb
                     },
                     Magnifications = { 5f, 7f, 10f },
                     DefaultStep = 1,
+                    Messages = { "TargetLocation" },
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_Binoculars);
             // ⭐⭐ SD-S2c (§3.13c D-110) — the drone GROUND STATION: seven buttons (the pad's A … RB are buttons 0–5) and the four stick axes in Mode 2 —
@@ -333,6 +346,9 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .HiddenFromPalette(TkbEntityTypes.Device_DroneStation);
         }
+
+        /// <summary>⭐ SD-S5b (D-120) — the rangefinder's stacking station: a device stacked on it sits this high above it (m).</summary>
+        public const float StackStationZ = 0.08f;
 
         /// <summary>⭐ ui handoff P1 — the HMMWV roof ring's weapon pivot height (m): the roof at 1.83 m + the ring.</summary>
         private const float HmmwvRingPivotZ = 2.3f;

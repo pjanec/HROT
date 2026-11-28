@@ -1,0 +1,504 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='1500' height='560' viewBox='0 0 1500 560'>
+<rect x='0' y='0' width='1500' height='560' fill='#1B1B1F' rx='0' opacity='1'/>
+<text x='20' y='26' fill='#E8E8EE' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Simulated devices — the DEVICE LINK on the HUD: SEND and the received-target cue  (SD-S5b, DESIGN_Simulated_Devices §3.13d D-119)</text>
+<text x='20' y='44' fill='#8A8A96' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Full colour = SPECIFIED · grey dashed + 'unchanged' = CONTEXT · the scene is illustrative · the cue is the one helper the designator's panel 16 draws too.</text>
+<defs><linearGradient id='sky' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#5B87B8'/><stop offset='1' stop-color='#BFD3E3'/></linearGradient><linearGradient id='grass' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#6B7E4A'/><stop offset='1' stop-color='#4A5A33'/></linearGradient></defs>
+<text x='30' y='100' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>24 · RANGEFINDER — SEND pressed after a range: the target sent to the link</text>
+<text x='30' y='116' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the SEND chip (lit) left of RANGE and the green SENT tag under it (2 s of sim</text>
+<text x='30' y='129' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>time). Everything else is panel 3.</text>
+<clipPath id='c7'><rect x='30' y='158' width='460' height='259'/></clipPath><g clip-path='url(#c7)'>
+<g transform='translate(260.0,287.5) scale(2.2) translate(-260.0,-287.5)'>
+<rect x='-370' y='-142' width='1260' height='445.04' fill='url(#sky)'/>
+<polygon points='-370,303.04 -30,287.04 150,298.04 330,281.04 890,297.04 890,303.04 ' fill='#4C5E49'/>
+<rect x='-370' y='303.04' width='1260' height='400' fill='url(#grass)'/>
+<circle cx='-152' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-139' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-126' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-113' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-100' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-87' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-74' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-61' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-48' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-35' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-22' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='-9' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='4' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='17' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='30' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='43' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='56' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='69' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='82' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='95' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='108' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='121' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='134' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='147' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='160' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='173' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='186' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='199' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='212' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='225' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='238' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='251' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='264' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='277' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='290' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='303' cy='300.04' r='7' fill='#2F4A2E'/>
+<rect x='100' y='289.04' width='30' height='16' fill='#A59A86' rx='0' opacity='1'/>
+<polygon points='96,289.04 115,277.04 134,289.04' fill='#7A3B30'/>
+<rect x='246.0' y='285.5' width='28' height='8' fill='#5B6350' rx='1.5' opacity='1'/>
+<rect x='253.0' y='281.5' width='14' height='5' fill='#4B5342' rx='1.5' opacity='1'/>
+<line x1='266.0' y1='283.5' x2='282.0' y2='282.5' stroke='#4B5342' stroke-width='1.6'/>
+</g></g>
+<rect x='30' y='158' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<mask id='rfm30158'><rect x='30' y='158' width='460' height='259' fill='#fff'/><rect x='40' y='168' width='440' height='239' fill='#000'/></mask>
+<rect x='30' y='158' width='460' height='259' fill='#000' opacity='0.78' mask='url(#rfm30158)'/>
+<line x1='44' y1='172' x2='60' y2='172' stroke='#000' stroke-width='3.6'/>
+<line x1='44' y1='172' x2='60' y2='172' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='44' y1='172' x2='44' y2='188' stroke='#000' stroke-width='3.6'/>
+<line x1='44' y1='172' x2='44' y2='188' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='476' y1='172' x2='460' y2='172' stroke='#000' stroke-width='3.6'/>
+<line x1='476' y1='172' x2='460' y2='172' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='476' y1='172' x2='476' y2='188' stroke='#000' stroke-width='3.6'/>
+<line x1='476' y1='172' x2='476' y2='188' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='44' y1='403' x2='60' y2='403' stroke='#000' stroke-width='3.6'/>
+<line x1='44' y1='403' x2='60' y2='403' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='44' y1='403' x2='44' y2='387' stroke='#000' stroke-width='3.6'/>
+<line x1='44' y1='403' x2='44' y2='387' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='476' y1='403' x2='460' y2='403' stroke='#000' stroke-width='3.6'/>
+<line x1='476' y1='403' x2='460' y2='403' stroke='#FFFFFF' stroke-width='1.4'/>
+<line x1='476' y1='403' x2='476' y2='387' stroke='#000' stroke-width='3.6'/>
+<line x1='476' y1='403' x2='476' y2='387' stroke='#FFFFFF' stroke-width='1.4'/>
+<circle cx='260.0' cy='289.5' r='9' fill='#FF3B30' fill-opacity='0.30'/><circle cx='260.0' cy='289.5' r='3.2' fill='#FF3B30'/>
+<text x='276.0' y='275.5' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>spot — world effect, SD-S6</text>
+<line x1='264.0' y1='285.5' x2='275.0' y2='277.5' stroke='#8A8A96' stroke-width='0.8' stroke-dasharray='2 2'/>
+<line x1='254.0' y1='287.5' x2='216.0' y2='287.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='254.0' y1='287.5' x2='216.0' y2='287.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='260.0' y1='281.5' x2='260.0' y2='243.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='260.0' y1='281.5' x2='260.0' y2='243.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='266.0' y1='287.5' x2='304.0' y2='287.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='266.0' y1='287.5' x2='304.0' y2='287.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='260.0' y1='293.5' x2='260.0' y2='331.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='260.0' y1='293.5' x2='260.0' y2='331.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='246.5' y1='285.0' x2='246.5' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='246.5' y1='285.0' x2='246.5' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='274.0' x2='262.5' y2='274.0' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='274.0' x2='262.5' y2='274.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='273.5' y1='285.0' x2='273.5' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='273.5' y1='285.0' x2='273.5' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='301.0' x2='262.5' y2='301.0' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='301.0' x2='262.5' y2='301.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='239.0' y1='285.0' x2='239.0' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='239.0' y1='285.0' x2='239.0' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='266.5' x2='262.5' y2='266.5' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='266.5' x2='262.5' y2='266.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='281.0' y1='285.0' x2='281.0' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='281.0' y1='285.0' x2='281.0' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='308.5' x2='262.5' y2='308.5' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='308.5' x2='262.5' y2='308.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='231.5' y1='285.0' x2='231.5' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='231.5' y1='285.0' x2='231.5' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='259.0' x2='262.5' y2='259.0' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='259.0' x2='262.5' y2='259.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='288.5' y1='285.0' x2='288.5' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='288.5' y1='285.0' x2='288.5' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='316.0' x2='262.5' y2='316.0' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='316.0' x2='262.5' y2='316.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='224.0' y1='285.0' x2='224.0' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='224.0' y1='285.0' x2='224.0' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='251.5' x2='262.5' y2='251.5' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='251.5' x2='262.5' y2='251.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='296.0' y1='285.0' x2='296.0' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='296.0' y1='285.0' x2='296.0' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='323.5' x2='262.5' y2='323.5' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='323.5' x2='262.5' y2='323.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='216.5' y1='285.0' x2='216.5' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='216.5' y1='285.0' x2='216.5' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='244.0' x2='262.5' y2='244.0' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='244.0' x2='262.5' y2='244.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='303.5' y1='285.0' x2='303.5' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='303.5' y1='285.0' x2='303.5' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='257.5' y1='331.0' x2='262.5' y2='331.0' stroke='#000' stroke-width='3.2'/>
+<line x1='257.5' y1='331.0' x2='262.5' y2='331.0' stroke='#FFFFFF' stroke-width='1'/>
+<circle cx='260.0' cy='287.5' r='1.6' fill='#FFFFFF' stroke='#000' stroke-width='0.8'/>
+<text x='54' y='240' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>LASER RANGEFINDER</text>
+<text x='54' y='256' fill='#A0A0AA' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<text x='92' y='256' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SINGLE</text>
+<text x='54' y='272' fill='#A0A0AA' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>POWER</text>
+<text x='100' y='272' fill='#FFFFFF' font-size='12' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>LOW</text>
+<circle cx='466' cy='240' r='5' fill='#2A2A2E' stroke='#8A8A96' stroke-width='1.2'/>
+<text x='454' y='244' fill='#A0A0AA' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>LASER</text>
+<text x='260.0' y='361' fill='#A0A0AA' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>LAST RANGE</text>
+<text x='260.0' y='389' fill='#FFD700' font-size='24' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>452 m</text>
+<rect x='432.89230769230767' y='381' width='43.107692307692304' height='18' fill='#000' rx='3' opacity='0.55'/>
+<text x='454.44615384615383' y='393.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>EXIT</text>
+<rect x='377.5076923076923' y='381' width='50.38461538461539' height='18' fill='#000' rx='3' opacity='0.55'/>
+<text x='402.7' y='393.5' fill='#B8B8C0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>POWER</text>
+<rect x='329.4' y='381' width='43.107692307692304' height='18' fill='#3369AD' rx='3' opacity='0.95'/>
+<text x='350.95384615384614' y='393.5' fill='#FFFFFF' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' xml:space='preserve'>MODE</text>
+<rect x='314' y='282' width='78' height='20' fill='#3369AD' rx='3' opacity='0.85'/>
+<text x='321' y='296' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SEND</text>
+<rect x='374' y='285.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='380.5' y='295.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>Y</text>
+<rect x='314' y='306' width='38.46153846153847' height='15' fill='#000' rx='2' stroke='#5BD06A' stroke-width='1' opacity='0.7'/>
+<text x='333.2307692307692' y='317' fill='#5BD06A' font-size='10' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SENT</text>
+<rect x='398' y='282' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='296' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>RANGE</text>
+<rect x='458' y='285.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='464.5' y='295.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>R</text>
+<rect x='398' y='306' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='320' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MODE</text>
+<rect x='458' y='309.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='464.5' y='319.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>O</text>
+<rect x='398' y='330' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='344' fill='#FFFFFF' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>MENU</text>
+<rect x='458' y='333.5' width='13' height='13' fill='none' rx='2' stroke='#C8C8D0' stroke-width='1' opacity='1'/>
+<text x='464.5' y='343.5' fill='#C8C8D0' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>P</text>
+<rect x='398' y='354' width='78' height='20' fill='#000' rx='3' stroke='#8A8A96' stroke-width='1' opacity='0.62'/>
+<text x='405' y='368' fill='#6A6A74' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>SELECT</text>
+<rect x='449.13076923076926' y='357.5' width='21.869230769230768' height='13' fill='none' rx='2' stroke='#6A6A74' stroke-width='1' opacity='1'/>
+<text x='460.06538461538463' y='367.5' fill='#6A6A74' font-size='8.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>ENT</text>
+<rect x='311' y='279' width='84' height='26' fill='none' rx='4' stroke='#FFD700' stroke-width='2' opacity='1'/>
+<path d='M288 416Q288 430 279 439Q270 448 256 448Q242 448 233 439Q224 430 224 416V208Q223 193 208 192Q193 193 192 208V384Q192 398 183 407Q174 416 160 416Q146 416 137 407Q128 398 128 384V112Q128 110 128 107L68 165Q55 176 39 176Q23 176 11 164Q0 151 0 135Q0 119 12 107L125 0Q192 -63 285 -64H304Q379 -62 428 -12Q478 37 480 112V320Q480 334 471 343Q462 352 448 352Q434 352 425 343Q416 334 416 320V208Q415 193 400 192Q385 193 384 208V384Q384 398 375 407Q366 416 352 416Q338 416 329 407Q320 398 320 384V208Q319 193 304 192Q289 193 288 208V416Z' fill='#FFFFFF' fill-opacity='1' transform='translate(352,304.447265625) scale(0.029296875,-0.029296875)'/>
+<rect x='114.0' y='166' width='292' height='38' fill='#000' rx='0' opacity='0.43'/>
+<line x1='132.6153846153846' y1='170' x2='132.6153846153846' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='132.6153846153846' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NW</text>
+<line x1='153.84615384615384' y1='170' x2='153.84615384615384' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='175.0769230769231' y1='170' x2='175.0769230769231' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='196.30769230769232' y1='170' x2='196.30769230769232' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='217.53846153846155' y1='170' x2='217.53846153846155' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='238.76923076923077' y1='170' x2='238.76923076923077' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='260.0' y1='170' x2='260.0' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='260.0' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>N</text>
+<line x1='281.2307692307692' y1='170' x2='281.2307692307692' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='302.46153846153845' y1='170' x2='302.46153846153845' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='323.6923076923077' y1='170' x2='323.6923076923077' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='344.9230769230769' y1='170' x2='344.9230769230769' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='366.1538461538462' y1='170' x2='366.1538461538462' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='387.38461538461536' y1='170' x2='387.38461538461536' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='387.38461538461536' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NE</text>
+<rect x='245.0' y='206' width='30' height='14' fill='#000' rx='0' opacity='0.6'/>
+<text x='260.0' y='217' fill='#8F7F10' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>012</text>
+<rect x='114.0' y='166' width='292' height='54' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='403.0' y='163' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — compass</text>
+<rect x='38' y='371' width='112' height='38' fill='#000' rx='0' opacity='0.6'/>
+<rect x='44' y='377' width='70' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='44' y='388' width='84' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='44' y='399' width='56' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='38' y='371' width='112' height='38' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='147' y='368' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — unit lines</text>
+<text x='30' y='433' fill='#5BD06A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>SPECIFIES</text>
+<text x='96' y='433' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the SEND Y chip lit (a click or Y sends the last range's point to the link,</text>
+<text x='96' y='446.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Peer0) · the SENT tag (green) for 2 s of sim time — it stays while paused</text>
+<text x='96' y='460.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>(sim time stands) · the hover frame + hand cursor on SEND (POINT)</text>
+<text x='30' y='475.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='96' y='475.5' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the rest of the rangefinder's HUD (panel 3) · compass · unit lines · the</text>
+<text x='96' y='489.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>spot</text>
+<text x='30' y='506.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>SEND is greyed with nothing measured or no link (panels 2, 4, 6); it sends one</text>
+<text x='30' y='519.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>TargetLocation per press — a device message, one tick late, applied by the receiver.</text>
+<text x='30' y='534.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: SEND left of RANGE (the column's fifth row would meet the menu line), the</text>
+<text x='30' y='547.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>tag under it.</text>
+<text x='520' y='100' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>25 · BINOCULARS — a target received from the linked rangefinder, OFF the view (20° left)</text>
+<text x='520' y='116' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the received-target cue — the amber arrow on the eyepieces' edge toward the</text>
+<text x='520' y='129' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>target and its three lines. The binoculars' own HUD is context.</text>
+<clipPath id='c8'><rect x='520' y='158' width='460' height='259'/></clipPath><g clip-path='url(#c8)'>
+<g transform='translate(750.0,287.5) scale(3.0) translate(-750.0,-287.5)'>
+<rect x='120' y='-142' width='1260' height='445.04' fill='url(#sky)'/>
+<polygon points='120,303.04 460,287.04 640,298.04 820,281.04 1380,297.04 1380,303.04 ' fill='#4C5E49'/>
+<rect x='120' y='303.04' width='1260' height='400' fill='url(#grass)'/>
+<circle cx='338' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='351' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='364' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='377' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='390' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='403' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='416' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='429' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='442' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='455' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='468' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='481' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='494' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='507' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='520' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='533' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='546' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='559' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='572' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='585' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='598' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='611' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='624' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='637' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='650' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='663' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='676' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='689' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='702' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='715' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='728' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='741' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='754' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='767' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='780' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='793' cy='300.04' r='7' fill='#2F4A2E'/>
+<rect x='590' y='289.04' width='30' height='16' fill='#A59A86' rx='0' opacity='1'/>
+<polygon points='586,289.04 605,277.04 624,289.04' fill='#7A3B30'/>
+</g></g>
+<rect x='520' y='158' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<mask id='bm520'><rect x='520' y='158' width='460' height='259' fill='#fff'/><circle cx='690.171' cy='287.5' r='108.78' fill='#000'/><circle cx='809.829' cy='287.5' r='108.78' fill='#000'/></mask><rect x='520' y='158' width='460' height='259' fill='#000' opacity='0.93' mask='url(#bm520)'/>
+<line x1='744.0' y1='287.5' x2='629.502443663949' y2='287.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='744.0' y1='287.5' x2='629.502443663949' y2='287.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='750.0' y1='281.5' x2='750.0' y2='200.65078889170252' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='750.0' y1='281.5' x2='750.0' y2='200.65078889170252' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='756.0' y1='287.5' x2='870.497556336051' y2='287.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='756.0' y1='287.5' x2='870.497556336051' y2='287.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='750.0' y1='293.5' x2='750.0' y2='374.3492111082975' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='750.0' y1='293.5' x2='750.0' y2='374.3492111082975' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='739.6122796262025' y1='285.0' x2='739.6122796262025' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='739.6122796262025' y1='285.0' x2='739.6122796262025' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='760.3877203737975' y1='285.0' x2='760.3877203737975' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='760.3877203737975' y1='285.0' x2='760.3877203737975' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='729.224559252405' y1='283.5' x2='729.224559252405' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='729.224559252405' y1='283.5' x2='729.224559252405' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='770.775440747595' y1='283.5' x2='770.775440747595' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='770.775440747595' y1='283.5' x2='770.775440747595' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='718.8368388786075' y1='285.0' x2='718.8368388786075' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='718.8368388786075' y1='285.0' x2='718.8368388786075' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='781.1631611213925' y1='285.0' x2='781.1631611213925' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='781.1631611213925' y1='285.0' x2='781.1631611213925' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='708.44911850481' y1='283.5' x2='708.44911850481' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='708.44911850481' y1='283.5' x2='708.44911850481' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='791.55088149519' y1='283.5' x2='791.55088149519' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='791.55088149519' y1='283.5' x2='791.55088149519' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='698.0613981310124' y1='285.0' x2='698.0613981310124' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='698.0613981310124' y1='285.0' x2='698.0613981310124' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='801.9386018689876' y1='285.0' x2='801.9386018689876' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='801.9386018689876' y1='285.0' x2='801.9386018689876' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='687.6736777572149' y1='283.5' x2='687.6736777572149' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='687.6736777572149' y1='283.5' x2='687.6736777572149' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='812.3263222427851' y1='283.5' x2='812.3263222427851' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='812.3263222427851' y1='283.5' x2='812.3263222427851' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='677.2859573834174' y1='285.0' x2='677.2859573834174' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='677.2859573834174' y1='285.0' x2='677.2859573834174' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='822.7140426165826' y1='285.0' x2='822.7140426165826' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='822.7140426165826' y1='285.0' x2='822.7140426165826' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='666.89823700962' y1='283.5' x2='666.89823700962' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='666.89823700962' y1='283.5' x2='666.89823700962' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='833.10176299038' y1='283.5' x2='833.10176299038' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='833.10176299038' y1='283.5' x2='833.10176299038' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='656.5105166358225' y1='285.0' x2='656.5105166358225' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='656.5105166358225' y1='285.0' x2='656.5105166358225' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='843.4894833641775' y1='285.0' x2='843.4894833641775' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='843.4894833641775' y1='285.0' x2='843.4894833641775' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='646.122796262025' y1='283.5' x2='646.122796262025' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='646.122796262025' y1='283.5' x2='646.122796262025' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='853.877203737975' y1='283.5' x2='853.877203737975' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='853.877203737975' y1='283.5' x2='853.877203737975' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<circle cx='750.0' cy='287.5' r='1.5' fill='#FFFFFF'/>
+<text x='750.0' y='385' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>BINOCULARS</text>
+<text x='966' y='290' fill='#808088' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>5×</text>
+<text x='966' y='308' fill='#FFD700' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>7×</text>
+<text x='966' y='326' fill='#808088' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>10×</text>
+<rect x='524' y='162' width='452' height='251' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='973' y='159' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — the binoculars' HUD (panel 1)</text>
+<polygon points='608.8,287.5 626.6,277.3 626.6,297.7' fill='#000'/>
+<polygon points='610.0,287.5 626.0,278.5 626.0,296.5' fill='#F2C033'/>
+<text x='632.0' y='309.5' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>TARGET</text>
+<polygon points='689.0,301.5 689.0,309.5 682.0,305.5' fill='#F2C033'/>
+<text x='693.0' y='309.5' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>20°</text>
+<text x='632.0' y='323.5' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>1 240 m</text>
+<text x='632.0' y='337.5' fill='#A0A0AA' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>from LASER RANGEFINDER (linked)</text>
+<rect x='604.0' y='166' width='292' height='38' fill='#000' rx='0' opacity='0.43'/>
+<line x1='622.6153846153846' y1='170' x2='622.6153846153846' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='622.6153846153846' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NW</text>
+<line x1='643.8461538461538' y1='170' x2='643.8461538461538' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='665.0769230769231' y1='170' x2='665.0769230769231' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='686.3076923076923' y1='170' x2='686.3076923076923' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='707.5384615384615' y1='170' x2='707.5384615384615' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='728.7692307692307' y1='170' x2='728.7692307692307' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='750.0' y1='170' x2='750.0' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='750.0' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>N</text>
+<line x1='771.2307692307693' y1='170' x2='771.2307692307693' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='792.4615384615385' y1='170' x2='792.4615384615385' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='813.6923076923077' y1='170' x2='813.6923076923077' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='834.9230769230769' y1='170' x2='834.9230769230769' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='856.1538461538462' y1='170' x2='856.1538461538462' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='877.3846153846154' y1='170' x2='877.3846153846154' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='877.3846153846154' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NE</text>
+<rect x='735.0' y='206' width='30' height='14' fill='#000' rx='0' opacity='0.6'/>
+<text x='750.0' y='217' fill='#8F7F10' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>012</text>
+<rect x='604.0' y='166' width='292' height='54' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='893.0' y='163' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — compass</text>
+<rect x='528' y='371' width='112' height='38' fill='#000' rx='0' opacity='0.6'/>
+<rect x='534' y='377' width='70' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='534' y='388' width='84' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='534' y='399' width='56' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='528' y='371' width='112' height='38' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='637' y='368' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — unit lines</text>
+<text x='520' y='433' fill='#5BD06A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>SPECIFIES</text>
+<text x='586' y='433' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the arrow on an ellipse inside the eyepieces (half-axes 140 × 76 px)</text>
+<text x='586' y='446.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>pointing toward the target · TARGET ◂ 20° (the side's triangle — the</text>
+<text x='586' y='460.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>gizmo font has no ◂) · 1 240 m (from the BINOCULARS) · from LASER</text>
+<text x='586' y='473.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>RANGEFINDER (linked) — the sender's TKB name, linked when the</text>
+<text x='586' y='487.0' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>binoculars' own link names it</text>
+<text x='520' y='502.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='586' y='502.5' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the binoculars' HUD (panel 1) · compass · unit lines · the scene</text>
+<text x='520' y='520.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>The cue turns with the look: slewing toward it, the arrow slides along the edge, and the</text>
+<text x='520' y='533.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>target enters the view (panel 26).</text>
+<text x='520' y='548.0' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: the text inside the arrow (to its right on the left edge, to its left on the right</text>
+<text x='520' y='561.0' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>edge, above it at the bottom).</text>
+<text x='1010' y='100' fill='#E8E8EE' font-size='13.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>26 · BINOCULARS — slewed toward it: the target IN the view (2° left)</text>
+<text x='1010' y='116' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Scope: the cue in the view — an amber diamond on the received point and the same three</text>
+<text x='1010' y='129' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>lines beside it.</text>
+<clipPath id='c9'><rect x='1010' y='158' width='460' height='259'/></clipPath><g clip-path='url(#c9)'>
+<g transform='translate(1240.0,287.5) scale(3.0) translate(-1240.0,-287.5)'>
+<rect x='610' y='-142' width='1260' height='445.04' fill='url(#sky)'/>
+<polygon points='610,303.04 950,287.04 1130,298.04 1310,281.04 1870,297.04 1870,303.04 ' fill='#4C5E49'/>
+<rect x='610' y='303.04' width='1260' height='400' fill='url(#grass)'/>
+<circle cx='828' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='841' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='854' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='867' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='880' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='893' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='906' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='919' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='932' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='945' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='958' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='971' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='984' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='997' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1010' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1023' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1036' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1049' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1062' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1075' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1088' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1101' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1114' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1127' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1140' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1153' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1166' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1179' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1192' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1205' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1218' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1231' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1244' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1257' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1270' cy='300.04' r='7' fill='#2F4A2E'/>
+<circle cx='1283' cy='300.04' r='7' fill='#2F4A2E'/>
+<rect x='1080' y='289.04' width='30' height='16' fill='#A59A86' rx='0' opacity='1'/>
+<polygon points='1076,289.04 1095,277.04 1114,289.04' fill='#7A3B30'/>
+<rect x='1202.0' y='285.5' width='28' height='8' fill='#5B6350' rx='1.5' opacity='1'/>
+<rect x='1209.0' y='281.5' width='14' height='5' fill='#4B5342' rx='1.5' opacity='1'/>
+<line x1='1222.0' y1='283.5' x2='1238.0' y2='282.5' stroke='#4B5342' stroke-width='1.6'/>
+</g></g>
+<rect x='1010' y='158' width='460' height='259' fill='none' rx='0' stroke='#3A3A44' stroke-width='1' opacity='1'/>
+<mask id='bm1010'><rect x='1010' y='158' width='460' height='259' fill='#fff'/><circle cx='1180.171' cy='287.5' r='108.78' fill='#000'/><circle cx='1299.829' cy='287.5' r='108.78' fill='#000'/></mask><rect x='1010' y='158' width='460' height='259' fill='#000' opacity='0.93' mask='url(#bm1010)'/>
+<line x1='1234.0' y1='287.5' x2='1119.502443663949' y2='287.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='1234.0' y1='287.5' x2='1119.502443663949' y2='287.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='1240.0' y1='281.5' x2='1240.0' y2='200.65078889170252' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='1240.0' y1='281.5' x2='1240.0' y2='200.65078889170252' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='1246.0' y1='287.5' x2='1360.497556336051' y2='287.5' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='1246.0' y1='287.5' x2='1360.497556336051' y2='287.5' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='1240.0' y1='293.5' x2='1240.0' y2='374.3492111082975' stroke='#000' stroke-width='3.4000000000000004'/>
+<line x1='1240.0' y1='293.5' x2='1240.0' y2='374.3492111082975' stroke='#FFFFFF' stroke-width='1.2'/>
+<line x1='1229.6122796262025' y1='285.0' x2='1229.6122796262025' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1229.6122796262025' y1='285.0' x2='1229.6122796262025' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1250.3877203737975' y1='285.0' x2='1250.3877203737975' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1250.3877203737975' y1='285.0' x2='1250.3877203737975' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1219.224559252405' y1='283.5' x2='1219.224559252405' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1219.224559252405' y1='283.5' x2='1219.224559252405' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1260.775440747595' y1='283.5' x2='1260.775440747595' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1260.775440747595' y1='283.5' x2='1260.775440747595' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1208.8368388786075' y1='285.0' x2='1208.8368388786075' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1208.8368388786075' y1='285.0' x2='1208.8368388786075' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1271.1631611213925' y1='285.0' x2='1271.1631611213925' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1271.1631611213925' y1='285.0' x2='1271.1631611213925' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1198.44911850481' y1='283.5' x2='1198.44911850481' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1198.44911850481' y1='283.5' x2='1198.44911850481' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1281.55088149519' y1='283.5' x2='1281.55088149519' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1281.55088149519' y1='283.5' x2='1281.55088149519' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1188.0613981310125' y1='285.0' x2='1188.0613981310125' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1188.0613981310125' y1='285.0' x2='1188.0613981310125' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1291.9386018689875' y1='285.0' x2='1291.9386018689875' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1291.9386018689875' y1='285.0' x2='1291.9386018689875' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1177.673677757215' y1='283.5' x2='1177.673677757215' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1177.673677757215' y1='283.5' x2='1177.673677757215' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1302.326322242785' y1='283.5' x2='1302.326322242785' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1302.326322242785' y1='283.5' x2='1302.326322242785' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1167.2859573834176' y1='285.0' x2='1167.2859573834176' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1167.2859573834176' y1='285.0' x2='1167.2859573834176' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1312.7140426165824' y1='285.0' x2='1312.7140426165824' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1312.7140426165824' y1='285.0' x2='1312.7140426165824' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1156.89823700962' y1='283.5' x2='1156.89823700962' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1156.89823700962' y1='283.5' x2='1156.89823700962' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1323.10176299038' y1='283.5' x2='1323.10176299038' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1323.10176299038' y1='283.5' x2='1323.10176299038' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1146.5105166358223' y1='285.0' x2='1146.5105166358223' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1146.5105166358223' y1='285.0' x2='1146.5105166358223' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1333.4894833641777' y1='285.0' x2='1333.4894833641777' y2='290.0' stroke='#000' stroke-width='3.2'/>
+<line x1='1333.4894833641777' y1='285.0' x2='1333.4894833641777' y2='290.0' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1136.1227962620248' y1='283.5' x2='1136.1227962620248' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1136.1227962620248' y1='283.5' x2='1136.1227962620248' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<line x1='1343.8772037379752' y1='283.5' x2='1343.8772037379752' y2='291.5' stroke='#000' stroke-width='3.2'/>
+<line x1='1343.8772037379752' y1='283.5' x2='1343.8772037379752' y2='291.5' stroke='#FFFFFF' stroke-width='1'/>
+<circle cx='1240.0' cy='287.5' r='1.5' fill='#FFFFFF'/>
+<text x='1240.0' y='385' fill='#C8C8D0' font-size='11.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>BINOCULARS</text>
+<text x='1456' y='290' fill='#808088' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>5×</text>
+<text x='1456' y='308' fill='#FFD700' font-size='14' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>7×</text>
+<text x='1456' y='326' fill='#808088' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>10×</text>
+<rect x='1014' y='162' width='452' height='251' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='1463' y='159' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — the binoculars' HUD (panel 1)</text>
+<polygon points='1168.0,280.5 1175.0,287.5 1168.0,294.5' fill='#F2C033'/>
+<polygon points='1168.0,280.5 1168.0,294.5 1161.0,287.5' fill='#F2C033'/>
+<circle cx='1168.0' cy='287.5' r='1.6' fill='#000'/>
+<text x='1180.0' y='283.5' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>TARGET</text>
+<polygon points='1237.0,275.5 1237.0,283.5 1230.0,279.5' fill='#F2C033'/>
+<text x='1241.0' y='283.5' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>2°</text>
+<text x='1180.0' y='297.5' fill='#F2C033' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>1 238 m</text>
+<text x='1180.0' y='311.5' fill='#A0A0AA' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' stroke='#000' stroke-width='2.2' stroke-opacity='0.6' paint-order='stroke' opacity='1' xml:space='preserve'>from LASER RANGEFINDER (linked)</text>
+<rect x='1094.0' y='166' width='292' height='38' fill='#000' rx='0' opacity='0.43'/>
+<line x1='1112.6153846153845' y1='170' x2='1112.6153846153845' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='1112.6153846153845' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NW</text>
+<line x1='1133.8461538461538' y1='170' x2='1133.8461538461538' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1155.076923076923' y1='170' x2='1155.076923076923' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1176.3076923076924' y1='170' x2='1176.3076923076924' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1197.5384615384614' y1='170' x2='1197.5384615384614' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1218.7692307692307' y1='170' x2='1218.7692307692307' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1240.0' y1='170' x2='1240.0' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='1240.0' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>N</text>
+<line x1='1261.2307692307693' y1='170' x2='1261.2307692307693' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1282.4615384615386' y1='170' x2='1282.4615384615386' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1303.6923076923076' y1='170' x2='1303.6923076923076' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1324.923076923077' y1='170' x2='1324.923076923077' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1346.1538461538462' y1='170' x2='1346.1538461538462' y2='176' stroke='#CCCCCC' stroke-width='1'/>
+<line x1='1367.3846153846155' y1='170' x2='1367.3846153846155' y2='180' stroke='#CCCCCC' stroke-width='1'/>
+<text x='1367.3846153846155' y='191' fill='#CCCCCC' font-size='9' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>NE</text>
+<rect x='1225.0' y='206' width='30' height='14' fill='#000' rx='0' opacity='0.6'/>
+<text x='1240.0' y='217' fill='#8F7F10' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='middle' font-weight='normal' xml:space='preserve'>012</text>
+<rect x='1094.0' y='166' width='292' height='54' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='1383.0' y='163' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — compass</text>
+<rect x='1018' y='371' width='112' height='38' fill='#000' rx='0' opacity='0.6'/>
+<rect x='1024' y='377' width='70' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='1024' y='388' width='84' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='1024' y='399' width='56' height='4' fill='#8A8A96' rx='0' opacity='0.7'/>
+<rect x='1018' y='371' width='112' height='38' fill='none' rx='0' stroke='#8A8A96' stroke-width='1' stroke-dasharray='4 3' opacity='1'/>
+<text x='1127' y='368' fill='#8A8A96' font-size='9.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='end' font-weight='normal' xml:space='preserve'>unchanged — unit lines</text>
+<text x='1010' y='433' fill='#5BD06A' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>SPECIFIES</text>
+<text x='1076' y='433' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the amber diamond ON the received point (where the sender's laser met) ·</text>
+<text x='1076' y='446.5' fill='#C8C8D0' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the same three lines beside it</text>
+<text x='1010' y='462.0' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='bold' xml:space='preserve'>CONTEXT</text>
+<text x='1076' y='462.0' fill='#8A8A96' font-size='11' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>the binoculars' HUD (panel 1) · compass · unit lines · the scene (the tank)</text>
+<text x='1010' y='479.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>Judged by dv-linked-target: the binoculars' memory holds the point (within 2 m of the</text>
+<text x='1010' y='492.5' fill='#8A8A96' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>tank) and the hud row reads the sender line.</text>
+<text x='1010' y='507.5' fill='#F2C033' font-size='10.5' font-family='Roboto, Segoe UI, Arial, sans-serif' text-anchor='start' font-weight='normal' xml:space='preserve'>PROPOSAL: the text right of the diamond, 12 px out.</text>
+</svg>

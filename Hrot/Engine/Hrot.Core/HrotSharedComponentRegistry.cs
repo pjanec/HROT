@@ -272,6 +272,9 @@ public static class HrotSharedComponentRegistry
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.ControlledEntities>();   // ⭐ SD-S2c (D-147) — what a device commands (authored; ControlledBy indexes it)
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.RemoteControl>();        // ⭐ SD-S2c (D-104) — the ground station's command on itself
         world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceView>();           // ⭐ SD-S2c (D-109) — the entity a view bound to the device films through
+
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceLinks>();     // ⭐ SD-S5b — the devices a device sends to (scenario-authored)
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Devices.DeviceInbox>();     // ⭐ SD-S5b — the newest two messages addressed to a device
         world.RegisterComponent<Fdp.Toolkit.Combat.WeaponSystemState>();
         // ⭐ CE-3456 (found by ua-moto-parked-bomb) — an ARMED charge's timer (CE-4621 MV-9): armed on the brain's node, ticked by the ChargeSystem
         //   every node runs. ⛔ Only the weapon translator's produced list named it and nothing registered it: ChargeTimers.Arm refused in

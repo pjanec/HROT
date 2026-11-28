@@ -19,6 +19,9 @@ namespace Fdp.Toolkit.Behavior.Devices
         public long DeviceType;
         /// <summary>The behaviour the device runs (its logic) — a registered behaviour name.</summary>
         public FixedString64 Behavior;
+        /// <summary>⭐ D-171 — where its optic sits above its own base (the type's <c>DeviceDefDto.OpticOffsetX/Y/Z</c>, device frame) — read by
+        /// <c>DevicePoses.TryWorld</c> for a device that is NOT carried by a person (a carried one is used at his eye, D-170). Written once, at creation.</summary>
+        public System.Numerics.Vector3 OpticOffset;
     }
 
     /// <summary>⭐ The ONE device test.</summary>

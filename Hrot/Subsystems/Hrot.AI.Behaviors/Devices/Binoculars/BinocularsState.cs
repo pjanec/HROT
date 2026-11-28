@@ -20,6 +20,14 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
         public byte Ready;
         /// <summary>The press counters last seen (R7-11 — the one tracker every device keeps).</summary>
         public DevicePressTracker Presses;
+        /// <summary>⭐ SD-S5b (D-119) — 1 once a target was received (a <c>TargetLocation</c> from a device that addressed it); the HUD draws its cue.</summary>
+        public byte HasTarget;
+        /// <summary>⭐ SD-S5b — the last received target (copied from the device's inbox by its own logic).</summary>
+        public Contracts.TargetLocation Target;
+        /// <summary>⭐ SD-S5b — who sent it (its network id — the same on every node).</summary>
+        public Fdp.Toolkit.Replication.EntityRef TargetFrom;
+        /// <summary>⭐ SD-S5b (R3-10) — the last applied message seq per sender.</summary>
+        public DeviceMessageTracker Messages;
     }
 
     /// <summary>

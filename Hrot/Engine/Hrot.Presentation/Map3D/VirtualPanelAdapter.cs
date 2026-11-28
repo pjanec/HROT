@@ -96,7 +96,8 @@ namespace Hrot.UI.Common.Map3D
             var type = DeviceTypes.Of(w, bound);
             _type = TypeKeysOf(w, bound, type);
             _deviceKeys.Inner = _type?.Reader;
-            bool lookOwned = binding.LookOwnedElsewhere(bound), primary = binding.VirtualIsPrimary(bound), latchLocked = binding.LatchingOwnedElsewhere(bound);
+            // ⭐ SD-S5b (D-120 / D-126) — a STACKED device's look is its ROOT's: a tracker on the root owns it, whichever device the view is bound to
+            bool lookOwned = binding.LookOwnedElsewhere(DeviceStacks.Root(w, bound)), primary = binding.VirtualIsPrimary(bound), latchLocked = binding.LatchingOwnedElsewhere(bound);
 
             // LOOK while RMB is held (⛔ not when a tracker owns the look), else POINT with the cursor free
             var look = Vector2.Zero;

@@ -151,7 +151,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private static TkbTemplate DeviceType(string behavior)
         {
             var t = new TkbTemplate("Test device", 640);
-            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = behavior, Elements = { Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE") } });
+            t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.DeviceDefDto { Behavior = behavior, OpticOffsetX = 0.1f, OpticOffsetZ = 1.3f, Elements = { Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("RANGE"), Fdp.Toolkit.Tkb.Domain.DeviceElementDto.Button("MODE") } });
             t.AddDescriptor(new Fdp.Toolkit.Tkb.Domain.BehaviorProfileDto
             {
                 SimTier = BehaviorConstants.SimTierTactical, BrainTier = BehaviorConstants.BrainTierBTree, CanMove = true, CanShoot = true,
@@ -186,6 +186,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var info = r.W.GetComponentRO<DeviceInfo>(d);
             Assert.Equal(640, info.DeviceType);
             Assert.Equal("DeviceRun", info.Behavior.ToString());
+            Assert.Equal(new System.Numerics.Vector3(0.1f, 0f, 1.3f), info.OpticOffset);   // ⭐ D-171 — the type's optic, copied once at creation
             Assert.Equal(BehaviorConstants.BrainTierBTree, r.W.GetComponentRO<BehaviorState>(d).BrainTier);
             // ⛔ R7-4 — not a unit: no force, no capabilities, no ROE, no channels, no mission queue — and no default start queued
             Assert.False(r.W.HasComponent<EntityInfo>(d));

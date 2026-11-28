@@ -18,6 +18,7 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
     /// <para>Each tick: ① the PRESSES (the one reader, <see cref="DevicePressReader"/> — re-based on a new operator epoch, R7-11); ② ZOOM IN / OUT step
     /// the zoom (clamped); ③ its own <see cref="DevicePose"/>: it points where its operator looks (the frame's orientation, R5-13) and a view bound to it
     /// shows the step's field of view (<see cref="BinocularsZoom.FovDegrees"/>) — written on change (<see cref="DeviceLooks.Follow"/>).</para>
+    /// <para>⭐ SD-S5b (D-119): ④ a target a linked device SENT (its inbox) is copied into its memory — the HUD's slew cue.</para>
     /// <para>⭐ The parallel rule: it writes ONLY its own entity. ⭐ Pause (R-4300): a press still steps the zoom — the device's own state. 0 B per tick.
     /// ⚠ What it does NOT do: raise the held binoculars — that is the BODY's brain (<c>OperatorControlBehavior</c>, D-63), reading the frame's
     /// <c>Viewed</c>; the device never writes its carrier.</para>
@@ -69,6 +70,10 @@ namespace Hrot.AI.Behaviors.Devices.Binoculars
             int top = BinocularsZoom.Steps.Length - 1;
             int zoom = st.Zoom + moved[BinocularsChannels.ZoomIn] - moved[BinocularsChannels.ZoomOut];
             st.Zoom = (byte)Math.Clamp(zoom, 0, top);
+            // ⭐⭐ SD-S5b (D-119) — a TARGET from a linked device: the newest message of its inbox (filed by the device tick's ingest, one tick after the send) copied
+            //   into its own memory — the HUD draws the slew cue from it. Self only; a repeat (the same sender's seq) is dropped (R3-10).
+            while (DeviceMessages.TryTake(world, self, Contracts.TargetLocation.Kind, ref st.Messages, out Contracts.TargetLocation target, out var from))
+            { st.Target = target; st.TargetFrom = from; st.HasTarget = 1; }
             DeviceLooks.Follow(world, self, BinocularsZoom.FovDegrees(st.Zoom));
             return NodeStatus.Running;
         }

@@ -1,0 +1,179 @@
+{
+  "$meta": {
+    "docType": "Hrot.Scenario",
+    "schemaVersion": 1
+  },
+  "header": {
+    "subsystemType": "Hrot.Scenario",
+    "schemaVersion": "1.0",
+    "terrainName": "berlin",
+    "description": "What: Simulated devices SD-S5b (§5a, D-119). The Observer carries a laser rangefinder (kit 1) LINKED to the binoculars A (kit 2 - paired back to it), and binoculars B (kit 3) that no link names. A scripted trainee possesses him, ranges a marker 450 m away through the rangefinder, presses its SEND chip, then binds his view to the binoculars A. Judge: (1) before SEND the binoculars A hold no target; (2) one tick after SEND they hold the marker's point (within 2 m), its range (~450 m), the sender's TKB type and the sender's name, as the rangefinder measured it; (3) their HUD shows the received-target cue - TARGET, and the sender line 'from LASER RANGEFINDER (linked)'; (4) the binoculars B - not addressed - never receive anything. Fail: the point lost or wrong, a cue that is not drawn, or a message that reaches a device nobody addressed. Check: scripts/scenario-regression.sh dv-linked-target"
+  },
+  "entities": {
+    "d5e10007-0000-4000-8000-000000000001": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Observer",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      },
+      "PassengerBuffer": {
+        "Count": 3,
+        "Passengers": [
+          "d5e10007-0000-4000-8000-000000000010",
+          "d5e10007-0000-4000-8000-000000000011",
+          "d5e10007-0000-4000-8000-000000000012"
+        ],
+        "Seats": [
+          4,
+          5,
+          6
+        ]
+      }
+    },
+    "d5e10007-0000-4000-8000-000000000010": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 640
+      },
+      "EntityInfo": {
+        "Name": "Rangefinder",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10007-0000-4000-8000-000000000001",
+        "Seat": 4
+      },
+      "DeviceLinks": {
+        "Peer0": "d5e10007-0000-4000-8000-000000000011"
+      }
+    },
+    "d5e10007-0000-4000-8000-000000000011": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 641
+      },
+      "EntityInfo": {
+        "Name": "Binoculars A",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10007-0000-4000-8000-000000000001",
+        "Seat": 5
+      },
+      "DeviceLinks": {
+        "Peer0": "d5e10007-0000-4000-8000-000000000010"
+      }
+    },
+    "d5e10007-0000-4000-8000-000000000012": {
+      "SimTransform": {
+        "Position": [
+          -450,
+          -300,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "TkbIdentity": {
+        "TkbType": 641
+      },
+      "EntityInfo": {
+        "Name": "Binoculars B",
+        "ForceId": "Friend"
+      },
+      "IsEmbarkedTag": {
+        "Vehicle": "d5e10007-0000-4000-8000-000000000001",
+        "Seat": 6
+      }
+    },
+    "d5e10007-0000-4000-8000-000000000002": {
+      "SimTransform": {
+        "Position": [
+          -131.8,
+          18.19999999999999,
+          0
+        ],
+        "Rotation": [
+          0,
+          0,
+          0,
+          1
+        ]
+      },
+      "Health": {
+        "Current": 100,
+        "Max": 100
+      },
+      "TkbIdentity": {
+        "TkbType": 2002
+      },
+      "EntityInfo": {
+        "Name": "Marker 450",
+        "ForceId": "Friend"
+      },
+      "TargetMemory": {
+        "Entries": []
+      },
+      "Sop": {
+        "Name": "InertSop",
+        "Params": {},
+        "Origin": "Superior"
+      }
+    }
+  }
+}
