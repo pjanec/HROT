@@ -20,8 +20,8 @@ namespace Hrot.Presentation.Tests.Map3D;
 /// nowhere · nothing under thermal · a hazy evening's beam brighter than a clear one's · a Preview spot drawn · an emitter that is off draws nothing.
 /// ⛔ SKIPS without a display: <c>xvfb-run -a dotnet test … --filter FullyQualifiedName~LaserBeamFrameRail</c>; <c>HROT_RAIL_SHOTS=&lt;dir&gt;</c> keeps the frames
 /// (<c>laser-*.png</c>, never in git).
-/// 🔴 Red-proof (compiles): <see cref="LaserLayer3D.ColourOf"/> without <c>ctx.Emissive</c> for a non-visible band (drawn white to every view) ⇒
-/// <see cref="D159_TheEye_SeesOnlyBand0"/> is red (band 3 adds light to the eye).
+/// 🔴 Red-proof (run): <see cref="LaserVisibility.Table"/> giving the designator 1 under night vision (not 0.25) ⇒
+/// <see cref="D159_NightVision_SeesBands0And3Bright_Band2Faint_Band1Not"/> and <c>LaserLayer3DTests.D159_TheDesignator_IsFaintUnderNightVision</c> are red.
 /// </summary>
 [Collection(Map3DFrameRail.Serial)]
 public sealed class LaserBeamFrameRail
