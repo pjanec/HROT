@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
-updated: 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
+updated: 2026-11-28 (§3.13c SD-S2: the gamepad as keymap value sources, one DroneBattery, the GCS device flying the drone through RemoteControl, the failsafe, one DeviceView rule) · 2026-11-28 (§3.13b SD-S4 + SD-S4b READY-TO-BUILD: the launcher sight unit, its procedure, the seq-echo launch, MCLOS, the missile's view) · 2026-11-28 (S1e AS BUILT in §5a — the device TKB type, the scripted-trainee grammar, the six SD-S1 scenarios: 6 / 6 pass, dv-replay-hud's H5 review SAME) · 2026-11-28 (S1d-3 AS BUILT in §3.6 / §3.10 — the binoculars device, CE-1219 dropped, the view source and its one FOV rule; Q-5 lean) · 2026-11-27 (waits for DESIGN_Capability_Components — built first, user) · 2026-11-27 (rev 14 consolidated — §3bb's sixth review folded in and the live design restated as ONE current part, §1–§9; no decision changed) · rev 1 … rev 14's own update lines, tables and diagrams are kept verbatim in `## ⛔ HISTORY — the decision record`
 build-state: READY-TO-BUILD (user, `2026-11-27`: "yes, go ahead autonomously" — after the capability cleanup, §3.14; SD-S1 is built as S1a … S1e, §5)
-current-answer: ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
+current-answer: ⭐ §3.13c (SD-S2 READY-TO-BUILD — the gamepad, the drone ground station) · ⭐ §3.13b (SD-S4 + SD-S4b READY-TO-BUILD — the launcher sight unit, the guided flight) · ⭐ §3.14 (what the capability cleanup already built) · ⭐ §3.13 (fire control, D-76–D-79) · ⭐ §2 (the diagrams) · ⭐ §3 (the design by area, §3.1–§3.12) · §4 (rejected) · §5 / §5a (slices, scenarios) · §6 (rules) · §9 (open questions, incl. the unresolved items)
 stale-below: `## ⛔ HISTORY — the decision record` (every amendment round — §3's SD-1…SD-12, §3a … §3bb — the rev 13 diagrams, slices and scenarios) and `## ⛔ HISTORY — rev 1's diagrams and slices`: superseded by §1–§9, never quoted as current
 known-rot: `ValueBinding` (D-17 / D-23, §3.6) is kept as an option and is in no slice (no device needs it yet) · `BeginScope` / `EndScope` (§3.6) may change shape after R7-13's measurement (before SD-S1's ui half)
 known-conflict: ../../DESIGN_Player_HUD_And_Debrief.md §1 (every HUD element a `hud.*` feature in ONE overlay) — reconciled by R3-7 (§3.6: the station's view filter applies the `hud.*` features to non-device sources; a device's own HUD is not feature-gated); open until SD-S7 moves the overlay's parts into projectors
@@ -695,7 +695,7 @@ the missile in flight) and back from the shooter"* ⇒ Q-14 answered (D-80 then 
 | D-86 | *(refined by D-95, §3.13b)* ⭐ **the round carries its device**: at launch `FireProcessingSystem` stores the resolved device on the round, in `GuidedRound` (a new field — no recording compatibility is kept, R-4301); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), the `Manual` branch turns by `FireControl.Steer` (D-81) | the muscle owns the round; the device writes only itself (D-82) |
 | D-87 | ⭐⭐ **`FireControl` grows the two guidance outputs and the view request** — `AimPoint` (D-80), `Steer` (2 axes, D-81), **`ViewFromRound`** (a byte, toggled by the device's VIEW press) — all written by the device on ITSELF, replicated | one component for what the device asks of its weapon; the toggle is device state, so it works in pause and replays |
 | D-88 | ⭐⭐ **the muscle writes `GuidedFlight { Round (network id), LaunchSeq, Live }` ON THE DEVICE** at launch and clears `Live` when the round ends — the same shape as `LaserSpot` (muscle-written on the device, LS-14) | the only node that knows the round tells the device's watchers which entity to follow; replicated, so every station resolves it by network id |
-| D-89 | ⭐⭐ **the station's view follows the round**: a view bound to a device whose `FireControl.ViewFromRound` is set and whose `GuidedFlight.Live` round resolves on this node puts the 3-D camera on the round — the existing `FollowCameraDriver` on the round entity, at the chase pose behind it looking along its flight (`CameraSuggestion` `Follow` / `Chase`); toggled off, or the round's end (`Lost`), gives the camera back to the shooter's view. ⛔ No new camera rig | one follow camera (ruling 9); the view stays bound to the DEVICE, so its HUD stays drawn over the missile's picture |
+| D-89 *(refined by D-109, §3.13c: the station reads `DeviceView`)* | ⭐⭐ **the station's view follows the round**: a view bound to a device whose `FireControl.ViewFromRound` is set and whose `GuidedFlight.Live` round resolves on this node puts the 3-D camera on the round — the existing `FollowCameraDriver` on the round entity, at the chase pose behind it looking along its flight (`CameraSuggestion` `Follow` / `Chase`); toggled off, or the round's end (`Lost`), gives the camera back to the shooter's view. ⛔ No new camera rig | one follow camera (ruling 9); the view stays bound to the DEVICE, so its HUD stays drawn over the missile's picture |
 | D-90 | ⭐ **what the stick steers in the missile's view**: crosshair mode (D-80) — the stick still moves the SHOOTER's crosshair (the missile's view is a watch; the HUD shows the crosshair's offset); manual mode (D-81) — the stick turns the missile, the natural TV-guided picture. Both from one press handling in the device | the guidance law decides, not the camera |
 | D-91 | ⭐ **pause**: the toggle works in pause (observation, R6-4) — the camera can jump to the frozen round and back; steering stays frozen (D-83) | R-4300 |
 
@@ -833,6 +833,127 @@ no event; and the station never asks anyone for the round — the muscle's `Guid
 `dv-steer-in-flight` (the Command branch with the device's line, D-80/D-96). **SD-S4b** = `GuidanceKind.Manual` + the Malyutka missile and
 launcher (D-97), the missile's view (D-87–D-91, panel 10, the MCLOS HUD panel 11), the other four `dv-steer-*`.
 
+#### 3.13c SD-S2 — READY-TO-BUILD (mockups pending): the gamepad and the drone ground station *(user, `2026-11-28`: "yes, design the gamepad and drone slice next")*
+
+**INVENTORY** (`2026-11-28`): `search_graph name_pattern=.*(Drone|Uav|Gamepad|Joystick|Battery|Signal|GroundStation).*` `label=Class` (45 — drone:
+`DroneImpactSystem`, `DroneJamming`, `DroneOperatorBehavior`, `DroneReconBehavior`, `DroneTeamBehavior`, `DroneTargets`; no gamepad, no battery
+component, no link) · grep `IsGamepadAvailable|GetGamepadAxisMovement|Gamepad` over `*.cs` (0 callers — FontAwesome icon names only) · grep
+`IInputProvider` (1 production implementation, `RaylibInputProvider`, 7 test fakes) · grep `EnduranceSeconds` (a `FlightParamsDto` field, read as a
+TIMER by `DroneReconBehavior.cs:77` and `AirAttackBehaviors.cs:696`). Coverage could not be checked (no `check_index_coverage` in the CLI).
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| held inputs are keymap rows READ each frame — `Hold` and `Axis` (a key adds its `Scale`, a mouse value is multiplied by it) | ✅ `Keymap.cs:27-41`, `KeymapReader.cs:65-70, :131, :197` (`EditorKey.MouseWheel / MouseDeltaX …` are VALUE sources) | ✅ `DESIGN_Input_And_Commands.md` §6g (K4), Q4 |
+| the input seam is `IInputProvider` — keys, mouse; no gamepad | ✅ `IInputProvider.cs`; `RaylibInputProvider.cs` | D-38 / SD-5 (*"gamepad (SD-S2 — Raylib-cs 7.0.2 exposes it, HROT calls none yet)"*) |
+| a drone is already flown by hand: possession → `OperatorControl` → `ManualDrive` (+ a vertical axis) → the muscle's `RotorcraftModel` | ✅ `DESIGN_Motion_Domains.md` row "commands Brain → Muscle" (`ManualDrive.cs`) | ✅ `DESIGN_FPV_Drone.md` related (*"autonomous AND manual (FPS possession)"*) |
+| a drone's BATTERY is no state — each AI behaviour times its own endurance from its start | ✅ `DroneReconBehavior.cs:22, :77` (`StartedAt`), `AirAttackBehaviors.cs:696` | ⛔ `DESIGN_FPV_Drone.md` §5c *"its battery's end … ⇒ down where it is"* — a behaviour rule, no component |
+| jamming is a frame-built index any brain may READ in the parallel phase | ✅ `DroneJamming.Jammed` (`DroneJamming.cs`, `BrainPhase.PrepareToolkitFrame`) | ✅ `DESIGN_FPV_Drone.md` §5a |
+| a device that drives ANOTHER entity writes a control component on itself; that entity's own brain reads it | ✅ the pattern of §3.13 / §3.13b (`FireControl` ← the weapon's controller) | ✅ D-76, D-77 |
+| the proven solution for a ground control station (GCS) | — | a GCS sends stick and MODE commands (manual, take-off, hover, land, return-home) over a radio link; the airframe flies its own autopilot modes and enters a FAILSAFE on link loss (hover, then return-home or land); the operator sees the camera, battery, link quality, altitude, distance home on an OSD. ⭐ adopted: the mode set, the failsafe, the OSD content; ⛔ rejected: radio propagation physics (no training need named — range and jamming only) |
+
+##### The classes
+
+```mermaid
+classDiagram
+  class IInputProvider { <<existing, grows>> + GamepadAvailable · GamepadAxis(i) · GamepadButtonDown(b) — default no pad }
+  class RaylibInputProvider { <<existing, grows>> pad 0 via Raylib }
+  class EditorKey { <<existing enum, grows>> + PadLeftX · PadLeftY · PadRightX · PadRightY · PadTriggerL · PadTriggerR · PadA … PadDpad* }
+  class KeymapReader { <<existing, grows>> pad values as value sources · ONE deadzone }
+  class DeviceKeys { <<NEW rows, device scope>> pad sticks → DeviceControl.Axes 0-3 · face buttons → channels 0-5 }
+  class FpsKeys { <<existing rows, grow>> pad left stick move · right stick look · triggers aim / fire }
+  class RemoteControl { <<NEW, unmanaged, replicated, on the GCS device, device-written>> Vehicle EntityRef · Mode · Forward · Lateral · Yaw · Vertical · CameraPitch · Seq }
+  class RemoteControls { <<NEW, serial pre-pass index>> ControllerOf(drone) }
+  class DroneLink { <<NEW, unmanaged, replicated, on the drone, drone-written>> Quality · Jammed · Lost }
+  class DroneBattery { <<NEW, unmanaged, replicated, recorded, on the drone>> Remaining01 }
+  class DroneBatterySystem { <<NEW, brain, WhenTimeAdvances>> drains an airborne drone by dt ÷ EnduranceSeconds }
+  class RemotePilotBehavior { <<NEW, the drone's brain>> link ok: the mode (Manual sticks → ManualDrive, TakeOff, Hover, Land, ReturnHome) · link lost: FAILSAFE · battery out: down where it is }
+  class ManualFlight { <<NEW, shared>> FromAxes(forward, lateral, yaw, vertical) → ManualDrive — OperatorControl and RemotePilot }
+  class DroneStationBehavior { <<NEW device, Hrot.AI.Behaviors/Devices/DroneStation>> POWER · ARM · TAKEOFF · LAND · RTH · CAM UP/DOWN }
+  class DroneStationHudGizmo { <<NEW, HUD family>> the OSD — panels 12-15 }
+  class DeviceView { <<NEW, unmanaged, replicated, on the device, device-written>> Entity network id · Mode Eyes or Chase · Pitch }
+  class PossessionStation { <<existing, grows>> a view bound to a device with DeviceView.Entity follows it }
+  KeymapReader ..> IInputProvider
+  DeviceKeys ..> KeymapReader
+  DroneStationBehavior --> RemoteControl : self only
+  DroneStationBehavior --> DeviceView : self only — the drone, Eyes, the gimbal
+  DroneStationBehavior ..> DroneLink : reads (OSD state)
+  RemoteControls ..> RemoteControl : built in the serial pre-pass
+  RemotePilotBehavior ..> RemoteControls : who controls me
+  RemotePilotBehavior ..> RemoteControl : reads, tick-start view
+  RemotePilotBehavior --> DroneLink : self only
+  RemotePilotBehavior ..> DroneBattery : reads
+  RemotePilotBehavior ..> ManualFlight
+  DroneBatterySystem --> DroneBattery
+  DroneStationHudGizmo ..> DroneLink
+  DroneStationHudGizmo ..> DroneBattery
+  PossessionStation ..> DeviceView
+```
+
+*What the picture shows that prose hid: the GCS writes two components on ITSELF (the command and the view); the drone writes its own link; the battery has
+ONE writer. The pairing lives once, on the device (`RemoteControl.Vehicle`), and the drone finds its controller through an index built in the serial
+pre-pass — never a write across entities. The same `DeviceView` serves the missile's view (§3.13b) and the drone's camera.*
+
+##### The sequence — take off, fly, lose the link
+
+```mermaid
+sequenceDiagram
+  participant G as gamepad (station)
+  participant S as PossessionStation (view bound to the GCS)
+  participant D as DroneStationBehavior (GCS device)
+  participant P as RemotePilotBehavior (the drone's brain)
+  participant M as RotorcraftModel (muscle)
+  G->>S: A pressed · sticks (keymap rows, deadzone)
+  S->>D: DeviceFrameEvent (channels, Axes 0-3)
+  D->>D: POWER, ARM, TAKEOFF ⇒ RemoteControl.Mode = TakeOff, Seq+1 · DeviceView = the drone (Eyes, pitch)
+  P->>P: pre-pass index: my controller · link = range and jamming ⇒ DroneLink (self)
+  P->>P: link ok: TakeOff ⇒ climb to the hover height, then Manual
+  P->>M: ManualDrive from the sticks (ManualFlight, shared with OperatorControl)
+  S->>S: DeviceView.Entity ⇒ the camera rides the drone (FollowCameraDriver, Eyes, gimbal pitch)
+  Note over P: an enemy jammer's bubble ⇒ DroneLink.Jammed, Lost
+  P->>P: FAILSAFE: hover FailsafeSeconds, then ReturnHome, then Land · sticks ignored while lost
+  D->>D: reads DroneLink ⇒ the OSD shows LINK LOST
+  Note over P,M: paused: nothing moves, the battery does not drain (WhenTimeAdvances) — the GCS menus still answer
+```
+
+*What the picture shows that prose hid: the sticks never touch the drone directly — they are the GCS's own state, read by the drone's brain a tick later,
+so the link can GATE them in one place (the drone), and a cluster needs no new path: `RemoteControl` replicates like any device component.*
+
+##### Decisions
+
+| # | decision | why |
+|---|---|---|
+| D-102 | ⭐⭐ **the gamepad is VALUE SOURCES of the keymap, not a new input path**: `EditorKey` grows the pad's sticks, triggers and buttons; `IInputProvider` grows `GamepadAvailable / GamepadAxis / GamepadButtonDown` with default "no pad" bodies (every test fake keeps compiling); `RaylibInputProvider` reads pad 0; `KeymapReader` applies ONE deadzone (0.15) to every pad axis. Bindings are rows — rebindable and shown with the rest | §6g's Hold / Axis model, one reader (ruling 9); the scenarios never need a pad (`do: control axis`) |
+| D-103 | ⭐ **default rows**: device scope — left stick → `Axes 0/1`, right stick → `Axes 2/3`, A B X Y LB RB → channels 0–5 of the focused view's device; FPS scope — left stick move, right stick look, LT aim, RT fire, A jump/use as the keys' rows. ⭐ The GCS maps its axes Mode 2 (left: vertical + yaw, right: forward + lateral) in its own behaviour | one mapping for every device (channel by index — the TKB names them); the man is drivable by pad too, for free |
+| D-104 | ⭐⭐ **the drone is flown THROUGH the GCS device, not possessed**: the GCS writes `RemoteControl { Vehicle, Mode, sticks, CameraPitch, Seq }` on itself; the drone's brain runs `RemotePilot`, which reads it (tick-start view) and drives its own `ManualDrive` / autopilot. ⛔ rejected: a second possession row on the drone — a station has ONE body (`StationBody`), and frames to a non-body entity would need their own epoch and release rules | the §3.13 pattern (D-76/77): the device commands, the driven entity's own brain acts; the link gates in ONE place |
+| D-105 | ⭐ **pairing is authored once, on the device** (`RemoteControl.Vehicle`, set by the scenario or the type's preset); `RemoteControls.ControllerOf(drone)` is an index rebuilt in the brains' serial pre-pass (`BrainPhase.PrepareToolkitFrame`, beside `DroneJamming`) | R-4212: no lazy index mid-phase, no cross-entity write |
+| D-106 | ⭐⭐ **`DroneLink`** — written by the drone's brain on itself each tick: `Quality` = 1 inside the type's link range from its controller device's world pose, falling to 0 over the last 20 %; `Jammed` = `DroneJamming.Jammed`; `Lost` = quality 0 or jammed or no controller. A new `RemoteLinkDto { RangeM, FailsafeSeconds }` on the drone types (recon 407 — 5 km, FPV and bomber — 3 km; FailsafeSeconds 5) | the proven range + jamming model; terrain masking left out (a line in §4 when a need is named) |
+| D-107 | ⭐⭐ **the failsafe** — link lost: hover `FailsafeSeconds`, then return home (the launch point) and land; sticks ignored while lost; the link back ⇒ the GCS's mode again. Battery out ⇒ down where it is (the existing rule) | the proven GCS failsafe; the jammer now has a TRAINING effect on a trainee's drone |
+| D-108 | ⭐⭐ **`DroneBattery` — ONE battery state** on every drone, drained by `DroneBatterySystem` (brain, `WhenTimeAdvances` ⇒ frozen in pause — 🔒 user `2026-11-27`: *"drone battery must freeze"*) while the drone is airborne, `dt ÷ EnduranceSeconds`. ⭐ The AI's two timers (`DroneReconBehavior.cs:77`, `AirAttackBehaviors.cs:696`) READ it instead ⇒ one rule (ruling 9). ⚠ blast radius: those AI drones now drain only while airborne (they drained from their order's start) — the drone scenarios' goldens may move; the recon / bomber / FPV rails are the gate | one owner per state |
+| D-109 | ⭐⭐ **`DeviceView { Entity, Mode, Pitch }` — ONE "a view follows an entity" rule**: a view bound to a device whose `DeviceView.Entity` resolves on this node puts the camera on it (`FollowCameraDriver`, `Eyes` at the gimbal pitch for the drone; `Chase` for the missile); empty ⇒ the shooter's view. ⭐ REFINES D-89: the sight unit copies `GuidedFlight.Round` into its `DeviceView` while `ViewFromRound`; the station reads `DeviceView` only | one station rule for every device that films through something else |
+| D-110 | ⭐ **the GCS device** `DroneStation` (type data: channels `POWER · ARM · TAKEOFF · LAND · RTH · CAM UP · CAM DOWN`; a hand-held kit device, D-48) — modes OFF → LINKED (the drone answers) → ARMED → (TAKEOFF) FLYING ⇄ HOVER; LAND / RTH at any time; in pause the menus act, a mode press is queued for the first live frame (R-4300) | the proven GCS mode set, reduced |
+| D-111 | ⭐ **the OSD** (mockup panels 12 flying · 13 battery low · 14 LINK LOST + failsafe · 15 paused) — battery %, link bars, altitude AGL, speed, heading, distance home, the mode, the gimbal pitch, a centre mark; LINK LOST darkens the picture with the last-known frame's OSD | R-4138; drawn by `DroneStationHudGizmo` on the brain, the HUD family |
+
+##### Scenarios (R-4277) — replace §5a's `dv-drone-operator`
+
+| scenario | What | expect rows |
+|---|---|---|
+| `dv-drone-fly` | a trainee with a GCS paired to a recon drone: POWER, ARM, TAKEOFF; scripted sticks fly 200 m north; LAND | the drone's altitude > 8 m during the flight · it lands within 30 m of the goal (`still` + its position) · `memory` the GCS mode follows OFF → LINKED → ARMED → FLYING → LANDED · `field` `DroneBattery.Remaining01` falls |
+| `dv-drone-paused` | pause 120 frames in flight | `atPausedFrame` 10 / 100: the drone's position and `DroneBattery` unchanged · the GCS menu still answers |
+| `dv-drone-jammed` | fly into an enemy jammer's bubble | `field` `DroneLink.Jammed` · the drone hovers, then returns within 30 m of its launch point and lands · `hud` shows `LINK LOST` |
+| `dv-drone-battery-out` | a drone authored with 3 % battery | it comes down where it is · `hud` shows the battery warning |
+| `dv-drone-camera` | the view bound to the GCS | the camera suggestion is `Follow` bound to the drone · CAM DOWN tilts it (`DeviceView.Pitch` falls) |
+| `dv-ai-drones-unchanged` | the recon, bomber and FPV showcases as today | their own expect rows still pass (D-108's gate) |
+
+⭐ Rails (not scenarios): the pad's value sources and deadzone (`KeymapReaderTests`, a fake provider), the rows shown in the keymap view, 0 B per steady
+frame for the reader and `RemotePilot`, the parallel checks on `RemotePilot` and `DroneBatterySystem`.
+
+##### Slices
+
+**SD-S2a** the gamepad (D-102, D-103) — no simulation change. **SD-S2b** `DroneBattery` + `DroneBatterySystem` and the AI timers moved onto it
+(D-108) — alone, so the golden movement has one cause. **SD-S2c** `RemoteControl`, `RemoteControls`, `DroneLink`, `RemotePilot`, the
+`DroneStation` device, `DeviceView` (D-104–D-107, D-109, D-110). **SD-S2d** the OSD to mockup panels 12–15 (D-111) — ⚠ the mockups are drawn first
+(R-4143).
+
 ### 3.14 What the capability cleanup already built *(`2026-11-27`, docs/DESIGN_Capability_Components.md C0–C4)*
 
 🔒 User: *"once we feel that it's right and that it's easy to extend, then it's time to start implementing the whole device stuff"*. The cleanup
@@ -897,7 +1018,7 @@ ran FIRST; SD-S1's audit rows below are DONE in the engine and become plain uses
 | slice | builds | where judged |
 |---|---|---|
 | **SD-S1** the framework + the BINOCULARS and the RANGEFINDER (CE-1219's station binoculars dropped, `ViewedDevice` replaces `Binoculars`, D-75) | **backend**: `Mountable` (moved out of `WeaponSystemParams`) on every weapon type + `MountKinds.Device` + the kit stations `Kit1…4`; `IsMountable` as the item gate at every site of both `IsWeaponSystem` predicates and every item-meaning direct check; `Possessability` / `EmbarkOrders` refuse a `Mountable` (§3.2) · `Stations.OperatedBy` with the device operator rule; a carried binoculars device satisfies `HeldItems` (§3.3, R4-3) · the frame-apply routine extracted; `PossessionSystem` skips device targets and `Operated` rows · `DeviceInfo` + the unit-query classification (`Without<DeviceInfo>`) and its rail · the device TKB shape (R7-4) · **`DeviceTickSystem`** (walk, start / restart via the passed ingress, ingest, tick; `Simulation` after `BrainTickSystem`; off under `ReplayState`; `gateOnAuthority`) with `BrainTickSystem` excluding devices and ONE extracted **`BrainPhaseRunner`** (restart callback, no `Prepare`) (§3.5) · `PossessedBy Mode = Operated` by the walk; the readers classified — `PossessionSystem`, `EntityOrders`, `DriveHandOver`, `StationClaims` first; the body's side; the `Epoch` re-base (§3.3) · the control frame per operated entity (`Target`, `Axes4`, `PressSeq16`, `Orientation`, `Position`, `BodyOffset`, `ViewedDevice` replacing `Binoculars`, D-75) · `DevicePose` + `DevicePoses.World` · `LaserPointing` (with `Power`) / `LaserSpot` (`Entity`, `Preview`) + `LaserSpotSystem` (the spot only) · `DevicePanel` · the two device folders · the binoculars device pre-placed in the scenario's trainee kit; CE-1219's rails in the gates · the checks grammar (§5a). **ui**: the HUD mockup FIRST (R-4143) · **R7-13's measurement** (concurrent `PostSimulation` producers) before the scope code · `Screen` primitives in the 3-D card pass · views bound to sources · `HudScope` + `BeginScope` / `EndScope` on the `Fdp.Diagnostics.Contracts` buffer (protected, empty dropped, never refused at emit) · the bound-view-only helper + `FrameFor` filter + every meta skip list · the HUD family's exemptions · the projector keying (rule + visibility policy) · the renderer-filter rail (two views, one buffer) · the keymap device scope + the keyboard / mouse adapter · the station's binocular branch removed (its overlay → the binoculars' HUD projector) | the EDITOR configuration (D-9′) |
-| **SD-S2** the gamepad + the drone operator station | the gamepad adapter (`Raylib-cs`); the drone ground-station device (battery, signal, link from the drone's simulation) | editor |
+| **SD-S2** the gamepad + the drone ground station (READY-TO-BUILD — §3.13c; mockups 12–15 pending) | SD-S2a the gamepad as keymap value sources · SD-S2b one `DroneBattery` · SD-S2c the GCS device, `RemoteControl`, `DroneLink`, `RemotePilot` with its failsafe, `DeviceView` · SD-S2d the OSD | editor |
 | **SD-S3** the pilot station device + a digital target message | the pilot device's HUD; a structured target message between two devices | editor |
 | **SD-S4** the launcher sight unit (READY-TO-BUILD — §3.13b) | `FireControl` + `FireControls.Of` + `GuidedFlight` / `GuidedFlightSystem`; the `AtgmSight` device (procedure D-93, HUD panels 7–9) in a station of a NEW `TOW (tripod, sight unit)` type; the controller fires from the device (D-94); the launch is the device's by seq echo (D-95); the Command branch flies the device's guide line (D-96) | editor |
 | **SD-S4b** steer the round in flight + the missile's view (user, `2026-11-27`) | **crosshair first, then manual (Q-14 answered)**: `FireControls.Of` the one resolver (D-85); the round carries its device (D-86); `GuidedRoundSystem`'s command branch flies eye → `FireControl.AimPoint` (D-80), then `GuidanceKind.Manual` turns by `FireControl.Steer` (D-81); `FireControl.ViewFromRound` (D-87); the muscle's `GuidedFlight` on the device (D-88); the station's view follows the round with the existing `FollowCameraDriver` and gives it back (D-89, D-90); frozen guidance, live toggle in pause (D-83, D-91). ⚠ After SD-S4 (`FireControl`); a real joystick needs SD-S2's gamepad — the scenarios script the axes | editor |
@@ -934,7 +1055,7 @@ HUD ⇒ SD-S1 EXTENDS IT (DESIGN_Scenario_Regression §3, *"a cue the grammar ca
 | `dv-switch-devices` (S1) | two devices at one seat (the binoculars and the rangefinder); `do: view` re-binds the view | the `hud` for the view's source shows the second device's run after the re-bind, the first's before · a press reaches only the device its frame targets · the bound binoculars ⇒ the held item is raised (✅ S1d-3's `Viewed`; ⭐ as built it stays raised while the view shows ANY hand-held device — D-63 — and goes down at the eye) |
 | `dv-paused-operation` (S1) | `do: pause` 120 frames; `do` rows `atPausedFrame` 10 / 40 step the menu and range a marker | `atPausedFrame` rows: the device's `mode` / `menu` change while sim time is unchanged · the range is measured (a `Preview` spot) · ⛔ `never` (sampled every paused frame): any unit moves, any shot, any order taken during the pause |
 | `dv-replay-hud` (S1) | the paused run above, recorded FULL, then replayed (the H5 review check), judged on the WALL-CLOCK axis | the `hud` row at a paused frame gives the same text in replay as live — ⚠ as built (S1e): the H5 review shows the live world (the recorded state the HUD is drawn from — `DevicePanel` with its range text, `LaserSpot` with `Preview`, `DevicePose`, the device's memory) ✅; the HUD TEXT read in the review at a paused wall-clock frame ⏳ **CE-4713** |
-| `dv-drone-operator` (S2) | the trainee flies the drone out and back with the gamepad | `device battery` / `signal` equal the drone's simulation · the link lost ⇒ the lamp |
+| `dv-drone-operator` (S2) | ⛔ superseded by §3.13c's six `dv-drone-*` scenarios | — |
 | `dv-target-message` (S3) | trainee A sends a target message; the pilot station shows it | the pilot device's `hud` contains the message · its map point is A's spot |
 | `dv-operator-panel` (S4) | ⛔ superseded by §3.13b's `dv-sight-procedure` and `dv-ai-tow-unchanged` | — |
 | `dv-steer-in-flight` (S4b — ⭐ §3.13b moves it to S4; its rows there win) | a scripted trainee at a guided launcher's sight device fires at a tank CROSSING at a set speed; the crosshair starts on the tank's launch-time position and the `do: control axis` rows track the tank for the flight | `hit` on the tank by the trainee's launcher · its `Health` drops · ⛔ `never` a hit on the decoy truck parked on the launch-time line |
